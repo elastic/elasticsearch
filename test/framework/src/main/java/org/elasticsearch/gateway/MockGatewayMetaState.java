@@ -75,6 +75,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
         when(clusterService.getClusterSettings())
             .thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         start(settings, transportService, clusterService, new MetaStateService(nodeEnvironment, xContentRegistry),
-            null, null, new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry, BigArrays.NON_RECYCLING_INSTANCE));
+            null, null, new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry, BigArrays.NON_RECYCLING_INSTANCE), null);
     }
 }

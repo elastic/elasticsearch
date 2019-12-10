@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -86,6 +87,13 @@ public class DanglingIndicesState implements ClusterStateListener {
         }
     }
 
+    public void setInitialDanglingIndicesCandidates(List<IndexMetaData> initialDanglingIndices) {
+        if (danglingIndices.isEmpty() == false) {
+            throw new ElasticsearchException("unexpected dangling indices");
+        }
+        initialDanglingIndices.forEach(imd -> danglingIndices.put(imd.getIndex(), imd));
+    }
+
     boolean isAutoImportDanglingIndicesEnabled() {
         return this.isAutoImportDanglingIndicesEnabled;
     }
@@ -99,7 +107,7 @@ public class DanglingIndicesState implements ClusterStateListener {
             return;
         }
         cleanupAllocatedDangledIndices(metaData);
-        findNewAndAddDanglingIndices(metaData);
+        //findNewAndAddDanglingIndices(metaData);
         allocateDanglingIndices();
     }
 
@@ -115,6 +123,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      * Cleans dangling indices if they are already allocated on the provided meta data.
      */
     void cleanupAllocatedDangledIndices(MetaData metaData) {
+        final IndexGraveyard graveyard = metaData.indexGraveyard();
         for (Index index : danglingIndices.keySet()) {
             final IndexMetaData indexMetaData = metaData.index(index);
             if (indexMetaData != null && indexMetaData.getIndex().getName().equals(index.getName())) {
@@ -124,6 +133,12 @@ public class DanglingIndicesState implements ClusterStateListener {
                 } else {
                     logger.debug("[{}] no longer dangling (created), removing from dangling list", index);
                 }
+                danglingIndices.remove(index);
+            }
+            if (graveyard.containsIndex(index)) {
+                logger.warn("[{}] can not be imported as a dangling index, as an index with the same name and UUID exist in the " +
+                    "index tombstones.  This situation is likely caused by copying over the data directory for an index " +
+                    "that was previously deleted.", indexMetaData.getIndex());
                 danglingIndices.remove(index);
             }
         }

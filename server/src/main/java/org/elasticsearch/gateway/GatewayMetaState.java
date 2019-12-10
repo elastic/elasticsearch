@@ -55,6 +55,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
@@ -82,42 +84,26 @@ public class GatewayMetaState implements Closeable {
 
     public void start(Settings settings, TransportService transportService, ClusterService clusterService,
                       MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                      MetaDataUpgrader metaDataUpgrader, LucenePersistedStateFactory lucenePersistedStateFactory) {
+                      MetaDataUpgrader metaDataUpgrader, LucenePersistedStateFactory lucenePersistedStateFactory,
+                      DanglingIndicesState danglingIndicesState) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
 
-        if (DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
-                persistedState.set(lucenePersistedStateFactory.loadPersistedState((version, metadata) ->
+                PersistedState ps = lucenePersistedStateFactory.loadPersistedState((version, metadata) ->
                     prepareInitialClusterState(transportService, clusterService,
                         ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                             .version(version)
                             .metaData(upgradeMetaDataForMasterEligibleNode(metadata, metaDataIndexUpgradeService, metaDataUpgrader))
-                            .build())));
+                            .build()));
+                //TODO: on data node scan on-disk folders for additional dangling indices candidates
+                danglingIndicesState.setInitialDanglingIndicesCandidates(
+                    StreamSupport.stream(ps.getLastAcceptedState().metaData().indices().values().spliterator(), false).map(cur -> cur.value)
+                    .collect(Collectors.toList()));
+                danglingIndicesState.findNewAndAddDanglingIndices(ps.getLastAcceptedState().metaData());
+                persistedState.set(ps);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to load metadata", e);
-            }
-        }
-
-        if (DiscoveryNode.isDataNode(settings)) {
-            final Tuple<Manifest, ClusterState> manifestClusterStateTuple;
-            try {
-                upgradeMetaData(settings, metaStateService, metaDataIndexUpgradeService, metaDataUpgrader);
-                manifestClusterStateTuple = loadStateAndManifest(ClusterName.CLUSTER_NAME_SETTING.get(settings), metaStateService);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to load metadata", e);
-            }
-
-            final IncrementalClusterStateWriter incrementalClusterStateWriter
-                = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
-                manifestClusterStateTuple.v1(),
-                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
-                transportService.getThreadPool()::relativeTimeInMillis);
-
-            clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
-
-            if (DiscoveryNode.isMasterNode(settings) == false) {
-                persistedState.set(
-                    new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
             }
         } else if (DiscoveryNode.isMasterNode(settings) == false) {
             persistedState.set(

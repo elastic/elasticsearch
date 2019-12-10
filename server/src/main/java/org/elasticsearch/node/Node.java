@@ -89,6 +89,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
@@ -693,7 +694,7 @@ public class Node implements Closeable {
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
         gatewayMetaState.start(settings(), transportService, clusterService, injector.getInstance(MetaStateService.class),
             injector.getInstance(MetaDataIndexUpgradeService.class), injector.getInstance(MetaDataUpgrader.class),
-            injector.getInstance(LucenePersistedStateFactory.class));
+            injector.getInstance(LucenePersistedStateFactory.class), injector.getInstance(DanglingIndicesState.class));
         // we load the global state here (the persistent part of the cluster state stored on disk) to
         // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
         final MetaData onDiskMetadata = gatewayMetaState.getPersistedState().getLastAcceptedState().metaData();

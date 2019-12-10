@@ -58,9 +58,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 ==== {api-request-body-title}
 
 `data_frame_analytics_config`::
-  (Optional, object) Intended configuration of {dfanalytics-job}. For more 
-  information, see <<ml-dfanalytics-resources>>. Note that `id` and `dest` don't 
-  need to be provided in the context of this API.
+  (Optional, object) Intended configuration of {dfanalytics-job}. Note that `id` 
+  and `dest` don't need to be provided in the context of this API.
 
 
 [[ml-explain-dfanalytics-results]]

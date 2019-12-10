@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.execution.search.Querier;
 import org.elasticsearch.xpack.sql.execution.search.Querier.AggSortingQueue;
 
 import java.util.ArrayList;

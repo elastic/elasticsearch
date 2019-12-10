@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.type.DataTypeConversion.Conversion;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 
 import java.io.IOException;
 

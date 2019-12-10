@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
 
 import java.io.IOException;
 import java.util.function.Supplier;

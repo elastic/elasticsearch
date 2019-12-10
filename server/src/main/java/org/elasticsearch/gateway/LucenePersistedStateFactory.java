@@ -262,8 +262,8 @@ public class LucenePersistedStateFactory {
                     final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                     if (nodeId.equals(onDiskState.nodeId) == false) {
-//                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-//                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
+                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
+                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
                     }
 
                     if (onDiskState.metaData.clusterUUIDCommitted()) {

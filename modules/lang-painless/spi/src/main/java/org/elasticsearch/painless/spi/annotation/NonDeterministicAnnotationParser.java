@@ -19,11 +19,22 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
-public class DeterministicAnnotation {
+import java.util.Map;
 
-    public static final String NAME = "deterministic";
+public class NonDeterministicAnnotationParser implements WhitelistAnnotationParser {
 
-    public static final DeterministicAnnotation INSTANCE = new DeterministicAnnotation();
+    public static final NonDeterministicAnnotationParser INSTANCE = new NonDeterministicAnnotationParser();
 
-    private DeterministicAnnotation() {}
+    private NonDeterministicAnnotationParser() {}
+
+    @Override
+    public Object parse(Map<String, String> arguments) {
+        if (arguments.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "unexpected parameters for [@" + NonDeterministicAnnotation.NAME + "] annotation, found " + arguments
+            );
+        }
+
+        return NonDeterministicAnnotation.INSTANCE;
+    }
 }

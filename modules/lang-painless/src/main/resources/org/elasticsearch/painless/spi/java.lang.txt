@@ -48,6 +48,7 @@ class java.lang.Comparable {
   int compareTo(def)
 }
 
+# TODO(stu): evaluate in the case of hashset/hashmap
 class java.lang.Iterable {
   void forEach(Consumer)
   Iterator iterator()
@@ -547,7 +548,7 @@ class java.lang.Integer {
   int min(int,int)
   int numberOfLeadingZeros(int)
   int numberOfTrailingZeros(int)
-  int parseInt(String) @deterministic
+  int parseInt(String)
   int parseInt(String,int)
   int parseUnsignedInt(String)
   int parseUnsignedInt(String,int)
@@ -636,7 +637,7 @@ class java.lang.Math {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)
@@ -729,7 +730,7 @@ class java.lang.StrictMath {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)

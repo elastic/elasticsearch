@@ -78,7 +78,7 @@ public class ESTestCaseTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference source = RandomObjects.randomSource(random(), xContentType, 5);
         try (XContentParser parser = createParser(xContentType.xContent(), source)) {
-            LinkedHashMap<String, Object> initialMap = (LinkedHashMap<String, Object>)parser.mapOrdered();
+            LinkedHashMap<String, Object> initialMap = parser.mapOrdered();
 
             Set<List<String>> distinctKeys = new HashSet<>();
             for (int i = 0; i < 10; i++) {
@@ -123,7 +123,7 @@ public class ESTestCaseTests extends ESTestCase {
             BytesReference bytes = BytesReference.bytes(builder);
             final LinkedHashMap<String, Object> initialMap;
             try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
-                initialMap = (LinkedHashMap<String, Object>)parser.mapOrdered();
+                initialMap = parser.mapOrdered();
             }
 
             List<String> expectedInnerKeys1 = Arrays.asList("inner1", "inner2", "inner3");

@@ -987,7 +987,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
         // Test that an aggregation using a script does not get cached
-        assertFalse(aggregator.context().getQueryShardContext().isCacheable());
+        assertTrue(aggregator.context().getQueryShardContext().isCacheable());
 
         multiReader.close();
         directory.close();

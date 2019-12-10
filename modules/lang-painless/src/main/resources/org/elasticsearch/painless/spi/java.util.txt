@@ -145,13 +145,13 @@ class java.util.Map {
   def computeIfPresent(def,BiFunction)
   boolean containsKey(def)
   boolean containsValue(def)
-  Set entrySet()
+  Set entrySet() @nondeterministic
   boolean equals(Object)
-  void forEach(BiConsumer)
+  void forEach(BiConsumer) @nondeterministic
   def get(def)
   def getOrDefault(def,def)
   boolean isEmpty()
-  Set keySet()
+  Set keySet() @nondeterministic
   def merge(def,def,BiFunction)
   def put(def,def)
   void putAll(Map)
@@ -162,7 +162,7 @@ class java.util.Map {
   boolean replace(def,def,def)
   void replaceAll(BiFunction)
   int size()
-  Collection values()
+  Collection values() @nondeterministic
   Object org.elasticsearch.painless.api.Augmentation getByPath(String)
   Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 
@@ -678,26 +678,26 @@ class java.util.GregorianCalendar {
 }
 
 class java.util.HashMap {
-  ()
-  (Map)
+  () @nondeterministic
+  (Map) @nondeterministic
   def clone()
 }
 
 class java.util.HashSet {
-  ()
-  (Collection)
+  () @nondeterministic
+  (Collection) @nondeterministic
   def clone()
 }
 
 class java.util.Hashtable {
-  ()
-  (Map)
+  () @nondeterministic
+  (Map) @nondeterministic
   def clone()
 }
 
 class java.util.IdentityHashMap {
-  ()
-  (Map)
+  () @nondeterministic
+  (Map) @nondeterministic
   def clone()
 }
 
@@ -1016,6 +1016,11 @@ class java.util.TreeMap {
   ()
   (Comparator)
   def clone()
+  # TODO(stu): add methods from map declared non-determ in map
+  Set entrySet()
+  void forEach(BiConsumer)
+  Set keySet()
+  Collection values()
 }
 
 class java.util.TreeSet {
@@ -1031,7 +1036,7 @@ class java.util.UUID {
   UUID fromString(String)
   long getLeastSignificantBits()
   long getMostSignificantBits()
-  UUID randomUUID()
+  UUID randomUUID() @nondeterministic
   UUID nameUUIDFromBytes(byte[])
   long node()
   long timestamp()

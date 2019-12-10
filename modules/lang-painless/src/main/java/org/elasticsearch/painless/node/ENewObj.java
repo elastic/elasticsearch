@@ -27,7 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.spi.annotation.DeterministicAnnotation;
+import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -76,7 +76,7 @@ public final class ENewObj extends AExpression {
                     "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + arguments.size() + "] not found"));
         }
 
-        scriptRoot.setDeterministic(constructor.annotations.containsKey(DeterministicAnnotation.class));
+        scriptRoot.setDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class) == false);
 
         Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
         constructor.typeParameters.toArray(types);
@@ -120,10 +120,5 @@ public final class ENewObj extends AExpression {
     @Override
     public String toString() {
         return singleLineToStringWithOptionalArgs(arguments, type);
-    }
-
-    private boolean isDeterministic() {
-        // TODO(stu): check for annotation
-        return false;
     }
 }

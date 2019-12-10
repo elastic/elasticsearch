@@ -102,17 +102,6 @@ public class MockScriptEngine implements ScriptEngine {
                     }
                 };
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(FieldScript.class)) {
-            FieldScript.Factory factory = (parameters, lookup) ->
-                ctx -> new FieldScript(parameters, lookup, ctx) {
-                    @Override
-                    public Object execute() {
-                        Map<String, Object> vars = createVars(parameters);
-                        vars.putAll(getLeafLookup().asMap());
-                        return script.apply(vars);
-                    }
-                };
-            return context.factoryClazz.cast(factory);
         } else if(context.instanceClazz.equals(TermsSetQueryScript.class)) {
             TermsSetQueryScript.Factory factory = (parameters, lookup) -> (TermsSetQueryScript.LeafFactory) ctx
                 -> new TermsSetQueryScript(parameters, lookup, ctx) {
@@ -167,24 +156,34 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if(context.instanceClazz.equals(AggregationScript.class)) {
-            AggregationScript.Factory factory = (parameters, lookup) -> new AggregationScript.LeafFactory() {
+            AggregationScript.Factory factory = new AggregationScript.Factory() {
                 @Override
-                public AggregationScript newInstance(final LeafReaderContext ctx) {
-                    return new AggregationScript(parameters, lookup, ctx) {
+                public AggregationScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return new AggregationScript.LeafFactory() {
                         @Override
-                        public Object execute() {
-                            Map<String, Object> vars = new HashMap<>(parameters);
-                            vars.put("params", parameters);
-                            vars.put("doc", getDoc());
-                            vars.put("_score", get_score());
-                            vars.put("_value", get_value());
-                            return script.apply(vars);
+                        public AggregationScript newInstance(final LeafReaderContext ctx) {
+                            return new AggregationScript(params, lookup, ctx) {
+                                @Override
+                                public Object execute() {
+                                    Map<String, Object> vars = new HashMap<>(params);
+                                    vars.put("params", params);
+                                    vars.put("doc", getDoc());
+                                    vars.put("_score", get_score());
+                                    vars.put("_value", get_value());
+                                    return script.apply(vars);
+                                }
+                            };
+                        }
+
+                        @Override
+                        public boolean needs_score() {
+                            return true;
                         }
                     };
                 }
 
                 @Override
-                public boolean needs_score() {
+                public boolean isResultDeterministic() {
                     return true;
                 }
             };

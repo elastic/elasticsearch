@@ -282,7 +282,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
         Type classType,
         ScriptRoot scriptRoot
     ) {
-        // TODO(stu): use ASM to override the isDeterministic method and create it with correct value
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();

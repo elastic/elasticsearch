@@ -34,7 +34,7 @@ public class TransportGetReindexTaskAction extends HandledTransportAction<GetRei
     private final ReindexIndexClient reindexIndexClient;
 
     @Inject
-    protected TransportGetReindexTaskAction(Client client, TransportService transportService, ActionFilters actionFilters,
+    public TransportGetReindexTaskAction(Client client, TransportService transportService, ActionFilters actionFilters,
                                             ClusterService clusterService, NamedXContentRegistry xContentRegistry) {
         super(GetReindexTaskAction.NAME, transportService, actionFilters, GetReindexTaskAction.Request::new);
         this.reindexIndexClient = new ReindexIndexClient(client, clusterService, xContentRegistry);

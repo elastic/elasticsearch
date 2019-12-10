@@ -31,7 +31,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 public class ReindexTaskStateDoc implements ToXContentObject {
 

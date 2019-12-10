@@ -115,7 +115,7 @@ public class AnalyticsProcessManager {
             BytesReference state = getModelState(config);
 
             if (processContext.startProcess(dataExtractorFactory, task, state)) {
-                executorServiceForProcess.execute(() -> processResults(processContext));
+                executorServiceForProcess.execute(() -> processContext.resultProcessor.get().process(processContext.process.get()));
                 executorServiceForProcess.execute(() -> processData(task, processContext, state));
             } else {
                 processContextByAllocation.remove(task.getAllocationId());
@@ -141,14 +141,6 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void processResults(ProcessContext processContext) {
-        try {
-            processContext.resultProcessor.get().process(processContext.process.get());
-        } catch (Exception e) {
-            processContext.setFailureReason(e.getMessage());
-        }
-    }
-
     private void processData(DataFrameAnalyticsTask task, ProcessContext processContext, BytesReference state) {
         DataFrameAnalyticsConfig config = processContext.config;
         DataFrameDataExtractor dataExtractor = processContext.dataExtractor.get();
@@ -169,8 +161,8 @@ public class AnalyticsProcessManager {
             refreshDest(config);
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
-                String errorMsg = new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
-                    .getFormattedMessage();
+            String errorMsg =
+                new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage()).getFormattedMessage();
             if (task.isStopping()) {
                 // Errors during task stopping are expected but we still want to log them just in case.
                 LOGGER.debug(errorMsg, e);
@@ -302,6 +294,7 @@ public class AnalyticsProcessManager {
             processContext.process.get().close();
             LOGGER.info("[{}] Closed process", configId);
         } catch (Exception e) {
+            LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
             String errorMsg = new ParameterizedMessage(
                 "[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage()).getFormattedMessage();
             processContext.setFailureReason(errorMsg);

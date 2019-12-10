@@ -296,10 +296,13 @@ public final class NodeEnvironment  implements Closeable {
             if (DiscoveryNode.isDataNode(settings) == false) {
                 if (DiscoveryNode.isMasterNode(settings) == false) {
                     ensureNoIndexMetaData(nodePaths);
-                    ensureNoStateFolder(nodePaths);
                 }
 
                 ensureNoShardData(nodePaths);
+
+                if (DiscoveryNode.isMasterNode(settings) == false) {
+                    ensureNoStateFolder(nodePaths);
+                }
             }
 
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);

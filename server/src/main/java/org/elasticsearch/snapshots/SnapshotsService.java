@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -1053,7 +1054,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(final Exception e) {
                 Snapshot snapshot = entry.snapshot();
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
-                if (ExceptionsHelper.unwrap(e, NotMasterException.class) != null) {
+                if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                     // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
                     // will try ending this snapshot again
                     endingSnapshots.remove(snapshot);

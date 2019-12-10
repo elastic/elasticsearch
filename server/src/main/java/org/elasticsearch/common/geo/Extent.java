@@ -80,8 +80,8 @@ public class Extent {
             this.negLeft = Math.min(this.negLeft, bottomLeftX);
             this.posRight = Math.max(this.posRight, topRightX);
             // this signal the extent cannot be wrapped around the dateline
-            this.negRight = Integer.MAX_VALUE;
-            this.posLeft = Integer.MIN_VALUE;
+            this.negRight = 0;
+            this.posLeft = 0;
         } else {
             this.posLeft = Math.min(this.posLeft, bottomLeftX);
             this.posRight = Math.max(this.posRight, topRightX);
@@ -125,8 +125,8 @@ public class Extent {
             negLeft = bottomLeftX;
             posRight = topRightX;
             // this signal the extent cannot be wrapped around the dateline
-            negRight = Integer.MAX_VALUE;
-            posLeft = Integer.MIN_VALUE;
+            negRight = 0;
+            posLeft = 0;
         } else {
             posLeft = bottomLeftX;
             posRight = topRightX;

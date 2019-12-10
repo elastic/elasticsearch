@@ -1053,12 +1053,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(final Exception e) {
                 Snapshot snapshot = entry.snapshot();
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
                 if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                     // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
                     // will try ending this snapshot again
+                    logger.debug(() -> new ParameterizedMessage(
+                        "[{}] failed to update cluster state during snapshot finalization", snapshot), e);
                     endingSnapshots.remove(snapshot);
                 } else {
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
                     removeSnapshotFromClusterState(snapshot, null, e);
                 }
             }

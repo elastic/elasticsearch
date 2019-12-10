@@ -10,6 +10,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -24,6 +25,11 @@ import java.nio.ByteOrder;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class EncryptionPacketsInputStreamTests extends ESTestCase {
 
@@ -110,7 +116,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
                 packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES, new DefaultBufferedReadAllStrategy());
     }
 
-    public void testMarkAtPacketBoundary() throws Exception {
+    public void testMarkAndResetPacketBoundaryNoMock() throws Exception {
         int packetSize = 3 + Randomness.get().nextInt(512);
         int size = 4 * packetSize + Randomness.get().nextInt(512);
         int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - size + 1);
@@ -120,6 +126,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
                 plaintextOffset, size), secretKey, nonce, packetSize)) {
             referenceCiphertextArray = encryptionInputStream.readAllBytes();
         }
+        assertThat((long)referenceCiphertextArray.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionSize(size, packetSize)));
         int encryptedPacketSize = packetSize + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
         try (InputStream encryptionInputStream = new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
                 plaintextOffset, size), secretKey, nonce, packetSize)) {
@@ -129,14 +136,17 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
             assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
             // reset at the beginning
             encryptionInputStream.reset();
+            // read packet fragment
             test = encryptionInputStream.readNBytes(1 + Randomness.get().nextInt(encryptedPacketSize));
             assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
             // reset at the beginning
             encryptionInputStream.reset();
+            // read complete packet
             test = encryptionInputStream.readNBytes(encryptedPacketSize);
             assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
             // mark at the second packet boundary
-            encryptionInputStream.mark(2 * encryptedPacketSize + 1);
+            encryptionInputStream.mark(Integer.MAX_VALUE);
+            // read more than one packet
             test = encryptionInputStream.readNBytes(encryptedPacketSize + 1 + Randomness.get().nextInt(encryptedPacketSize));
             assertSubArray(referenceCiphertextArray, encryptedPacketSize, test, 0, test.length);
             // reset at the second packet boundary
@@ -144,17 +154,227 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
             int middlePacketOffset = Randomness.get().nextInt(encryptedPacketSize);
             test = encryptionInputStream.readNBytes(middlePacketOffset);
             assertSubArray(referenceCiphertextArray, encryptedPacketSize, test, 0, test.length);
-            // mark before third packet boundary
-            encryptionInputStream.mark(encryptedPacketSize - middlePacketOffset);
             // read up to the third packet boundary
             test = encryptionInputStream.readNBytes(encryptedPacketSize - middlePacketOffset);
             assertSubArray(referenceCiphertextArray, encryptedPacketSize + middlePacketOffset, test, 0, test.length);
-            // reset before the third packet boundary
+            // mark at the third packet boundary
+            encryptionInputStream.mark(Integer.MAX_VALUE);
+            test = encryptionInputStream.readAllBytes();
+            assertSubArray(referenceCiphertextArray, 2 * encryptedPacketSize, test, 0, test.length);
             encryptionInputStream.reset();
-            test = encryptionInputStream.readNBytes(
-                    encryptedPacketSize - middlePacketOffset + 1 + Randomness.get().nextInt(encryptedPacketSize));
-            assertSubArray(referenceCiphertextArray, encryptedPacketSize + middlePacketOffset, test, 0, test.length);
+            test = encryptionInputStream.readNBytes(1 + Randomness.get().nextInt(
+                    referenceCiphertextArray.length - 2 * encryptedPacketSize));
+            assertSubArray(referenceCiphertextArray, 2 * encryptedPacketSize, test, 0, test.length);
         }
+    }
+
+    public void testMarkResetInsidePacketNoMock() throws Exception {
+        int packetSize = 3 + Randomness.get().nextInt(64);
+        int encryptedPacketSize = EncryptedRepository.GCM_IV_SIZE_IN_BYTES + packetSize + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        int size = 3 * packetSize + Randomness.get().nextInt(64);
+        byte[] bytes = new byte[size];
+        Randomness.get().nextBytes(bytes);
+        int nonce = Randomness.get().nextInt();
+        EncryptionPacketsInputStream test = new EncryptionPacketsInputStream(new TestInputStream(bytes), secretKey, nonce, packetSize);
+        int offset1 = 1 + Randomness.get().nextInt(encryptedPacketSize);
+        // read past the first packet
+        test.readNBytes(encryptedPacketSize + offset1);
+        assertThat(test.counter, Matchers.is(Long.MIN_VALUE + 2));
+        assertThat(((CountingInputStream)test.currentIn).count, Matchers.is((long)offset1));
+        assertThat(test.markCounter, Matchers.nullValue());
+        int readLimit = 1 + Randomness.get().nextInt(packetSize);
+        // first mark
+        test.mark(readLimit);
+        assertThat(test.markCounter, Matchers.is(test.counter));
+        assertThat(test.markSourceOnNextPacket, Matchers.is(readLimit));
+        assertThat(test.markIn, Matchers.is(test.currentIn));
+        assertThat(((CountingInputStream)test.markIn).mark, Matchers.is((long)offset1));
+        assertThat(((TestInputStream)test.source).mark, Matchers.is(-1));
+        // read before packet is complete
+        test.readNBytes(1 + Randomness.get().nextInt(encryptedPacketSize - offset1));
+        assertThat(((TestInputStream)test.source).mark, Matchers.is(-1));
+        // reset
+        test.reset();
+        assertThat(test.markSourceOnNextPacket, Matchers.is(readLimit));
+        assertThat(test.counter, Matchers.is(test.markCounter));
+        assertThat(test.currentIn, Matchers.is(test.markIn));
+        assertThat(((CountingInputStream)test.currentIn).count, Matchers.is((long)offset1));
+        // read before the packet is complete
+        int offset2 = 1 + Randomness.get().nextInt(encryptedPacketSize - offset1);
+        test.readNBytes(offset2);
+        assertThat(((TestInputStream)test.source).mark, Matchers.is(-1));
+        assertThat(((CountingInputStream)test.currentIn).count, Matchers.is((long)offset1 + offset2));
+        // second mark
+        readLimit = 1 + Randomness.get().nextInt(packetSize);
+        test.mark(readLimit);
+        assertThat(((TestInputStream)test.source).mark, Matchers.is(-1));
+        assertThat(test.markCounter, Matchers.is(test.counter));
+        assertThat(test.markSourceOnNextPacket, Matchers.is(readLimit));
+        assertThat(test.markIn, Matchers.is(test.currentIn));
+        assertThat(((CountingInputStream)test.markIn).mark, Matchers.is((long)offset1 + offset2));
+    }
+
+    public void testMarkResetAcrossPacketsNoMock() throws Exception {
+        int packetSize = 3 + Randomness.get().nextInt(64);
+        int encryptedPacketSize = EncryptedRepository.GCM_IV_SIZE_IN_BYTES + packetSize + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        int size = 3 * packetSize + Randomness.get().nextInt(64);
+        byte[] bytes = new byte[size];
+        Randomness.get().nextBytes(bytes);
+        int nonce = Randomness.get().nextInt();
+        EncryptionPacketsInputStream test = new EncryptionPacketsInputStream(new TestInputStream(bytes), secretKey, nonce, packetSize);
+        int readLimit = 2 * size + Randomness.get().nextInt(4096);
+        // mark at the beginning
+        test.mark(readLimit);
+        assertThat(test.counter, Matchers.is(Long.MIN_VALUE));
+        assertThat(test.markCounter, Matchers.is(Long.MIN_VALUE));
+        assertThat(test.markSourceOnNextPacket, Matchers.is(readLimit));
+        assertThat(test.markIn, Matchers.nullValue());
+        // read past the first packet
+        int offset1 = 1 + Randomness.get().nextInt(encryptedPacketSize);
+        test.readNBytes(encryptedPacketSize + offset1);
+        assertThat(test.markSourceOnNextPacket, Matchers.is(-1));
+        assertThat(((TestInputStream)test.source).mark, Matchers.is(0));
+        assertThat(test.counter, Matchers.is(Long.MIN_VALUE + 2));
+        assertThat(((CountingInputStream)test.currentIn).count, Matchers.is((long)offset1));
+        assertThat(test.markCounter, Matchers.is(Long.MIN_VALUE));
+        assertThat(test.markIn, Matchers.nullValue());
+        // reset at the beginning
+        test.reset();
+        assertThat(test.markSourceOnNextPacket, Matchers.is(-1));
+        assertThat(test.counter, Matchers.is(Long.MIN_VALUE));
+        assertThat(test.currentIn, Matchers.nullValue());
+        assertThat(((TestInputStream)test.source).off, Matchers.is(0));
+        // read past the first two packets
+        int offset2 = 1 + Randomness.get().nextInt(encryptedPacketSize);
+        test.readNBytes(2 * encryptedPacketSize + offset2);
+        assertThat(test.markSourceOnNextPacket, Matchers.is(-1));
+        assertThat(((TestInputStream)test.source).mark, Matchers.is(0));
+        assertThat(test.counter, Matchers.is(Long.MIN_VALUE + 3));
+        assertThat(((CountingInputStream)test.currentIn).count, Matchers.is((long)offset2));
+        assertThat(test.markCounter, Matchers.is(Long.MIN_VALUE));
+        assertThat(test.markIn, Matchers.nullValue());
+        // mark inside the third packet
+        test.mark(readLimit);
+        assertThat(test.markCounter, Matchers.is(Long.MIN_VALUE + 3));
+        assertThat(test.markSourceOnNextPacket, Matchers.is(readLimit));
+        assertThat(((CountingInputStream)test.currentIn).count, Matchers.is((long)offset2));
+        assertThat(test.markIn, Matchers.is(test.currentIn));
+        assertThat(((CountingInputStream)test.markIn).mark, Matchers.is((long)offset2));
+        // read until the end
+        test.readAllBytes();
+        assertThat(test.markCounter, Matchers.is(Long.MIN_VALUE + 3));
+        assertThat(test.counter, Matchers.not(Long.MIN_VALUE + 3));
+        assertThat(test.markSourceOnNextPacket, Matchers.is(-1));
+        assertThat(test.markIn, Matchers.not(test.currentIn));
+        assertThat(((CountingInputStream)test.markIn).mark, Matchers.is((long)offset2));
+        // reset
+        test.reset();
+        assertThat(test.markSourceOnNextPacket, Matchers.is(-1));
+        assertThat(test.counter, Matchers.is(Long.MIN_VALUE + 3));
+        assertThat(((CountingInputStream)test.currentIn).count, Matchers.is((long)offset2));
+        assertThat(test.markIn, Matchers.is(test.currentIn));
+    }
+
+    public void testMarkAfterResetNoMock() throws Exception {
+        int packetSize = 1 + Randomness.get().nextInt(3);
+        int plainLen = packetSize + 1 + Randomness.get().nextInt(packetSize);
+        int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - plainLen + 1);
+        int nonce = Randomness.get().nextInt();
+        final byte[] referenceCiphertextArray;
+        try (InputStream encryptionInputStream = new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
+                plaintextOffset, plainLen), secretKey, nonce, packetSize)) {
+            referenceCiphertextArray = encryptionInputStream.readAllBytes();
+        }
+        int encryptedLen = referenceCiphertextArray.length;
+        assertThat((long) encryptedLen, Matchers.is(EncryptionPacketsInputStream.getEncryptionSize(plainLen, packetSize)));
+        for (int mark1 = 0; mark1 < encryptedLen; mark1++) {
+            for (int offset1 = 0; offset1 < encryptedLen - mark1; offset1++) {
+                int mark2 = Randomness.get().nextInt(encryptedLen - mark1);
+                int offset2 = Randomness.get().nextInt(encryptedLen - mark1 - mark2);
+                EncryptionPacketsInputStream test =
+                        new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
+                                plaintextOffset, plainLen), secretKey, nonce, packetSize);
+                // read "mark1" bytes
+                byte[] pre = test.readNBytes(mark1);
+                for (int i = 0; i < pre.length; i++) {
+                    assertThat(pre[i], Matchers.is(referenceCiphertextArray[i]));
+                }
+                // first mark
+                test.mark(encryptedLen);
+                // read "offset" bytes
+                byte[] span1 = test.readNBytes(offset1);
+                for (int i = 0; i < span1.length; i++) {
+                    assertThat(span1[i], Matchers.is(referenceCiphertextArray[mark1 + i]));
+                }
+                // reset back to "mark1" offset
+                test.reset();
+                // read/replay "mark2" bytes
+                byte[] span2 = test.readNBytes(mark2);
+                for (int i = 0; i < span2.length; i++) {
+                    assertThat(span2[i], Matchers.is(referenceCiphertextArray[mark1 + i]));
+                }
+                // second mark
+                test.mark(encryptedLen);
+                byte[] span3 = test.readNBytes(offset2);
+                for (int i = 0; i < span3.length; i++) {
+                    assertThat(span3[i], Matchers.is(referenceCiphertextArray[mark1 + mark2 + i]));
+                }
+                // reset to second mark
+                test.reset();
+                // read rest of bytes
+                byte[] span4 = test.readAllBytes();
+                for (int i = 0; i < span4.length; i++) {
+                    assertThat(span4[i], Matchers.is(referenceCiphertextArray[mark1 + mark2 + i]));
+                }
+            }
+        }
+    }
+
+    public void testMark() throws Exception {
+        InputStream mockSource = mock(InputStream.class);
+        when(mockSource.markSupported()).thenAnswer(invocationOnMock -> true);
+        EncryptionPacketsInputStream test = new EncryptionPacketsInputStream(mockSource, mock(SecretKey.class),
+                Randomness.get().nextInt(), 1 + Randomness.get().nextInt(32));
+        int readLimit = 1 + Randomness.get().nextInt(4096);
+        InputStream mockMarkIn = mock(InputStream.class);
+        test.markIn = mockMarkIn;
+        InputStream mockCurrentIn = mock(InputStream.class);
+        test.currentIn = mockCurrentIn;
+        test.counter = Randomness.get().nextLong();
+        test.markCounter = Randomness.get().nextLong();
+        test.markSourceOnNextPacket = Randomness.get().nextInt();
+        // mark
+        test.mark(readLimit);
+        verify(mockMarkIn).close();
+        assertThat(test.markIn, Matchers.is(mockCurrentIn));
+        verify(test.markIn).mark(Mockito.anyInt());
+        assertThat(test.currentIn, Matchers.is(mockCurrentIn));
+        assertThat(test.markCounter, Matchers.is(test.counter));
+        assertThat(test.markSourceOnNextPacket, Matchers.is(readLimit));
+    }
+
+    public void testReset() throws Exception {
+        InputStream mockSource = mock(InputStream.class);
+        when(mockSource.markSupported()).thenAnswer(invocationOnMock -> true);
+        EncryptionPacketsInputStream test = new EncryptionPacketsInputStream(mockSource, mock(SecretKey.class),
+                Randomness.get().nextInt(), 1 + Randomness.get().nextInt(32));
+        InputStream mockMarkIn = mock(InputStream.class);
+        test.markIn = mockMarkIn;
+        InputStream mockCurrentIn = mock(InputStream.class);
+        test.currentIn = mockCurrentIn;
+        test.counter = Randomness.get().nextLong();
+        test.markCounter = Randomness.get().nextLong();
+        // source requires reset as well
+        test.markSourceOnNextPacket = -1;
+        // reset
+        test.reset();
+        verify(mockCurrentIn).close();
+        assertThat(test.currentIn, Matchers.is(mockMarkIn));
+        verify(test.currentIn).reset();
+        assertThat(test.markIn, Matchers.is(mockMarkIn));
+        assertThat(test.counter, Matchers.is(test.markCounter));
+        assertThat(test.markSourceOnNextPacket, Matchers.is(-1));
+        verify(mockSource).reset();
     }
 
     private void testEncryptPacketWise(int size, int packetSize, ReadStrategy readStrategy) throws Exception {
@@ -207,6 +427,60 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
         public byte[] readAll(InputStream inputStream) throws IOException {
             return inputStream.readAllBytes();
         }
+    }
+
+    static class TestInputStream extends InputStream {
+
+        final byte[] b;
+        final int label;
+        final int len;
+        int off = 0;
+        int mark = -1;
+        final AtomicBoolean closed = new AtomicBoolean(false);
+
+        TestInputStream(byte[] b) {
+            this(b, 0, b.length, 0);
+        }
+
+        TestInputStream(byte[] b, int label) {
+            this(b, 0, b.length, label);
+        }
+
+        TestInputStream(byte[] b, int offset, int len, int label) {
+            this.b = b;
+            this.off = offset;
+            this.len = len;
+            this.label = label;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (b == null || off >= len) {
+                return -1;
+            }
+            return b[off++] & 0xFF;
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed.set(true);
+        }
+
+        @Override
+        public void mark(int readlimit) {
+            this.mark = off;
+        }
+
+        @Override
+        public void reset() {
+            this.off = this.mark;
+        }
+
+        @Override
+        public boolean markSupported() {
+            return true;
+        }
+
     }
 
 }

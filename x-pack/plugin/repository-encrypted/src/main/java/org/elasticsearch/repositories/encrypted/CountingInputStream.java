@@ -24,9 +24,9 @@ import java.util.Objects;
  */
 public final class CountingInputStream extends FilterInputStream {
 
-    private long count;
-    private long mark;
-    private boolean closed;
+    protected long count; // protected for tests
+    protected long mark; // protected for tests
+    protected boolean closed; // protected for tests
     private final boolean closeSource;
 
     /**

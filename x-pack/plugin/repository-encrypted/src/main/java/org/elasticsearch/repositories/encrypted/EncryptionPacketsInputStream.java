@@ -43,15 +43,15 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
 
     private static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 30;
 
-    private final InputStream source;
+    protected final InputStream source; // protected for tests
     private final SecretKey secretKey;
     private final int packetLength;
     private final ByteBuffer packetIv;
     private final int encryptedPacketLength;
 
-    private long counter;
-    private Long markCounter;
-    private int markSourceOnNextPacket;
+    protected long counter; // protected for tests
+    protected Long markCounter; // protected for tests
+    protected int markSourceOnNextPacket; // protected for tests
 
     public static long getEncryptionSize(long size, int packetLength) {
         return size + (size / packetLength + 1) * (EncryptedRepository.GCM_TAG_SIZE_IN_BYTES + EncryptedRepository.GCM_IV_SIZE_IN_BYTES);

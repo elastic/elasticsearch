@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -143,7 +144,7 @@ public class IntervalBuilder {
         if (maxGaps == -1) {
             return inner;
         }
-        return Intervals.maxgaps(maxGaps, inner);
+        return XIntervals.maxWidth(inner, s -> maxGaps + s.minExtent());
     }
 
     protected static List<IntervalsSource> deduplicate(List<IntervalsSource> sources) {

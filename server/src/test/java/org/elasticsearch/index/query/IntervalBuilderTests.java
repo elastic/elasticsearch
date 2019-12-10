@@ -201,6 +201,21 @@ public class IntervalBuilderTests extends ESTestCase {
 
         assertEquals(expected, source);
 
+        source = BUILDER.analyzeText(new CachingTokenFilter(ts), 2, false);
+        expected = Intervals.or(
+            Intervals.maxwidth(6, Intervals.unordered(
+                Intervals.term("term1"), Intervals.extend(Intervals.term("term2"), 1, 0), Intervals.term("term5")
+            )),
+            Intervals.maxwidth(9, Intervals.unordered(
+                Intervals.term("term1"),
+                Intervals.phrase(
+                    Intervals.extend(Intervals.term("term3"), 1, 0),
+                    Intervals.extend(Intervals.term("term4"), 2, 0)),
+                Intervals.term("term5")
+            ))
+        );
+        assertEquals(expected, source);
+
     }
 
     public void testGraphTerminatesOnGap() throws IOException {
@@ -230,6 +245,17 @@ public class IntervalBuilderTests extends ESTestCase {
             Intervals.term("or"),
             Intervals.term("not")
         );
+        assertEquals(expected, source);
+    }
+
+    public void testUnorderedWithRepeatsAndMaxGaps() throws IOException {
+        IntervalsSource source = BUILDER.analyzeText("to be or not to be", 2, false);
+        IntervalsSource expected = Intervals.maxwidth(8, Intervals.unordered(
+            Intervals.ordered(Intervals.term("to"), Intervals.term("to")),
+            Intervals.ordered(Intervals.term("be"), Intervals.term("be")),
+            Intervals.term("or"),
+            Intervals.term("not")
+        ));
         assertEquals(expected, source);
     }
 

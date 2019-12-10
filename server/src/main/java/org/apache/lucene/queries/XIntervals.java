@@ -24,6 +24,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -48,6 +49,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.ToIntFunction;
+import java.util.stream.Collectors;
 
 /**
  * Replacement for {@link Intervals#wildcard(BytesRef)} and {@link Intervals#prefix(BytesRef)}
@@ -65,6 +68,28 @@ public final class XIntervals {
     public static IntervalsSource prefix(BytesRef prefix) {
         CompiledAutomaton ca = new CompiledAutomaton(PrefixQuery.toAutomaton(prefix));
         return new MultiTermIntervalsSource(ca, 128, prefix.utf8ToString());
+    }
+
+    public static IntervalsSource maxWidth(IntervalsSource in, ToIntFunction<IntervalsSource> widthFunction) {
+        return Intervals.or(in.pullUpDisjunctions().stream()
+            .map(s -> new MaxWidth(s, widthFunction.applyAsInt(s)))
+            .collect(Collectors.toList()));
+    }
+
+    private static class MaxWidth extends FilteredIntervalsSource {
+
+        private final int maxWidth;
+
+        MaxWidth(IntervalsSource in, int maxWidth) {
+            super("MAXWIDTH/" + maxWidth, in);
+            this.maxWidth = maxWidth;
+        }
+
+        @Override
+        protected boolean accept(IntervalIterator it) {
+            return (it.end() - it.start()) + 1 <= maxWidth;
+        }
+
     }
 
     static class MultiTermIntervalsSource extends IntervalsSource {

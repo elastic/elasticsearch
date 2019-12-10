@@ -49,7 +49,7 @@ public class DebPreservationTests extends PackagingTestCase {
         assertRemoved(distribution());
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
     }
 
     public void test20Remove() throws Exception {

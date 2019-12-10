@@ -116,7 +116,7 @@ public abstract class PackagingTestCase extends Assert {
 
     @BeforeClass
     public static void createShell() throws Exception {
-        sh = newShell();
+        sh = new Shell();
     }
 
     @Before
@@ -124,6 +124,14 @@ public abstract class PackagingTestCase extends Assert {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh.reset();
+        if (distribution().hasJdk == false) {
+            Platforms.onLinux(() -> {
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+            Platforms.onWindows(() -> {
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+        }
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -179,19 +187,6 @@ public abstract class PackagingTestCase extends Assert {
             throw e;
         }
         stopElasticsearch();
-    }
-
-    static Shell newShell() throws Exception {
-        Shell sh = new Shell();
-        if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
-            Platforms.onWindows(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
-        }
-        return sh;
     }
 
     /**

@@ -52,7 +52,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertRemoved(distribution());
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
     }
 
     public void test20Remove() throws Exception {
@@ -73,7 +73,7 @@ public class RpmPreservationTests extends PackagingTestCase {
 
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
 
         sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
         Stream.of(

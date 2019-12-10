@@ -251,12 +251,13 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public boolean persistsState() {
-        return false;
+        return true;
     }
 
     @Override
     public String getStateDocId(String jobId) {
-        throw new UnsupportedOperationException();
+        // The state doc id prefix is same as for regression
+        return jobId + "_regression_state#1";
     }
 
     @Override

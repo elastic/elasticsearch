@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -95,6 +96,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(jobId);
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
@@ -135,6 +137,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(jobId);
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
@@ -195,6 +198,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(jobId);
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
@@ -446,5 +450,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
             assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
         }
+    }
+
+    private static void assertModelStatePersisted(String jobId) {
+        String docId = jobId + "_regression_state#1";
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setQuery(QueryBuilders.idsQuery().addIds(docId))
+            .get();
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
     }
 }

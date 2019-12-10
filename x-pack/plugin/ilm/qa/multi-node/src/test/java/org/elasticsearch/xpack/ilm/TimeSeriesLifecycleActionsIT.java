@@ -411,7 +411,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         };
         assertThat(numSegments.get(), greaterThan(1));
 
-        createNewSingletonPolicy("warm", new ForceMergeAction(1));
+        createNewSingletonPolicy("warm", new ForceMergeAction(1, false));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
@@ -1007,7 +1007,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         hotActions.put(RolloverAction.NAME,  new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
-        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, false));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();

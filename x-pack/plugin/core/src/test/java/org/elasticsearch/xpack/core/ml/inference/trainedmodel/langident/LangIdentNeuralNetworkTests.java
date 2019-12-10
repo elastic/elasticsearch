@@ -62,4 +62,15 @@ public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<Lan
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
+
+    public void testSomething() {
+
+        for (int i = 0; i < LanguageExamples.goldLangText.length; i++) {
+            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
+            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
+            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
+            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
+        }
+
+    }
 }

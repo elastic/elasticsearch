@@ -5,10 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 public class NGramFeatureExtractor implements FeatureExtractor {

@@ -158,22 +158,22 @@ public final class FeatureUtils {
         // TODO - scripts etc. and be more inline with cld3
         // TODO - also this is inefficient
 
-        // 1. Start with ' '
-        String newText = " ";
+        // 1. Start with ' ', only if the string already does not start with a space
+        String newText = text.startsWith(" ") ? "" : " ";
 
         // 2. Replace punctuation and whitespace with ' '
         // NOTE: we capture unicode letters AND marks as Nepalese and other languages
         // have marks that cld3 uses.
-        newText += text.replaceAll("\\p{IsWhite_Space}|[^\\p{L}|\\p{M}]|\\|", " ");
+        newText += text.replaceAll("[^\\p{L}|\\p{M}\\p{IsWhite_Space}]|\\|", "");
 
         // 2.1. Replace spacing modifier characters
-        newText = newText.replaceAll("\\p{InSpacing_Modifier_Letters}", " ");
+        newText = newText.replaceAll("\\p{InSpacing_Modifier_Letters}", "");
 
         // 3. Add space at end
-        newText += " ";
+        newText += text.endsWith(" ") ? "" : " ";
 
         // 4. Remove multiple spaces with a single space
-        newText = newText.replaceAll("(\\p{IsWhite_Space})+", " ");
+        //newText = newText.replaceAll("(\\p{IsWhite_Space})+", " ");
 
         // 5. Replace Turkish İ with I (TODO - check this out better...)
         newText = newText.replaceAll("\\u0130", "I");

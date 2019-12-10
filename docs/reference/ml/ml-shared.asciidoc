@@ -245,7 +245,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
 
 `time_span`:::
 (<<time-units,time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-units]
+include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
 end::chunking-config[]
 
 tag::custom-rules[]

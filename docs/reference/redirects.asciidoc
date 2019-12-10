@@ -1055,3 +1055,14 @@ This page was deleted.
 See the details in
 [[ml-apimodelplotconfig]]
 <<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.
+
+[role="exclude",id="ml-datafeed-resource"]
+=== {dfeed-cap} resources
+
+This page was deleted.
+[[ml-datafeed-chunking-config]]
+See the details in <<ml-put-datafeed>>, <<ml-update-datafeed>>, 
+[[ml-datafeed-delayed-data-check-config]]
+<<ml-get-datafeed>>, 
+[[ml-datafeed-counts]]
+<<ml-get-datafeed-stats>>.

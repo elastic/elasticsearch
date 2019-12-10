@@ -192,7 +192,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.maxgaps(40, Intervals.unordered(Intervals.term("hello"), Intervals.term("world"))));
+            XIntervals.maxWidth(Intervals.unordered(Intervals.term("hello"), Intervals.term("world")), s -> 42));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
@@ -217,7 +217,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))));
+            XIntervals.maxWidth(Intervals.ordered(Intervals.term("Hello"), Intervals.term("world")), s -> 12));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
@@ -232,7 +232,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.fixField(MASKED_FIELD,
-                                Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world")))));
+                                XIntervals.maxWidth(Intervals.ordered(Intervals.term("Hello"), Intervals.term("world")), s -> 12)));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
@@ -248,7 +248,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.containing(Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))),
+            Intervals.containing(XIntervals.maxWidth(Intervals.ordered(Intervals.term("Hello"), Intervals.term("world")), s -> 12),
                                  Intervals.term("blah")));
         assertEquals(expected, builder.toQuery(createShardContext()));
     }

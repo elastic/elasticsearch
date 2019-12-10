@@ -105,7 +105,7 @@ public class IntervalBuilder {
             return analyzeTerm(stream);
         } else if (isGraph) {
             // graph
-            return combineSources(analyzeGraph(stream), maxGaps, ordered);
+            return combineSources(analyzeGraph(stream), maxGaps, ordered, true);
         } else {
             // phrase
             if (hasSynonyms) {
@@ -113,7 +113,7 @@ public class IntervalBuilder {
                 return analyzeSynonyms(stream, maxGaps, ordered);
             } else {
                 // simple phrase
-                return combineSources(analyzeTerms(stream), maxGaps, ordered);
+                return combineSources(analyzeTerms(stream), maxGaps, ordered, true);
             }
         }
 
@@ -126,7 +126,7 @@ public class IntervalBuilder {
         return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
-    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
+    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered, boolean fixedWidth) {
         if (sources.size() == 0) {
             return NO_INTERVALS;
         }
@@ -144,7 +144,10 @@ public class IntervalBuilder {
         if (maxGaps == -1) {
             return inner;
         }
-        return XIntervals.maxWidth(inner, s -> maxGaps + s.minExtent());
+        if (fixedWidth) {
+            return XIntervals.maxWidth(inner, s -> maxGaps + s.minExtent());
+        }
+        return Intervals.maxgaps(maxGaps, inner);
     }
 
     protected static List<IntervalsSource> deduplicate(List<IntervalsSource> sources) {
@@ -219,7 +222,7 @@ public class IntervalBuilder {
         else {
             terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
-        return combineSources(terms, maxGaps, ordered);
+        return combineSources(terms, maxGaps, ordered, true);
     }
 
     protected List<IntervalsSource> analyzeGraph(TokenStream source) throws IOException {
@@ -242,7 +245,7 @@ public class IntervalBuilder {
                 Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                 while (it.hasNext()) {
                     TokenStream ts = it.next();
-                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true);
+                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true, true);
                     if (paths.size() >= maxClauseCount) {
                         throw new BooleanQuery.TooManyClauses();
                     }

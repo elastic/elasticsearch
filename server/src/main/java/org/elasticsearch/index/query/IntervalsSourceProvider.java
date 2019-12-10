@@ -366,7 +366,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(ctx, fieldType));
             }
-            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered);
+            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered, false);
             if (filter != null) {
                 return filter.filter(source, ctx, fieldType);
             }

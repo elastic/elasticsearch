@@ -2,7 +2,7 @@
 "Test Index and Search locale dependent mappings / dates":
 
   - skip:
-      version: " - 6.8.4, 7.0.0 -7.4.99, 8.0 -"
+      version: " - 6.8.4, 7.0.0 - 7.4.99"
       reason: JDK9 only supports this with a special sysproperty added in 6.2.0 and java.time 8prefix fix is in 6.8.5, 7.5 and master
 
   - do:

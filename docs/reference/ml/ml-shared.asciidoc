@@ -1,3 +1,10 @@
+tag::aggregations[]
+If set, the {dfeed} performs aggregation searches. Support for aggregations is
+limited and should only be used with low cardinality data. For more information,
+see
+{stack-ov}/ml-configuring-aggregation.html[Aggregating data for faster performance].
+end::aggregations[]
+
 tag::allow-lazy-open[]
 Advanced configuration option. Specifies whether this job can open when there is 
 insufficient {ml} node capacity for it to be immediately assigned to a node. The
@@ -8,6 +15,21 @@ option is set to `true`, the <<ml-open-job,open {anomaly-jobs} API>> does not
 return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
+
+tag::allow-no-datafeeds[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {datafeeds} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `datafeeds` array when
+there are no matches and the subset of results when there are partial matches.
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+end::allow-no-datafeeds[]
 
 tag::allow-no-jobs[]
 Specifies what to do when the request:
@@ -207,6 +229,12 @@ add them here as
 <<analysis-pattern-replace-charfilter,pattern replace character filters>>.
 end::char-filter[]
 
+tag::chunking-config[]
+Specifies how data searches are split into time chunks. See
+<<ml-datafeed-chunking-config>>. For example:
+`{"mode": "manual", "time_span": "3h"}`
+end::chunking-config[]
+
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
@@ -300,6 +328,16 @@ A data description object has the following properties:
 include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
 --
 end::data-description[]
+
+tag::datafeed-id[]
+A numerical character string that uniquely identifies the {dfeed}.
+end::datafeed-id[]
+
+tag::delayed-data-check-config[]
+Specifies whether the data feed checks for missing data and the size of the
+window. For example: `{"enabled": true, "check_window": "1h"}` See
+<<ml-datafeed-delayed-data-check-config>>.
+end::delayed-data-check-config[]
 
 tag::dependent_variable[]
 `dependent_variable`::
@@ -405,6 +443,13 @@ optional. If it is not specified, no token filters are applied prior to
 categorization.
 end::filter[]
 
+tag::frequency[]
+The interval at which scheduled queries are made while the {dfeed} runs in real
+time. The default value is either the bucket span for short bucket spans, or,
+for longer bucket spans, a sensible fraction of the bucket span. For example:
+`150s`.
+end::frequency[]
+
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`, 
 `max`, and `sum`. For more information, see
@@ -423,6 +468,10 @@ end::gamma[]
 tag::groups[]
 A list of job groups. A job can belong to no groups or many.
 end::groups[]
+
+tag::indices[]
+An array of index names. For example: `["it_ops_metrics"]`
+end::indices[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
@@ -475,6 +524,10 @@ alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
 and end with alphanumeric characters.
 end::job-id-data-frame-analytics-define[]
 
+tag::job-id-datafeed[]
+The unique identifier for the job to which the {dfeed} sends data.
+end::job-id-datafeed[]
+
 tag::jobs-stats-anomaly-detection[]
 An array of {anomaly-job} statistics objects.
 For more information, see <<ml-jobstats>>.
@@ -501,6 +554,15 @@ the <<ml-post-data,post data>> API.
 
 --
 end::latency[]
+
+tag::max-empty-searches[]
+If a real-time {dfeed} has never seen any data (including during any initial
+training period) then it will automatically stop itself and close its associated
+job after this many real-time searches that return no documents. In other words,
+it will stop after `frequency` times `max_empty_searches` of real-time operation.
+If not set then a {dfeed} with no end time that sees no data will remain started
+until it is explicitly stopped. By default this setting is not set.
+end::max-empty-searches[]
 
 tag::maximum_number_trees[]
 `maximum_number_trees`::
@@ -615,6 +677,21 @@ tag::prediction_field_name[]
 Defaults to `<dependent_variable>_prediction`.
 end::prediction_field_name[]
 
+tag::query[]
+The {es} query domain-specific language (DSL). This value corresponds to the
+query object in an {es} search POST body. All the options that are supported by
+{es} can be used, as this object is passed verbatim to {es}. By default, this
+property has the following value: `{"match_all": {"boost": 1}}`.
+end::query[]
+
+tag::query-delay[]
+The number of seconds behind real time that data is queried. For example, if
+data from 10:04 a.m. might not be searchable in {es} until 10:06 a.m., set this
+property to 120 seconds. The default value is randomly selected between `60s`
+and `120s`. This randomness improves the query performance when there are
+multiple jobs running on the same node.
+end::query-delay[]
+
 tag::renormalization-window-days[]
 Advanced configuration option. The period over which adjustments to the score
 are applied, as new data is seen. The default value is the longer of 30 days or
@@ -632,6 +709,17 @@ retained. Once per day at 00:30 (server time), results older than this period
 are deleted from {es}. The default value is null, which means results are
 retained.
 end::results-retention-days[]
+
+tag::script-fields[]
+Specifies scripts that evaluate custom expressions and returns script fields to
+the {dfeed}. The detector configuration objects in a job can contain functions
+that use these script fields. For more information, see
+{stack-ov}/ml-configuring-transform.html[Transforming data with script fields].
+end::script-fields[]
+
+tag::scroll-size[]
+The `size` parameter that is used in {es} searches. The default value is `1000`.
+end::scroll-size[]
 
 tag::summary-count-field-name[]
 If this property is specified, the data that is fed to the job is expected to be

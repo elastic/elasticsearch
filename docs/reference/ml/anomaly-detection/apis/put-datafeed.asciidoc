@@ -52,12 +52,12 @@ those same roles.
 ==== {api-request-body-title}
 
 `aggregations`::
-  (Optional, object) If set, the {dfeed} performs aggregation searches. For more
-  information, see <<ml-datafeed-resource>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
-  (Optional, object) Specifies how data searches are split into time chunks. See
-  <<ml-datafeed-chunking-config>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
 
 `delayed_data_check_config`::
   (Optional, object) Specifies whether the data feed checks for missing data and 

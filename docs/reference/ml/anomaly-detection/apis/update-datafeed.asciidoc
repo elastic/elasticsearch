@@ -47,8 +47,8 @@ using those same roles.
 The following properties can be updated after the {dfeed} is created:
 
 `aggregations`::
-  (Optional, object) If set, the {dfeed} performs aggregation searches. For more
-  information, see <<ml-datafeed-resource>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
   (Optional, object) Specifies how data searches are split into time chunks. See

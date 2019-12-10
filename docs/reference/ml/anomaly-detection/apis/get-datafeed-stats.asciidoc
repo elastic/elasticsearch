@@ -45,26 +45,17 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Optional, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
-  or a wildcard expression. If you do not specify one of these options, the API
-  returns statistics for all {dfeeds}.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+If you do not specify one of these options, the API returns information about
+all {dfeeds}.
 
 [[ml-get-datafeed-stats-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_datafeeds`::
-  (Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no {datafeeds} that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches. 
-
-The default value is `true`, which returns an empty `datafeeds` array when
-there are no matches and the subset of results when there are partial matches.
-If this parameter is `false`, the request returns a `404` status code when there
-are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 
 [[ml-get-datafeed-stats-results]]
@@ -85,9 +76,6 @@ The API returns the following information:
 
 [[ml-get-datafeed-stats-example]]
 ==== {api-examples-title}
-
-The following example gets usage information for the
-`datafeed-total-requests` {dfeed}:
 
 [source,console]
 --------------------------------------------------

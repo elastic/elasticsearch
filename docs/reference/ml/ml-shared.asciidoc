@@ -230,9 +230,22 @@ add them here as
 end::char-filter[]
 
 tag::chunking-config[]
-Specifies how data searches are split into time chunks. See
-<<ml-datafeed-chunking-config>>. For example:
-`{"mode": "manual", "time_span": "3h"}`
+{dfeeds-cap} might be required to search over long time periods, for several months
+or years. This search is split into time chunks in order to ensure the load
+on {es} is managed. Chunking configuration controls how the size of these time
+chunks are calculated and is an advanced configuration option.
+A chunking configuration object has the following properties:
+
+`mode`:::
+(string)
++
+--
+include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
+--
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=time-units]
 end::chunking-config[]
 
 tag::custom-rules[]
@@ -330,13 +343,44 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
 end::data-description[]
 
 tag::datafeed-id[]
-A numerical character string that uniquely identifies the {dfeed}.
+A numerical character string that uniquely identifies the
+{dfeed}. This identifier can contain lowercase alphanumeric characters (a-z
+and 0-9), hyphens, and underscores. It must start and end with alphanumeric
+characters.
 end::datafeed-id[]
 
+tag::datafeed-id-wildcard[]
+Identifier for the {dfeed}. It can be a {dfeed} identifier or a wildcard
+expression.
+end::datafeed-id-wildcard[]
+
 tag::delayed-data-check-config[]
-Specifies whether the data feed checks for missing data and the size of the
-window. For example: `{"enabled": true, "check_window": "1h"}` See
-<<ml-datafeed-delayed-data-check-config>>.
+Specifies whether the {dfeed} checks for missing data and the size of the
+window. For example: `{"enabled": true, "check_window": "1h"}`.
++
+--
+The {dfeed} can optionally search over indices that have already been read in
+an effort to determine whether any data has subsequently been added to the index.
+If missing data is found, it is a good indication that the `query_delay` option
+is set too low and the data is being indexed after the {dfeed} has passed that
+moment in time. See 
+{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
+
+This check runs only on real-time {dfeeds}.
+
+The configuration object has the following properties:
+
+`enabled`::
+(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+Defaults to `true`.
+
+`check_window`::
+(<<time-units,time units>>) The window of time that is searched for late data.
+This window of time ends with the latest finalized bucket. It defaults to
+`null`, which causes an appropriate `check_window` to be calculated when the
+real-time {dfeed} runs. In particular, the default `check_window` span
+calculation is based on the maximum of `2h` or `8 * bucket_span`.
+--
 end::delayed-data-check-config[]
 
 tag::dependent_variable[]
@@ -470,7 +514,14 @@ A list of job groups. A job can belong to no groups or many.
 end::groups[]
 
 tag::indices[]
-An array of index names. For example: `["it_ops_metrics"]`
+An array of index names. Wildcards are supported. For example:
+`["it_ops_metrics", "server*"]`.
++
+--
+NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
+not be set to `false` on any {ml} nodes.
+
+--
 end::indices[]
 
 tag::influencers[]
@@ -569,6 +620,15 @@ tag::maximum_number_trees[]
 (Optional, integer) Defines the maximum number of trees the forest is allowed 
 to contain. The maximum value is 2000.
 end::maximum_number_trees[]
+
+tag::mode[]
+There are three available modes: 
+
+* `auto`: The chunk size is dynamically calculated. This is the default and
+recommended value.
+* `manual`: Chunking is applied according to the specified `time_span`.
+* `off`: No chunking is applied.
+end::mode[]
 
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for 
@@ -714,7 +774,8 @@ tag::script-fields[]
 Specifies scripts that evaluate custom expressions and returns script fields to
 the {dfeed}. The detector configuration objects in a job can contain functions
 that use these script fields. For more information, see
-{stack-ov}/ml-configuring-transform.html[Transforming data with script fields].
+{stack-ov}/ml-configuring-transform.html[Transforming data with script fields]
+and <<request-body-search-script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]
@@ -750,6 +811,11 @@ job creation fails.
 
 --
 end::time-format[]
+
+tag::time-span[]
+The time span that each search will be querying. This setting is only applicable
+when the mode is set to `manual`. For example: `3h`.
+end::time-span[]
 
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after 

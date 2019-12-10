@@ -9,7 +9,7 @@ A {dfeed} resource has the following properties:
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
 
-`chunking_config`::
+[[ml-datafeed-chunking-config]]`chunking_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
 
@@ -47,60 +47,13 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
 (unsigned integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
-`delayed_data_check_config`::
+[[ml-datafeed-delayed-data-check-config]]`delayed_data_check_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
 
 `max_empty_searches`::
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
-
-[[ml-datafeed-chunking-config]]
-==== Chunking configuration objects
-
-{dfeeds-cap} might be required to search over long time periods, for several months
-or years. This search is split into time chunks in order to ensure the load
-on {es} is managed. Chunking configuration controls how the size of these time
-chunks are calculated and is an advanced configuration option.
-
-A chunking configuration object has the following properties:
-
-`mode`::
-  There are three available modes: +
-  `auto`::: The chunk size will be dynamically calculated. This is the default
-  and recommended value.
-  `manual`::: Chunking will be applied according to the specified `time_span`.
-  `off`::: No chunking will be applied.
-
-`time_span`::
-  (time units) The time span that each search will be querying.
-  This setting is only applicable when the mode is set to `manual`.
-  For example: `3h`.
-
-[[ml-datafeed-delayed-data-check-config]]
-==== Delayed data check configuration objects
-
-The {dfeed} can optionally search over indices that have already been read in
-an effort to determine whether any data has subsequently been added to the index.
-If missing data is found, it is a good indication that the `query_delay` option
-is set too low and the data is being indexed after the {dfeed} has passed that
-moment in time. See 
-{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
-
-This check runs only on real-time {dfeeds}.
-
-The configuration object has the following properties:
-
-`enabled`::
-  (boolean) Specifies whether the {dfeed} periodically checks for delayed data.
-  Defaults to `true`.
-
-`check_window`::
-  (time units) The window of time that is searched for late data. This window of
-  time ends with the latest finalized bucket. It defaults to `null`, which
-  causes an appropriate `check_window` to be calculated when the real-time
-  {dfeed} runs. In particular, the default `check_window` span calculation is
-  based on the maximum of `2h` or `8 * bucket_span`.
 
 [float]
 [[ml-datafeed-counts]]

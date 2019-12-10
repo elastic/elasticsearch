@@ -27,19 +27,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoTestUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.GeometryVisitor;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -168,91 +158,19 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             GeoPoint expectedCentroid = new GeoPoint(0, 0);
-            CentroidCalculator centroidOfCentroidsCalculator = new CentroidCalculator();
+            CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
+            CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
             for (int i = 0; i < numDocs; i++) {
-                CentroidCalculator calculator = new CentroidCalculator();
+
                 Document document = new Document();
                 Geometry geometry = geometryGenerator.apply(false);
-                geometry.visit(new GeometryVisitor<Void, Exception>() {
-                    @Override
-                    public Void visit(Circle circle) throws Exception {
-                        calculator.addCoordinate(circle.getX(), circle.getY());
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(GeometryCollection<?> collection) throws Exception {
-                        for (Geometry shape : collection) {
-                            shape.visit(this);
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(Line line) throws Exception {
-                        for (int i = 0; i < line.length(); i++) {
-                            calculator.addCoordinate(line.getX(i), line.getY(i));
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(LinearRing ring) throws Exception {
-                        for (int i = 0; i < ring.length() - 1; i++) {
-                            calculator.addCoordinate(ring.getX(i), ring.getY(i));
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(MultiLine multiLine) throws Exception {
-                        for (Line line : multiLine) {
-                            visit(line);
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(MultiPoint multiPoint) throws Exception {
-                        for (Point point : multiPoint) {
-                            visit(point);
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(MultiPolygon multiPolygon) throws Exception {
-                        for (Polygon polygon : multiPolygon) {
-                            visit(polygon);
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(Point point) throws Exception {
-                        calculator.addCoordinate(point.getX(), point.getY());
-                        return null;
-                    }
-
-                    @Override
-                    public Void visit(Polygon polygon) throws Exception {
-                        return visit(polygon.getPolygon());
-                    }
-
-                    @Override
-                    public Void visit(Rectangle rectangle) throws Exception {
-                        calculator.addCoordinate(rectangle.getMinX(), rectangle.getMinY());
-                        calculator.addCoordinate(rectangle.getMinX(), rectangle.getMaxY());
-                        calculator.addCoordinate(rectangle.getMaxX(), rectangle.getMinY());
-                        calculator.addCoordinate(rectangle.getMaxX(), rectangle.getMaxY());
-                        return null;
-                    }
-                });
-                document.add(new BinaryGeoShapeDocValuesField("field", geometry));
+                CentroidCalculator calculator = new CentroidCalculator(geometry);
+                document.add(new BinaryGeoShapeDocValuesField("field", GeoTestUtils.toDecodedTriangles(geometry), calculator));
                 w.addDocument(document);
-                centroidOfCentroidsCalculator.addCoordinate(calculator.getX(), calculator.getY());
+                compensatedSumLat.add(calculator.getY());
+                compensatedSumLon.add(calculator.getX());
             }
-            expectedCentroid.reset(centroidOfCentroidsCalculator.getY(), centroidOfCentroidsCalculator.getX());
+            expectedCentroid.reset(compensatedSumLat.value() / numDocs, compensatedSumLon.value() / numDocs);
             assertCentroid(w, expectedCentroid, new GeoShapeFieldMapper.GeoShapeFieldType());
         }
     }

@@ -18,18 +18,12 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Object representing the extent of a geometry object within a {@link ShapeTreeWriter}.
+ * Object representing the extent of a geometry object within a {@link TriangleTreeWriter}.
  */
-public class Extent implements Writeable {
-    static final int WRITEABLE_SIZE_IN_BYTES = 24;
+public class Extent {
 
     public int top;
     public int bottom;
@@ -47,17 +41,13 @@ public class Extent implements Writeable {
         this.posRight = Integer.MIN_VALUE;
     }
 
-    public Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
+    private Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
         this.bottom = bottom;
         this.negLeft = negLeft;
         this.negRight = negRight;
         this.posLeft = posLeft;
         this.posRight = posRight;
-    }
-
-    Extent(StreamInput input) throws IOException {
-        this(input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt());
     }
 
     public void reset(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
@@ -166,17 +156,6 @@ public class Extent implements Writeable {
      */
     public int maxX() {
         return Math.max(negRight, posRight);
-    }
-
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(top);
-        out.writeInt(bottom);
-        out.writeInt(negLeft);
-        out.writeInt(negRight);
-        out.writeInt(posLeft);
-        out.writeInt(posRight);
     }
 
     @Override

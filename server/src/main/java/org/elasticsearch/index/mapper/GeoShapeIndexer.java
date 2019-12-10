@@ -21,8 +21,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -197,14 +199,14 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     }
 
     @Override
-    public void indexDocValueField(ParseContext context, Geometry shape) {
+    public void indexDocValueField(ParseContext context, ShapeField.DecodedTriangle[] triangles, CentroidCalculator calculator) {
         BinaryGeoShapeDocValuesField docValuesField =
             (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
         if (docValuesField == null) {
-            docValuesField = new BinaryGeoShapeDocValuesField(name, shape);
+            docValuesField = new BinaryGeoShapeDocValuesField(name, triangles, calculator);
             context.doc().addWithKey(name, docValuesField);
         } else {
-            docValuesField.add(shape);
+            docValuesField.add(triangles, calculator);
         }
     }
 
@@ -1075,17 +1077,12 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         }
     }
 
-
     public static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
         org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
         for(int i = 0; i<holes.length; i++) {
             holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
         }
         return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
-    }
-
-    public static org.apache.lucene.geo.Line toLuceneLine(Line line) {
-        return new org.apache.lucene.geo.Line(line.getLats(), line.getLons());
     }
 
     /**

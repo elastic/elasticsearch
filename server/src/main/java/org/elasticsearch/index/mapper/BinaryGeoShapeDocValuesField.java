@@ -18,45 +18,43 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.TriangleTreeWriter;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
 
-    private List<Geometry> geometries;
+    private final List<ShapeField.DecodedTriangle> triangles;
+    private final CentroidCalculator centroidCalculator;
 
-    public BinaryGeoShapeDocValuesField(String name, Geometry geometry) {
+    public BinaryGeoShapeDocValuesField(String name, ShapeField.DecodedTriangle[] triangles, CentroidCalculator centroidCalculator) {
         super(name);
-        this.geometries = new ArrayList<>(1);
-        add(geometry);
+        this.triangles = new ArrayList<>(triangles.length);
+        this.centroidCalculator = centroidCalculator;
+        this.triangles.addAll(Arrays.asList(triangles));
     }
 
-    public void add(Geometry geometry) {
-        geometries.add(geometry);
+    public void add(ShapeField.DecodedTriangle[] triangles, CentroidCalculator centroidCalculator) {
+        this.triangles.addAll(Arrays.asList(triangles));
+        this.centroidCalculator.addFrom(centroidCalculator);
     }
 
     @Override
     public BytesRef binaryValue() {
         try {
-            final Geometry geometry;
-            if (geometries.size() > 1) {
-                geometry = new GeometryCollection(geometries);
-            } else {
-                geometry = geometries.get(0);
-            }
-            final TriangleTreeWriter writer = new TriangleTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-            BytesStreamOutput output = new BytesStreamOutput();
+            final TriangleTreeWriter writer = new TriangleTreeWriter(triangles, GeoShapeCoordinateEncoder.INSTANCE, centroidCalculator);
+            ByteBuffersDataOutput output = new ByteBuffersDataOutput();
             writer.writeTo(output);
-            return output.bytes().toBytesRef();
+            return new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size()));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to encode shape", e);
         }

@@ -19,19 +19,19 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class ListDanglingIndicesRequest extends ActionRequest {
-    public ListDanglingIndicesRequest() {
-        super();
-    }
-
+public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingIndicesRequest> {
     public ListDanglingIndicesRequest(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public ListDanglingIndicesRequest() {
+        super(new String[0]);
     }
 
     @Override

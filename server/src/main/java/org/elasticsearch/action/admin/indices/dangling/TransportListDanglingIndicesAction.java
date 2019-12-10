@@ -19,46 +19,84 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportListDanglingIndicesAction extends HandledTransportAction<ListDanglingIndicesRequest, ListDanglingIndicesResponse> {
+public class TransportListDanglingIndicesAction extends
+    TransportNodesAction<ListDanglingIndicesRequest, ListDanglingIndicesResponse, NodeDanglingIndicesRequest, NodeDanglingIndicesResponse> {
     private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
     @Inject
     public TransportListDanglingIndicesAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
         DanglingIndicesState danglingIndicesState
     ) {
-        super(ListDanglingIndicesAction.NAME, transportService, actionFilters, ListDanglingIndicesRequest::new);
-        this.danglingIndicesState = danglingIndicesState;
+        super(
+            ListDanglingIndicesAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            ListDanglingIndicesRequest::new,
+            NodeDanglingIndicesRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            NodeDanglingIndicesResponse.class
+        );
         this.transportService = transportService;
+        this.danglingIndicesState = danglingIndicesState;
     }
 
     @Override
-    protected void doExecute(Task task, ListDanglingIndicesRequest request, ActionListener<ListDanglingIndicesResponse> listener) {
-        List<DanglingIndexInfo> indexInfo = new ArrayList<>();
+    protected ListDanglingIndicesResponse newResponse(
+        ListDanglingIndicesRequest request,
+        List<NodeDanglingIndicesResponse> nodeDanglingIndicesResponses,
+        List<FailedNodeException> failures
+    ) {
+        return new ListDanglingIndicesResponse(clusterService.getClusterName(), nodeDanglingIndicesResponses, failures);
+    }
+
+    @Override
+    protected NodeDanglingIndicesRequest newNodeRequest(ListDanglingIndicesRequest request) {
+        return new NodeDanglingIndicesRequest();
+    }
+
+    @Override
+    protected NodeDanglingIndicesResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodeDanglingIndicesResponse(in);
+    }
+
+    @Override
+    protected NodeDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
+        final List<DanglingIndexInfo> indexInfo = new ArrayList<>();
+        final DiscoveryNode localNode = transportService.getLocalNode();
 
         for (IndexMetaData metaData : danglingIndicesState.getDanglingIndices().values()) {
             DanglingIndexInfo info = new DanglingIndexInfo(
-                transportService.getLocalNode().getId(),
+                localNode.getId(),
                 metaData.getIndex().getName(),
                 metaData.getIndexUUID()
             );
             indexInfo.add(info);
         }
 
-        listener.onResponse(new ListDanglingIndicesResponse(indexInfo));
+        return new NodeDanglingIndicesResponse(localNode, indexInfo);
     }
 }

@@ -49,8 +49,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>,
-                                           NodesResponse extends BaseNodesResponse,
-                                           NodeRequest extends BaseNodeRequest,
+                                           NodesResponse extends BaseNodesResponse<NodeResponse>,
+                                           NodeRequest extends TransportRequest,
                                            NodeResponse extends BaseNodeResponse>
     extends HandledTransportAction<NodesRequest, NodesResponse> {
 
@@ -91,7 +91,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
      * @throws NullPointerException if {@code nodesResponses} is {@code null}
      * @see #newResponse(BaseNodesRequest, List, List)
      */
-    protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray nodesResponses) {
+    protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray<?> nodesResponses) {
         final List<NodeResponse> responses = new ArrayList<>();
         final List<FailedNodeException> failures = new ArrayList<>();
 

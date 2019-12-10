@@ -1,5 +1,5 @@
 {
-  "list_dangling_indices":{
+  "dangling_indices.list":{
     "documentation":{
       "description":"Returns all dangling indices."
     },

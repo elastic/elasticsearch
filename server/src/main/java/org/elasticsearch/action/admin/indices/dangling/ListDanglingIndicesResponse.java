@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -27,44 +29,66 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
-public class ListDanglingIndicesResponse extends ActionResponse implements StatusToXContentObject {
-    private final List<DanglingIndexInfo> indexInfo;
-
-    public ListDanglingIndicesResponse(List<DanglingIndexInfo> indexInfo) {
-        this.indexInfo = indexInfo;
-    }
+public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingIndicesResponse> implements StatusToXContentObject {
 
     public ListDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexInfo = Collections.emptyList();
     }
 
-    public List<DanglingIndexInfo> getIndexInfo() {
-        return indexInfo;
+    public ListDanglingIndicesResponse(
+        ClusterName clusterName,
+        List<NodeDanglingIndicesResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
+        super(clusterName, nodes, failures);
     }
 
     @Override
     public RestStatus status() {
-        return RestStatus.OK;
+        return this.hasFailures() ? RestStatus.SERVICE_UNAVAILABLE : RestStatus.OK;
+    }
+
+    public List<DanglingIndexInfo> getDanglingIndices() {
+        List<DanglingIndexInfo> danglingIndices = new ArrayList<>();
+
+        for (NodeDanglingIndicesResponse nodeResponse : this.getNodes()) {
+            danglingIndices.addAll(nodeResponse.getDanglingIndices());
+        }
+
+        return danglingIndices;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray();
-        for (DanglingIndexInfo info : this.indexInfo) {
+        builder.startObject();
+
+        builder.startArray("dangling_indices");
+        for (DanglingIndexInfo info : this.getDanglingIndices()) {
             info.toXContent(builder, params);
         }
-        return builder.endArray();
+        builder.endArray();
+
+        if (this.hasFailures()) {
+            builder.startArray("failed_nodes");
+            for (FailedNodeException failure : this.failures()) {
+                failure.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
+        return builder.endObject();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(this.indexInfo.size());
-        for (DanglingIndexInfo info : this.indexInfo) {
-            info.writeTo(out);
-        }
+    protected List<NodeDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeDanglingIndicesResponse::new);
+    }
+
+    @Override
+    protected void writeNodesTo(StreamOutput out, List<NodeDanglingIndicesResponse> nodes) throws IOException {
+        out.writeList(nodes);
     }
 }

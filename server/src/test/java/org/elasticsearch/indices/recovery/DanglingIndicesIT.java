@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
@@ -124,9 +125,11 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .listDanglingIndices(new ListDanglingIndicesRequest())
                 .actionGet();
             assertThat(response.status(), equalTo(RestStatus.OK));
-            assertThat(response.getIndexInfo(), hasSize(1));
 
-            final DanglingIndexInfo danglingIndexInfo = response.getIndexInfo().get(0);
+            final List<DanglingIndexInfo> danglingIndices = response.getDanglingIndices();
+            assertThat(danglingIndices, hasSize(1));
+
+            final DanglingIndexInfo danglingIndexInfo = danglingIndices.get(0);
             assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
         });
     }

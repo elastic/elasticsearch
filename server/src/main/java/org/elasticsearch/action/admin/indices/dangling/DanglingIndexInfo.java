@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -35,6 +36,12 @@ public class DanglingIndexInfo implements Writeable, ToXContentObject {
         this.nodeId = nodeId;
         this.indexName = indexName;
         this.indexUUID = indexUUID;
+    }
+
+    public DanglingIndexInfo(StreamInput in) throws IOException {
+        this.nodeId = in.readString();
+        this.indexName = in.readString();
+        this.indexUUID = in.readString();
     }
 
     public String getIndexName() {

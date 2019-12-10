@@ -976,7 +976,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String testPrefix = testBlobPrefix(seed);
                 final BlobContainer container = blobStore().blobContainer(basePath().add(testPrefix));
                 container.deleteBlobsIgnoringIfNotExists(List.copyOf(container.listBlobs().keySet()));
-                blobStore().blobContainer(basePath()).deleteBlobIgnoringIfNotExists(testPrefix);
+                blobStore().blobContainer(basePath()).deleteBlobsIgnoringIfNotExists(Collections.singletonList(testPrefix));
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }

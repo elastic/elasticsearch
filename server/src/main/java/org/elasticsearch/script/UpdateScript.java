@@ -58,7 +58,7 @@ public abstract class UpdateScript {
 
     public abstract void execute();
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         UpdateScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
     }
 }

@@ -8,9 +8,14 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -113,6 +118,38 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         // training_percent == null, default applied
         classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, null);
         assertThat(classification.getTrainingPercent(), equalTo(100.0));
+    }
+
+    public void testGetParams() {
+        Map<String, Set<String>> extractedFields =
+            Map.of(
+                "foo", Set.of(BooleanFieldMapper.CONTENT_TYPE),
+                "bar", Set.of(NumberFieldMapper.NumberType.LONG.typeName()),
+                "baz", Set.of(KeywordFieldMapper.CONTENT_TYPE));
+        assertThat(
+            new Classification("foo").getParams(extractedFields),
+            equalTo(
+                Map.of(
+                    "dependent_variable", "foo",
+                    "num_top_classes", 2,
+                    "prediction_field_name", "foo_prediction",
+                    "prediction_field_type", "bool")));
+        assertThat(
+            new Classification("bar").getParams(extractedFields),
+            equalTo(
+                Map.of(
+                    "dependent_variable", "bar",
+                    "num_top_classes", 2,
+                    "prediction_field_name", "bar_prediction",
+                    "prediction_field_type", "int")));
+        assertThat(
+            new Classification("baz").getParams(extractedFields),
+            equalTo(
+                Map.of(
+                    "dependent_variable", "baz",
+                    "num_top_classes", 2,
+                    "prediction_field_name", "baz_prediction",
+                    "prediction_field_type", "string")));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {

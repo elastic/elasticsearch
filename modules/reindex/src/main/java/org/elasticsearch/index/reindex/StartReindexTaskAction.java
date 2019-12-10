@@ -25,13 +25,10 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -93,39 +90,30 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
 
     public static class Response extends ActionResponse {
 
-        static final ParseField TASK_ID = new ParseField("task_id");
-        static final ParseField REINDEX_RESPONSE = new ParseField("reindex_response");
-
-        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-            "start_reindex_response", true, args -> new Response((String) args[0], (BulkByScrollResponse) args[1]));
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), TASK_ID);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (parser, context) -> BulkByScrollResponse.fromXContent(parser), REINDEX_RESPONSE);
-        }
-
         private final String taskId;
+        private final String ephemeralTaskId;
         @Nullable private final BulkByScrollResponse reindexResponse;
 
-        public Response(String taskId) {
-            this(taskId, null);
+        public Response(String taskId, String ephemeralTaskId) {
+            this(taskId, ephemeralTaskId, null);
         }
 
-        public Response(String taskId, BulkByScrollResponse reindexResponse) {
+        public Response(String taskId, String ephemeralTaskId, BulkByScrollResponse reindexResponse) {
             this.taskId = taskId;
+            this.ephemeralTaskId = ephemeralTaskId;
             this.reindexResponse = reindexResponse;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             taskId = in.readString();
+            ephemeralTaskId = in.readString();
             reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(taskId);
+            out.writeString(ephemeralTaskId);
             out.writeOptionalWriteable(reindexResponse);
         }
 
@@ -133,12 +121,12 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
             return taskId;
         }
 
-        public BulkByScrollResponse getReindexResponse() {
-            return reindexResponse;
+        public String getEphemeralTaskId() {
+            return ephemeralTaskId;
         }
 
-        public static Response fromXContent(final XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
+        public BulkByScrollResponse getReindexResponse() {
+            return reindexResponse;
         }
     }
 }

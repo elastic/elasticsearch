@@ -1,3 +1,5 @@
+setup:
+
   - do:
       index:
         index: bwc_ml_outlier_detection_job_source

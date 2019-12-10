@@ -231,10 +231,10 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
             assertThat(bottomRight.lon(), closeTo(geoValuesBottomRight.lon(), GEOHASH_TOLERANCE));
         }
 
-        // test geo_shape
+        // test geo_shape, should not wrap dateline
         {
-            GeoPoint geoValuesTopLeft = new GeoPoint(38, 178);
-            GeoPoint geoValuesBottomRight = new GeoPoint(-24, -179);
+            GeoPoint geoValuesTopLeft = new GeoPoint(38, -179);
+            GeoPoint geoValuesBottomRight = new GeoPoint(-24, 178);
             GeoBounds geoBounds = response.getAggregations().get(geoShapeAggName);
             assertThat(geoBounds, notNullValue());
             assertThat(geoBounds.getName(), equalTo(geoShapeAggName));

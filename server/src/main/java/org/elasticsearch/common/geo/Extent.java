@@ -78,9 +78,10 @@ public class Extent {
             this.negRight = Math.max(this.negRight, topRightX);
         } else if (bottomLeftX < 0) {
             this.negLeft = Math.min(this.negLeft, bottomLeftX);
-            this.negRight = Math.max(this.negRight, bottomLeftX);
-            this.posLeft = Math.min(this.posLeft, topRightX);
             this.posRight = Math.max(this.posRight, topRightX);
+            // this signal the extent cannot be wrapped around the dateline
+            this.negRight = Integer.MAX_VALUE;
+            this.posLeft = Integer.MIN_VALUE;
         } else {
             this.posLeft = Math.min(this.posLeft, bottomLeftX);
             this.posRight = Math.max(this.posRight, topRightX);
@@ -121,8 +122,11 @@ public class Extent {
             negLeft = bottomLeftX;
             negRight = topRightX;
         } else if (bottomLeftX < 0) {
-            negLeft = negRight = bottomLeftX;
-            posLeft = posRight = topRightX;
+            negLeft = bottomLeftX;
+            posRight = topRightX;
+            // this signal the extent cannot be wrapped around the dateline
+            negRight = Integer.MAX_VALUE;
+            posLeft = Integer.MIN_VALUE;
         } else {
             posLeft = bottomLeftX;
             posRight = topRightX;
@@ -174,5 +178,17 @@ public class Extent {
     @Override
     public int hashCode() {
         return Objects.hash(top, bottom, negLeft, negRight, posLeft, posRight);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("[");
+        builder.append("top = " + top + ", ");
+        builder.append("bottom = " + bottom + ", ");
+        builder.append("negLeft = " + negLeft + ", ");
+        builder.append("negRight = " + negRight + ", ");
+        builder.append("posLeft = " + posLeft + ", ");
+        builder.append("posRight = " + posRight + "]");
+        return builder.toString();
     }
 }

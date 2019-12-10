@@ -18,12 +18,21 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.apache.logging.log4j.core.impl.MementoMessage;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,6 +58,27 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
+
+    public static class MockAppender extends AbstractAppender {
+        private LogEvent lastEvent;
+
+        public MockAppender(final String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            lastEvent = event.toImmutable();
+        }
+
+        public MementoMessage lastMementoMessage() {
+            return (MementoMessage) lastEvent.getMessage();
+        }
+
+        public String getLoggerMaker() {
+            return lastEvent.getMarker().getName();
+        }
+    }
 
     public void testGet() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
@@ -1092,4 +1123,22 @@ public class SettingTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("must be stored inside elasticsearch.yml"));
     }
 
+    public void testLogSettingUpdate() throws Exception {
+        IndexMetaData metaData = newIndexMeta("index1", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_WARMER_ENABLED_SETTING.getKey(), false)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        Logger logger = settings.getScopedSettings().logger;
+
+        MockAppender appender = new MockAppender("trace_appender");
+        appender.start();
+        Loggers.addAppender(logger, appender);
+
+        settings.updateIndexMetaData(newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_WARMER_ENABLED_SETTING.getKey(),
+            "true").build()));
+
+        assertThat(appender.lastMementoMessage().getFormattedMessage(), equalTo("updating [index.warmer.enabled] from [false] to [true]"));
+        assertThat(appender.getLoggerMaker(), equalTo("[index1]"));
+    }
 }

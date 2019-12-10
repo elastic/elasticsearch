@@ -96,7 +96,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
 
 `randomize_seed`::
 (Optional, long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=randomize_seed]
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 
 [float]
@@ -162,7 +162,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
 
 `randomize_seed`::
 (Optional, long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=randomize_seed]
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 
 [float]

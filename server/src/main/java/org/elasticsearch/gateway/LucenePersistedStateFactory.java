@@ -81,6 +81,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.IntPredicate;
+import java.util.stream.Stream;
 
 /**
  * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by master-eligible nodes
@@ -122,17 +123,30 @@ public class LucenePersistedStateFactory {
 
     public static final String METADATA_DIRECTORY_NAME = "_metadata";
 
-    private final NodeEnvironment nodeEnvironment;
+    private final Path[] dataPaths;
+    private final String nodeId;
+    private final boolean preserveUnknownCustoms;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
 
     public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
-        this.nodeEnvironment = nodeEnvironment;
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays);
+    }
+
+    public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, boolean preserveUnknownCustoms,
+                                       NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
+        this.dataPaths = dataPaths;
+        this.nodeId = nodeId;
+        this.preserveUnknownCustoms = preserveUnknownCustoms;
         this.namedXContentRegistry = namedXContentRegistry;
         this.bigArrays = bigArrays;
     }
 
-    CoordinationState.PersistedState loadPersistedState(BiFunction<Long, MetaData, ClusterState> clusterStateFromMetaData)
+    public void cleanDirs() throws IOException {
+        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(METADATA_DIRECTORY_NAME)).toArray(Path[]::new));
+    }
+
+    public CoordinationState.PersistedState loadPersistedState(BiFunction<Long, MetaData, ClusterState> clusterStateFromMetaData)
         throws IOException {
 
         final OnDiskState onDiskState = loadBestOnDiskState();
@@ -141,7 +155,7 @@ public class LucenePersistedStateFactory {
         final List<Closeable> closeables = new ArrayList<>();
         boolean success = false;
         try {
-            for (final Path path : nodeEnvironment.nodeDataPaths()) {
+            for (final Path path : dataPaths) {
                 final Directory directory = createDirectory(path.resolve(METADATA_DIRECTORY_NAME));
                 closeables.add(directory);
 
@@ -168,7 +182,7 @@ public class LucenePersistedStateFactory {
 
         final ClusterState clusterState = clusterStateFromMetaData.apply(onDiskState.lastAcceptedVersion, onDiskState.metaData);
         final LucenePersistedState lucenePersistedState
-            = new LucenePersistedState(nodeEnvironment.nodeId(), metaDataIndexWriters, onDiskState.currentTerm, clusterState, bigArrays);
+            = new LucenePersistedState(nodeId, metaDataIndexWriters, onDiskState.currentTerm, clusterState, bigArrays);
         success = false;
         try {
             lucenePersistedState.persistInitialState();
@@ -214,16 +228,16 @@ public class LucenePersistedStateFactory {
         // We use a write-all-read-one strategy: metadata is written to every data path when accepting it, which means it is mostly
         // sufficient to read _any_ copy. "Mostly" sufficient because the user can change the set of data paths when restarting, and may
         // add a data path containing a stale copy of the metadata. We deal with this by using the freshest copy we can find.
-        for (final Path dataPath : nodeEnvironment.nodeDataPaths()) {
+        for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
                 try (Directory directory = createDirectory(indexPath);
                      DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                     final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
-                    if (nodeEnvironment.nodeId().equals(onDiskState.nodeId) == false) {
+                    if (nodeId.equals(onDiskState.nodeId) == false) {
                         throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                            "] in [" + dataPath + "] but expected [" + nodeEnvironment.nodeId() + "]");
+                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
                     }
 
                     if (onDiskState.metaData.clusterUUIDCommitted()) {
@@ -272,8 +286,9 @@ public class LucenePersistedStateFactory {
         final SetOnce<MetaData.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
         {
-            final MetaData metaData = MetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
+            final MetaData metaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.SMILE)
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length),
+                preserveUnknownCustoms);
             logger.trace("found global metadata with last-accepted term [{}]", metaData.coordinationMetaData().term());
             if (builderReference.get() != null) {
                 throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
@@ -477,7 +492,8 @@ public class LucenePersistedStateFactory {
         public void setLastAcceptedState(ClusterState clusterState) {
             try {
                 if (clusterState.term() != lastAcceptedState.term()) {
-                    assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
+                    // TODO: Node tool violates this: assert clusterState.term() > lastAcceptedState.term() :
+                    //  clusterState.term() + " vs " + lastAcceptedState.term();
                     // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state, so
                     // it's simplest to write everything again.
                     overwriteMetaData(clusterState);

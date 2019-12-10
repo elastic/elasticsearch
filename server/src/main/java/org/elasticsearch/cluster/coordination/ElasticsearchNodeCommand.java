@@ -26,18 +26,22 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.metadata.Manifest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.gateway.LucenePersistedStateFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
@@ -50,11 +54,9 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                     "\n";
     protected static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
     static final String NO_NODE_FOLDER_FOUND_MSG = "no node folder is found in data folder(s), node has not been started yet?";
-    static final String NO_MANIFEST_FILE_FOUND_MSG = "no manifest file is found, do you run pre 7.0 Elasticsearch?";
-    protected static final String GLOBAL_GENERATION_MISSING_MSG =
-        "no metadata is referenced from the manifest file, cluster has never been bootstrapped?";
-    static final String NO_GLOBAL_METADATA_MSG = "failed to find global metadata, metadata corrupted?";
-    static final String WRITE_METADATA_EXCEPTION_MSG = "exception occurred when writing new metadata to disk";
+    protected static final String NO_NODE_METADATA_FOUND_MSG = "no node meta data is found, node has not been started yet?";
+    protected static final String CS_MISSING_MSG =
+        "cluster state is empty, cluster has never been bootstrapped?";
     protected static final String ABORTED_BY_USER_MSG = "aborted by user";
 
     public ElasticsearchNodeCommand(String description) {
@@ -73,26 +75,6 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         } catch (LockObtainFailedException e) {
             throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
-    }
-
-    protected Tuple<Manifest, MetaData> loadMetaData(Terminal terminal, Path[] dataPaths) throws IOException {
-        terminal.println(Terminal.Verbosity.VERBOSE, "Loading manifest file");
-        final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
-
-        if (manifest == null) {
-            throw new ElasticsearchException(NO_MANIFEST_FILE_FOUND_MSG);
-        }
-        if (manifest.isGlobalGenerationMissing()) {
-            throw new ElasticsearchException(GLOBAL_GENERATION_MISSING_MSG);
-        }
-        terminal.println(Terminal.Verbosity.VERBOSE, "Loading global metadata file");
-        final MetaData metaData = MetaData.FORMAT_PRESERVE_CUSTOMS.loadGeneration(
-            logger, NamedXContentRegistry.EMPTY, manifest.getGlobalGeneration(), dataPaths);
-        if (metaData == null) {
-            throw new ElasticsearchException(NO_GLOBAL_METADATA_MSG + " [generation = " + manifest.getGlobalGeneration() + "]");
-        }
-
-        return Tuple.tuple(manifest, metaData);
     }
 
     protected void confirm(Terminal terminal, String msg) {
@@ -130,41 +112,6 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
      */
     protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException;
 
-
-    protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm,
-                                    MetaData oldMetaData, MetaData newMetaData, Path[] dataPaths) {
-        long newGeneration;
-        try {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "[clusterUUID = " + oldMetaData.clusterUUID() + ", committed = " + oldMetaData.clusterUUIDCommitted() + "] => " +
-                         "[clusterUUID = " + newMetaData.clusterUUID() + ", committed = " + newMetaData.clusterUUIDCommitted() + "]");
-            terminal.println(Terminal.Verbosity.VERBOSE, "New coordination metadata is " + newMetaData.coordinationMetaData());
-            terminal.println(Terminal.Verbosity.VERBOSE, "Writing new global metadata to disk");
-            newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
-            Manifest newManifest = new Manifest(newCurrentTerm, oldManifest.getClusterStateVersion(), newGeneration,
-                    oldManifest.getIndexGenerations());
-            terminal.println(Terminal.Verbosity.VERBOSE, "New manifest is " + newManifest);
-            terminal.println(Terminal.Verbosity.VERBOSE, "Writing new manifest file to disk");
-            Manifest.FORMAT.writeAndCleanup(newManifest, dataPaths);
-        } catch (Exception e) {
-            terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up new metadata");
-            MetaData.FORMAT.cleanupOldFiles(oldManifest.getGlobalGeneration(), dataPaths);
-            throw new ElasticsearchException(WRITE_METADATA_EXCEPTION_MSG, e);
-        }
-        // if cleaning old files fail, we still succeeded.
-        try {
-            cleanUpOldMetaData(terminal, dataPaths, newGeneration);
-        } catch (Exception e) {
-            terminal.println(Terminal.Verbosity.SILENT,
-                "Warning: Cleaning up old metadata failed, but operation was otherwise successful (message: " + e.getMessage() + ")");
-        }
-    }
-
-    protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
-        terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
-        MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
-    }
-
     protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
         return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
     }
@@ -175,6 +122,29 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to investigate path [" + path + "]", e);
         }
+    }
+
+    protected String loadNodeId(Terminal terminal, Path[] dataPaths) throws IOException {
+        terminal.println(Terminal.Verbosity.VERBOSE, "Loading node metadata");
+        final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
+        if (nodeMetaData == null) {
+            throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
+        }
+
+        String nodeId = nodeMetaData.nodeId();
+        terminal.println(Terminal.Verbosity.VERBOSE, "Current nodeId is " + nodeId);
+        return nodeId;
+    }
+
+    protected LucenePersistedStateFactory createLucenePersistedStateFactory(Path[] dataPaths, String nodeId) {
+        return new LucenePersistedStateFactory(dataPaths, nodeId, true, NamedXContentRegistry.EMPTY, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    protected BiFunction<Long, MetaData, ClusterState> clusterState(Environment environment) {
+        return (version, metadata) -> ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(environment.settings()))
+            .version(version)
+            .metaData(metadata)
+            .build();
     }
 
     //package-private for testing

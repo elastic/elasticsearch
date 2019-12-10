@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.metadata.Manifest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.LucenePersistedStateFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -49,13 +50,26 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths);
-        final Manifest manifest = manifestMetaDataTuple.v1();
-        final MetaData metaData = manifestMetaDataTuple.v2();
+        final String nodeId = loadNodeId(terminal, dataPaths);
+        final LucenePersistedStateFactory psf = createLucenePersistedStateFactory(dataPaths, nodeId);
 
-        confirm(terminal, CONFIRMATION_MSG);
+        terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
+        try (CoordinationState.PersistedState persistedState = psf.loadPersistedState(clusterState(env))) {
+            final MetaData metaData = persistedState.getLastAcceptedState().metaData();
+            if (metaData.equals(MetaData.EMPTY_META_DATA)) {
+                throw new ElasticsearchException(CS_MISSING_MSG);
+            }
 
-        writeNewMetaData(terminal, manifest, updateCurrentTerm(), metaData, updateMetaData(metaData), dataPaths);
+            confirm(terminal, CONFIRMATION_MSG);
+
+            final ClusterState newClusterState = ClusterState.builder(persistedState.getLastAcceptedState())
+                .metaData(updateMetaData(metaData)).build();
+
+            persistedState.setCurrentTerm(updateCurrentTerm());
+            terminal.println(Terminal.Verbosity.VERBOSE,
+                "[old cluster state = " + persistedState.getLastAcceptedState() + ", new cluster state = " + newClusterState + "]");
+            persistedState.setLastAcceptedState(newClusterState);
+        }
 
         terminal.println(NODE_DETACHED_MSG);
     }

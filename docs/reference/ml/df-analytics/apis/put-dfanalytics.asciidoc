@@ -397,7 +397,8 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
    {
      "regression": {
        "dependent_variable": "G3",
-       "training_percent": 70  <1>
+       "training_percent": 70,  <1>
+       "randomize_seed": 19673948271  <2>
      }
    }
 }
@@ -406,6 +407,7 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 
 <1> The `training_percent` defines the percentage of the data set that will be used 
 for training the model.
+<2> The `randomize_seed` is the seed used to randomly pick which data is used for training.
 
 
 [[ml-put-dfanalytics-example-c]]

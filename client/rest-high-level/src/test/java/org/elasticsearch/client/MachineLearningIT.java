@@ -1291,6 +1291,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression.builder("my_dependent_variable")
                 .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
+                .setRandomizeSeed(42L)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1326,6 +1327,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable")
                 .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
+                .setRandomizeSeed(42L)
                 .setNumTopClasses(1)
                 .build())
             .setDescription("this is a classification")

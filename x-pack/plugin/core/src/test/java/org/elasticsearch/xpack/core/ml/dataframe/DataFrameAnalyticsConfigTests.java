@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,17 +21,20 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
@@ -42,10 +46,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<DataFrameAnalyticsConfig> {
@@ -336,6 +343,44 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
             assertThat(e.getMessage(), containsString("unknown field [version], parser not found"));
+        }
+    }
+
+    public void testToXContent_GivenAnalysisWithRandomizeSeedAndVersionIsCurrent() throws IOException {
+        Regression regression = new Regression("foo");
+        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setVersion(Version.CURRENT)
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(regression)
+            .build();
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            config.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String json = Strings.toString(builder);
+            assertThat(json, containsString("randomize_seed"));
+        }
+    }
+
+    public void testToXContent_GivenAnalysisWithRandomizeSeedAndVersionIsBeforeItWasIntroduced() throws IOException {
+        Regression regression = new Regression("foo");
+        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setVersion(Version.V_7_5_0)
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(regression)
+            .build();
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            config.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String json = Strings.toString(builder);
+            assertThat(json, not(containsString("randomize_seed")));
         }
     }
 

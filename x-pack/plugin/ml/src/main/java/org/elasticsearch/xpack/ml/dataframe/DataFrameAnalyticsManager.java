@@ -233,15 +233,7 @@ public class DataFrameAnalyticsManager {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
                     task.getAllocationId(), null);
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
-                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
-                        error -> {
-                            if (error != null) {
-                                task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
-                            } else {
-                                auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
-                                task.markAsCompleted();
-                            }
-                        }),
+                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory),
                     error -> {
                         if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                             // Task has stopped

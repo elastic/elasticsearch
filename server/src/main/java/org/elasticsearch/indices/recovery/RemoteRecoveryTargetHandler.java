@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
@@ -150,7 +150,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, ReleasableBytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;

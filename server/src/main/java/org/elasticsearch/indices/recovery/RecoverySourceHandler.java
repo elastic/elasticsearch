@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
@@ -833,11 +833,11 @@ public class RecoverySourceHandler {
 
     private static class FileChunk implements MultiFileTransfer.ChunkRequest {
         final StoreFileMetaData md;
-        final BytesReference content;
+        final ReleasableBytesReference content;
         final long position;
         final boolean lastChunk;
 
-        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+        FileChunk(StoreFileMetaData md, ReleasableBytesReference content, long position, boolean lastChunk) {
             this.md = md;
             this.content = content;
             this.position = position;
@@ -882,7 +882,8 @@ public class RecoverySourceHandler {
                         throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
                     }
                     final boolean lastChunk = offset + bytesRead == md.length();
-                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk);
+                    ReleasableBytesReference content = new ReleasableBytesReference(new BytesArray(buffer, 0, bytesRead), () -> {});
+                    final FileChunk chunk = new FileChunk(md, content, offset, lastChunk);
                     offset += bytesRead;
                     return chunk;
                 }

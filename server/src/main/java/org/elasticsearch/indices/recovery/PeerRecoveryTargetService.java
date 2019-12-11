@@ -530,9 +530,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     }
                 }
                 final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
-                final ActionListener<TransportResponse> listener = ActionListener.runBefore(channelListener, content::close);
                 recoveryTarget.writeFileChunk(request.metadata(), request.position(), content, request.lastChunk(),
-                    request.totalTranslogOps(), ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
+                    request.totalTranslogOps(), ActionListener.map(channelListener, nullVal -> TransportResponse.Empty.INSTANCE));
             }
         }
     }

@@ -70,7 +70,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         }
 
         InboundMessage deserialize(BytesReference reference) throws IOException {
-            StreamInput streamInput = new ReleasableArraysStreamInput(reference.streamInput(), bigArrays);
+            StreamInput streamInput = reference.streamInput();
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 long requestId = streamInput.readLong();
@@ -132,7 +132,9 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         }
 
         private StreamInput namedWriteableStream(StreamInput delegate, Version remoteVersion) {
-            NamedWriteableAwareStreamInput streamInput = new NamedWriteableAwareStreamInput(delegate, namedWriteableRegistry);
+            ReleasableArraysStreamInput releasableArrayStream = new ReleasableArraysStreamInput(delegate, bigArrays);
+            releasableArrayStream.setVersion(remoteVersion);
+            NamedWriteableAwareStreamInput streamInput = new NamedWriteableAwareStreamInput(releasableArrayStream, namedWriteableRegistry);
             streamInput.setVersion(remoteVersion);
             return streamInput;
         }
@@ -193,13 +195,17 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             if (length == 0) {
                 return new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
             }
-            ByteArray array = bigArrays.newByteArray(length);
+            ByteArray array = bigArrays.newByteArray(length, false);
             PagedBytesReference reference = new PagedBytesReference(array, length);
             BytesRefIterator iterator = reference.iterator();
             BytesRef scratch;
+            int bytesRead = 0;
             while((scratch = iterator.next()) != null) {
-                readBytes(scratch.bytes, scratch.offset, length);
+                readBytes(scratch.bytes, scratch.offset, scratch.length);
+                bytesRead += scratch.length;
             }
+
+            assert bytesRead == length;
 
             return new ReleasableBytesReference(reference, array);
         }

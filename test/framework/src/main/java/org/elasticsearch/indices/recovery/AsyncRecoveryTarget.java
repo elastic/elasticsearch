@@ -22,7 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.store.Store;
@@ -81,9 +81,12 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, ReleasableBytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
-        final BytesReference copy = new BytesArray(BytesRef.deepCopyOf(content.toBytesRef()));
-        executor.execute(() -> target.writeFileChunk(fileMetaData, position, copy, lastChunk, totalTranslogOps, listener));
+        try (content) {
+            BytesRef refCopy = BytesRef.deepCopyOf(content.toBytesRef());
+            final ReleasableBytesReference copy = new ReleasableBytesReference(new BytesArray(refCopy), () -> {});
+            executor.execute(() -> target.writeFileChunk(fileMetaData, position, copy, lastChunk, totalTranslogOps, listener));
+        }
     }
 }

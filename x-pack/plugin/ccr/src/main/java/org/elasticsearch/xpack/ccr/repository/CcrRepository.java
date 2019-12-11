@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -534,7 +535,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     multiFileWriter.incRef();
                     try (Releasable ignored = multiFileWriter::decRef) {
                         final boolean lastChunk = r.getOffset() + actualChunkSize >= md.length();
-                        multiFileWriter.writeFileChunk(md, r.getOffset(), r.getChunk(), lastChunk);
+                        multiFileWriter.writeFileChunk(md, r.getOffset(), new ReleasableBytesReference(r.getChunk(), () -> {}), lastChunk);
                     } catch (Exception e) {
                         handleError(md, e);
                         throw e;

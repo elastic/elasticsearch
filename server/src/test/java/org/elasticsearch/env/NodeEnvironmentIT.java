@@ -77,9 +77,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertThat(ex.getMessage(),
             startsWith("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
-                + "=false and "
-                + Node.NODE_MASTER_SETTING.getKey()
-                + "=false, but has metadata folders"));
+                + "=false, but has shard data"));
 
         logger.info("--> start the node again with node.data=true and node.master=true");
         internalCluster().startNode(dataPathSettings);

@@ -299,10 +299,6 @@ public final class NodeEnvironment  implements Closeable {
                 }
 
                 ensureNoShardData(nodePaths);
-
-                if (DiscoveryNode.isMasterNode(settings) == false) {
-                    ensureNoStateFolder(nodePaths);
-                }
             }
 
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
@@ -1178,23 +1174,6 @@ public final class NodeEnvironment  implements Closeable {
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false, but has shard data: "
                 + shardDataPaths
-                + ". Use 'elasticsearch-node repurpose' tool to clean up"
-            );
-        }
-    }
-
-    private void ensureNoStateFolder(final NodePath[] nodePaths) {
-        List<Path> topLevelPaths = Stream.of(nodePaths).flatMap(nodePath -> Stream.of(
-            // MetaDataStateFormat.STATE_DIR_NAME is used on coordinating-only nodes
-            nodePath.path.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME),
-            nodePath.path.resolve(INDICES_FOLDER))).filter(Files::exists).collect(Collectors.toList());
-        if (topLevelPaths.isEmpty() == false) {
-            throw new IllegalStateException("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false and "
-                + Node.NODE_MASTER_SETTING.getKey()
-                + "=false, but has metadata folders: "
-                + topLevelPaths
                 + ". Use 'elasticsearch-node repurpose' tool to clean up"
             );
         }

@@ -948,9 +948,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Make sure that an aggregation using a script does not get cached.
+     * Make sure that an aggregation using a script does get cached.
      */
-    public void testDontCacheScripts() throws IOException {
+    public void testCacheScripts() throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         final int numDocs = 10;

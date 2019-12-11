@@ -529,9 +529,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         recoveryTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
-                final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
-                recoveryTarget.writeFileChunk(request.metadata(), request.position(), content, request.lastChunk(),
-                    request.totalTranslogOps(), ActionListener.map(channelListener, nullVal -> TransportResponse.Empty.INSTANCE));
+                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
+                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(),
+                    request.totalTranslogOps(), ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
             }
         }
     }

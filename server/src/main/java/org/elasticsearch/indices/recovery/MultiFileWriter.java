@@ -216,7 +216,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                     }
                     pendingChunks.remove();
                 }
-                try {
+                try (chunk) {
                     innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
                     synchronized (this) {
                         assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
@@ -227,8 +227,6 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                             assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
                         }
                     }
-                } finally {
-                    chunk.close();
                 }
             }
         }

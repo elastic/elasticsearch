@@ -56,7 +56,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -548,90 +547,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         assertBusy(() -> assertThat(internalCluster().getInstance(NodeEnvironment.class).availableIndexFolders(), empty()));
-    }
-
-    public void testOnlyWritesIndexMetaDataFilesOnDataNodes() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        final String dataNode = internalCluster().startDataOnlyNode();
-        final String mixedNode = internalCluster().startNode();
-
-        createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 3))
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build());
-        ensureGreen("test");
-
-        final String indexUUID = client().admin().indices().prepareStats("test").get().getIndex("test").getUuid();
-
-        final Path[] masterPaths = internalCluster().getInstance(NodeEnvironment.class, masterNode).nodeDataPaths();
-        final Path[] dataPaths = internalCluster().getInstance(NodeEnvironment.class, dataNode).nodeDataPaths();
-        final Path[] mixedPaths = internalCluster().getInstance(NodeEnvironment.class, mixedNode).nodeDataPaths();
-
-        for (final Path path : masterPaths) {
-            assertFalse("master: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER)));
-        }
-        for (final Path path : dataPaths) {
-            assertTrue("data: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-        }
-        for (final Path path : mixedPaths) {
-            assertTrue("mixed: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-        }
-
-        logger.info("--> remove shards from data node, to check the index folder is cleaned up");
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", dataNode)));
-        assertFalse(client().admin().cluster().prepareHealth("test").setWaitForGreenStatus()
-            .setWaitForNoInitializingShards(true).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-
-        for (final Path path : masterPaths) {
-            assertFalse("master: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER)));
-        }
-        for (final Path path : mixedPaths) {
-            assertTrue("mixed: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-        }
-        assertBusy(() -> {
-            for (final Path path : dataPaths) {
-                assertFalse("data: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-            }
-        });
-
-        logger.info("--> remove shards from mixed master/data node, to check the index folder is cleaned up");
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", mixedNode)));
-        assertFalse(client().admin().cluster().prepareHealth("test").setWaitForGreenStatus()
-            .setWaitForNoInitializingShards(true).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-
-        for (final Path path : masterPaths) {
-            assertFalse("master: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER)));
-        }
-        for (final Path path : dataPaths) {
-            assertTrue("data: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-        }
-        assertBusy(() -> {
-            for (final Path path : mixedPaths) {
-                assertFalse("mixed: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-            }
-        });
-
-        logger.info("--> delete index and check the index folder is cleaned up on all nodes");
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .putNull(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name")));
-        ensureGreen("test");
-        assertAcked(client().admin().indices().prepareDelete("test"));
-
-        for (final Path path : masterPaths) {
-            assertFalse("master: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER)));
-        }
-        assertBusy(() -> {
-            for (final Path path : dataPaths) {
-                assertFalse("data: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-            }
-            for (final Path path : mixedPaths) {
-                assertFalse("mixed: " + path, Files.exists(path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexUUID)));
-            }
-        });
     }
 
     private void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {

@@ -133,7 +133,7 @@ the job. Only fields that are specified in the detector configuration object
 contribute to this count. The time stamp is not included in this count.
 
 `processed_record_count`:::
-(long) The number of records that have been processed by the job. This value
+(long) The number of input documents that have been processed by the job. This value
 includes records with missing fields, since they are nonetheless analyzed. If
 you use {dfeeds} and have aggregations in your search query, the
 `processed_record_count` will be the number of aggregated records processed, not

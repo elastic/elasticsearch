@@ -484,18 +484,6 @@ Use in conjunction with `max_docs` to control what documents are reindexed.
 Set to a list to reindex select fields. 
 Defaults to `true`. 
 
-`type`:::
-(Optional, string)
-deprecated:[6.0.0,Types are deprecated and in the process of being removed. See <<removal-of-types>>.]
-<<mapping-type-field,Document type>> to reindex.
-+
-[WARNING]
-====
-By default, all reindexed documents are assigned the `_doc` document type. To
-preserve other document types during a reindex, specify the `type` in the `dest`
-index.
-====
-
 `dest`::
 `index`:::
 (Required, string) The name of the index you are copying _to_.
@@ -517,8 +505,10 @@ Defaults to `_doc`.
 +
 [WARNING]
 ====
-By default, all reindexed documents are assigned the `_doc` document type.
-To preserve other document types, this parameter must be specified.
+Types in source indices are always ignored, also when not specifying a
+destination `type`. If explicitly specifying destination `type`, the specified
+type must match the type in the destination index or be either unspecified or
+the special value `_doc`. See <<removal-of-types>> for further details.
 ====
 
 `script`::

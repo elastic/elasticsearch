@@ -24,16 +24,17 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricFieldMapper.Names.IGNORE_MALFORMED;
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricFieldMapper.Names.METRICS;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class AggregateMetricFieldMapperTests extends ESSingleNodeTestCase {
+public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase {
 
     public static final String METRICS_FIELD = METRICS.getPreferredName();
-    public static final String CONTENT_TYPE = AggregateMetricFieldMapper.CONTENT_TYPE;
+    public static final String CONTENT_TYPE = AggregateDoubleMetricFieldMapper.CONTENT_TYPE;
 
     /**
      * Test parsing field mapping and adding simple field
@@ -53,7 +54,7 @@ public class AggregateMetricFieldMapperTests extends ESSingleNodeTestCase {
             .parse("_doc", new CompressedXContent(mapping));
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
-        assertThat(fieldMapper, instanceOf(AggregateMetricFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -64,7 +65,7 @@ public class AggregateMetricFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()),
             XContentType.JSON));
 
-        assertThat(doc.rootDoc().getField("metric"), notNullValue());
+        assertThat(doc.rootDoc().getField("metric.min"), notNullValue());
     }
 
     /**
@@ -119,7 +120,7 @@ public class AggregateMetricFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()),
             XContentType.JSON));
 
-        assertThat(doc.rootDoc().getField("metric"), notNullValue());
+        assertThat(doc.rootDoc().getField("metric"), nullValue());
     }
 
     /**
@@ -199,7 +200,7 @@ public class AggregateMetricFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()),
             XContentType.JSON));
 
-        assertThat(doc.rootDoc().getField("metric"), notNullValue());
+        assertThat(doc.rootDoc().getField("metric.min"), notNullValue());
     }
 
     /**

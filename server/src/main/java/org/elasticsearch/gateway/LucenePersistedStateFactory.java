@@ -138,9 +138,19 @@ public class LucenePersistedStateFactory {
     private final BigArrays bigArrays;
     private final LegacyLoader legacyLoader;
 
+    /**
+     * Allows interacting with legacy metadata
+     */
     public interface LegacyLoader {
+        /**
+         * Loads legacy state. Returns null if no data found
+         */
         @Nullable
         Tuple<Manifest, MetaData> loadClusterState() throws IOException;
+
+        /**
+         * Cleans legacy state
+         */
         void clean() throws IOException;
     }
 

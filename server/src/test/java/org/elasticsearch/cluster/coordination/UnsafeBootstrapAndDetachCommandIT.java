@@ -235,11 +235,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
-        MockTerminal terminal = unsafeBootstrap(environmentMaster1);
-//        MetaData metaData = MetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodeEnvironment.nodeDataPaths());
-//        assertThat(terminal.getOutput(), containsString(
-//                String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
-//                        metaData.coordinationMetaData().term(), metaData.version())));
+        unsafeBootstrap(environmentMaster1);
 
         logger.info("--> start 1st master-eligible node");
         internalCluster().startMasterOnlyNode(master1DataPathSettings);

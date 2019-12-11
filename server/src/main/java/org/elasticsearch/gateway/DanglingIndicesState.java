@@ -89,7 +89,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     public void setInitialDanglingIndicesCandidates(List<IndexMetaData> initialDanglingIndices) {
         if (danglingIndices.isEmpty() == false) {
-            throw new ElasticsearchException("unexpected dangling indices");
+            throw new ElasticsearchException("initial dangling indices should only be set once");
         }
         initialDanglingIndices.forEach(imd -> danglingIndices.put(imd.getIndex(), imd));
     }
@@ -107,7 +107,6 @@ public class DanglingIndicesState implements ClusterStateListener {
             return;
         }
         cleanupAllocatedDangledIndices(metaData);
-        //findNewAndAddDanglingIndices(metaData);
         allocateDanglingIndices();
     }
 

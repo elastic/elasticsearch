@@ -89,7 +89,7 @@ public class GatewayMetaState implements Closeable {
                             .build()));
                 //TODO: on data node scan on-disk folders for additional dangling indices candidates
                 //TODO: only consider those indices as dangling candidates for which there is a shard folder (at least on data nodes)
-                //also need to persist dangling indices candidates so that they don't get lost after first CS from master gets written out
+                //TODO: persist dangling indices candidates so that they don't get lost after first CS from master gets written out
                 danglingIndicesState.setInitialDanglingIndicesCandidates(
                     StreamSupport.stream(ps.getLastAcceptedState().metaData().indices().values().spliterator(), false).map(cur -> cur.value)
                     .collect(Collectors.toList()));

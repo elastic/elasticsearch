@@ -114,6 +114,11 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public int highestDimension() {
+            return 1;
+        }
+
+        @Override
         public double lat() {
             return geoPoint.lat();
         }
@@ -168,7 +173,16 @@ public abstract class MultiGeoValues {
             try {
                 return reader.getShapeType();
             } catch (IOException e) {
-                throw new IllegalStateException("unable to reach ShapeType", e);
+                throw new IllegalStateException("unable to read the ShapeTYpe of the geometry", e);
+            }
+        }
+
+        @Override
+        public int highestDimension() {
+            try {
+                return reader.getHighestDimension();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to read the highest dimension of the geometry", e);
             }
         }
 
@@ -218,6 +232,7 @@ public abstract class MultiGeoValues {
         BoundingBox boundingBox();
         GeoRelation relate(Rectangle rectangle);
         ShapeType shapeType();
+        int highestDimension();
     }
 
     public static class BoundingBox {

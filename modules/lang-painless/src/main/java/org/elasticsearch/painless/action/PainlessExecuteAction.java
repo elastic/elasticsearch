@@ -75,6 +75,7 @@ import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -415,7 +416,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         public abstract Object execute();
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
 
             PainlessTestScript newInstance(Map<String, Object> params);
 
@@ -527,7 +528,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         scoreScript.setScorer(scorer);
                     }
 
-                    double result = scoreScript.execute();
+                    double result = scoreScript.execute(null);
                     return new Response(result);
                 }, indexService);
             } else {
@@ -544,10 +545,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             try (RAMDirectory ramDirectory = new RAMDirectory()) {
                 try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
-                    String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, type, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {

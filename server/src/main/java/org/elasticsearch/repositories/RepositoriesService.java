@@ -37,15 +37,19 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +58,7 @@ import java.util.Map;
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
  */
-public class RepositoriesService implements ClusterStateApplier {
+public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RepositoriesService.class);
 
@@ -95,6 +99,8 @@ public class RepositoriesService implements ClusterStateApplier {
      * @param listener register repository listener
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
+
         final RepositoryMetaData newRepositoryMetaData = new RepositoryMetaData(request.name(), request.type(), request.settings());
         validate(request.name());
 
@@ -144,7 +150,7 @@ public class RepositoriesService implements ClusterStateApplier {
 
                         for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
                             if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
-                                if (newRepositoryMetaData.equals(repositoryMetaData)) {
+                                if (newRepositoryMetaData.equalsIgnoreGenerations(repositoryMetaData)) {
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
                                 }
@@ -281,11 +287,15 @@ public class RepositoriesService implements ClusterStateApplier {
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
+            final ClusterState state = event.state();
             RepositoriesMetaData oldMetaData = event.previousState().getMetaData().custom(RepositoriesMetaData.TYPE);
-            RepositoriesMetaData newMetaData = event.state().getMetaData().custom(RepositoriesMetaData.TYPE);
+            RepositoriesMetaData newMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
 
             // Check if repositories got changed
-            if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equals(newMetaData))) {
+            if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equalsIgnoreGenerations(newMetaData))) {
+                for (Repository repo : repositories.values()) {
+                    repo.updateState(state);
+                }
                 return;
             }
 
@@ -337,6 +347,9 @@ public class RepositoriesService implements ClusterStateApplier {
                         builder.put(repositoryMetaData.name(), repository);
                     }
                 }
+            }
+            for (Repository repo : builder.values()) {
+                repo.updateState(state);
             }
             repositories = Collections.unmodifiableMap(builder);
         } catch (Exception ex) {
@@ -405,11 +418,13 @@ public class RepositoriesService implements ClusterStateApplier {
             throw new RepositoryException(repositoryMetaData.name(),
                 "repository type [" + repositoryMetaData.type() + "] does not exist");
         }
+        Repository repository = null;
         try {
-            Repository repository = factory.create(repositoryMetaData, factories::get);
+            repository = factory.create(repositoryMetaData, factories::get);
             repository.start();
             return repository;
         } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(repository);
             logger.warn(new ParameterizedMessage("failed to create repository [{}][{}]",
                 repositoryMetaData.type(), repositoryMetaData.name()), e);
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
@@ -429,10 +444,28 @@ public class RepositoriesService implements ClusterStateApplier {
         }
     }
 
-
-    private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
+    private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {
             throw new IllegalStateException("trying to modify or unregister repository that is currently used ");
         }
+    }
+
+    @Override
+    protected void doStart() {
+
+    }
+
+    @Override
+    protected void doStop() {
+
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+        clusterService.removeApplier(this);
+        final Collection<Repository> repos = new ArrayList<>();
+        repos.addAll(internalRepositories.values());
+        repos.addAll(repositories.values());
+        IOUtils.close(repos);
     }
 }

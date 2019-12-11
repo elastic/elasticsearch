@@ -23,8 +23,8 @@ Retrieves {anomaly-job} results for one or more buckets.
 need `read` index privilege on the index that stores the results. The
 `machine_learning_admin` and `machine_learning_user` roles provide these
 privileges. For more information, see
-{stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+<<security-privileges>> and
+<<built-in-roles>>.
 
 [[ml-get-bucket-desc]]
 ==== {api-description-title}
@@ -36,7 +36,8 @@ bucket.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<timestamp>`::
   (Optional, string) The timestamp of a single bucket result. If you do not

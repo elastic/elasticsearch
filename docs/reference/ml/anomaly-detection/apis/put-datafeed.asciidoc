@@ -21,7 +21,7 @@ Instantiates a {dfeed}.
 * You must create an {anomaly-job} before you create a {dfeed}.  
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-datafeed-desc]]
 ==== {api-description-title}
@@ -97,10 +97,9 @@ not be set to `false` on any ML node.
 
 `script_fields`::
   (Optional, object) Specifies scripts that evaluate custom expressions and
-  returns script fields to the {dfeed}. The
-  <<ml-detectorconfig,detector configuration objects>> in a job can contain
-  functions that use these script fields. For more information, see
-  <<request-body-search-script-fields,Script fields>>.
+  returns script fields to the {dfeed}. The detector configuration objects in a
+  job can contain functions that use these script fields. For more information,
+  see <<request-body-search-script-fields,Script fields>>.
 
 `scroll_size`::
   (Optional, unsigned integer) The `size` parameter that is used in {es}

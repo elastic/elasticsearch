@@ -178,13 +178,21 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indices) {
-        return createDatafeedBuilder(datafeedId, jobId, indices).build();
+        return createDatafeed(datafeedId, jobId, indices, TimeValue.timeValueSeconds(1));
+    }
+
+    public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indices, TimeValue frequency) {
+        return createDatafeedBuilder(datafeedId, jobId, indices, frequency).build();
     }
 
     public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indices) {
+        return createDatafeedBuilder(datafeedId, jobId, indices, TimeValue.timeValueSeconds(1));
+    }
+
+    public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indices, TimeValue frequency) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setQueryDelay(TimeValue.timeValueSeconds(1));
-        builder.setFrequency(TimeValue.timeValueSeconds(1));
+        builder.setFrequency(frequency);
         builder.setIndices(indices);
         return builder;
     }
@@ -209,7 +217,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         int maxDelta = (int) (end - start - 1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest(index, "type");
+            IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
             assert timestamp >= start && timestamp < end;
             indexRequest.source("time", timestamp);

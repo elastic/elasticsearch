@@ -45,7 +45,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -67,6 +67,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -153,16 +154,20 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
             Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
-    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING =
-        Setting.intSetting("index.number_of_routing_shards", INDEX_NUMBER_OF_SHARDS_SETTING,
-                           1, new Setting.Validator<Integer>() {
+    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
+        "index.number_of_routing_shards",
+        INDEX_NUMBER_OF_SHARDS_SETTING,
+        1,
+        new Setting.Validator<>() {
+
             @Override
-            public void validate(Integer value) {
+            public void validate(final Integer value) {
+
             }
 
             @Override
-            public void validate(Integer numRoutingShards, Map<Setting<Integer>, Integer> settings) {
-                Integer numShards = settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
+            public void validate(final Integer numRoutingShards, final Map<Setting<?>, Object> settings) {
+                int numShards = (int) settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
                 if (numRoutingShards < numShards) {
                     throw new IllegalArgumentException("index.number_of_routing_shards [" + numRoutingShards
                         + "] must be >= index.number_of_shards [" + numShards + "]");
@@ -171,10 +176,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
 
             @Override
-            public Iterator<Setting<Integer>> settings() {
-                return Collections.singleton(INDEX_NUMBER_OF_SHARDS_SETTING).iterator();
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(INDEX_NUMBER_OF_SHARDS_SETTING);
+                return settings.iterator();
             }
-        }, Property.IndexScope);
+
+        },
+        Property.IndexScope);
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
@@ -476,17 +484,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     public ImmutableOpenMap<String, AliasMetaData> getAliases() {
         return this.aliases;
-    }
-
-    /**
-     * Return an object that maps each type to the associated mappings.
-     * The return value is never {@code null} but may be empty if the index
-     * has no mappings.
-     * @deprecated Use {@link #mapping()} instead now that indices have a single type
-     */
-    @Deprecated
-    public ImmutableOpenMap<String, MappingMetaData> getMappings() {
-        return mappings;
     }
 
     /**
@@ -932,17 +929,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
-        public MappingMetaData mapping(String type) {
-            return mappings.get(type);
+        public MappingMetaData mapping() {
+            return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        public Builder putMapping(String type, String source) throws IOException {
-            putMapping(new MappingMetaData(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
+        public Builder putMapping(String source) {
+            putMapping(new MappingMetaData(MapperService.SINGLE_MAPPING_NAME,
+                XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
             return this;
         }
 
         public Builder putMapping(MappingMetaData mappingMd) {
-            mappings.put(mappingMd.type(), mappingMd);
+            mappings.clear();
+            if (mappingMd != null) {
+                mappings.put(MapperService.SINGLE_MAPPING_NAME, mappingMd);
+            }
             return this;
         }
 
@@ -1194,11 +1195,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.endObject();
 
             builder.startArray(KEY_MAPPINGS);
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
+            MappingMetaData mmd = indexMetaData.mapping();
+            if (mmd != null) {
                 if (binary) {
-                    builder.value(cursor.value.source().compressed());
+                    builder.value(mmd.source().compressed());
                 } else {
-                    builder.map(XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()), true).v2());
+                    builder.map(XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), true).v2());
                 }
             }
             builder.endArray();
@@ -1418,8 +1420,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
         @Override
         public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            assert parser.getXContentRegistry() != NamedXContentRegistry.EMPTY
-                    : "loading index metadata requires a working named xcontent registry";
             return Builder.fromXContent(parser);
         }
     };

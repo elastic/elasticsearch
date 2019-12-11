@@ -46,10 +46,11 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Reque
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
-import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
@@ -66,24 +67,56 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final TransformConfigManager transformsConfigManager;
+    private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
 
     @Inject
-    public TransportUpdateTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService, XPackLicenseState licenseState,
-                                          TransformConfigManager transformsConfigManager, Client client,
-                                          TransformAuditor auditor) {
-        super(UpdateTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+    public TransportUpdateTransformAction(
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        TransformServices transformServices,
+        Client client
+    ) {
+        this(
+            UpdateTransformAction.NAME,
+            settings,
+            transportService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            clusterService,
+            licenseState,
+            transformServices,
+            client
+        );
+    }
+
+    protected TransportUpdateTransformAction(
+        String name,
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        TransformServices transformServices,
+        Client client
+    ) {
+        super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
-        this.transformsConfigManager = transformsConfigManager;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-            new SecurityContext(settings, threadPool.getThreadContext()) : null;
-        this.auditor = auditor;
+        this.transformConfigManager = transformServices.getConfigManager();
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
+        this.auditor = transformServices.getAuditor();
     }
 
     @Override
@@ -107,28 +140,28 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = threadPool.getThreadContext()
+            .getHeaders()
+            .entrySet()
+            .stream()
+            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         TransformConfigUpdate update = request.getUpdate();
         update.setHeaders(filteredHeaders);
 
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX
-        transformsConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(
-            configAndVersion -> {
-                final TransformConfig config = configAndVersion.v1();
-                // If it is a noop don't bother even writing the doc, save the cycles, just return here.
-                if (update.isNoop(config)) {
-                    listener.onResponse(new Response(config));
-                    return;
-                }
-                TransformConfig updatedConfig = update.apply(config);
-                validateAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
-            },
-            listener::onFailure
-        ));
+        transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
+            final TransformConfig config = configAndVersion.v1();
+            // If it is a noop don't bother even writing the doc, save the cycles, just return here.
+            if (update.isNoop(config)) {
+                listener.onResponse(new Response(config));
+                return;
+            }
+            TransformConfig updatedConfig = update.apply(config);
+            validateAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
+        }, listener::onFailure));
     }
 
     @Override
@@ -136,13 +169,15 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void handlePrivsResponse(String username,
-                                     Request request,
-                                     TransformConfig config,
-                                     SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-                                     ClusterState clusterState,
-                                     HasPrivilegesResponse privilegesResponse,
-                                     ActionListener<Response> listener) {
+    private void handlePrivsResponse(
+        String username,
+        Request request,
+        TransformConfig config,
+        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+        ClusterState clusterState,
+        HasPrivilegesResponse privilegesResponse,
+        ActionListener<Response> listener
+    ) {
         if (privilegesResponse.isCompleteMatch()) {
             updateTransform(request, config, seqNoPrimaryTermAndIndex, clusterState, listener);
         } else {
@@ -151,19 +186,24 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
                 .map(ResourcePrivileges::getResource)
                 .collect(Collectors.toList());
 
-            listener.onFailure(Exceptions.authorizationError(
-                "Cannot update transform [{}] because user {} lacks all the required permissions for indices: {}",
-                request.getId(),
-                username,
-                indices));
+            listener.onFailure(
+                Exceptions.authorizationError(
+                    "Cannot update transform [{}] because user {} lacks all the required permissions for indices: {}",
+                    request.getId(),
+                    username,
+                    indices
+                )
+            );
         }
     }
 
-    private void validateAndUpdateTransform(Request request,
-                                            ClusterState clusterState,
-                                            TransformConfig config,
-                                            SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-                                            ActionListener<Response> listener) {
+    private void validateAndUpdateTransform(
+        Request request,
+        ClusterState clusterState,
+        TransformConfig config,
+        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+        ActionListener<Response> listener
+    ) {
         try {
             SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
         } catch (ElasticsearchStatusException ex) {
@@ -171,45 +211,42 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
             return;
         }
 
-
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
             final String username = securityContext.getUser().principal();
             HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                 r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermAndIndex, clusterState, r, listener),
-                listener::onFailure);
+                listener::onFailure
+            );
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
             updateTransform(request, config, seqNoPrimaryTermAndIndex, clusterState, listener);
         }
     }
-    private void updateTransform(Request request,
-                                 TransformConfig config,
-                                 SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-                                 ClusterState clusterState,
-                                 ActionListener<Response> listener) {
+
+    private void updateTransform(
+        Request request,
+        TransformConfig config,
+        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+        ClusterState clusterState,
+        ActionListener<Response> listener
+    ) {
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         // <3> Return to the listener
-        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> {
-                auditor.info(config.getId(), "updated transform.");
-                transformsConfigManager.deleteOldTransformConfigurations(request.getId(), ActionListener.wrap(
-                    r -> {
-                        logger.trace("[{}] successfully deleted old transform configurations", request.getId());
-                        listener.onResponse(new Response(config));
-                    },
-                    e -> {
-                        logger.warn(
-                            LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", request.getId()),
-                            e);
-                        listener.onResponse(new Response(config));
-                    }
-                ));
-            },
+        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
+            auditor.info(config.getId(), "updated transform.");
+            transformConfigManager.deleteOldTransformConfigurations(request.getId(), ActionListener.wrap(r -> {
+                logger.trace("[{}] successfully deleted old transform configurations", request.getId());
+                listener.onResponse(new Response(config));
+            }, e -> {
+                logger.warn(LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", request.getId()), e);
+                listener.onResponse(new Response(config));
+            }));
+        },
             // If we failed to INDEX AND we created the destination index, the destination index will still be around
             // This is a similar behavior to _start
             listener::onFailure
@@ -217,59 +254,71 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
 
         // <2> Update our transform
         ActionListener<Void> createDestinationListener = ActionListener.wrap(
-            createDestResponse -> transformsConfigManager.updateTransformConfiguration(config,
+            createDestResponse -> transformConfigManager.updateTransformConfiguration(
+                config,
                 seqNoPrimaryTermAndIndex,
-                putTransformConfigurationListener),
+                putTransformConfigurationListener
+            ),
             listener::onFailure
         );
 
         // <1> Create destination index if necessary
-        ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
-            validationResult -> {
-                String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState,
-                    IndicesOptions.lenientExpandOpen(),
-                    config.getDestination().getIndex());
-                String[] src = indexNameExpressionResolver.concreteIndexNames(clusterState,
-                    IndicesOptions.lenientExpandOpen(),
-                    config.getSource().getIndex());
-                // If we are running, we should verify that the destination index exists and create it if it does not
-                if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, request.getId()) != null
-                    && dest.length == 0
-                    // Verify we have source indices. The user could defer_validations and if the task is already running
-                    // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
-                    // the transform will just have to dynamically create the destination index without special mapping.
-                    && src.length > 0) {
-                    createDestination(pivot, config, createDestinationListener);
-                } else {
-                    createDestinationListener.onResponse(null);
-                }
-            },
-            validationException -> {
-                if (validationException instanceof ElasticsearchStatusException) {
-                    listener.onFailure(new ElasticsearchStatusException(
+        ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(validationResult -> {
+            String[] dest = indexNameExpressionResolver.concreteIndexNames(
+                clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                config.getDestination().getIndex()
+            );
+            String[] src = indexNameExpressionResolver.concreteIndexNames(
+                clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                config.getSource().getIndex()
+            );
+            // If we are running, we should verify that the destination index exists and create it if it does not
+            if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0
+            // Verify we have source indices. The user could defer_validations and if the task is already running
+            // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
+            // the transform will just have to dynamically create the destination index without special mapping.
+                && src.length > 0) {
+                createDestination(pivot, config, createDestinationListener);
+            } else {
+                createDestinationListener.onResponse(null);
+            }
+        }, validationException -> {
+            if (validationException instanceof ElasticsearchStatusException) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
                         TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                        ((ElasticsearchStatusException)validationException).status(),
-                        validationException));
-                } else {
-                    listener.onFailure(new ElasticsearchStatusException(
+                        ((ElasticsearchStatusException) validationException).status(),
+                        validationException
+                    )
+                );
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
                         TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
                         RestStatus.INTERNAL_SERVER_ERROR,
-                        validationException));
-                }
+                        validationException
+                    )
+                );
             }
-        );
+        });
 
         try {
             pivot.validateConfig();
         } catch (ElasticsearchStatusException e) {
-            listener.onFailure(new ElasticsearchStatusException(
-                TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                e.status(),
-                e));
+            listener.onFailure(
+                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
+            );
             return;
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchStatusException(
-                TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e
+                )
+            );
             return;
         }
 
@@ -288,10 +337,11 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
                 Clock.systemUTC(),
                 config,
                 mappings,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)),
+                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
+            ),
             deduceTargetMappingsException -> listener.onFailure(
-                new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS,
-                    deduceTargetMappingsException))
+                new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
+            )
         );
 
         pivot.deduceMappings(client, config.getSource(), deduceMappingsListener);

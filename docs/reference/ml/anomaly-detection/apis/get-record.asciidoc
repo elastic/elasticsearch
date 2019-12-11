@@ -20,14 +20,14 @@ Retrieves anomaly records for an {anomaly-job}.
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
 need `read` index privilege on the index that stores the results. The
 `machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+privileges. See <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-record-path-parms]]
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-get-record-request-body]]
 ==== {api-request-body-title}

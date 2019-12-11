@@ -20,13 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
@@ -58,43 +59,37 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        left.storeSettings(settings);
-        right.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
         right.extractVariables(variables);
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (operation == Operation.EQ) {
-            analyzeEq(locals);
+            analyzeEq(scriptRoot, locals);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(locals);
+            analyzeEqR(scriptRoot, locals);
         } else if (operation == Operation.NE) {
-            analyzeNE(locals);
+            analyzeNE(scriptRoot, locals);
         } else if (operation == Operation.NER) {
-            analyzeNER(locals);
+            analyzeNER(scriptRoot, locals);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(locals);
+            analyzeGTE(scriptRoot, locals);
         } else if (operation == Operation.GT) {
-            analyzeGT(locals);
+            analyzeGT(scriptRoot, locals);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(locals);
+            analyzeLTE(scriptRoot, locals);
         } else if (operation == Operation.LT) {
-            analyzeLT(locals);
+            analyzeLT(scriptRoot, locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeEq(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -112,8 +107,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -142,9 +137,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeEqR(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeEqR(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -157,8 +152,8 @@ public final class EComp extends AExpression {
         left.expected = promotedType;
         right.expected = promotedType;
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -183,9 +178,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNE(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeNE(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -203,8 +198,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -233,9 +228,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNER(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeNER(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -248,8 +243,8 @@ public final class EComp extends AExpression {
         left.expected = promotedType;
         right.expected = promotedType;
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -274,9 +269,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGTE(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeGTE(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -294,8 +289,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {
@@ -314,9 +309,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGT(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeGT(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -334,8 +329,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {
@@ -354,9 +349,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLTE(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeLTE(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -374,8 +369,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {
@@ -394,9 +389,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLT(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeLT(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -414,8 +409,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {
@@ -435,13 +430,13 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
-        left.write(writer, globals);
+        left.write(classWriter, methodWriter, globals);
 
         if (!right.isNull) {
-            right.write(writer, globals);
+            right.write(classWriter, methodWriter, globals);
         }
 
         Label jump = new Label();
@@ -461,18 +456,18 @@ public final class EComp extends AExpression {
         if (promotedType == void.class || promotedType == byte.class || promotedType == short.class || promotedType == char.class) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         } else if (promotedType == boolean.class) {
-            if (eq) writer.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) writer.ifCmp(type, MethodWriter.NE, jump);
+            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
             else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         } else if (promotedType == int.class || promotedType == long.class || promotedType == float.class || promotedType == double.class) {
-            if (eq) writer.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) writer.ifCmp(type, MethodWriter.NE, jump);
-            else if (lt) writer.ifCmp(type, MethodWriter.LT, jump);
-            else if (lte) writer.ifCmp(type, MethodWriter.LE, jump);
-            else if (gt) writer.ifCmp(type, MethodWriter.GT, jump);
-            else if (gte) writer.ifCmp(type, MethodWriter.GE, jump);
+            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
+            else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
+            else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
+            else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
+            else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
             else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -483,33 +478,33 @@ public final class EComp extends AExpression {
 
             if (eq) {
                 if (right.isNull) {
-                    writer.ifNull(jump);
+                    methodWriter.ifNull(jump);
                 } else if (!left.isNull && operation == Operation.EQ) {
-                    writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     writejump = false;
                 } else {
-                    writer.ifCmp(type, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
                 if (right.isNull) {
-                    writer.ifNonNull(jump);
+                    methodWriter.ifNonNull(jump);
                 } else if (!left.isNull && operation == Operation.NE) {
-                    writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
-                    writer.ifZCmp(MethodWriter.EQ, jump);
+                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    writer.ifCmp(type, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
                 }
             } else if (lt) {
-                writer.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                 writejump = false;
             } else if (lte) {
-                writer.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                methodWriter.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                 writejump = false;
             } else if (gt) {
-                writer.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                methodWriter.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                 writejump = false;
             } else if (gte) {
-                writer.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                methodWriter.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                 writejump = false;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -517,21 +512,21 @@ public final class EComp extends AExpression {
         } else {
             if (eq) {
                 if (right.isNull) {
-                    writer.ifNull(jump);
+                    methodWriter.ifNull(jump);
                 } else if (operation == Operation.EQ) {
-                    writer.invokeStatic(OBJECTS_TYPE, EQUALS);
+                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
                     writejump = false;
                 } else {
-                    writer.ifCmp(type, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
                 if (right.isNull) {
-                    writer.ifNonNull(jump);
+                    methodWriter.ifNonNull(jump);
                 } else if (operation == Operation.NE) {
-                    writer.invokeStatic(OBJECTS_TYPE, EQUALS);
-                    writer.ifZCmp(MethodWriter.EQ, jump);
+                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
+                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    writer.ifCmp(type, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
                 }
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -539,11 +534,11 @@ public final class EComp extends AExpression {
         }
 
         if (writejump) {
-            writer.push(false);
-            writer.goTo(end);
-            writer.mark(jump);
-            writer.push(true);
-            writer.mark(end);
+            methodWriter.push(false);
+            methodWriter.goTo(end);
+            methodWriter.mark(jump);
+            methodWriter.push(true);
+            methodWriter.mark(end);
         }
     }
 

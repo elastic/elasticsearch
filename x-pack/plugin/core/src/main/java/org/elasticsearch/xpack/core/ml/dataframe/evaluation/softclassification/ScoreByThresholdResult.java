@@ -40,7 +40,7 @@ public class ScoreByThresholdResult implements EvaluationMetricResult {
     }
 
     @Override
-    public String getName() {
+    public String getMetricName() {
         return name;
     }
 

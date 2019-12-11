@@ -63,9 +63,12 @@ public class TranslogDeletionPolicy {
 
     private long retentionAgeInMillis;
 
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis) {
+    private int retentionTotalFiles;
+
+    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
         this.retentionSizeInBytes = retentionSizeInBytes;
         this.retentionAgeInMillis = retentionAgeInMillis;
+        this.retentionTotalFiles = retentionTotalFiles;
         if (Assertions.ENABLED) {
             openTranslogRef = new ConcurrentHashMap<>();
         } else {
@@ -98,6 +101,10 @@ public class TranslogDeletionPolicy {
 
     public synchronized void setRetentionAgeInMillis(long ageInMillis) {
         retentionAgeInMillis = ageInMillis;
+    }
+
+    synchronized void setRetentionTotalFiles(int retentionTotalFiles) {
+        this.retentionTotalFiles = retentionTotalFiles;
     }
 
     /**
@@ -164,7 +171,8 @@ public class TranslogDeletionPolicy {
         } else {
             minByAgeAndSize = Math.max(minByAge, minBySize);
         }
-        return Math.min(minByAgeAndSize, Math.min(minByLocks, minTranslogGenerationForRecovery));
+        long minByNumFiles = getMinTranslogGenByTotalFiles(readers, writer, retentionTotalFiles);
+        return Math.min(Math.max(minByAgeAndSize, minByNumFiles), Math.min(minByLocks, minTranslogGenerationForRecovery));
     }
 
     static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
@@ -194,6 +202,16 @@ public class TranslogDeletionPolicy {
         } else {
             return Long.MIN_VALUE;
         }
+    }
+
+    static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
+        long minGen = writer.generation;
+        int totalFiles = 1; // for the current writer
+        for (int i = readers.size() - 1; i >= 0 && totalFiles < maxTotalFiles; i--) {
+            totalFiles++;
+            minGen = readers.get(i).generation;
+        }
+        return minGen;
     }
 
     protected long currentTime() {

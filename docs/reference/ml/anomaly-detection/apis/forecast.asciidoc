@@ -18,7 +18,7 @@ Predicts the future behavior of a time series by using its historical behavior.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-forecast-desc]]
 ==== {api-description-title}
@@ -29,7 +29,7 @@ See {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
 ===============================
 
 * If you use an `over_field_name` property in your job, you cannot create a
-forecast. For more information about this property, see <<ml-job-resource>>.
+forecast. For more information about this property, see <<ml-put-job>>.
 * The job must be open when you create a forecast. Otherwise, an error occurs.
 ===============================
 
@@ -37,7 +37,8 @@ forecast. For more information about this property, see <<ml-job-resource>>.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-forecast-request-body]]
 ==== {api-request-body-title}

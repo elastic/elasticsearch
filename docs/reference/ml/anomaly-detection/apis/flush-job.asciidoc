@@ -18,7 +18,7 @@ Forces any buffered data to be processed by the job.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-flush-job-desc]]
 ==== {api-description-title}
@@ -37,7 +37,8 @@ opened again before analyzing further data.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-(string) Required. Identifier for the job.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-flush-job-query-parms]]
 ==== {api-query-parms-title}

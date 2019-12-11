@@ -107,7 +107,7 @@ import java.util.Map;
 public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene80";
+    public static final String LATEST_CODEC = "Lucene84";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -256,14 +256,15 @@ public class Lucene {
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
-                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE) // force creation - don't append...
+        ))
         {
             // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
         }
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
-        new SegmentInfos.FindSegmentsFile(directory) {
+        new SegmentInfos.FindSegmentsFile<>(directory) {
 
             @Override
             protected Object doBody(String segmentFileName) throws IOException {
@@ -344,7 +345,7 @@ public class Lucene {
     }
 
     public static FieldDoc readFieldDoc(StreamInput in) throws IOException {
-        Comparable[] cFields = new Comparable[in.readVInt()];
+        Comparable<?>[] cFields = new Comparable<?>[in.readVInt()];
         for (int j = 0; j < cFields.length; j++) {
             byte type = in.readByte();
             if (type == 0) {
@@ -374,7 +375,7 @@ public class Lucene {
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
-    public static Comparable readSortValue(StreamInput in) throws IOException {
+    public static Comparable<?> readSortValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
             return null;
@@ -483,7 +484,7 @@ public class Lucene {
         if (field == null) {
             out.writeByte((byte) 0);
         } else {
-            Class type = field.getClass();
+            Class<?> type = field.getClass();
             if (type == String.class) {
                 out.writeByte((byte) 1);
                 out.writeString((String) field);
@@ -801,16 +802,27 @@ public class Lucene {
     }
 
     /**
-     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
-     * all documents contained in the set. Note that the returned {@link Bits}
-     * instance MUST be consumed in order.
+     * Return a {@link Bits} view of the provided scorer.
+     * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
+     * @see #asSequentialAccessBits(int, ScorerSupplier, long)
      */
     public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier) throws IOException {
+        return asSequentialAccessBits(maxDoc, scorerSupplier, 0L);
+    }
+
+    /**
+     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
+     * all documents contained in the set.
+     * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
+     * @param estimatedGetCount an estimation of the number of times that {@link Bits#get} will get called
+     */
+    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier,
+            long estimatedGetCount) throws IOException {
         if (scorerSupplier == null) {
             return new Bits.MatchNoBits(maxDoc);
         }
         // Since we want bits, we need random-access
-        final Scorer scorer = scorerSupplier.get(Long.MAX_VALUE); // this never returns null
+        final Scorer scorer = scorerSupplier.get(estimatedGetCount); // this never returns null
         final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
         final DocIdSetIterator iterator;
         if (twoPhase == null) {

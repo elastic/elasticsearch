@@ -18,7 +18,7 @@ Validates detector configuration information.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-valid-detector-desc]]
 ==== {api-description-title}
@@ -29,8 +29,7 @@ before you create an {anomaly-job}.
 [[ml-valid-detector-request-body]]
 ==== {api-request-body-title}
 
-For a list of the properties that you can specify in the body of this API,
-see <<ml-detectorconfig,detector configuration objects>>.
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector]
 
 [[ml-valid-detector-example]]
 ==== {api-examples-title}

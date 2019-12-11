@@ -19,15 +19,19 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
@@ -86,6 +90,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void disableRepoConsistencyCheck(String reason) {
         assertNotNull(reason);
         skipRepoConsistencyCheckReason = reason;
+    }
+
+    protected RepositoryData getRepositoryData(Repository repository) {
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
+        final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            repository.getRepositoryData(repositoryData);
+        });
+        return repositoryData.actionGet();
     }
 
     public static long getFailureCount(String repository) {
@@ -208,17 +221,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
-        if (false == awaitBusy(() -> {
-            for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+        final boolean blocked = waitUntil(() -> {
+            for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
                 if (mockRepository.blocked()) {
                     return true;
                 }
             }
             return false;
-        }, timeout.millis(), TimeUnit.MILLISECONDS)) {
-            fail("Timeout waiting for repository block on any data node!!!");
-        }
+        }, timeout.millis(), TimeUnit.MILLISECONDS);
+
+        assertTrue("No repository is blocked waiting on a data node", blocked);
     }
 
     public static void unblockNode(final String repository, final String node) {

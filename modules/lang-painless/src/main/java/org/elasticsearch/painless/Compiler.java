@@ -211,8 +211,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
         root.extractVariables(extractedVariables);
-        root.storeSettings(settings);
-        root.analyze(painlessLookup);
+        root.analyze(painlessLookup, settings);
         Map<String, Object> statics = root.write();
 
         try {
@@ -227,7 +226,8 @@ final class Compiler {
             }
 
             return clazz.getConstructors()[0];
-        } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+        } catch (Exception exception) {
+            // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
     }
@@ -243,8 +243,7 @@ final class Compiler {
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
                 debugStream);
         root.extractVariables(new HashSet<>());
-        root.storeSettings(settings);
-        root.analyze(painlessLookup);
+        root.analyze(painlessLookup, settings);
         root.write();
 
         return root.getBytes();

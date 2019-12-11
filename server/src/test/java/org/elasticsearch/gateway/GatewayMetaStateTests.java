@@ -33,96 +33,43 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class GatewayMetaStateTests extends ESTestCase {
 
-    public void testAddCustomMetaDataOnUpgrade() throws Exception {
+    public void testUpdateTemplateMetaDataOnUpgrade() {
         MetaData metaData = randomMetaData();
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
-            Collections.singletonList(customs -> {
-                customs.put(CustomMetaData1.TYPE, new CustomMetaData1("modified_data1"));
-                return customs;
-            }),
-            Collections.emptyList()
-        );
-        MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade != metaData);
-        assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
-        assertNotNull(upgrade.custom(CustomMetaData1.TYPE));
-        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData1.TYPE)).getData(), equalTo("modified_data1"));
-    }
-
-    public void testRemoveCustomMetaDataOnUpgrade() throws Exception {
-        MetaData metaData = randomMetaData(new CustomMetaData1("data"));
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
-            Collections.singletonList(customs -> {
-                customs.remove(CustomMetaData1.TYPE);
-                return customs;
-            }),
-            Collections.emptyList()
-        );
-        MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade != metaData);
-        assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
-        assertNull(upgrade.custom(CustomMetaData1.TYPE));
-    }
-
-    public void testUpdateCustomMetaDataOnUpgrade() throws Exception {
-        MetaData metaData = randomMetaData(new CustomMetaData1("data"));
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
-            Collections.singletonList(customs -> {
-                customs.put(CustomMetaData1.TYPE, new CustomMetaData1("modified_data1"));
-                return customs;
-            }),
-            Collections.emptyList()
-        );
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(
+                        templates -> {
+                            templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
+                                .patterns(randomIndexPatterns()).build());
+                            return templates;
+                        }
+                    ));
 
         MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade != metaData);
-        assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
-        assertNotNull(upgrade.custom(CustomMetaData1.TYPE));
-        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData1.TYPE)).getData(), equalTo("modified_data1"));
-    }
-
-
-    public void testUpdateTemplateMetaDataOnUpgrade() throws Exception {
-        MetaData metaData = randomMetaData();
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
-            Collections.emptyList(),
-            Collections.singletonList(
-                templates -> {
-                    templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
-                        .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false))).build());
-                    return templates;
-                }
-            ));
-
-        MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade != metaData);
+        assertNotSame(upgrade, metaData);
         assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
         assertTrue(upgrade.templates().containsKey("added_test_template"));
     }
 
-    public void testNoMetaDataUpgrade() throws Exception {
+    public void testNoMetaDataUpgrade() {
         MetaData metaData = randomMetaData(new CustomMetaData1("data"));
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.emptyList(), Collections.emptyList());
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.emptyList());
         MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade == metaData);
+        assertSame(upgrade, metaData);
         assertTrue(MetaData.isGlobalStateEquals(upgrade, metaData));
         for (IndexMetaData indexMetaData : upgrade) {
             assertTrue(metaData.hasIndexMetaData(indexMetaData));
         }
     }
 
-    public void testCustomMetaDataValidation() throws Exception {
+    public void testCustomMetaDataValidation() {
         MetaData metaData = randomMetaData(new CustomMetaData1("data"));
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(
-            customs -> {
-                throw new IllegalStateException("custom meta data too old");
-            }
-        ), Collections.emptyList());
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.emptyList());
         try {
             GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
         } catch (IllegalStateException e) {
@@ -130,82 +77,41 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
-    public void testMultipleCustomMetaDataUpgrade() throws Exception {
-        final MetaData metaData;
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                metaData = randomMetaData(new CustomMetaData1("data1"), new CustomMetaData2("data2"));
-                break;
-            case 1:
-                metaData = randomMetaData(randomBoolean() ? new CustomMetaData1("data1") : new CustomMetaData2("data2"));
-                break;
-            case 2:
-                metaData = randomMetaData();
-                break;
-            default:
-                throw new IllegalStateException("should never happen");
-        }
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
-            Arrays.asList(
-                customs -> {
-                    customs.put(CustomMetaData1.TYPE, new CustomMetaData1("modified_data1"));
-                    return customs;
-                },
-                customs -> {
-                    customs.put(CustomMetaData2.TYPE, new CustomMetaData1("modified_data2"));
-                    return customs;
-                }
-            ), Collections.emptyList());
-        MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade != metaData);
-        assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
-        assertNotNull(upgrade.custom(CustomMetaData1.TYPE));
-        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData1.TYPE)).getData(), equalTo("modified_data1"));
-        assertNotNull(upgrade.custom(CustomMetaData2.TYPE));
-        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData2.TYPE)).getData(), equalTo("modified_data2"));
-        for (IndexMetaData indexMetaData : upgrade) {
-            assertTrue(metaData.hasIndexMetaData(indexMetaData));
-        }
-    }
-
-    public void testIndexMetaDataUpgrade() throws Exception {
+    public void testIndexMetaDataUpgrade() {
         MetaData metaData = randomMetaData();
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.emptyList(), Collections.emptyList());
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.emptyList());
         MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(true), metaDataUpgrader);
-        assertTrue(upgrade != metaData);
+        assertNotSame(upgrade, metaData);
         assertTrue(MetaData.isGlobalStateEquals(upgrade, metaData));
         for (IndexMetaData indexMetaData : upgrade) {
             assertFalse(metaData.hasIndexMetaData(indexMetaData));
         }
     }
 
-    public void testCustomMetaDataNoChange() throws Exception {
+    public void testCustomMetaDataNoChange() {
         MetaData metaData = randomMetaData(new CustomMetaData1("data"));
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(HashMap::new),
-            Collections.singletonList(HashMap::new));
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(HashMap::new));
         MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade == metaData);
+        assertSame(upgrade, metaData);
         assertTrue(MetaData.isGlobalStateEquals(upgrade, metaData));
         for (IndexMetaData indexMetaData : upgrade) {
             assertTrue(metaData.hasIndexMetaData(indexMetaData));
         }
     }
 
-    public void testIndexTemplateValidation() throws Exception {
+    public void testIndexTemplateValidation() {
         MetaData metaData = randomMetaData();
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
-            Collections.emptyList(),
-            Collections.singletonList(
-                customs -> {
-                    throw new IllegalStateException("template is incompatible");
-                }));
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(
+                        customs -> {
+                            throw new IllegalStateException("template is incompatible");
+                        }));
         String message = expectThrows(IllegalStateException.class,
             () -> GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader)).getMessage();
         assertThat(message, equalTo("template is incompatible"));
     }
 
 
-    public void testMultipleIndexTemplateUpgrade() throws Exception {
+    public void testMultipleIndexTemplateUpgrade() {
         final MetaData metaData;
         switch (randomIntBetween(0, 2)) {
             case 0:
@@ -220,12 +126,10 @@ public class GatewayMetaStateTests extends ESTestCase {
             default:
                 throw new IllegalStateException("should never happen");
         }
-        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
-            Collections.emptyList(),
-            Arrays.asList(
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Arrays.asList(
                 indexTemplateMetaDatas -> {
                     indexTemplateMetaDatas.put("template1", IndexTemplateMetaData.builder("template1")
-                        .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)))
+                        .patterns(randomIndexPatterns())
                         .settings(Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 20).build())
                         .build());
                     return indexTemplateMetaDatas;
@@ -233,14 +137,14 @@ public class GatewayMetaStateTests extends ESTestCase {
                 },
                 indexTemplateMetaDatas -> {
                     indexTemplateMetaDatas.put("template2", IndexTemplateMetaData.builder("template2")
-                        .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)))
+                        .patterns(randomIndexPatterns())
                         .settings(Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 10).build()).build());
                     return indexTemplateMetaDatas;
 
                 }
             ));
         MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
-        assertTrue(upgrade != metaData);
+        assertNotSame(upgrade, metaData);
         assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
         assertNotNull(upgrade.templates().get("template1"));
         assertThat(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(upgrade.templates().get("template1").settings()), equalTo(20));
@@ -255,7 +159,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         private final boolean upgrade;
 
         MockMetaDataIndexUpgradeService(boolean upgrade) {
-            super(Settings.EMPTY, null, null, null, null);
+            super(Settings.EMPTY, null, null, null);
             this.upgrade = upgrade;
         }
 
@@ -268,30 +172,7 @@ public class GatewayMetaStateTests extends ESTestCase {
     private static class CustomMetaData1 extends TestCustomMetaData {
         public static final String TYPE = "custom_md_1";
 
-        protected CustomMetaData1(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.GATEWAY);
-        }
-    }
-
-    private static class CustomMetaData2 extends TestCustomMetaData {
-        public static final String TYPE = "custom_md_2";
-
-        protected CustomMetaData2(String data) {
+        CustomMetaData1(String data) {
             super(data);
         }
 
@@ -334,7 +215,7 @@ public class GatewayMetaStateTests extends ESTestCase {
                 .settings(settings(Version.CURRENT)
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
                     .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5)))
-                .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)))
+                .patterns(randomIndexPatterns())
                 .build();
             builder.put(templateMetaData);
         }
@@ -347,5 +228,9 @@ public class GatewayMetaStateTests extends ESTestCase {
             );
         }
         return builder.build();
+    }
+
+    private static List<String> randomIndexPatterns() {
+        return Arrays.asList(Objects.requireNonNull(generateRandomStringArray(10, 100, false, false)));
     }
 }

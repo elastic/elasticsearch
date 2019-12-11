@@ -18,14 +18,14 @@ Instantiates a filter.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-filter-desc]]
 ==== {api-description-title}
 
 A {stack-ov}/ml-rules.html[filter] contains a list of strings. 
 It can be used by one or more jobs. Specifically, filters are referenced in 
-the `custom_rules` property of <<ml-detectorconfig,detector configuration objects>>. 
+the `custom_rules` property of detector configuration objects. 
 
 [[ml-put-filter-path-parms]]
 ==== {api-path-parms-title}

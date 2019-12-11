@@ -63,10 +63,8 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -183,7 +181,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int docs = randomIntBetween(0, 16);
             for (int i = 0; i < docs; i++) {
                 shards.index(
-                        new IndexRequest("index", "type", Integer.toString(i)).source("{}", XContentType.JSON));
+                        new IndexRequest("index").id(Integer.toString(i)).source("{}", XContentType.JSON));
             }
 
             shards.flush();
@@ -195,10 +193,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // slip the extra document into the replica
             remainingReplica.applyIndexOperationOnReplica(
                     remainingReplica.getLocalCheckpoint() + 1,
+                    remainingReplica.getOperationPrimaryTerm(),
                     1,
                     randomNonNegativeLong(),
                     false,
-                    new SourceToParse("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));
+                    new SourceToParse("index", "replica", new BytesArray("{}"), XContentType.JSON));
             shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
@@ -211,8 +210,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 promotedReplica.applyIndexOperationOnPrimary(
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
-                        new SourceToParse("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, randomNonNegativeLong(),
+                        new SourceToParse("index", "primary", new BytesArray("{}"), XContentType.JSON),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                         false);
             }
             final IndexShard recoveredReplica =
@@ -243,7 +242,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final int rollbackDocs = randomIntBetween(1, 5);
                 logger.info("--> indexing {} rollback docs", rollbackDocs);
                 for (int i = 0; i < rollbackDocs; i++) {
-                    final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
+                    final IndexRequest indexRequest = new IndexRequest(index.getName()).id("rollback_" + i)
                             .source("{}", XContentType.JSON);
                     final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                     indexOnReplica(bulkShardRequest, shards, replica);
@@ -346,7 +345,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             int staleDocs = scaledRandomIntBetween(1, 10);
             logger.info("--> indexing {} stale docs", staleDocs);
             for (int i = 0; i < staleDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "stale_" + i)
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("stale_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 indexOnReplica(bulkShardRequest, shards, replica);
@@ -378,14 +377,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     public void testResyncAfterPrimaryPromotion() throws Exception {
         // TODO: check translog trimming functionality once rollback is implemented in Lucene (ES trimming is done)
-        Map<String, String> mappings =
-            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
             int initialDocs = randomInt(10);
 
             for (int i = 0; i < initialDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "initial_doc_" + i)
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("initial_doc_" + i)
                     .source("{ \"f\": \"normal\"}", XContentType.JSON);
                 shards.index(indexRequest);
             }
@@ -403,7 +401,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int extraDocs = randomInt(5);
             logger.info("--> indexing {} extra docs", extraDocs);
             for (int i = 0; i < extraDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_doc_" + i)
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_doc_" + i)
                     .source("{ \"f\": \"normal\"}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 indexOnReplica(bulkShardRequest, shards, newPrimary);
@@ -412,7 +410,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int extraDocsToBeTrimmed = randomIntBetween(0, 10);
             logger.info("--> indexing {} extra docs to be trimmed", extraDocsToBeTrimmed);
             for (int i = 0; i < extraDocsToBeTrimmed; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_trimmed_" + i)
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_trimmed_" + i)
                     .source("{ \"f\": \"trimmed\"}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 // have to replicate to another replica != newPrimary one - the subject to trim
@@ -480,7 +478,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final String id = "pending_" + i;
                 threadPool.generic().submit(() -> {
                     try {
-                        shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                        shards.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     } finally {
@@ -571,7 +569,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                             replicaEngineFactory.latchIndexers(1);
                             threadPool.generic().submit(() -> {
                                 try {
-                                    shards.index(new IndexRequest(index.getName(), "type", "pending").source("{}", XContentType.JSON));
+                                    shards.index(new IndexRequest(index.getName()).id("pending").source("{}", XContentType.JSON));
                                 } catch (final Exception e) {
                                     throw new RuntimeException(e);
                                 } finally {
@@ -583,7 +581,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                 replicaEngineFactory.awaitIndexersLatch();
                                 // unblock indexing for the next doc
                                 replicaEngineFactory.allowIndexing();
-                                shards.index(new IndexRequest(index.getName(), "type", "completed").source("{}", XContentType.JSON));
+                                shards.index(new IndexRequest(index.getName()).id("completed").source("{}", XContentType.JSON));
                                 pendingDocActiveWithExtraDocIndexed.countDown();
                             } catch (final Exception e) {
                                 throw new AssertionError(e);
@@ -619,9 +617,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             phaseTwoStartLatch.countDown();
 
             // wait for the translog phase to complete and the recovery to block global checkpoint advancement
-            awaitBusy(() -> shards.getPrimary().pendingInSync());
+            assertBusy(() -> assertTrue(shards.getPrimary().pendingInSync()));
             {
-                shards.index(new IndexRequest(index.getName(), "type", "last").source("{}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id("last").source("{}", XContentType.JSON));
                 final long expectedDocs = docs + 3L;
                 assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
                 // recovery is now in the process of being completed, therefore the global checkpoint can not have advanced on the primary
@@ -656,7 +654,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             long maxTimestampOnReplica2 = -1;
             List<IndexRequest> replicationRequests = new ArrayList<>();
             for (int numDocs = between(1, 10), i = 0; i < numDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
                 indexRequest.process(Version.CURRENT, null, index.getName());
                 final IndexRequest copyRequest;
                 if (randomBoolean()) {
@@ -715,13 +713,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                             int nextId = docId.incrementAndGet();
                             if (appendOnly) {
                                 String id = randomBoolean() ? Integer.toString(nextId) : null;
-                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                                shards.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
                             } else if (frequently()) {
                                 String id = Integer.toString(frequently() ? nextId : between(0, nextId));
-                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                                shards.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
                             } else {
                                 String id = Integer.toString(between(0, nextId));
-                                shards.delete(new DeleteRequest(index.getName(), "type", id));
+                                shards.delete(new DeleteRequest(index.getName()).id(id));
                             }
                             if (randomInt(100) < 10) {
                                 shards.getPrimary().flush(new FlushRequest());
@@ -756,7 +754,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             int inFlightOps = scaledRandomIntBetween(10, 200);
             for (int i = 0; i < inFlightOps; i++) {
                 String id = "extra-" + i;
-                IndexRequest primaryRequest = new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON);
+                IndexRequest primaryRequest = new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON);
                 BulkShardRequest replicationRequest = indexOnPrimary(primaryRequest, shards.getPrimary());
                 for (IndexShard replica : shards.getReplicas()) {
                     if (randomBoolean()) {

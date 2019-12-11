@@ -38,6 +38,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     public static final String EXTENSION_NAME = "testClusters";
+    private static final String REGISTRY_EXTENSION_NAME = "testClustersRegistry";
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
@@ -56,9 +57,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
 
-        if (project.getRootProject().getExtensions().findByType(TestClustersRegistry.class) == null) {
+        if (project.getRootProject().getExtensions().findByName(REGISTRY_EXTENSION_NAME) == null) {
             TestClustersRegistry registry = project.getRootProject().getExtensions()
-                .create("testClusters", TestClustersRegistry.class);
+                .create(REGISTRY_EXTENSION_NAME, TestClustersRegistry.class);
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -123,7 +124,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                         return;
                     }
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    ((TestClustersAware) task).getClusters().forEach(registry::maybeStartCluster);
+                    TestClustersAware awareTask = (TestClustersAware) task;
+                    awareTask.beforeStart();
+                    awareTask.getClusters().forEach(registry::maybeStartCluster);
                 }
                 @Override
                 public void afterActions(Task task) {}

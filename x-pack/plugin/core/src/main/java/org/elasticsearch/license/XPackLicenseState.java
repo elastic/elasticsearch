@@ -16,10 +16,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 
@@ -27,6 +29,9 @@ import java.util.function.BiFunction;
  * A holder for the current state of the license for all xpack features.
  */
 public class XPackLicenseState {
+
+    public static final Set<OperationMode> FIPS_ALLOWED_LICENSE_OPERATION_MODES =
+        EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);
 
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
@@ -674,6 +679,22 @@ public class XPackLicenseState {
      *         {@code false}.
      */
     public boolean isIndexLifecycleAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
+    /**
+     * Determine if the enrich processor and related APIs are allowed to be used.
+     * <p>
+     * This is available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isEnrichAllowed() {
         // status is volatile
         Status localStatus = status;
         // Should work on all active licenses

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Objects;
@@ -49,20 +50,14 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         expression.extractVariables(variables);
     }
 
     @Override
-    void analyze(Locals locals) {
-
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         // ensure the specified type is part of the definition
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
@@ -73,9 +68,9 @@ public final class EInstanceof extends AExpression {
                 PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
-        expression.analyze(locals);
+        expression.analyze(scriptRoot, locals);
         expression.expected = expression.actual;
-        expression = expression.cast(locals);
+        expression = expression.cast(scriptRoot, locals);
 
         // record if the expression returns a primitive
         primitiveExpression = expression.actual.isPrimitive();
@@ -87,19 +82,19 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         // primitive types
         if (primitiveExpression) {
             // run the expression anyway (who knows what it does)
-            expression.write(writer, globals);
+            expression.write(classWriter, methodWriter, globals);
             // discard its result
-            writer.writePop(MethodWriter.getType(expression.actual).getSize());
+            methodWriter.writePop(MethodWriter.getType(expression.actual).getSize());
             // push our result: its a primitive so it cannot be null.
-            writer.push(resolvedType.isAssignableFrom(expressionType));
+            methodWriter.push(resolvedType.isAssignableFrom(expressionType));
         } else {
             // ordinary instanceof
-            expression.write(writer, globals);
-            writer.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
+            expression.write(classWriter, methodWriter, globals);
+            methodWriter.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
         }
     }
 

@@ -20,11 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 
 import java.util.Set;
@@ -47,19 +48,13 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        lhs.storeSettings(settings);
-        rhs.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         lhs.extractVariables(variables);
         rhs.extractVariables(variables);
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (expected != null && expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
@@ -70,8 +65,8 @@ public class EElvis extends AExpression {
         rhs.explicit = explicit;
         rhs.internal = internal;
         actual = expected;
-        lhs.analyze(locals);
-        rhs.analyze(locals);
+        lhs.analyze(scriptRoot, locals);
+        rhs.analyze(scriptRoot, locals);
 
         if (lhs.isNull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
@@ -94,22 +89,22 @@ public class EElvis extends AExpression {
             actual = promote;
         }
 
-        lhs = lhs.cast(locals);
-        rhs = rhs.cast(locals);
+        lhs = lhs.cast(scriptRoot, locals);
+        rhs = rhs.cast(scriptRoot, locals);
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         Label end = new Label();
 
-        lhs.write(writer, globals);
-        writer.dup();
-        writer.ifNonNull(end);
-        writer.pop();
-        rhs.write(writer, globals);
-        writer.mark(end);
+        lhs.write(classWriter, methodWriter, globals);
+        methodWriter.dup();
+        methodWriter.ifNonNull(end);
+        methodWriter.pop();
+        rhs.write(classWriter, methodWriter, globals);
+        methodWriter.mark(end);
     }
 
     @Override

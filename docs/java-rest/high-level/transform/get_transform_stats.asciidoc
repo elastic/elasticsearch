@@ -1,7 +1,7 @@
 --
 :api: get-transform-stats
-:request: GetDataFrameTransformStatsRequest
-:response: GetDataFrameTransformStatsResponse
+:request: GetTransformStatsRequest
+:response: GetTransformStatsResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]
@@ -48,7 +48,7 @@ The returned +{response}+ contains the requested {transform} statistics.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The response contains a list of `DataFrameTransformStats` objects
+<1> The response contains a list of `TransformStats` objects
 <2> The running state of the {transform}, for example `started`, `indexing`, etc.
 <3> The overall {transform} statistics recording the number of documents indexed etc.
 <4> The progress of the current run in the {transform}. Supplies the number of docs left until the next checkpoint

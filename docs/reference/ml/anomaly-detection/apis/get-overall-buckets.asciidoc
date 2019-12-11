@@ -25,8 +25,7 @@ Retrieves overall bucket results that summarize the bucket results of multiple
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
 need `read` index privilege on the index that stores the results. The
 `machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+privileges. See <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-overall-buckets-desc]]
 ==== {api-description-title}
@@ -55,17 +54,14 @@ a span equal to the jobs' largest bucket span.
 [[ml-get-overall-buckets-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}. It can be a job
-  identifier, a group name, a comma-separated list of jobs or groups, or a
-  wildcard expression.
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard-list]
 
 [[ml-get-overall-buckets-request-body]]
 ==== {api-request-body-title}
 
 `allow_no_jobs`::
-  (Optional, boolean) If `false` and the `job_id` does not match any
-  {anomaly-jobs}, an error occurs. The default value is `true`.
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `bucket_span`::
   (Optional, string) The span of the overall buckets. Must be greater or equal

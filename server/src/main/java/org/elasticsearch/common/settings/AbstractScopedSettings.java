@@ -193,7 +193,6 @@ public abstract class AbstractScopedSettings {
         } catch (Exception ex) {
             logger.warn("failed to apply settings", ex);
             throw ex;
-        } finally {
         }
         return lastSettingsApplied = newSettings;
     }
@@ -303,6 +302,7 @@ public abstract class AbstractScopedSettings {
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      */
+    @SuppressWarnings("rawtypes")
     public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
@@ -504,7 +504,7 @@ public abstract class AbstractScopedSettings {
      */
     void validate(
             final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
-        Setting setting = getRaw(key);
+        Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -530,20 +530,24 @@ public abstract class AbstractScopedSettings {
             }
             throw new IllegalArgumentException(msg);
         } else  {
-            Set<Setting<?>> settingsDependencies = setting.getSettingsDependencies(key);
+            Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
             if (validateDependencies && settingsDependencies.isEmpty() == false) {
-                for (final Setting<?> settingDependency : settingsDependencies) {
-                    if (settingDependency.existsOrFallbackExists(settings) == false) {
+                for (final Setting.SettingDependency settingDependency : settingsDependencies) {
+                    final Setting<?> dependency = settingDependency.getSetting();
+                    // validate the dependent setting is set
+                    if (dependency.existsOrFallbackExists(settings) == false) {
                         final String message = String.format(
                                 Locale.ROOT,
                                 "missing required setting [%s] for setting [%s]",
-                                settingDependency.getKey(),
+                                dependency.getKey(),
                                 setting.getKey());
                         throw new IllegalArgumentException(message);
                     }
+                    // validate the dependent setting value
+                    settingDependency.validate(setting.getKey(), setting.get(settings), dependency.get(settings));
                 }
             }
             // the only time that validateInternalOrPrivateIndex should be true is if this call is coming via the update settings API

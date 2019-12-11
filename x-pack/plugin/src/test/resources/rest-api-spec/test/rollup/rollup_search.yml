@@ -965,7 +965,6 @@ setup:
         body:
           - index:
               _index: "tz_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: 1531221000000
             timestamp.date_histogram.interval: "5m"
             timestamp.date_histogram.time_zone: "America/Edmonton"
@@ -978,7 +977,6 @@ setup:
 
           - index:
               _index: "tz_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: 1531221300000
             timestamp.date_histogram.interval: "5m"
             timestamp.date_histogram.time_zone: "America/Edmonton"
@@ -991,7 +989,6 @@ setup:
 
           - index:
               _index: "tz_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: 1531221600000
             timestamp.date_histogram.interval: "5m"
             timestamp.date_histogram.time_zone: "America/Edmonton"
@@ -1118,7 +1115,6 @@ setup:
         body:
           - index:
               _index: "tz_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: 1531221000000
             timestamp.date_histogram.interval: "5m"
             timestamp.date_histogram.time_zone: "Canada/Mountain"
@@ -1131,7 +1127,6 @@ setup:
 
           - index:
               _index: "tz_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: 1531221300000
             timestamp.date_histogram.interval: "5m"
             timestamp.date_histogram.time_zone: "Canada/Mountain"
@@ -1144,7 +1139,6 @@ setup:
 
           - index:
               _index: "tz_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: 1531221600000
             timestamp.date_histogram.interval: "5m"
             timestamp.date_histogram.time_zone: "Canada/Mountain"

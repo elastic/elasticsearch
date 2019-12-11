@@ -11,13 +11,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,17 +57,14 @@ import java.util.Map;
 import java.util.Objects;
 
 public class TransportPutDataFrameAnalyticsAction
-    extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, PutDataFrameAnalyticsAction.Response> {
+    extends TransportMasterNodeAction<PutDataFrameAnalyticsAction.Request, PutDataFrameAnalyticsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDataFrameAnalyticsAction.class);
 
     private final XPackLicenseState licenseState;
     private final DataFrameAnalyticsConfigProvider configProvider;
-    private final ThreadPool threadPool;
     private final SecurityContext securityContext;
     private final Client client;
-    private final ClusterService clusterService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DataFrameAnalyticsAuditor auditor;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
@@ -74,15 +74,13 @@ public class TransportPutDataFrameAnalyticsAction
                                                 XPackLicenseState licenseState, Client client, ThreadPool threadPool,
                                                 ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 DataFrameAnalyticsConfigProvider configProvider, DataFrameAnalyticsAuditor auditor) {
-        super(PutDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
+        super(PutDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PutDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.configProvider = configProvider;
-        this.threadPool = threadPool;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.client = client;
-        this.clusterService = clusterService;
-        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
         this.auditor = Objects.requireNonNull(auditor);
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
@@ -95,14 +93,25 @@ public class TransportPutDataFrameAnalyticsAction
     }
 
     @Override
-    protected void doExecute(Task task, PutDataFrameAnalyticsAction.Request request,
-                             ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isMachineLearningAllowed() == false) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
-            return;
-        }
+    protected String executor() {
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected PutDataFrameAnalyticsAction.Response read(StreamInput in) throws IOException {
+        return new PutDataFrameAnalyticsAction.Response(in);
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(PutDataFrameAnalyticsAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected void masterOperation(Task task, PutDataFrameAnalyticsAction.Request request, ClusterState state,
+                                   ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
         validateConfig(request.getConfig());
-        DataFrameAnalyticsConfig memoryCappedConfig =
+        DataFrameAnalyticsConfig preparedForPutConfig =
             new DataFrameAnalyticsConfig.Builder(request.getConfig(), maxModelMemoryLimit)
                 .setCreateTime(Instant.now())
                 .setVersion(Version.CURRENT)
@@ -111,11 +120,11 @@ public class TransportPutDataFrameAnalyticsAction
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(memoryCappedConfig.getSource().getIndex())
+                .indices(preparedForPutConfig.getSource().getIndex())
                 .privileges("read")
                 .build();
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(memoryCappedConfig.getDest().getIndex())
+                .indices(preparedForPutConfig.getDest().getIndex())
                 .privileges("read", "index", "create_index")
                 .build();
 
@@ -126,18 +135,18 @@ public class TransportPutDataFrameAnalyticsAction
             privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
 
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, memoryCappedConfig, r, listener),
+                r -> handlePrivsResponse(username, preparedForPutConfig, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {
             updateDocMappingAndPutConfig(
-                memoryCappedConfig,
+                preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
                     listener::onFailure
-            ));
+                ));
         }
     }
 
@@ -204,6 +213,15 @@ public class TransportPutDataFrameAnalyticsAction
         }
         config.getDest().validate();
         new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
+    }
 
+    @Override
+    protected void doExecute(Task task, PutDataFrameAnalyticsAction.Request request,
+                             ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
+        if (licenseState.isMachineLearningAllowed()) {
+            super.doExecute(task, request, listener);
+        } else {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+        }
     }
 }

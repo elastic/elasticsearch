@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 
 import java.util.Set;
@@ -45,18 +46,13 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
-    void analyze(Locals locals) {
-        guarded.analyze(locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        guarded.analyze(scriptRoot, locals);
         actual = guarded.actual;
         if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
@@ -64,14 +60,14 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         Label end = new Label();
-        writer.dup();
-        writer.ifNull(end);
-        guarded.write(writer, globals);
-        writer.mark(end);
+        methodWriter.dup();
+        methodWriter.ifNull(end);
+        guarded.write(classWriter, methodWriter, globals);
+        methodWriter.mark(end);
     }
 
     @Override

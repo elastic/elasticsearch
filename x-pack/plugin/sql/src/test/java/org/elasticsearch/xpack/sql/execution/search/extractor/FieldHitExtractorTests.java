@@ -396,7 +396,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Multiple values (returned by [a.b.c.d.e.f.g]) are not supported"));
     }
-    
+
     public void testFieldsWithSingleValueArrayAsSubfield() {
         FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Object value = randomNonNullValue();
@@ -405,7 +405,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         map.put("a", singletonList(singletonMap("b", value)));
         assertEquals(value, fe.extractFromSource(map));
     }
-    
+
     public void testFieldsWithMultiValueArrayAsSubfield() {
         FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Map<String, Object> map = new HashMap<>();
@@ -414,7 +414,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a.b]) are not supported"));
     }
-    
+
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists() {
         FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
@@ -423,7 +423,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", value)))));
         assertEquals(value, fe.extractFromSource(map));
     }
-    
+
     public void testFieldsWithMultiValueArrayAsSubfield_ThreeNestedLists() {
         FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Map<String, Object> map = new HashMap<>();
@@ -432,7 +432,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a.b.c]) are not supported"));
     }
-    
+
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists2() {
         FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
@@ -462,7 +462,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
         Map<String, Object> map = new HashMap<>();
         map.put(fieldName, "POINT (1 2)");
         assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
@@ -474,7 +474,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
         Map<String, Object> map = new HashMap<>();
         map.put(fieldName, "POINT (1 2)");
         assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
@@ -487,7 +487,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map2));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
-        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_SHAPE, UTC, false, true);
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName,
+            randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false, true);
         assertEquals(new GeoShape(1, 2), lenientFe.extractFromSource(map2));
     }
 
@@ -605,7 +606,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
                 () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254")));
         return value.get();
     }
-    
+
     private void assertFieldHitEquals(Object expected, Object actual) {
         if (expected instanceof BigDecimal) {
             // parsing will, by default, build a Double even if the initial value is BigDecimal

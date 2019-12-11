@@ -16,13 +16,15 @@ import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
-import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.Score;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.ScorePipe;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
@@ -66,11 +68,11 @@ public class QueryContainer {
     // for example in case of grouping or custom sorting, the response has extra columns
     // that is filtered before getting to the client
 
-    // the list contains both the field extraction and the id of its associated attribute (for custom sorting)
-    private final List<Tuple<FieldExtraction, ExpressionId>> fields;
+    // the list contains both the field extraction and its id (for custom sorting)
+    private final List<Tuple<FieldExtraction, String>> fields;
 
-    // aliases (maps an alias to its actual resolved attribute)
-    private final AttributeMap<Attribute> aliases;
+    // aliases found in the tree
+    private final AttributeMap<Expression> aliases;
 
     // pseudo functions (like count) - that are 'extracted' from other aggs
     private final Map<String, GroupByKey> pseudoFunctions;
@@ -89,6 +91,9 @@ public class QueryContainer {
     // computed
     private Boolean aggsOnly;
     private Boolean customSort;
+    // associate Attributes with aliased FieldAttributes (since they map directly to ES fields)
+    private Map<Attribute, FieldAttribute> fieldAlias;
+
 
     public QueryContainer() {
         this(null, null, null, null, null, null, null, -1, false, false, -1);
@@ -96,9 +101,8 @@ public class QueryContainer {
 
     public QueryContainer(Query query,
             Aggs aggs,
-            List<Tuple<FieldExtraction,
-            ExpressionId>> fields,
-            AttributeMap<Attribute> aliases,
+            List<Tuple<FieldExtraction, String>> fields,
+            AttributeMap<Expression> aliases,
             Map<String, GroupByKey> pseudoFunctions,
             AttributeMap<Pipe> scalarFunctions,
             Set<Sort> sort,
@@ -135,31 +139,30 @@ public class QueryContainer {
         for (Sort s : sort) {
             Tuple<Integer, Comparator> tuple = new Tuple<>(Integer.valueOf(-1), null);
             
-            if (s instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) s;
+            if (s instanceof AggregateSort) {
+                AggregateSort as = (AggregateSort) s;
                 // find the relevant column of each aggregate function
-                if (as.attribute() instanceof AggregateFunctionAttribute) {
-                    aggSort = true;
-                    AggregateFunctionAttribute afa = (AggregateFunctionAttribute) as.attribute();
-                    afa = (AggregateFunctionAttribute) aliases.getOrDefault(afa, afa);
-                    int atIndex = -1;
-                    for (int i = 0; i < fields.size(); i++) {
-                        Tuple<FieldExtraction, ExpressionId> field = fields.get(i);
-                        if (field.v2().equals(afa.innerId())) {
-                            atIndex = i;
-                            break;
-                        }
-                    }
+                AggregateFunction af = as.agg();
 
-                    if (atIndex == -1) {
-                        throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", afa.name());
-                    }
-                    // assemble a comparator for it
-                    Comparator comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
-                    comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
+                aggSort = true;
+                int atIndex = -1;
+                String id = Expressions.id(af);
 
-                    tuple = new Tuple<>(Integer.valueOf(atIndex), comp);
+                for (int i = 0; i < fields.size(); i++) {
+                    Tuple<FieldExtraction, String> field = fields.get(i);
+                    if (field.v2().equals(id)) {
+                        atIndex = i;
+                        break;
+                    }
                 }
+                if (atIndex == -1) {
+                    throw new SqlIllegalArgumentException("Cannot find backing column for ordering aggregation [{}]", s);
+                }
+                // assemble a comparator for it
+                Comparator comp = s.direction() == Sort.Direction.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder();
+                comp = s.missing() == Sort.Missing.FIRST ? Comparator.nullsFirst(comp) : Comparator.nullsLast(comp);
+
+                tuple = new Tuple<>(Integer.valueOf(atIndex), comp);
             }
             sortingColumns.add(tuple);
         }
@@ -178,17 +181,20 @@ public class QueryContainer {
      */
     public BitSet columnMask(List<Attribute> columns) {
         BitSet mask = new BitSet(fields.size());
+        aliasName(columns.get(0));
+
         for (Attribute column : columns) {
-            Attribute alias = aliases.get(column);
+            Expression expression = aliases.getOrDefault(column, column);
+
             // find the column index
+            String id = Expressions.id(expression);
             int index = -1;
 
-            ExpressionId id = column instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) column).innerId() : column.id();
-            ExpressionId aliasId = alias != null ? (alias instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) alias)
-                    .innerId() : alias.id()) : null;
             for (int i = 0; i < fields.size(); i++) {
-                Tuple<FieldExtraction, ExpressionId> tuple = fields.get(i);
-                if (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId))) {
+                Tuple<FieldExtraction, String> tuple = fields.get(i);
+                // if the index is already set there is a collision,
+                // so continue searching for the other tuple with the same id
+                if (mask.get(i) == false && tuple.v2().equals(id)) {
                     index = i;
                     break;
                 }
@@ -211,11 +217,11 @@ public class QueryContainer {
         return aggs;
     }
 
-    public List<Tuple<FieldExtraction, ExpressionId>> fields() {
+    public List<Tuple<FieldExtraction, String>> fields() {
         return fields;
     }
 
-    public AttributeMap<Attribute> aliases() {
+    public AttributeMap<Expression> aliases() {
         return aliases;
     }
 
@@ -264,12 +270,7 @@ public class QueryContainer {
                 minPageSize);
     }
 
-    public QueryContainer withFields(List<Tuple<FieldExtraction, ExpressionId>> f) {
-        return new QueryContainer(query, aggs, f, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                minPageSize);
-    }
-
-    public QueryContainer withAliases(AttributeMap<Attribute> a) {
+    public QueryContainer withAliases(AttributeMap<Expression> a) {
         return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
                 minPageSize);
     }
@@ -310,7 +311,16 @@ public class QueryContainer {
     }
 
     private String aliasName(Attribute attr) {
-        return aliases.getOrDefault(attr, attr).name();
+        if (fieldAlias == null) {
+            fieldAlias = new LinkedHashMap<>();
+            for (Map.Entry<Attribute, Expression> entry : aliases.entrySet()) {
+                if (entry.getValue() instanceof FieldAttribute) {
+                    fieldAlias.put(entry.getKey(), (FieldAttribute) entry.getValue());
+                }
+            }
+        }
+        FieldAttribute fa = fieldAlias.get(attr);
+        return fa != null ? fa.name() : attr.name();
     }
 
     //
@@ -394,17 +404,8 @@ public class QueryContainer {
     }
 
     // replace function/operators's input with references
-    private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunctionAttribute ta) {
-        Attribute attribute = aliases.getOrDefault(ta, ta);
-        Pipe proc = scalarFunctions.get(attribute);
-
-        // check the attribute itself
-        if (proc == null) {
-            if (attribute instanceof ScalarFunctionAttribute) {
-                ta = (ScalarFunctionAttribute) attribute;
-            }
-            proc = ta.asPipe();
-        }
+    private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunction function, Attribute attr) {
+        Pipe proc = scalarFunctions.computeIfAbsent(attr, v -> function.asPipe());
 
         // find the processor inputs (Attributes) and convert them into references
         // no need to promote them to the top since the container doesn't have to be aware
@@ -417,8 +418,7 @@ public class QueryContainer {
 
             @Override
             public FieldExtraction resolve(Attribute attribute) {
-                Attribute attr = aliases.getOrDefault(attribute, attribute);
-                Tuple<QueryContainer, FieldExtraction> ref = container.toReference(attr);
+                Tuple<QueryContainer, FieldExtraction> ref = container.asFieldExtraction(attribute);
                 container = ref.v1();
                 return ref.v2();
             }
@@ -427,42 +427,55 @@ public class QueryContainer {
         proc = proc.resolveAttributes(resolver);
         QueryContainer qContainer = resolver.container;
 
-        // update proc
-        Map<Attribute, Pipe> procs = new LinkedHashMap<>(qContainer.scalarFunctions());
-        procs.put(attribute, proc);
-        qContainer = qContainer.withScalarProcessors(new AttributeMap<>(procs));
+        // update proc (if needed)
+        if (qContainer.scalarFunctions().size() != scalarFunctions.size()) {
+            Map<Attribute, Pipe> procs = new LinkedHashMap<>(qContainer.scalarFunctions());
+            procs.put(attr, proc);
+            qContainer = qContainer.withScalarProcessors(new AttributeMap<>(procs));
+        }
+
         return new Tuple<>(qContainer, new ComputedRef(proc));
     }
 
     public QueryContainer addColumn(Attribute attr) {
-        Tuple<QueryContainer, FieldExtraction> tuple = toReference(attr);
-        return tuple.v1().addColumn(tuple.v2(), attr);
+        Expression expression = aliases.getOrDefault(attr, attr);
+        Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
+        return tuple.v1().addColumn(tuple.v2(), Expressions.id(expression));
     }
 
-    private Tuple<QueryContainer, FieldExtraction> toReference(Attribute attr) {
-        if (attr instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) attr;
+    private Tuple<QueryContainer, FieldExtraction> asFieldExtraction(Attribute attr) {
+        // resolve it Expression
+        Expression expression = aliases.getOrDefault(attr, attr);
+
+        if (expression instanceof FieldAttribute) {
+            FieldAttribute fa = (FieldAttribute) expression;
             if (fa.isNested()) {
                 return nestedHitFieldRef(fa);
             } else {
                 return new Tuple<>(this, topHitFieldRef(fa));
             }
         }
-        if (attr instanceof ScalarFunctionAttribute) {
-            return resolvedTreeComputingRef((ScalarFunctionAttribute) attr);
+
+        if (expression == null) {
+            throw new SqlIllegalArgumentException("Unknown output attribute {}", attr);
         }
-        if (attr instanceof LiteralAttribute) {
-            return new Tuple<>(this, new ComputedRef(((LiteralAttribute) attr).asPipe()));
+
+        if (expression.foldable()) {
+            return new Tuple<>(this, new ComputedRef(new ConstantInput(expression.source(), expression, expression.fold())));
         }
-        if (attr instanceof ScoreAttribute) {
-            return new Tuple<>(this, new ComputedRef(((ScoreAttribute) attr).asPipe()));
+
+        if (expression instanceof Score) {
+            return new Tuple<>(this, new ComputedRef(new ScorePipe(expression.source(), expression)));
+        }
+
+        if (expression instanceof ScalarFunction) {
+            return resolvedTreeComputingRef((ScalarFunction) expression, attr);
         }
 
         throw new SqlIllegalArgumentException("Unknown output attribute {}", attr);
     }
 
-    public QueryContainer addColumn(FieldExtraction ref, Attribute attr) {
-        ExpressionId id = attr instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) attr).innerId() : attr.id();
+    public QueryContainer addColumn(FieldExtraction ref, String id) {
         return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, id)), aliases, pseudoFunctions,
                 scalarFunctions,
                 sort, limit, trackHits, includeFrozen, minPageSize);

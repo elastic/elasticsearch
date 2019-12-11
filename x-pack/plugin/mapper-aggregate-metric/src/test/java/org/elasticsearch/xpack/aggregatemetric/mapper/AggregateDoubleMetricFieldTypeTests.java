@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-public class AggregateMetricFieldTypeTests extends FieldTypeTestCase {
+public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new AggregateMetricFieldMapper.AggregateMetricFieldType();
+        return new AggregateDoubleMetricFieldMapper.AggregateMetricFieldType();
     }
 }

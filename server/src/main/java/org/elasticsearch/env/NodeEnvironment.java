@@ -1185,7 +1185,7 @@ public final class NodeEnvironment  implements Closeable {
 
     private void ensureNoStateFolder(final NodePath[] nodePaths) {
         List<Path> topLevelPaths = Stream.of(nodePaths).flatMap(nodePath -> Stream.of(
-            nodePath.path.resolve(MetaDataStateFormat.STATE_DIR_NAME),
+            // MetaDataStateFormat.STATE_DIR_NAME is used on coordinating-only nodes
             nodePath.path.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME),
             nodePath.path.resolve(INDICES_FOLDER))).filter(Files::exists).collect(Collectors.toList());
         if (topLevelPaths.isEmpty() == false) {

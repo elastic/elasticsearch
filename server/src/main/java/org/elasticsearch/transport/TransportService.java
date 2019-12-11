@@ -301,6 +301,10 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         return transport.getStats();
     }
 
+    public boolean isTransportSecure() {
+        return transport.isSecure();
+    }
+
     public BoundTransportAddress boundAddress() {
         return transport.boundAddress();
     }

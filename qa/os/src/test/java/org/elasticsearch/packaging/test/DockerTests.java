@@ -31,6 +31,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -543,6 +544,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the Java process running inside the container has the expect PID, UID and username.
      */
+    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49469 */
     public void test130JavaHasCorrectPidAndOwnership() {
         final List<String> processes = sh.run("ps -o pid,uid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
 

@@ -1,13 +1,11 @@
 [[cluster-nodes-reload-secure-settings]]
-== Nodes Reload Secure Settings
+=== Nodes reload secure settings API
+++++
+<titleabbrev>Nodes reload secure settings</titleabbrev>
+++++
 
-The cluster nodes reload secure settings API is used to re-read the
-local node's encrypted keystore. Specifically, it will prompt the keystore
-decryption and reading across the cluster. The keystore's plain content is
-used to reinitialize all compatible plugins. A compatible plugin can be
-reinitialized without restarting the node. The operation is
-complete when all compatible plugins have finished reinitializing. Subsequently,
-the keystore is closed and any changes to it will not be reflected on the node.
+
+The cluster nodes reload secure settings API is used to re-load the keystore on each node.
 
 [source,console]
 --------------------------------------------------
@@ -21,9 +19,41 @@ The first command reloads the keystore on each node. The seconds allows
 to selectively target `nodeId1` and `nodeId2`. The node selection options are
 detailed <<cluster-nodes,here>>.
 
-Note: It is an error if secure settings are inconsistent across the cluster
-nodes, yet this consistency is not enforced whatsoever. Hence, reloading specific
-nodes is not standard. It is only justifiable when retrying failed reload operations.
+NOTE: {es} requires consistent secure settings across the cluster nodes, but this consistency is not enforced.
+Hence, reloading specific nodes is not standard. It is only justifiable when retrying failed reload operations.
+
+==== Reload Password Protected Secure Settings
+
+When the {es} keystore is password protected and not simply obfuscated, the password for the keystore needs
+to be provided in the request to reload the secure settings.
+Reloading the settings for the whole cluster assumes that all nodes' keystores are protected with the same password
+and is only allowed when {ref}/configuring-tls.html#tls-transport[node to node communications are encrypted]
+
+[source,js]
+--------------------------------------------------
+POST _nodes/reload_secure_settings
+{
+  "reload_secure_settings": "s3cr3t" <1>
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The common password that the {es} keystore is encrypted with in every node of the cluster.
+
+Alternatively the secure settings can be reloaded on a per node basis, locally accessing the API and passing the
+node-specific {es} keystore password.
+
+[source,js]
+--------------------------------------------------
+POST _nodes/_local/reload_secure_settings
+{
+  "reload_secure_settings": "s3cr3t" <1>
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The password that the {es} keystore is encrypted with on the local node.
+
 
 [float]
 [[rest-reload-secure-settings]]

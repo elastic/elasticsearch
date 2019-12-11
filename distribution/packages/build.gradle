@@ -231,6 +231,10 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
       fileMode 0644
     }
+    into('/usr/share/elasticsearch/bin') {
+      from "${packagingFiles}/systemd/systemd-entrypoint"
+      fileMode 0755
+    }
 
     // ========= sysV init =========
     configurationFile '/etc/init.d/elasticsearch'

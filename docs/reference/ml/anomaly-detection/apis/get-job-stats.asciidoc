@@ -182,6 +182,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 (object) An object that provides information about the size and contents of the
 model. It has the following properties:
 
+`model_bytes_memory_limit`:::
+(long) The upper limit for memory usage, checked on increasing values.
 `model_bytes_exceeded`:::
  (long) The number of bytes over the high limit for memory usage at the last allocation failure.
 `bucket_allocation_failures_count`:::

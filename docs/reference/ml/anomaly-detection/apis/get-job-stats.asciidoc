@@ -61,7 +61,7 @@ job:
 of a node to run the job.
 
 [[datacounts]]`data_counts`::
-(object) An object that describes the number of records processed and any
+(object) An object that describes the quantity of input to the job and any
 related error counts. The `data_count` values are cumulative for the lifetime of
 a job. If a model snapshot is reverted or old results are deleted, the job
 counts are not reset.

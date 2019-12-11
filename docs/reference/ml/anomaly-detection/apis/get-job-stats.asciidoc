@@ -82,7 +82,7 @@ functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or `n
 
 `input_field_count`:::
 (long) The total number of fields in input documents posted to the job. This count includes
-fields that are not used in the analysis.
+fields that are not used in the analysis. (However, be aware that if you are using a {dfeed} the {dfeed} will extract only the required fields from the documents it retrieves before posting them to the job.)
 
 `input_record_count`:::
 (long) The number of input documents posted to the job.

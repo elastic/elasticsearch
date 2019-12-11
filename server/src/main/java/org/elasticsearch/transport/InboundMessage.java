@@ -18,12 +18,20 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.PagedBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -48,15 +56,21 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         private final Version version;
         private final NamedWriteableRegistry namedWriteableRegistry;
         private final ThreadContext threadContext;
+        private final BigArrays bigArrays;
 
         Reader(Version version, NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+            this(version, namedWriteableRegistry, threadContext, BigArrays.NON_RECYCLING_INSTANCE);
+        }
+
+        Reader(Version version, NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext, BigArrays bigArrays) {
             this.version = version;
             this.namedWriteableRegistry = namedWriteableRegistry;
             this.threadContext = threadContext;
+            this.bigArrays = bigArrays;
         }
 
         InboundMessage deserialize(BytesReference reference) throws IOException {
-            StreamInput streamInput = reference.streamInput();
+            StreamInput streamInput = new ReleasableArraysStreamInput(reference.streamInput(), bigArrays);
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 long requestId = streamInput.readLong();
@@ -162,6 +176,32 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
         Response(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
+        }
+    }
+
+    private static class ReleasableArraysStreamInput extends FilterStreamInput {
+
+        private final BigArrays bigArrays;
+
+        protected ReleasableArraysStreamInput(StreamInput delegate, BigArrays bigArrays) {
+            super(delegate);
+            this.bigArrays = bigArrays;
+        }
+
+        @Override
+        public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+            if (length == 0) {
+                return new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
+            }
+            ByteArray array = bigArrays.newByteArray(length);
+            PagedBytesReference reference = new PagedBytesReference(array, length);
+            BytesRefIterator iterator = reference.iterator();
+            BytesRef scratch;
+            while((scratch = iterator.next()) != null) {
+                readBytes(scratch.bytes, scratch.offset, length);
+            }
+
+            return new ReleasableBytesReference(reference, array);
         }
     }
 }

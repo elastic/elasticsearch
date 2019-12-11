@@ -57,14 +57,11 @@ class ByteBufStreamInput extends StreamInput {
 
     @Override
     public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
-        try {
-            ByteBuf slice = buffer.retainedSlice(buffer.readerIndex(), length);
-            return new ReleasableBytesReference(Netty4Utils.toBytesReference(slice), slice::release);
-        } catch (IndexOutOfBoundsException ex) {
-            EOFException eofException = new EOFException();
-            eofException.initCause(ex);
-            throw eofException;
-        }
+        // NOTE: It is unsafe to share a reference of the internal structure, so we
+        // use the default implementation which will copy the bytes. It is unsafe because
+        // a netty ByteBuf might be pooled which requires a manual release to prevent
+        // memory leaks.
+        return super.readReleasableBytesReference(length);
     }
 
     @Override

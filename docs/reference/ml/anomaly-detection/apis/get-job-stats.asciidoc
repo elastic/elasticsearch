@@ -279,7 +279,7 @@ For example, `28746386s`.
 * `closing`: The job close action is in progress and has not yet completed.
   A closing job cannot accept further data.
 * `failed`: The job did not finish successfully due to an error.
-  This situation can occur due to invalid input data.
+  This situation can occur due to invalid input data, a fatal error occurring during the analysis, or an external interaction such as the process being killed by the Linux OOM killer.
   If the job had irrevocably failed, it must be force closed and then deleted.
   If the {dfeed} can be corrected, the job can be closed and then re-opened.
 * `opened`: The job is available to receive and process data.

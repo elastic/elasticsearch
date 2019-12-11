@@ -54,17 +54,14 @@ a span equal to the jobs' largest bucket span.
 [[ml-get-overall-buckets-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}. It can be a job
-  identifier, a group name, a comma-separated list of jobs or groups, or a
-  wildcard expression.
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard-list]
 
 [[ml-get-overall-buckets-request-body]]
 ==== {api-request-body-title}
 
 `allow_no_jobs`::
-  (Optional, boolean) If `false` and the `job_id` does not match any
-  {anomaly-jobs}, an error occurs. The default value is `true`.
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `bucket_span`::
   (Optional, string) The span of the overall buckets. Must be greater or equal

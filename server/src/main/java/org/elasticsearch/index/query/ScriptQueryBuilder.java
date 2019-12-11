@@ -130,7 +130,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        FilterScript.Factory factory = context.getScriptService().compile(script, FilterScript.CONTEXT);
+        FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
         FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
         return new ScriptQuery(script, filterScript);
     }

@@ -116,6 +116,7 @@ public class UUIDTests extends ESTestCase {
         assertEquals(count*uuids, globalSet.size());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/50048")
     public void testCompression() throws Exception {
         Logger logger = LogManager.getLogger(UUIDTests.class);
         // Low number so that the test runs quickly, but the results are more interesting with larger numbers

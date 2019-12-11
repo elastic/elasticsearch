@@ -87,7 +87,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    public AbstractInternalTDigestPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
@@ -133,7 +133,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         AbstractInternalTDigestPercentiles that = (AbstractInternalTDigestPercentiles) obj;
         return keyed == that.keyed
                 && Arrays.equals(keys, that.keys)
@@ -141,7 +145,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(keyed, Arrays.hashCode(keys), state);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), keyed, Arrays.hashCode(keys), state);
     }
 }

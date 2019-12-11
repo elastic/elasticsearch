@@ -66,6 +66,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
         .exclude("**/*.zip")
         .exclude("**/*.jks")
         .exclude("**/*.crt")
+        .exclude("**/*.keystore")
         .exclude("**/*.png");
 
     /*
@@ -86,7 +87,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
     @InputFiles
     @SkipWhenEmpty
-    public FileCollection files() {
+    public FileCollection getFiles() {
         return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets()
             .stream()
             .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
@@ -98,7 +99,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
     public void checkInvalidPatterns() throws IOException {
         Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
         List<String> failures = new ArrayList<>();
-        for (File f : files()) {
+        for (File f : getFiles()) {
             List<String> lines;
             try(Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
                     lines = stream.collect(Collectors.toList());
@@ -111,13 +112,13 @@ public class ForbiddenPatternsTask extends DefaultTask {
                 .collect(Collectors.toList());
 
             String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
-            failures = invalidLines.stream()
+            failures.addAll(invalidLines.stream()
                 .map(l -> new AbstractMap.SimpleEntry<>(l+1, lines.get(l)))
                 .flatMap(kv -> patterns.entrySet().stream()
                     .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
                     .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
                 )
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
         }
         if (failures.isEmpty() == false) {
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -166,7 +167,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private IndexRequestBuilder prepareIndex(String id, String... texts) throws IOException {
-        return client().prepareIndex("test", "test", id).setSource("foo", texts);
+        return client().prepareIndex("test").setId(id).setSource("foo", texts);
     }
 
     private SearchResponse searchById(String id) {
@@ -180,7 +181,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private SearchRequestBuilder prepareSearch() {
-        SearchRequestBuilder request = client().prepareSearch("test").setTypes("test");
+        SearchRequestBuilder request = client().prepareSearch("test");
         request.addStoredField("foo.token_count");
         request.addStoredField("foo.token_count_without_position_increments");
         if (loadCountedFields) {

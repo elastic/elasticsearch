@@ -7,7 +7,7 @@
         wait_for_status: yellow
 
   - do:
-      xpack.license.delete: {}
+      license.delete: {}
   - match: { acknowledged: true }
 
   # we don't have a license now
@@ -28,9 +28,11 @@
   - is_true:    features.monitoring
   - is_true:    features.monitoring.enabled
 #  - is_false:   features.monitoring.available  TODO fix once licensing is fixed
+  - is_true:    features.analytics
+  - is_true:    features.analytics.enabled
 
   - do:
-      xpack.license.post:
+      license.post:
         body: >
           {
             "license": {
@@ -49,7 +51,7 @@
   - match: { license_status:  "valid" }
 
   - do:
-      xpack.license.get: {}
+      license.get: {}
   - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
   - match: { license.type: "internal" }
   - match: { license.status: "active" }
@@ -68,19 +70,19 @@
   - is_true:    features.watcher
   - is_true:    features.watcher.enabled
   - is_true:    features.watcher.available
-  - is_true:    features.watcher.description
   - is_true:    features.security
   - is_true:    features.security.enabled
   - is_true:    features.security.available
-  - is_true:    features.security.description
   - is_true:    features.graph
   - is_true:    features.graph.enabled
   - is_true:    features.graph.available
-  - is_true:    features.graph.description
   - is_true:    features.monitoring
   - is_true:    features.monitoring.enabled
   - is_true:    features.monitoring.available
-  - is_true:    features.monitoring.description
+  - is_true:    features.analytics.enabled
+  - is_true:    features.analytics.available
+  - is_true:    features.enrich.available
+  - is_true:    features.enrich.enabled
   - is_true:    tagline
 
   - do:
@@ -93,6 +95,7 @@
   - is_true:    graph.available
   - is_true:    monitoring.enabled
   - is_true:    monitoring.available
+  - is_true:    analytics.available
 
   - do:
       xpack.info:
@@ -152,19 +155,15 @@
   - is_true:    features.watcher
   - is_true:    features.watcher.enabled
   - is_true:    features.watcher.available
-  - is_false:   features.watcher.description
   - is_true:    features.security
   - is_true:    features.security.enabled
   - is_true:    features.security.available
-  - is_false:   features.security.description
   - is_true:    features.graph
   - is_true:    features.graph.enabled
   - is_true:    features.graph.available
-  - is_false:   features.graph.description
   - is_true:    features.monitoring
   - is_true:    features.monitoring.enabled
   - is_true:    features.monitoring.available
-  - is_false:   features.monitoring.description
   - is_false:   tagline
 
 

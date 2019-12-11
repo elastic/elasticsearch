@@ -50,13 +50,11 @@ teardown:
         body:
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id1
               pipeline: pipeline1
           - f1: v1
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id2
           - f1: v2
   - gte: { ingest_took: 0 }
@@ -64,7 +62,6 @@ teardown:
   - do:
       get:
         index: test_index
-        type: test_type
         id: test_id1
 
   - match: {_source.field1: value1}
@@ -73,7 +70,6 @@ teardown:
   - do:
       get:
         index: test_index
-        type: test_type
         id: test_id2
 
   - is_false: _source.field1
@@ -106,12 +102,10 @@ teardown:
         body:
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id1
           - f1: v1
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id2
               pipeline: pipeline2
           - f1: v2
@@ -138,7 +132,6 @@ teardown:
   - do:
       get:
         index: test_index
-        type: test_type
         id: test_id1
 
   - match: {_source.field1: value1}
@@ -147,9 +140,7 @@ teardown:
   - do:
       get:
         index: test_index
-        type: test_type
         id: test_id2
 
   - is_false: _source.field1
   - match: {_source.field2: value2}
-

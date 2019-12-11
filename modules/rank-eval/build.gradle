@@ -20,15 +20,9 @@
 esplugin {
   description 'The Rank Eval module adds APIs to evaluate ranking quality.'
   classname 'org.elasticsearch.index.rankeval.RankEvalPlugin'
-  hasClientJar = true
 }
 
-integTestCluster {
+testClusters.integTest {
   // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:lang-mustache')
-}
-
-run {
-  // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:lang-mustache')
+  module file(project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile)
 }

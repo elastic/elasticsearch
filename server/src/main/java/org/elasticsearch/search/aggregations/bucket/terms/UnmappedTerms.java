@@ -89,12 +89,17 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
+    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    }
+
+    @Override
     protected UnmappedTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
         throw new UnsupportedOperationException("not supported for UnmappedTerms");
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }
 

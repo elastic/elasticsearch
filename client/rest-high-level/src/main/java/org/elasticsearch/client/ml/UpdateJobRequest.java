@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -32,7 +31,7 @@ import java.util.Objects;
  * Updates a {@link org.elasticsearch.client.ml.job.config.Job} with the passed {@link JobUpdate}
  * settings
  */
-public class UpdateJobRequest extends ActionRequest implements ToXContentObject {
+public class UpdateJobRequest implements Validatable, ToXContentObject {
 
     private final JobUpdate update;
 
@@ -73,8 +72,4 @@ public class UpdateJobRequest extends ActionRequest implements ToXContentObject 
         return Strings.toString(this);
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

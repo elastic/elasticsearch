@@ -10,8 +10,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -21,10 +19,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.junit.Before;
 
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
 
@@ -52,6 +50,12 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public void testCanStartMigration_givenMigrationIsDisabled() {
         Settings settings = newSettings(false);
         givenClusterSettings(settings);
@@ -60,50 +64,6 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
 
         assertFalse(check.canStartMigration(clusterState));
-    }
-
-    public void testCanStartMigration_givenNodesNotUpToVersion() {
-        MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addMlConfigIndex(metaData, routingTable);
-
-        // mixed 6.5 and 6.6 nodes
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
-                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
-                .routingTable(routingTable.build())
-                .metaData(metaData)
-                .build();
-
-        Settings settings = newSettings(true);
-        givenClusterSettings(settings);
-
-        MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-
-        assertFalse(check.canStartMigration(clusterState));
-    }
-
-    public void testCanStartMigration_givenNodesNotUpToVersionAndMigrationIsEnabled() {
-        MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addMlConfigIndex(metaData, routingTable);
-
-        // mixed 6.5 and 6.6 nodes
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_6_0))
-                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
-                .routingTable(routingTable.build())
-                .metaData(metaData)
-                .build();
-
-        Settings settings = newSettings(true);
-        givenClusterSettings(settings);
-
-        MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-
-        assertTrue(check.canStartMigration(clusterState));
     }
 
     public void testCanStartMigration_givenMissingIndex() {
@@ -149,23 +109,6 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         shardRouting = shardRouting.moveToStarted();
         routingTable.add(IndexRoutingTable.builder(index)
                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
-    }
-
-
-    public void testJobIsEligibleForMigration_givenNodesNotUpToVersion() {
-        // mixed 6.5 and 6.6 nodes
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .nodes(DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
-                .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
-            .build();
-
-        Settings settings = newSettings(true);
-        givenClusterSettings(settings);
-
-        MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-
-        assertFalse(check.jobIsEligibleForMigration("pre-min-version", clusterState));
     }
 
     public void testJobIsEligibleForMigration_givenJobNotInClusterState() {
@@ -298,22 +241,6 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         assertTrue(check.jobIsEligibleForMigration(openJob.getId(), clusterState));
     }
 
-    public void testDatafeedIsEligibleForMigration_givenNodesNotUpToVersion() {
-        // mixed 6.5 and 6.6 nodes
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .nodes(DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
-                .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
-            .build();
-
-        Settings settings = newSettings(true);
-        givenClusterSettings(settings);
-
-        MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-
-        assertFalse(check.datafeedIsEligibleForMigration("pre-min-version", clusterState));
-    }
-
     public void testDatafeedIsEligibleForMigration_givenDatafeedNotInClusterState() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests")).build();
         Settings settings = newSettings(true);
@@ -327,7 +254,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenStartedDatafeed() {
         Job openJob = JobTests.buildJobBuilder("open-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(openJob, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + openJob.getId();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -353,7 +280,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenStartedDatafeedAndMigrationIsDisabled() {
         Job openJob = JobTests.buildJobBuilder("open-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(openJob, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + openJob.getId();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -379,7 +306,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenStoppedDatafeed() {
         Job job = JobTests.buildJobBuilder("closed-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + job.getId();
 
         MetaData.Builder metaData = MetaData.builder();
@@ -402,7 +329,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenUnallocatedDatafeed() {
         Job job = JobTests.buildJobBuilder("closed-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + job.getId();
 
         MetaData.Builder metaData = MetaData.builder();

@@ -6,12 +6,14 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -147,7 +149,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_d", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
 
-        Request createBar = new Request("PUT", "/someindex/bar/1");
+        Request createBar = new Request("PUT", "/someindex/_doc/1");
         createBar.setJsonEntity("{ \"name\" : \"elasticsearch\" }");
         createBar.addParameter("refresh", "true");
         assertAccessIsDenied("user_a", createBar);
@@ -168,6 +170,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         waitForSnapshotToFinish("my-repo", "my-snapshot");
         // user_d can create snapshots, but not concurrently
         assertAccessIsAllowed("user_d", "PUT", "/_snapshot/my-repo/my-snapshot-d", "{ \"indices\": \"someindex\" }");
+        waitForSnapshotToFinish("my-repo", "my-snapshot-d");
 
         assertAccessIsDenied("user_a", "DELETE", "/someindex");
         assertAccessIsDenied("user_b", "DELETE", "/someindex");
@@ -181,10 +184,10 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_d", restoreSnapshotRequest);
         assertAccessIsAllowed("user_a", restoreSnapshotRequest);
 
-        assertAccessIsDenied("user_a", "GET", "/someindex/bar/1");
-        assertAccessIsDenied("user_b", "GET", "/someindex/bar/1");
-        assertAccessIsDenied("user_d", "GET", "/someindex/bar/1");
-        assertAccessIsAllowed("user_c", "GET", "/someindex/bar/1");
+        assertAccessIsDenied("user_a", "GET", "/someindex/_doc/1");
+        assertAccessIsDenied("user_b", "GET", "/someindex/_doc/1");
+        assertAccessIsDenied("user_d", "GET", "/someindex/_doc/1");
+        assertAccessIsAllowed("user_c", "GET", "/someindex/_doc/1");
 
         assertAccessIsDenied("user_b", "DELETE", "/_snapshot/my-repo/my-snapshot");
         assertAccessIsDenied("user_c", "DELETE", "/_snapshot/my-repo/my-snapshot");
@@ -201,6 +204,11 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertBusy(() -> {
             SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
+            // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
+            // it to disappear from the cluster state as well
+            SnapshotsInProgress snapshotsInProgress =
+                client().admin().cluster().state(new ClusterStateRequest()).get().getState().custom(SnapshotsInProgress.TYPE);
+            assertThat(snapshotsInProgress.entries(), Matchers.empty());
         });
     }
 }

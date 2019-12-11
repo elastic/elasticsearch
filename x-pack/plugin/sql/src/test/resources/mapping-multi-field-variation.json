@@ -43,6 +43,9 @@
                     }
                 }
             }
-        }
+        },
+        "foo_type" : { "type" : "foo" },
+        "point": {"type" : "geo_point"},
+        "shape": {"type" : "geo_shape"}
     }
 }

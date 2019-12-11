@@ -8,13 +8,17 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -27,12 +31,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -53,6 +62,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     private Consumer<ShardFollowNodeTaskStatus> beforeSendShardChangesRequest = status -> {};
 
+    private AtomicBoolean scheduleRetentionLeaseRenewal = new AtomicBoolean();
+    private LongConsumer retentionLeaseRenewal = followerGlobalCheckpoint -> {};
+
     private AtomicBoolean simulateResponse = new AtomicBoolean();
 
     private Queue<Exception> readFailures;
@@ -61,6 +73,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private Queue<Long> mappingVersions;
     private Queue<Exception> settingsUpdateFailures;
     private Queue<Long> settingsVersions;
+    private Queue<Exception> aliasesUpdateFailures;
+    private Queue<Long> aliasesVersions;
     private Queue<Long> leaderGlobalCheckpoints;
     private Queue<Long> followerGlobalCheckpoints;
     private Queue<Long> maxSeqNos;
@@ -77,7 +91,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.coordinateReads();
         assertThat(shardChangesRequests, contains(new long[]{0L, 8L})); // treat this a peak request
         shardChangesRequests.clear();
-        task.innerHandleReadResponse(0, 5L, generateShardChangesResponse(0, 5L, 0L, 0L, 60L));
+        task.innerHandleReadResponse(0, 5L, generateShardChangesResponse(0, 5L, 0L, 0L, 1L, 60L));
         assertThat(shardChangesRequests, contains(new long[][]{
             {6L, 8L}, {14L, 8L}, {22L, 8L}, {30L, 8L}, {38L, 8L}, {46L, 8L}, {54L, 7L}}
         ));
@@ -102,7 +116,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         // Also invokes the coordinatesReads() method:
-        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 0L, 128L));
+        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 0L, 1L, 128L));
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because write buffer count limit has been reached
 
         ShardFollowNodeTaskStatus status = task.getStatus();
@@ -128,7 +142,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         // Also invokes the coordinatesReads() method:
-        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 0L, 128L));
+        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 0L, 1L, 128L));
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because write buffer size limit has been reached
 
         ShardFollowNodeTaskStatus status = task.getStatus();
@@ -193,7 +207,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.markAsCompleted();
         shardChangesRequests.clear();
         // Also invokes the coordinatesReads() method:
-        task.innerHandleReadResponse(0L, 15L, generateShardChangesResponse(0, 15, 0L, 0L, 31L));
+        task.innerHandleReadResponse(0L, 15L, generateShardChangesResponse(0, 15, 0L, 0L, 1L, 31L));
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because task has been cancelled
         assertThat(bulkShardOperationRequests.size(), equalTo(0)); // no more writes, because task has been cancelled
 
@@ -223,7 +237,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.markAsCompleted();
         shardChangesRequests.clear();
         // Also invokes the coordinatesReads() method:
-        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 0L, 128L));
+        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 0L, 1L, 128L));
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because task has been cancelled
         assertThat(bulkShardOperationRequests.size(), equalTo(0)); // no more writes, because task has been cancelled
 
@@ -244,8 +258,16 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         startTask(task, 63, -1);
 
         int max = randomIntBetween(1, 30);
+        final Exception[] exceptions = new Exception[max];
         for (int i = 0; i < max; i++) {
-            readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
+            final Exception exception;
+            if (randomBoolean()) {
+                exception = new ShardNotFoundException(new ShardId("leader_index", "", 0));
+            } else {
+                exception = new EsRejectedExecutionException("leader_index rejected");
+            }
+            exceptions[i] = exception;
+            readFailures.add(exception);
         }
         mappingVersions.add(1L);
         leaderGlobalCheckpoints.add(63L);
@@ -261,10 +283,17 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry = status.readExceptions().entrySet().iterator().next();
                 assertThat(entry.getValue().v1(), equalTo(Math.toIntExact(retryCounter.get())));
                 assertThat(entry.getKey(), equalTo(0L));
-                assertThat(entry.getValue().v2(), instanceOf(ShardNotFoundException.class));
-                final ShardNotFoundException shardNotFoundException = (ShardNotFoundException) entry.getValue().v2();
-                assertThat(shardNotFoundException.getShardId().getIndexName(), equalTo("leader_index"));
-                assertThat(shardNotFoundException.getShardId().getId(), equalTo(0));
+                if (exceptions[Math.toIntExact(retryCounter.get()) - 1] instanceof ShardNotFoundException) {
+                    assertThat(entry.getValue().v2(), instanceOf(ShardNotFoundException.class));
+                    final ShardNotFoundException shardNotFoundException = (ShardNotFoundException) entry.getValue().v2();
+                    assertThat(shardNotFoundException.getShardId().getIndexName(), equalTo("leader_index"));
+                    assertThat(shardNotFoundException.getShardId().getId(), equalTo(0));
+                } else {
+                    assertThat(entry.getValue().v2().getCause(), instanceOf(EsRejectedExecutionException.class));
+                    final EsRejectedExecutionException rejectedExecutionException =
+                        (EsRejectedExecutionException) entry.getValue().v2().getCause();
+                    assertThat(rejectedExecutionException.getMessage(), equalTo("leader_index rejected"));
+                }
             }
             retryCounter.incrementAndGet();
         };
@@ -472,7 +501,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         startTask(task, 63, -1);
 
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 63L);
         task.innerHandleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
@@ -502,7 +531,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 20, 0L, 0L, 31L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 20, 0L, 0L, 1L, 31L);
         task.innerHandleReadResponse(0L, 63L, response);
 
         assertThat(shardChangesRequests.size(), equalTo(1));
@@ -531,7 +560,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         task.markAsCompleted();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 31, 0L, 0L, 31L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 31, 0L, 0L, 1L, 31L);
         task.innerHandleReadResponse(0L, 64L, response);
 
         assertThat(shardChangesRequests.size(), equalTo(0));
@@ -557,7 +586,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 0, 0, 100, new Translog.Operation[0], 1L));
+        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 0, 0, 0, 100, new Translog.Operation[0], 1L));
 
         assertThat(shardChangesRequests.size(), equalTo(1));
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
@@ -580,7 +609,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         mappingVersions.add(1L);
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 0L, 0L, 63L);
         task.handleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
@@ -609,7 +638,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         }
         mappingVersions.add(1L);
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 0L, 0L, 63L);
         task.handleReadResponse(0L, 63L, response);
 
         assertThat(mappingUpdateFailures.size(), equalTo(0));
@@ -634,7 +663,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         mappingUpdateFailures.add(new RuntimeException());
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 1L, 0L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 1L, 0L, 0L, 64L);
         task.handleReadResponse(0L, 64L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
@@ -657,7 +686,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         settingsVersions.add(1L);
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 1L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 1L, 0L, 63L);
         task.handleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
@@ -666,6 +695,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.followerMappingVersion(), equalTo(0L));
         assertThat(status.followerSettingsVersion(), equalTo(1L));
+        assertThat(status.followerAliasesVersion(), equalTo(0L));
         assertThat(status.outstandingReadRequests(), equalTo(1));
         assertThat(status.outstandingWriteRequests(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -687,15 +717,16 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         }
         settingsVersions.add(1L);
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 1L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 1L, 0L, 63L);
         task.handleReadResponse(0L, 63L, response);
 
-        assertThat(mappingUpdateFailures.size(), equalTo(0));
+        assertThat(settingsUpdateFailures.size(), equalTo(0));
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(task.isStopped(), equalTo(false));
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.followerMappingVersion(), equalTo(0L));
         assertThat(status.followerSettingsVersion(), equalTo(1L));
+        assertThat(status.followerAliasesVersion(), equalTo(0L));
         assertThat(status.outstandingReadRequests(), equalTo(1));
         assertThat(status.outstandingWriteRequests(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -712,7 +743,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         settingsUpdateFailures.add(new RuntimeException());
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 1L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 1L, 0L, 64L);
         task.handleReadResponse(0L, 64L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
@@ -720,6 +751,89 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.followerMappingVersion(), equalTo(0L));
         assertThat(status.followerSettingsVersion(), equalTo(0L));
+        assertThat(status.followerAliasesVersion(), equalTo(0L));
+        assertThat(status.outstandingReadRequests(), equalTo(1));
+        assertThat(status.outstandingWriteRequests(), equalTo(0));
+        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+    }
+
+    public void testAliasUpdate() {
+        final ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        final ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        aliasesVersions.add(1L);
+        task.coordinateReads();
+        final ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 63L);
+        task.handleReadResponse(0L, 63L, response);
+
+        assertThat(bulkShardOperationRequests.size(), equalTo(1));
+        assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
+
+        final ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.followerMappingVersion(), equalTo(0L));
+        assertThat(status.followerSettingsVersion(), equalTo(0L));
+        assertThat(status.followerAliasesVersion(), equalTo(1L));
+        assertThat(status.outstandingReadRequests(), equalTo(1));
+        assertThat(status.outstandingWriteRequests(), equalTo(1));
+        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+        assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
+    }
+
+    public void testAliasUpdateRetryableError() {
+        final ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        final ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        int max = randomIntBetween(1, 30);
+        for (int i = 0; i < max; i++) {
+            aliasesUpdateFailures.add(new ConnectException());
+        }
+        aliasesVersions.add(1L);
+        task.coordinateReads();
+        final ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 63L);
+        task.handleReadResponse(0L, 63L, response);
+
+        assertThat(aliasesUpdateFailures.size(), equalTo(0));
+        assertThat(bulkShardOperationRequests.size(), equalTo(1));
+        assertThat(task.isStopped(), equalTo(false));
+        final ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.followerMappingVersion(), equalTo(0L));
+        assertThat(status.followerSettingsVersion(), equalTo(0L));
+        assertThat(status.followerAliasesVersion(), equalTo(1L));
+        assertThat(status.outstandingReadRequests(), equalTo(1));
+        assertThat(status.outstandingWriteRequests(), equalTo(1));
+        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+    }
+
+    public void testAliasUpdateNonRetryableError() {
+        final ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        final ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        aliasesUpdateFailures.add(new RuntimeException());
+        task.coordinateReads();
+        final ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 0L, 1L, 64L);
+        task.handleReadResponse(0L, 64L, response);
+
+        assertThat(bulkShardOperationRequests.size(), equalTo(0));
+        assertThat(task.isStopped(), equalTo(true));
+        final ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.followerMappingVersion(), equalTo(0L));
+        assertThat(status.followerSettingsVersion(), equalTo(0L));
+        assertThat(status.followerAliasesVersion(), equalTo(0L));
         assertThat(status.outstandingReadRequests(), equalTo(1));
         assertThat(status.outstandingWriteRequests(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -741,7 +855,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(128L));
 
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 63L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 63L, response);
 
@@ -761,7 +875,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         params.maxWriteRequestOperationCount = 64;
         params.maxOutstandingWriteRequests = 2;
         ShardFollowNodeTask task = createShardFollowTask(params);
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 0L, 256L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 0L, 1L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
 
@@ -774,7 +888,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         params.maxOutstandingWriteRequests = 4; // change to 4 outstanding writers
         task = createShardFollowTask(params);
-        response = generateShardChangesResponse(0, 256, 0L, 0L, 256L);
+        response = generateShardChangesResponse(0, 256, 0L, 0L, 1L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
 
@@ -793,7 +907,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         params.maxWriteRequestOperationCount = 8;
         params.maxOutstandingWriteRequests = 32;
         ShardFollowNodeTask task = createShardFollowTask(params);
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 0L, 256L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 0L, 1L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
 
@@ -824,7 +938,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             writeFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
         }
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 63L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 63L, response);
 
@@ -853,7 +967,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         writeFailures.add(new RuntimeException());
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 63L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 63L, response);
 
@@ -880,7 +994,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 64L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
 
@@ -903,7 +1017,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         followerGlobalCheckpoints.add(63L);
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 63L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 63L, response);
 
@@ -936,6 +1050,28 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(ShardFollowNodeTask.computeDelay(1024, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
     }
 
+    public void testRetentionLeaseRenewal() throws InterruptedException {
+        scheduleRetentionLeaseRenewal.set(true);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final long expectedFollowerGlobalChekcpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        retentionLeaseRenewal = followerGlobalCheckpoint -> {
+            assertThat(followerGlobalCheckpoint, equalTo(expectedFollowerGlobalChekcpoint));
+            latch.countDown();
+        };
+
+        final ShardFollowTaskParams params = new ShardFollowTaskParams();
+        final ShardFollowNodeTask task = createShardFollowTask(params);
+
+        try {
+            startTask(task, randomLongBetween(expectedFollowerGlobalChekcpoint, Long.MAX_VALUE), expectedFollowerGlobalChekcpoint);
+            latch.await();
+        } finally {
+            task.onCancelled();
+            scheduleRetentionLeaseRenewal.set(false);
+        }
+    }
+
+
     static final class ShardFollowTaskParams {
         private String remoteCluster = null;
         private ShardId followShardId = new ShardId("follow_index", "", 0);
@@ -960,11 +1096,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             params.followShardId,
             params.leaderShardId,
             params.maxReadRequestOperationCount,
-            params.maxReadRequestSize,
-            params.maxOutstandingReadRequests,
             params.maxWriteRequestOperationCount,
-            params.maxWriteRequestSize,
+            params.maxOutstandingReadRequests,
             params.maxOutstandingWriteRequests,
+            params.maxReadRequestSize,
+            params.maxWriteRequestSize,
             params.maxWriteBufferCount,
             params.maxWriteBufferSize,
             params.maxRetryDelay,
@@ -980,6 +1116,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         mappingVersions = new LinkedList<>();
         settingsUpdateFailures = new LinkedList<>();
         settingsVersions = new LinkedList<>();
+        aliasesUpdateFailures = new LinkedList<>();
+        aliasesVersions = new LinkedList<>();
         leaderGlobalCheckpoints = new LinkedList<>();
         followerGlobalCheckpoints = new LinkedList<>();
         maxSeqNos = new LinkedList<>();
@@ -1012,6 +1150,20 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 final Long settingsVersion = settingsVersions.poll();
                 if (settingsVersion != null) {
                     handler.accept(settingsVersion);
+                }
+            }
+
+            @Override
+            protected void innerUpdateAliases(final LongConsumer handler, final Consumer<Exception> errorHandler) {
+                final Exception failure = aliasesUpdateFailures.poll();
+                if (failure != null) {
+                    errorHandler.accept(failure);
+                    return;
+                }
+
+                final Long aliasesVersion = aliasesVersions.poll();
+                if (aliasesVersion != null) {
+                    handler.accept(aliasesVersion);
                 }
             }
 
@@ -1053,6 +1205,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     final ShardChangesAction.Response response = new ShardChangesAction.Response(
                         mappingVersions.poll(),
                         0L,
+                        0L,
                         leaderGlobalCheckpoints.poll(),
                         maxSeqNos.poll(),
                         randomNonNegativeLong(),
@@ -1060,6 +1213,47 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                         1L
                     );
                     handler.accept(response);
+                }
+            }
+
+            @Override
+            protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
+                if (scheduleRetentionLeaseRenewal.get()) {
+                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+                    final ScheduledFuture<?> future = scheduler.scheduleWithFixedDelay(
+                            () -> retentionLeaseRenewal.accept(followerGlobalCheckpoint.getAsLong()),
+                            0,
+                            TimeValue.timeValueMillis(200).millis(),
+                            TimeUnit.MILLISECONDS);
+                    return new Scheduler.Cancellable() {
+
+                        @Override
+                        public boolean cancel() {
+                            final boolean cancel = future.cancel(true);
+                            scheduler.shutdown();
+                            return cancel;
+                        }
+
+                        @Override
+                        public boolean isCancelled() {
+                            return future.isCancelled();
+                        }
+
+                    };
+                } else {
+                    return new Scheduler.Cancellable() {
+
+                        @Override
+                        public boolean cancel() {
+                            return true;
+                        }
+
+                        @Override
+                        public boolean isCancelled() {
+                            return true;
+                        }
+
+                    };
                 }
             }
 
@@ -1079,16 +1273,18 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                                                                             long toSeqNo,
                                                                             long mappingVersion,
                                                                             long settingsVersion,
+                                                                            long aliasesVersion,
                                                                             long leaderGlobalCheckPoint) {
         List<Translog.Operation> ops = new ArrayList<>();
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
             String id = UUIDs.randomBase64UUID();
             byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-            ops.add(new Translog.Index("doc", id, seqNo, 0, source));
+            ops.add(new Translog.Index(id, seqNo, 0, source));
         }
         return new ShardChangesAction.Response(
             mappingVersion,
             settingsVersion,
+            aliasesVersion,
             leaderGlobalCheckPoint,
             leaderGlobalCheckPoint,
             randomNonNegativeLong(),

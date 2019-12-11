@@ -3,7 +3,6 @@
   - do:
       catch: missing
       indices.get_mapping:
-        include_type_name: false
         index: test_index
   
 ---
@@ -15,12 +14,8 @@
 
 ---
 "Index missing, ignore_unavailable=true":
-  - skip:
-      version: " - 6.99.99"
-      reason: ignore_unavailable was ignored in previous versions
   - do:
       indices.get_mapping:
-        include_type_name: false
         index: test_index
         ignore_unavailable: true
 
@@ -31,7 +26,6 @@
   - do:
       catch: missing
       indices.get_mapping:
-        include_type_name: false
         index: test_index
         ignore_unavailable: true
         allow_no_indices: false

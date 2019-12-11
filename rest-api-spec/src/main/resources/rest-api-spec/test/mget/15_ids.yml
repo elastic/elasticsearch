@@ -1,8 +1,6 @@
 ---
 "IDs":
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
   - do:
         indices.create:
@@ -11,14 +9,12 @@
   - do:
       index:
           index:  test_1
-          type:   _doc
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  test_1
-          type:   _doc
           id:     2
           body:   { foo: baz }
 
@@ -30,14 +26,12 @@
 
   - is_true:  docs.0.found
   - match:  { docs.0._index:     test_1      }
-  - match:  { docs.0._type:      _doc        }
   - match:  { docs.0._id:        "1"         }
   - match:  { docs.0._version:   1           }
   - match:  { docs.0._source:    { foo: bar }}
 
   - is_false: docs.1.found
   - match:  { docs.1._index:     test_1      }
-  - match:  { docs.1._type:      _doc        }
   - match:  { docs.1._id:        "3"         }
 
   - do:
@@ -48,14 +42,12 @@
 
   - is_true:  docs.0.found
   - match:  { docs.0._index:     test_1      }
-  - match:  { docs.0._type:      _doc        }
   - match:  { docs.0._id:        "1"         }
   - match:  { docs.0._version:   1           }
   - match:  { docs.0._source:    { foo: bar }}
 
   - is_true:  docs.1.found
   - match:  { docs.1._index:     test_1      }
-  - match:  { docs.1._type:      _doc        }
   - match:  { docs.1._id:        "2"         }
   - match:  { docs.1._version:   1           }
   - match:  { docs.1._source:    { foo: baz }}

@@ -11,12 +11,13 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.core.scheduler.Cron;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -27,10 +28,12 @@ public class CronEvalTool extends LoggingAwareCommand {
         exit(new CronEvalTool().main(args, Terminal.DEFAULT));
     }
 
-    private static final DateTimeFormatter UTC_FORMATTER = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss")
-        .withZone(DateTimeZone.UTC).withLocale(Locale.ROOT);
-    private static final DateTimeFormatter LOCAL_FORMATTER = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss Z")
-        .withZone(DateTimeZone.forTimeZone(null));
+    private static final DateFormatter UTC_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss")
+        .withZone(ZoneOffset.UTC)
+        .withLocale(Locale.ROOT);
+
+    private static final DateFormatter LOCAL_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss Z")
+        .withZone(ZoneId.systemDefault());
 
     private final OptionSpec<Integer> countOption;
     private final OptionSpec<String> arguments;
@@ -57,18 +60,18 @@ public class CronEvalTool extends LoggingAwareCommand {
         Cron.validate(expression);
         terminal.println("Valid!");
 
-        final DateTime date = DateTime.now(DateTimeZone.UTC);
-        final boolean isLocalTimeUTC = UTC_FORMATTER.getZone().equals(LOCAL_FORMATTER.getZone());
+        final ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC);
+        final boolean isLocalTimeUTC = UTC_FORMATTER.zone().equals(LOCAL_FORMATTER.zone());
         if (isLocalTimeUTC) {
-            terminal.println("Now is [" + UTC_FORMATTER.print(date) + "] in UTC");
+            terminal.println("Now is [" + UTC_FORMATTER.format(date) + "] in UTC");
         } else {
-            terminal.println("Now is [" + UTC_FORMATTER.print(date) + "] in UTC, local time is [" + LOCAL_FORMATTER.print(date) + "]");
+            terminal.println("Now is [" + UTC_FORMATTER.format(date) + "] in UTC, local time is [" + LOCAL_FORMATTER.format(date) + "]");
 
         }
         terminal.println("Here are the next " + count + " times this cron expression will trigger:");
 
         Cron cron = new Cron(expression);
-        long time = date.getMillis();
+        long time = date.toInstant().toEpochMilli();
 
         for (int i = 0; i < count; i++) {
             long prevTime = time;
@@ -76,16 +79,19 @@ public class CronEvalTool extends LoggingAwareCommand {
             if (time < 0) {
                 if (i == 0) {
                     throw new UserException(ExitCodes.OK, "Could not compute future times since ["
-                            + UTC_FORMATTER.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
+                            + UTC_FORMATTER.format(Instant.ofEpochMilli(prevTime)) + "] " + "(perhaps the cron expression only points to " +
+                        "times in the" +
+                        " " +
+                        "past?)");
                 }
                 break;
             }
 
             if (isLocalTimeUTC) {
-                terminal.println((i + 1) + ".\t" + UTC_FORMATTER.print(time));
+                terminal.println((i + 1) + ".\t" + UTC_FORMATTER.format(Instant.ofEpochMilli(time)));
             } else {
-                terminal.println((i + 1) + ".\t" + UTC_FORMATTER.print(time));
-                terminal.println("\t" + LOCAL_FORMATTER.print(time));
+                terminal.println((i + 1) + ".\t" + UTC_FORMATTER.format(Instant.ofEpochMilli(time)));
+                terminal.println("\t" + LOCAL_FORMATTER.format(Instant.ofEpochMilli(time)));
             }
         }
     }

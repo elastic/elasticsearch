@@ -3,30 +3,34 @@
 [[sql-odbc-installation]]
 === Driver installation
 
-experimental[]
-
-The {product} can be installed on Microsoft Windows using an MSI package. The installation process is simple and is composed of standard MSI wizard steps.
+The {odbc} can be installed on Microsoft Windows using an MSI package. The installation process is simple and is composed of standard MSI wizard steps.
 
 [[prerequisites]]
 ==== Installation Prerequisites
 
-Before you install the {product} you need to meet the following prerequisites;
+The recommended installation platform is Windows 10 64 bit _or_ Windows Server 2016 64 bit.
 
-* Windows 10 64 bit _or_ Windows Server 2016 64 bit operating system
+Before you install the {odbc} you need to meet the following prerequisites;
+
 * .NET Framework 4.0 full - https://www.microsoft.com/en-au/download/details.aspx?id=17718
 * Microsoft Visual C++ Redistributable for Visual Studio 2017 - https://support.microsoft.com/en-au/help/2977003/the-latest-supported-visual-c-downloads
-- The 64 bit driver requires the x64 redistributable (this also installs the components needed for the 32 bit driver)
-- The 32 bit driver requires the x86 redistributable
-* Elevated privileges (administrator) for the User performing the installation
+- The 64 bit driver requires the x64 redistributable
+- The 32 bit driver requires the x86 or the x64 redistributable (the latter also installs the components needed for the 32 bit driver)
+* Elevated privileges (administrator) for the User performing the installation.
 
 If you fail to meet any of the prerequisites the installer will show an error message and abort the installation.
 
 NOTE: It is not possible to inline upgrade using the MSI. In order to upgrade, you will first have to uninstall the old driver and then install the new driver.
 
+NOTE: When installing the MSI, the Windows Defender SmartScreen might warn
+about running an unrecognized app. If the MSI has been downloaded from
+Elastic's web site, it is safe to acknowledge the message by allowing the
+installation to continue (`Run anyway`).
+
 [[download]]
 ==== Download the `.msi` package(s)
 
-Download the `.msi` package for {product} {version} from:
+Download the `.msi` package for {odbc} {version} from:
 https://www.elastic.co/downloads/odbc-client
 
 There are two versions of the installer available:

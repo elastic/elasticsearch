@@ -24,11 +24,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -173,10 +172,10 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         if (delayed == null) {
             return timeValueNanos(0);
         }
-        if (delayed.future == null) {
+        if (delayed.scheduled == null) {
             return timeValueNanos(0);
         }
-        return timeValueNanos(max(0, delayed.future.getDelay(TimeUnit.NANOSECONDS)));
+        return timeValueNanos(max(0, delayed.scheduled.getDelay(TimeUnit.NANOSECONDS)));
     }
 
     /**
@@ -249,16 +248,16 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         private final ThreadPool threadPool;
         private final Runnable command;
         private final float requestsPerSecond;
-        private final ScheduledFuture<?> future;
+        private final Scheduler.ScheduledCancellable scheduled;
 
         DelayedPrepareBulkRequest(ThreadPool threadPool, float requestsPerSecond, TimeValue delay, Runnable command) {
             this.threadPool = threadPool;
             this.requestsPerSecond = requestsPerSecond;
             this.command = command;
-            this.future = threadPool.schedule(delay, ThreadPool.Names.GENERIC, () -> {
+            this.scheduled = threadPool.schedule(() -> {
                 throttledNanos.addAndGet(delay.nanos());
                 command.run();
-            });
+            }, delay, ThreadPool.Names.GENERIC);
         }
 
         DelayedPrepareBulkRequest rethrottle(float newRequestsPerSecond) {
@@ -272,9 +271,9 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
                 return this;
             }
 
-            long remainingDelay = future.getDelay(TimeUnit.NANOSECONDS);
+            long remainingDelay = scheduled.getDelay(TimeUnit.NANOSECONDS);
             // Actually reschedule the task
-            if (false == FutureUtils.cancel(future)) {
+            if (scheduled == null || false == scheduled.cancel()) {
                 // Couldn't cancel, probably because the task has finished or been scheduled. Either way we have nothing to do here.
                 logger.debug("[{}]: skipping rescheduling because we couldn't cancel the task", task.getId());
                 return this;

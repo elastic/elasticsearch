@@ -20,9 +20,8 @@ package org.elasticsearch.index.recovery;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -34,13 +33,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * Recovery related statistics, starting at the shard level and allowing aggregation to
  * indices and node level
  */
-public class RecoveryStats implements ToXContentFragment, Streamable {
+public class RecoveryStats implements ToXContentFragment, Writeable {
 
     private final AtomicInteger currentAsSource = new AtomicInteger();
     private final AtomicInteger currentAsTarget = new AtomicInteger();
     private final AtomicLong throttleTimeInNanos = new AtomicLong();
 
     public RecoveryStats() {
+    }
+
+    public RecoveryStats(StreamInput in) throws IOException {
+        currentAsSource.set(in.readVInt());
+        currentAsTarget.set(in.readVInt());
+        throttleTimeInNanos.set(in.readLong());
     }
 
     public void add(RecoveryStats recoveryStats) {
@@ -108,25 +113,12 @@ public class RecoveryStats implements ToXContentFragment, Streamable {
         return builder;
     }
 
-    public static RecoveryStats readRecoveryStats(StreamInput in) throws IOException {
-        RecoveryStats stats = new RecoveryStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
     static final class Fields {
         static final String RECOVERY = "recovery";
         static final String CURRENT_AS_SOURCE = "current_as_source";
         static final String CURRENT_AS_TARGET = "current_as_target";
         static final String THROTTLE_TIME = "throttle_time";
         static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        currentAsSource.set(in.readVInt());
-        currentAsTarget.set(in.readVInt());
-        throttleTimeInNanos.set(in.readLong());
     }
 
     @Override

@@ -39,10 +39,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -53,10 +52,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
   - do:
       indices.create:
         index: only_delete
@@ -66,10 +64,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -80,34 +77,33 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_read", "_type": "doc", "_id": "1"}}'
+            - '{"index": {"_index": "only_read", "_id": "1"}}'
             - '{"name": "doc1"}'
-            - '{"index": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"index": {"_index": "only_index", "_id": "2"}}'
             - '{"name": "doc2"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "3"}}'
+            - '{"index": {"_index": "only_delete", "_id": "3"}}'
             - '{"name": "doc3"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "4"}}'
+            - '{"index": {"_index": "only_delete", "_id": "4"}}'
             - '{"name": "doc4"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "5"}}'
+            - '{"index": {"_index": "only_delete", "_id": "5"}}'
             - '{"name": "doc5"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "6"}}'
+            - '{"index": {"_index": "only_delete", "_id": "6"}}'
             - '{"name": "doc6"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "7"}}'
+            - '{"index": {"_index": "only_delete", "_id": "7"}}'
             - '{"name": "doc7"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "8"}}'
+            - '{"index": {"_index": "everything", "_id": "8"}}'
             - '{"name": "doc8"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "9"}}'
+            - '{"index": {"_index": "everything", "_id": "9"}}'
             - '{"name": "doc9"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "10"}}'
+            - '{"index": {"_index": "everything", "_id": "10"}}'
             - '{"name": "doc10"}'
 
 ---
@@ -144,7 +140,6 @@ teardown:
       delete:
         refresh: true
         index: only_delete
-        type: doc
         id: 3
 
   - do:
@@ -152,7 +147,6 @@ teardown:
       delete:
         refresh: true
         index: everything
-        type: doc
         id: 8
 
   - do:
@@ -160,16 +154,16 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "4"}}'
-            - '{"delete": {"_index": "everything" , "_type": "doc", "_id": "9"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "4"}}'
+            - '{"delete": {"_index": "everything" , "_id": "9"}}'
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "5"}}'
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "5"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "5"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "5"}}'
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
@@ -178,11 +172,9 @@ teardown:
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
           - delete:
               _index: everything
-              _type: doc
               _id: 10
           - delete:
               _index: everything
-              _type: doc
               _id: 10
 
   - do: # superuser
@@ -207,7 +199,6 @@ teardown:
       delete:
         refresh: true
         index: only_read
-        type: doc
         id: 1
 
   - do:
@@ -216,7 +207,6 @@ teardown:
       delete:
         refresh: true
         index: only_index
-        type: doc
         id: 2
 
   - do:
@@ -224,8 +214,8 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"delete": {"_index": "only_read" , "_type": "doc", "_id": "1"}}'
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"delete": {"_index": "only_read" , "_id": "1"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
 
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
@@ -238,8 +228,8 @@ teardown:
       bulk:
         refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
-            - '{"delete": {"_index": "only_read" , "_type": "doc", "_id": "1"}}'
-            - '{"delete": {"_index": "only_read" , "_type": "doc", "_id": "1"}}'
+            - '{"delete": {"_index": "only_read" , "_id": "1"}}'
+            - '{"delete": {"_index": "only_read" , "_id": "1"}}'
 
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
@@ -252,8 +242,8 @@ teardown:
       bulk:
         refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
 
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
@@ -282,8 +272,8 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"delete": {"_index": "only_read"  , "_type": "doc", "_id": "1"}}'
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "6"}}'
+            - '{"delete": {"_index": "only_read"  , "_id": "1"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "6"}}'
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
   - match: { items.0.delete.error.type: "security_exception" }
@@ -310,12 +300,12 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index" : {"_index": "only_delete", "_type": "doc", "_id": "11"}}'
+            - '{"index" : {"_index": "only_delete", "_id": "11"}}'
             - '{"name"  : "doc11"}'
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "7"}}'
-            - '{"index" : {"_index": "only_index", "_type": "doc", "_id": "12"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "7"}}'
+            - '{"index" : {"_index": "only_index", "_id": "12"}}'
             - '{"name"  : "doc12"}'
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
   - match: { items.0.index.error.type: "security_exception" }

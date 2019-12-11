@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -83,14 +82,19 @@ public class RestRequestTests extends ESTestCase {
         runConsumesContentTest(RestRequest::hasContent, false);
     }
 
+    public void testContentLengthDoesNotConsumesContent() {
+        runConsumesContentTest(RestRequest::contentLength, false);
+    }
+
     private <T extends Exception> void runConsumesContentTest(
             final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
         final HttpRequest httpRequest = mock(HttpRequest.class);
         when (httpRequest.uri()).thenReturn("");
         when (httpRequest.content()).thenReturn(new BytesArray(new byte[1]));
+        when (httpRequest.getHeaders()).thenReturn(
+            Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson"))));
         final RestRequest request =
                 RestRequest.request(mock(NamedXContentRegistry.class), httpRequest, mock(HttpChannel.class));
-        request.setXContentType(XContentType.JSON);
         assertFalse(request.isContentConsumed());
         try {
             consumer.accept(request);
@@ -126,16 +130,17 @@ public class RestRequestTests extends ESTestCase {
             contentRestRequest("", emptyMap()).contentOrSourceParam());
         assertEquals("request body or source parameter is required", e.getMessage());
         assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2());
-        assertEquals(new BytesArray("stuff"),
-            contentRestRequest("stuff", MapBuilder.<String, String>newMapBuilder()
-                .put("source", "stuff2").put("source_content_type", "application/json").immutableMap()).contentOrSourceParam().v2());
+        assertEquals(
+                new BytesArray("stuff"),
+                contentRestRequest(
+                        "stuff",
+                        Map.of("source", "stuff2", "source_content_type", "application/json"))
+                        .contentOrSourceParam().v2());
         assertEquals(new BytesArray("{\"foo\": \"stuff\"}"),
-            contentRestRequest("", MapBuilder.<String, String>newMapBuilder()
-                .put("source", "{\"foo\": \"stuff\"}").put("source_content_type", "application/json").immutableMap())
+            contentRestRequest("", Map.of("source", "{\"foo\": \"stuff\"}", "source_content_type", "application/json"))
                 .contentOrSourceParam().v2());
         e = expectThrows(IllegalStateException.class, () ->
-            contentRestRequest("", MapBuilder.<String, String>newMapBuilder()
-                .put("source", "stuff2").immutableMap()).contentOrSourceParam());
+            contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
         assertEquals("source and source_content_type parameters are required", e.getMessage());
     }
 
@@ -152,8 +157,12 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("request body or source parameter is required", e.getMessage());
         assertEquals(emptyMap(), contentRestRequest("{}", emptyMap()).contentOrSourceParamParser().map());
         assertEquals(emptyMap(), contentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamParser().map());
-        assertEquals(emptyMap(), contentRestRequest("", MapBuilder.<String, String>newMapBuilder()
-            .put("source", "{}").put("source_content_type", "application/json").immutableMap()).contentOrSourceParamParser().map());
+        assertEquals(
+                emptyMap(),
+                contentRestRequest(
+                        "",
+                        Map.of("source", "{}", "source_content_type", "application/json"))
+                        .contentOrSourceParamParser().map());
     }
 
     public void testWithContentOrSourceParamParserOrNull() throws IOException {
@@ -161,10 +170,10 @@ public class RestRequestTests extends ESTestCase {
         contentRestRequest("{}", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertEquals(emptyMap(), parser.map()));
         contentRestRequest("{}", singletonMap("source", "stuff2")).withContentOrSourceParamParserOrNull(parser ->
                 assertEquals(emptyMap(), parser.map()));
-        contentRestRequest("", MapBuilder.<String, String>newMapBuilder().put("source_content_type", "application/json")
-            .put("source", "{}").immutableMap())
-        .withContentOrSourceParamParserOrNull(parser ->
-                assertEquals(emptyMap(), parser.map()));
+        contentRestRequest(
+                "",
+                Map.of("source_content_type", "application/json", "source", "{}"))
+                .withContentOrSourceParamParserOrNull(parser -> assertEquals(emptyMap(), parser.map()));
     }
 
     public void testContentTypeParsing() {
@@ -221,13 +230,15 @@ public class RestRequestTests extends ESTestCase {
             contentRestRequest("", emptyMap()).requiredContent());
         assertEquals("request body is required", e.getMessage());
         assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).requiredContent());
-        assertEquals(new BytesArray("stuff"),
-            contentRestRequest("stuff", MapBuilder.<String, String>newMapBuilder()
-                .put("source", "stuff2").put("source_content_type", "application/json").immutableMap()).requiredContent());
-        e = expectThrows(ElasticsearchParseException.class, () ->
-            contentRestRequest("", MapBuilder.<String, String>newMapBuilder()
-                .put("source", "{\"foo\": \"stuff\"}").put("source_content_type", "application/json").immutableMap())
-                .requiredContent());
+        assertEquals(
+                new BytesArray("stuff"),
+                contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent());
+        e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> contentRestRequest(
+                        "",
+                        Map.of("source", "{\"foo\": \"stuff\"}", "source_content_type", "application/json"))
+                        .requiredContent());
         assertEquals("request body is required", e.getMessage());
         e = expectThrows(IllegalStateException.class, () ->
             contentRestRequest("test", null, Collections.emptyMap()).requiredContent());

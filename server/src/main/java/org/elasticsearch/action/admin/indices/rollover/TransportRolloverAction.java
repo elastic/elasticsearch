@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -44,21 +46,23 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.unmodifiableList;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
@@ -76,8 +80,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    MetaDataIndexAliasesService indexAliasesService, Client client) {
-        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            RolloverRequest::new);
+        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,
+            indexNameExpressionResolver);
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.client = client;
@@ -91,8 +95,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
-    protected RolloverResponse newResponse() {
-        return new RolloverResponse();
+    protected RolloverResponse read(StreamInput in) throws IOException {
+        return new RolloverResponse(in);
     }
 
     @Override
@@ -104,7 +108,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
-    protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
+    protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
@@ -120,7 +124,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
-        client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getAlias())
+            .clear()
+            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+            .docs(true);
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.execute(IndicesStatsAction.INSTANCE, statsRequest,
             new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
@@ -200,24 +209,22 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
                                                                                        RolloverRequest request) {
-        List<AliasAction> actions = unmodifiableList(Arrays.asList(
-            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
-            new AliasAction.Remove(oldIndex, request.getAlias())));
-        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
+        final List<AliasAction> actions = List.of(
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
+                new AliasAction.Remove(oldIndex, request.getAlias()));
+        return new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
-        return updateRequest;
     }
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesWriteIndexUpdateRequest(String oldIndex, String newIndex,
                                                                                                  RolloverRequest request) {
-        List<AliasAction> actions = unmodifiableList(Arrays.asList(
-            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
-            new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false)));
-        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
+        final List<AliasAction> actions = List.of(
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
+                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false));
+        return new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
-        return updateRequest;
     }
 
 
@@ -238,7 +245,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   final DocsStats docsStats, final IndexMetaData metaData) {
+                                                   @Nullable final DocsStats docsStats,
+                                                   @Nullable final IndexMetaData metaData) {
+        if (metaData == null) {
+            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+        }
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
         final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
         final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate(), new ByteSizeValue(indexSize));
@@ -247,9 +258,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, final IndexMetaData metaData,
-                                                    final IndicesStatsResponse statsResponse) {
-        return evaluateConditions(conditions, statsResponse.getPrimaries().getDocs(), metaData);
+    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
+                                                   @Nullable final IndexMetaData metaData,
+                                                   @Nullable final IndicesStatsResponse statsResponse) {
+        if (metaData == null) {
+            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+        } else {
+            final DocsStats docsStats = Optional.ofNullable(statsResponse)
+                .map(stats -> stats.getIndex(metaData.getIndex().getName()))
+                .map(indexStats -> indexStats.getPrimaries().getDocs())
+                .orElse(null);
+            return evaluateConditions(conditions, docsStats, metaData);
+        }
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {
@@ -272,7 +292,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
         createIndexRequest.cause("rollover_index");
         createIndexRequest.index(targetIndexName);
-        return new CreateIndexClusterStateUpdateRequest(createIndexRequest,
+        return new CreateIndexClusterStateUpdateRequest(
             "rollover_index", targetIndexName, providedIndexName)
             .ackTimeout(createIndexRequest.timeout())
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())

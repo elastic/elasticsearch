@@ -1,0 +1,53 @@
+import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
+
+plugins {
+  id 'base'
+  id 'distribution'
+  id 'elasticsearch.symbolic-link-preserving-tar'
+}
+
+final String source = Objects.requireNonNull(System.getProperty('tests.symbolic_link_preserving_tar_source'))
+boolean preserveFileTimestamps;
+final String testPreserveFileTimestamps =
+  Objects.requireNonNull(System.getProperty('tests.symbolic_link_preserving_tar_preserve_file_timestamps'))
+switch (testPreserveFileTimestamps) {
+  case "true":
+    preserveFileTimestamps = true
+    break
+  case "false":
+    preserveFileTimestamps = false
+    break
+  default:
+    throw new IllegalArgumentException(
+      "tests.symbolic_link_preserving_tar_preserve_file_timestamps must be [true] or [false] but was ["
+        + testPreserveFileTimestamps + "]")
+}
+
+task buildBZip2Tar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
+  tar.archiveExtension = 'tar.bz2'
+  tar.compression = Compression.BZIP2
+  tar.preserveFileTimestamps = preserveFileTimestamps
+  from fileTree(source)
+  doLast {
+    println archiveFile.get().asFile.path
+  }
+}
+
+task buildGZipTar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
+  tar.archiveExtension = 'tar.gz'
+  tar.compression = Compression.GZIP
+  tar.preserveFileTimestamps = preserveFileTimestamps
+  from fileTree(source)
+  doLast {
+    println archiveFile.get().asFile.path
+  }
+}
+
+task buildTar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
+  tar.archiveExtension = 'tar'
+  tar.preserveFileTimestamps = preserveFileTimestamps
+  from fileTree(source)
+  doLast {
+    println archiveFile.get().asFile.path
+  }
+}

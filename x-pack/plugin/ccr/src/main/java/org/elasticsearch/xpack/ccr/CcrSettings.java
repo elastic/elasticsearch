@@ -50,6 +50,20 @@ public final class CcrSettings {
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /**
+     * File chunk size to send during recovery
+     */
+    public static final Setting<ByteSizeValue> RECOVERY_CHUNK_SIZE =
+        Setting.byteSizeSetting("ccr.indices.recovery.chunk_size", new ByteSizeValue(1, ByteSizeUnit.MB),
+            new ByteSizeValue(1, ByteSizeUnit.KB), new ByteSizeValue(1, ByteSizeUnit.GB), Setting.Property.Dynamic,
+            Setting.Property.NodeScope);
+
+    /**
+     * Controls the maximum number of file chunk requests that are sent concurrently per recovery to the leader.
+     */
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING =
+        Setting.intSetting("ccr.indices.recovery.max_concurrent_file_chunks", 5, 1, 10, Property.Dynamic, Property.NodeScope);
+
+    /**
      * The leader must open resources for a ccr recovery. If there is no activity for this interval of time,
      * the leader will close the restore session.
      */
@@ -58,28 +72,55 @@ public final class CcrSettings {
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /**
+     * The timeout value to use for requests made as part of ccr recovery process.
+     * */
+    public static final Setting<TimeValue> INDICES_RECOVERY_ACTION_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("ccr.indices.recovery.internal_action_timeout", TimeValue.timeValueSeconds(60),
+            Property.Dynamic, Property.NodeScope);
+
+    /**
      * The settings defined by CCR.
      *
      * @return the settings
      */
-    static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettings() {
         return Arrays.asList(
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
                 RECOVERY_MAX_BYTES_PER_SECOND,
+                INDICES_RECOVERY_ACTION_TIMEOUT_SETTING,
                 INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                 CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT,
+                RECOVERY_CHUNK_SIZE,
+                INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 CCR_WAIT_FOR_METADATA_TIMEOUT);
     }
 
     private final CombinedRateLimiter ccrRateLimiter;
     private volatile TimeValue recoveryActivityTimeout;
+    private volatile TimeValue recoveryActionTimeout;
+    private volatile ByteSizeValue chunkSize;
+    private volatile int maxConcurrentFileChunks;
 
     public CcrSettings(Settings settings, ClusterSettings clusterSettings) {
         this.recoveryActivityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
+        this.recoveryActionTimeout = INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.get(settings);
         this.ccrRateLimiter = new CombinedRateLimiter(RECOVERY_MAX_BYTES_PER_SECOND.get(settings));
+        this.chunkSize = RECOVERY_MAX_BYTES_PER_SECOND.get(settings);
+        this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(RECOVERY_MAX_BYTES_PER_SECOND, this::setMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(RECOVERY_CHUNK_SIZE, this::setChunkSize);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setRecoveryActivityTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTION_TIMEOUT_SETTING, this::setRecoveryActionTimeout);
+    }
+
+    private void setChunkSize(ByteSizeValue chunkSize) {
+        this.chunkSize = chunkSize;
+    }
+
+    private void setMaxConcurrentFileChunks(int maxConcurrentFileChunks) {
+        this.maxConcurrentFileChunks = maxConcurrentFileChunks;
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
@@ -90,11 +131,27 @@ public final class CcrSettings {
         this.recoveryActivityTimeout = recoveryActivityTimeout;
     }
 
+    private void setRecoveryActionTimeout(TimeValue recoveryActionTimeout) {
+        this.recoveryActionTimeout = recoveryActionTimeout;
+    }
+
+    public ByteSizeValue getChunkSize() {
+        return chunkSize;
+    }
+
+    public int getMaxConcurrentFileChunks() {
+        return maxConcurrentFileChunks;
+    }
+
     public CombinedRateLimiter getRateLimiter() {
         return ccrRateLimiter;
     }
 
     public TimeValue getRecoveryActivityTimeout() {
         return recoveryActivityTimeout;
+    }
+
+    public TimeValue getRecoveryActionTimeout() {
+        return recoveryActionTimeout;
     }
 }

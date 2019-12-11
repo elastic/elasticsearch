@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -57,8 +55,6 @@ import static org.hamcrest.Matchers.is;
 
 public class IndexMetaDataTests extends ESTestCase {
 
-    private IndicesModule INDICES_MODULE = new IndicesModule(Collections.emptyList());
-
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -66,12 +62,12 @@ public class IndexMetaDataTests extends ESTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(INDICES_MODULE.getNamedWriteables());
+        return new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(INDICES_MODULE.getNamedXContents());
+        return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
     public void testIndexMetaDataSerialization() throws IOException {
@@ -203,8 +199,7 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals(IndexMetaData.selectShrinkShards(shard, shrink, numTargetShards),
             IndexMetaData.selectRecoverFromShards(shard, shrink, numTargetShards));
 
-        assertEquals("can't select recover from shards if both indices have the same number of shards",
-            expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectRecoverFromShards(0, shrink, 32)).getMessage());
+        IndexMetaData.selectRecoverFromShards(0, shrink, 32);
     }
 
     public void testSelectSplitShard() {
@@ -290,37 +285,4 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
     }
 
-    public void testMappingOrDefault() throws IOException {
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        IndexMetaData meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .build();
-        assertNull(meta.mappingOrDefault());
-
-        meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .putMapping("type", "{}")
-                .build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals("type", meta.mappingOrDefault().type());
-
-        meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
-                .build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals(MapperService.DEFAULT_MAPPING, meta.mappingOrDefault().type());
-
-        meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .putMapping("type", "{}")
-                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
-                .build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals("type", meta.mappingOrDefault().type());
-    }
 }

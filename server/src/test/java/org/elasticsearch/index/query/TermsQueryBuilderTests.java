@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.TermsLookup;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
@@ -84,7 +83,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                     choice.equals(GEO_POINT_ALIAS_FIELD_NAME) ||
                     choice.equals(GEO_SHAPE_FIELD_NAME) ||
                     choice.equals(INT_RANGE_FIELD_NAME) ||
-                    choice.equals(DATE_RANGE_FIELD_NAME),
+                    choice.equals(DATE_RANGE_FIELD_NAME) ||
+                    choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
                 () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
@@ -99,17 +99,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
-        // testing both cases.
-        TermsLookup lookup = randomBoolean()
-            ? new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath)
-            : new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
+        TermsLookup lookup = new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
         lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
         return lookup;
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
@@ -208,8 +204,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, 1, 0, true,
-            new BytesArray(json), null));
+        return new GetResponse(new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true,
+            new BytesArray(json), null, null));
     }
 
     public void testNumeric() throws IOException {
@@ -280,13 +276,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 e.getMessage());
     }
 
-    @Override
-    protected boolean isCacheable(TermsQueryBuilder queryBuilder) {
-        // even though we use a terms lookup here we do this during rewrite and that means we are cacheable on toQuery
-        // that's why we return true here all the time
-        return super.isCacheable(queryBuilder);
-    }
-
     public void testSerializationFailsUnlessFetched() throws IOException {
         QueryBuilder builder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
         QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createShardContext());
@@ -323,16 +312,26 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
-
+    
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }      
+    
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        // At least one name is good
+        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
+    }      
+    
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
-
-        TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
-        if (termsQuery.isTypeless() == false) {
-            assertWarnings(TermsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-        }
         return query;
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -39,18 +38,21 @@ public class ClusterStateResponse extends ActionResponse {
 
     private ClusterName clusterName;
     private ClusterState clusterState;
-    // the total compressed size of the full cluster state, not just
-    // the parts included in this response
-    private ByteSizeValue totalCompressedSize;
     private boolean waitForTimedOut = false;
 
-    public ClusterStateResponse() {
+    public ClusterStateResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterName = new ClusterName(in);
+        clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            new ByteSizeValue(in);
+        }
+        waitForTimedOut = in.readBoolean();
     }
 
-    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes, boolean waitForTimedOut) {
+    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
-        this.totalCompressedSize = new ByteSizeValue(sizeInBytes);
         this.waitForTimedOut = waitForTimedOut;
     }
 
@@ -70,16 +72,6 @@ public class ClusterStateResponse extends ActionResponse {
     }
 
     /**
-     * The total compressed size of the full cluster state, not just the parts
-     * returned by {@link #getState()}.  The total compressed size is the size
-     * of the cluster state as it would be transmitted over the network during
-     * intra-node communication.
-     */
-    public ByteSizeValue getTotalCompressedSize() {
-        return totalCompressedSize;
-    }
-
-    /**
      * Returns whether the request timed out waiting for a cluster state with a metadata version equal or
      * higher than the specified metadata.
      */
@@ -88,47 +80,13 @@ public class ClusterStateResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterName = new ClusterName(in);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        } else {
-            clusterState = ClusterState.readFrom(in, null);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            totalCompressedSize = new ByteSizeValue(in);
-        } else {
-            // in a mixed cluster, if a pre 6.0 node processes the get cluster state
-            // request, then a compressed size won't be returned, so just return 0;
-            // its a temporary situation until all nodes in the cluster have been upgraded,
-            // at which point the correct cluster state size will always be reported
-            totalCompressedSize = new ByteSizeValue(0L);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            waitForTimedOut = in.readBoolean();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         clusterName.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalWriteable(clusterState);
-        } else {
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                clusterState.writeTo(out);
-            } else {
-                ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
-            }
+        out.writeOptionalWriteable(clusterState);
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            ByteSizeValue.ZERO.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            totalCompressedSize.writeTo(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeBoolean(waitForTimedOut);
-        }
+        out.writeBoolean(waitForTimedOut);
     }
 
     @Override
@@ -141,8 +99,7 @@ public class ClusterStateResponse extends ActionResponse {
             // Best effort. Only compare cluster state version and master node id,
             // because cluster state doesn't implement equals()
             Objects.equals(getVersion(clusterState), getVersion(response.clusterState)) &&
-            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState)) &&
-            Objects.equals(totalCompressedSize, response.totalCompressedSize);
+            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
     }
 
     @Override
@@ -153,7 +110,6 @@ public class ClusterStateResponse extends ActionResponse {
             clusterName,
             getVersion(clusterState),
             getMasterNodeId(clusterState),
-            totalCompressedSize,
             waitForTimedOut
         );
     }

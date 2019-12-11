@@ -36,6 +36,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
@@ -110,13 +111,6 @@ public class RestClientDocumentation {
             Header[] defaultHeaders = new Header[]{new BasicHeader("header", "value")};
             builder.setDefaultHeaders(defaultHeaders); // <1>
             //end::rest-client-init-default-headers
-        }
-        {
-            //tag::rest-client-init-max-retry-timeout
-            RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
-            builder.setMaxRetryTimeoutMillis(10000); // <1>
-            //end::rest-client-init-max-retry-timeout
         }
         {
             //tag::rest-client-init-node-selector
@@ -213,16 +207,17 @@ public class RestClientDocumentation {
             Request request = new Request(
                 "GET",  // <1>
                 "/");   // <2>
-            restClient.performRequestAsync(request, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    // <3>
-                }
+            Cancellable cancellable = restClient.performRequestAsync(request,
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        // <3>
+                    }
 
-                @Override
-                public void onFailure(Exception exception) {
-                    // <4>
-                }
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <4>
+                    }
             });
             //end::rest-client-async
         }
@@ -279,6 +274,26 @@ public class RestClientDocumentation {
             //end::rest-client-async-example
         }
         {
+            //tag::rest-client-async-cancel
+            Request request = new Request("GET", "/posts/_search");
+            Cancellable cancellable = restClient.performRequestAsync(
+                request,
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <2>
+                    }
+                }
+            );
+            cancellable.cancel();
+            //end::rest-client-async-cancel
+        }
+        {
             //tag::rest-client-response2
             Response response = restClient.performRequest(new Request("GET", "/"));
             RequestLine requestLine = response.getRequestLine(); // <1>
@@ -305,8 +320,7 @@ public class RestClientDocumentation {
                                 .setConnectTimeout(5000)
                                 .setSocketTimeout(60000);
                         }
-                    })
-                .setMaxRetryTimeoutMillis(60000);
+                    });
             //end::rest-client-config-timeouts
         }
         {

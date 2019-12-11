@@ -11,8 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -33,6 +31,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.collector.ccr.StatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
+import org.elasticsearch.xpack.monitoring.collector.enrich.EnrichStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsCollector;
@@ -67,11 +68,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
-/**
- * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client:
- * - node clients: all modules are bound
- * - transport clients: only action/transport actions are bound
- */
 public class Monitoring extends Plugin implements ActionPlugin {
 
     /**
@@ -83,11 +79,9 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
     protected final Settings settings;
     private final boolean enabled;
-    private final boolean transportClientMode;
 
     public Monitoring(Settings settings) {
         this.settings = settings;
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
     }
 
@@ -100,30 +94,13 @@ public class Monitoring extends Plugin implements ActionPlugin {
         return enabled;
     }
 
-    boolean isTransportClient() {
-        return transportClientMode;
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, MonitoringFeatureSet.class);
-            if (transportClientMode || enabled == false) {
-                b.bind(MonitoringService.class).toProvider(Providers.of(null));
-                b.bind(Exporters.class).toProvider(Providers.of(null));
-            }
-        });
-        return modules;
-    }
-
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         if (enabled == false) {
-            return Collections.emptyList();
+            return Collections.singletonList(new MonitoringUsageServices(null, null));
         }
 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -144,18 +121,25 @@ public class Monitoring extends Plugin implements ActionPlugin {
         collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
         collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
         collectors.add(new StatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new EnrichStatsCollector(clusterService, getLicenseState(), client, settings));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
-        return Arrays.asList(monitoringService, exporters, cleanerService);
+        var usageServices = new MonitoringUsageServices(monitoringService, exporters);
+        return Arrays.asList(monitoringService, exporters, cleanerService, usageServices);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return Arrays.asList(usageAction, infoAction);
         }
-        return singletonList(new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
+            usageAction,
+            infoAction);
     }
 
     @Override
@@ -165,7 +149,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return emptyList();
         }
-        return singletonList(new RestMonitoringBulkAction(settings, restController));
+        return singletonList(new RestMonitoringBulkAction(restController));
     }
 
     @Override
@@ -184,6 +168,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         settings.add(JobStatsCollector.JOB_STATS_TIMEOUT);
         settings.add(StatsCollector.CCR_STATS_TIMEOUT);
         settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
+        settings.add(EnrichStatsCollector.STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
         return Collections.unmodifiableList(settings);
     }
@@ -191,6 +176,6 @@ public class Monitoring extends Plugin implements ActionPlugin {
     @Override
     public List<String> getSettingsFilter() {
         final String exportersKey = "xpack.monitoring.exporters.";
-        return Collections.unmodifiableList(Arrays.asList(exportersKey + "*.auth.*", exportersKey + "*.ssl.*"));
+        return List.of(exportersKey + "*.auth.*", exportersKey + "*.ssl.*");
     }
 }

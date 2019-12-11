@@ -23,7 +23,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -33,8 +32,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 
 public class RestSimulatePipelineAction extends BaseRestHandler {
-    public RestSimulatePipelineAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestSimulatePipelineAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/{id}/_simulate", this);
         controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}/_simulate", this);
         controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/_simulate", this);

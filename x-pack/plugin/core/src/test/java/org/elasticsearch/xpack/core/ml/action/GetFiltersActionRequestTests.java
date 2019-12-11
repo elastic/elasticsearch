@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction.Request;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetFiltersActionRequestTests extends AbstractStreamableTestCase<GetFiltersAction.Request> {
+public class GetFiltersActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
 
     @Override
@@ -28,8 +29,7 @@ public class GetFiltersActionRequestTests extends AbstractStreamableTestCase<Get
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
-
 }

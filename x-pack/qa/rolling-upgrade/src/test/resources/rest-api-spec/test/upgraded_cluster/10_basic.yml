@@ -1,9 +1,11 @@
 ---
 "Continue scroll after upgrade":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/46529"
   - do:
       get:
         index: scroll_index
-        type: doc
         id: 1
 
   - set: {_source.value: scroll_id}

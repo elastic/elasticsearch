@@ -27,7 +27,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {source_field: "1kb"}
@@ -35,7 +34,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.source_field: "1kb" }
   - match: { _source.target_field: 1024 }
@@ -62,7 +60,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {source_field: "FooBar"}
@@ -70,7 +67,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.source_field: "FooBar" }
   - match: { _source.target_field: "foobar" }
@@ -97,7 +93,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {source_field: "FooBar"}
@@ -105,7 +100,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.source_field: "FooBar" }
   - match: { _source.target_field: "FOOBAR" }
@@ -132,7 +126,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {source_field: "{\"foo\":\"bar\"}"}
@@ -140,7 +133,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.source_field: "{\"foo\":\"bar\"}" }
   - match: { _source.target_field.foo: "bar" }
@@ -167,7 +159,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {source_field: "{\"foo\":\"bar\"}"}
@@ -175,7 +166,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.source_field: "{\"foo\":\"bar\"}" }
   - match: { _source.foo: "bar" }
@@ -202,7 +192,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {source_field: "foo%20bar"}
@@ -210,7 +199,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.source_field: "foo%20bar" }
   - match: { _source.target_field: "foo bar" }

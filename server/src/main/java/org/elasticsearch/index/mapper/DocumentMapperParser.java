@@ -29,22 +29,19 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.unmodifiableMap;
-
 public class DocumentMapperParser {
 
     final MapperService mapperService;
-    final IndexAnalyzers indexAnalyzers;
     private final NamedXContentRegistry xContentRegistry;
     private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
@@ -56,29 +53,23 @@ public class DocumentMapperParser {
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
 
-    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, IndexAnalyzers indexAnalyzers,
-                                NamedXContentRegistry xContentRegistry, SimilarityService similarityService, MapperRegistry mapperRegistry,
-                                Supplier<QueryShardContext> queryShardContextSupplier) {
+    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
+            SimilarityService similarityService, MapperRegistry mapperRegistry, Supplier<QueryShardContext> queryShardContextSupplier) {
         this.mapperService = mapperService;
-        this.indexAnalyzers = indexAnalyzers;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.queryShardContextSupplier = queryShardContextSupplier;
         this.typeParsers = mapperRegistry.getMapperParsers();
-        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
-        indexVersionCreated = indexSettings.getIndexVersionCreated();
+        this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
     }
 
-    public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, indexAnalyzers, similarityService::getSimilarity, mapperService,
+    public Mapper.TypeParser.ParserContext parserContext() {
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
                 typeParsers::get, indexVersionCreated, queryShardContextSupplier);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        return parse(type, source, null);
-    }
-
-    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
             Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
@@ -89,24 +80,16 @@ public class DocumentMapperParser {
         if (mapping == null) {
             mapping = new HashMap<>();
         }
-        return parse(type, mapping, defaultSource);
+        return parse(type, mapping);
     }
 
     @SuppressWarnings({"unchecked"})
-    private DocumentMapper parse(String type, Map<String, Object> mapping, String defaultSource) throws MapperParsingException {
+    private DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
 
-        if (defaultSource != null) {
-            Tuple<String, Map<String, Object>> t = extractMapping(MapperService.DEFAULT_MAPPING, defaultSource);
-            if (t.v2() != null) {
-                XContentHelper.mergeDefaults(mapping, t.v2());
-            }
-        }
-
-
-        Mapper.TypeParser.ParserContext parserContext = parserContext(type);
+        Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
                 (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
@@ -132,9 +115,21 @@ public class DocumentMapperParser {
 
         Map<String, Object> meta = (Map<String, Object>) mapping.remove("_meta");
         if (meta != null) {
-            // It may not be required to copy meta here to maintain immutability
-            // but the cost is pretty low here.
-            docBuilder.meta(unmodifiableMap(new HashMap<>(meta)));
+            /*
+             * It may not be required to copy meta here to maintain immutability but the cost is pretty low here.
+             *
+             * Note: this copy can not be replaced by Map#copyOf because we rely on consistent serialization order since we do byte-level
+             * checks on the mapping between what we receive from the master and what we have locally. As Map#copyOf is not necessarily
+             * the same underlying map implementation, we could end up with a different iteration order. For reference, see
+             * MapperService#assertSerializtion and GitHub issues #10302 and #10318.
+             *
+             * Do not change this to Map#copyOf or any other method of copying meta that could change the iteration order.
+             *
+             * TODO:
+             *  - this should almost surely be a copy as a LinkedHashMap to have the ordering guarantees that we are relying on
+             *  - investigate the above note about whether or not we really need to be copying here, the ideal outcome would be to not
+             */
+            docBuilder.meta(Collections.unmodifiableMap(new HashMap<>(meta)));
         }
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");

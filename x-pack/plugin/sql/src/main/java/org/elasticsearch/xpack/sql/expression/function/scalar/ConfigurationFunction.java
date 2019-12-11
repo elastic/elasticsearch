@@ -32,7 +32,7 @@ public abstract class ConfigurationFunction extends ScalarFunction {
         throw new UnsupportedOperationException("this node doesn't have any children");
     }
 
-    protected Configuration configuration() {
+    public Configuration configuration() {
         return configuration;
     }
 

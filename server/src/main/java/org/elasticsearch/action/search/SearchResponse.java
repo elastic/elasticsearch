@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -29,14 +29,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
@@ -47,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -63,23 +66,33 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
-    private SearchResponseSections internalResponse;
+    private final SearchResponseSections internalResponse;
+    private final String scrollId;
+    private final int totalShards;
+    private final int successfulShards;
+    private final int skippedShards;
+    private final ShardSearchFailure[] shardFailures;
+    private final Clusters clusters;
+    private final long tookInMillis;
 
-    private String scrollId;
-
-    private int totalShards;
-
-    private int successfulShards;
-
-    private int skippedShards;
-
-    private ShardSearchFailure[] shardFailures;
-
-    private Clusters clusters;
-
-    private long tookInMillis;
-
-    public SearchResponse() {
+    public SearchResponse(StreamInput in) throws IOException {
+        super(in);
+        internalResponse = new InternalSearchResponse(in);
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
+        int size = in.readVInt();
+        if (size == 0) {
+            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        } else {
+            shardFailures = new ShardSearchFailure[size];
+            for (int i = 0; i < shardFailures.length; i++) {
+                shardFailures[i] = readShardSearchFailure(in);
+            }
+        }
+        clusters = new Clusters(in);
+        scrollId = in.readOptionalString();
+        tookInMillis = in.readVLong();
+        skippedShards = in.readVInt();
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
@@ -110,7 +123,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public Aggregations getAggregations() {
         return internalResponse.aggregations();
     }
-
 
     public Suggest getSuggest() {
         return internalResponse.suggest();
@@ -189,10 +201,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public String getScrollId() {
         return scrollId;
-    }
-
-    public void scrollId(String scrollId) {
-        this.scrollId = scrollId;
     }
 
     /**
@@ -349,37 +357,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(new ShardSearchFailure[failures.size()]), clusters);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        internalResponse = new InternalSearchResponse(in);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            clusters = new Clusters(in);
-        } else {
-            clusters = Clusters.EMPTY;
-        }
-        scrollId = in.readOptionalString();
-        tookInMillis = in.readVLong();
-        skippedShards = in.readVInt();
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         internalResponse.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
@@ -388,9 +370,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         for (ShardSearchFailure shardSearchFailure : shardFailures) {
             shardSearchFailure.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            clusters.writeTo(out);
-        }
+        clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
@@ -405,7 +385,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
      * and how many of them were skipped.
      */
-    public static class Clusters implements ToXContent, Writeable {
+    public static class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
 
@@ -497,5 +477,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         public String toString() {
             return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
         }
+    }
+
+    static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
+        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
+            InternalAggregations.EMPTY, null, null, false, null, 0);
+        return new SearchResponse(internalSearchResponse, null, 0, 0, 0, tookInMillisSupplier.get(),
+            ShardSearchFailure.EMPTY_ARRAY, clusters);
     }
 }

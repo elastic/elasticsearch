@@ -4,7 +4,6 @@
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:
               foo:    bar
@@ -14,7 +13,6 @@
       catch: /Regexes are disabled. Set \[script.painless.regex.enabled\] to \[true\] in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep recursion and long loops./
       update:
           index:  test_1
-          type:   test
           id:     1
           body:
             script:

@@ -22,11 +22,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.SortedMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -71,7 +73,7 @@ public class AnnotationIndex {
 
                 CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
                 try (XContentBuilder annotationsMapping = AnnotationIndex.annotationsMapping()) {
-                    createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, annotationsMapping);
+                    createIndexRequest.mapping(SINGLE_MAPPING_NAME, annotationsMapping);
                     createIndexRequest.settings(Settings.builder()
                         .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
@@ -83,7 +85,7 @@ public class AnnotationIndex {
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
-                                if (e instanceof ResourceAlreadyExistsException) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                     // Create the alias
                                     createAliasListener.onResponse(true);
                                 } else {
@@ -109,10 +111,11 @@ public class AnnotationIndex {
     }
 
     public static XContentBuilder annotationsMapping() throws IOException {
-        return jsonBuilder()
+        XContentBuilder builder = jsonBuilder()
             .startObject()
-                .startObject(ElasticsearchMappings.DOC_TYPE)
-                    .startObject(ElasticsearchMappings.PROPERTIES)
+                .startObject(SINGLE_MAPPING_NAME);
+        ElasticsearchMappings.addMetaInformation(builder);
+        builder.startObject(ElasticsearchMappings.PROPERTIES)
                         .startObject(Annotation.ANNOTATION.getPreferredName())
                             .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.TEXT)
                         .endObject()
@@ -143,5 +146,6 @@ public class AnnotationIndex {
                     .endObject()
                 .endObject()
             .endObject();
+        return builder;
     }
 }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Nullability;
@@ -113,13 +112,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         return false;
     }
 
-    @Override
     public String name() {
-        return name;
-    }
-
-    @Override
-    public String functionName() {
         return name;
     }
 
@@ -150,11 +143,6 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public Attribute toAttribute() {
-        throw new UnresolvedException("attribute", this);
-    }
-
-    @Override
     public ScriptTemplate asScript() {
         throw new UnresolvedException("script", this);
     }
@@ -166,7 +154,12 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + sourceText();
+        return UNRESOLVED_PREFIX + name + children();
+    }
+
+    @Override
+    public String nodeString() {
+        return toString();
     }
 
     @Override

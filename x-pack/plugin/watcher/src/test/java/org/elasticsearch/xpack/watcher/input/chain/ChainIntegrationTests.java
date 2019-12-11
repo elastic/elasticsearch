@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -57,7 +58,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void testChainedInputsAreWorking() throws Exception {
         String index = "the-most-awesome-index-ever";
         createIndex(index);
-        client().prepareIndex(index, "type", "id").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex().setIndex(index).setId("id").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
@@ -68,11 +69,11 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
                 .add("first", simpleInput("url", "/" + index  + "/_search"))
                 .add("second", httpInputBuilder);
 
-        watcherClient().preparePutWatch("_name")
+        new PutWatchRequestBuilder(client(), "_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, SECONDS)))
                         .input(chainedInputBuilder)
-                        .addAction("indexAction", indexAction("my-index", "my-type")))
+                        .addAction("indexAction", indexAction("my-index")))
                 .get();
 
         timeWarp().trigger("_name");
@@ -84,7 +85,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void assertWatchExecuted() {
         try {
             refresh();
-            SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type").get();
+            SearchResponse searchResponse = client().prepareSearch("my-index").get();
             assertHitCount(searchResponse, 1);
             assertThat(searchResponse.getHits().getAt(0).getSourceAsString(), containsString("the-most-awesome-index-ever"));
         } catch (IndexNotFoundException e) {

@@ -3,9 +3,9 @@
 
 This section includes a few recipes to help with common problems:
 
-* <<mixing-exact-search-with-stemming>>
-* <<consistent-scoring>>
+* <<mixing-exact-search-with-stemming,Mixing exact search with stemming>>
+* <<consistent-scoring,Getting consistent scores>>
+* <<static-scoring-signals,Incorporating static relevance signals into the score>>
 
 include::recipes/stemming.asciidoc[]
 include::recipes/scoring.asciidoc[]
-

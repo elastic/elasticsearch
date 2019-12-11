@@ -139,12 +139,12 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new BucketSortPipelineAggregator(name, sorts, from, size, gapPolicy, metaData);
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
                            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (sorts.isEmpty() && size == null && from == 0) {
             throw new IllegalStateException("[" + name + "] is configured to perform nothing. Please set either of "
@@ -174,12 +174,15 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(sorts, from, size, gapPolicy);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sorts, from, size, gapPolicy);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         BucketSortPipelineAggregationBuilder other = (BucketSortPipelineAggregationBuilder) obj;
         return Objects.equals(sorts, other.sorts)
                 && Objects.equals(from, other.from)

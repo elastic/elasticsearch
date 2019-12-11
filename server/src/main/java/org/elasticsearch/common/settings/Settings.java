@@ -57,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -145,13 +144,13 @@ public final class Settings implements ToXContentFragment {
             if (existingValue == null) {
                 Map<String, Object> newMap = new HashMap<>(2);
                 processSetting(newMap, "", rest, value);
-                map.put(key, newMap);
+                map.put(prefix + key, newMap);
             } else {
                 if (existingValue instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> innerMap = (Map<String, Object>) existingValue;
                     processSetting(innerMap, "", rest, value);
-                    map.put(key, innerMap);
+                    map.put(prefix + key, innerMap);
                 } else {
                     // It supposed to be a map, but we already have a value stored, which is not a map
                     // fall back to "." notation
@@ -530,23 +529,15 @@ public final class Settings implements ToXContentFragment {
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            for (int i = 0; i < numberOfSettings; i++) {
-                String key = in.readString();
-                Object value = in.readGenericValue();
-                if (value == null) {
-                    builder.putNull(key);
-                } else if (value instanceof List) {
-                    builder.putList(key, (List<String>) value);
-                } else {
-                    builder.put(key, value.toString());
-                }
-            }
-        } else {
-            for (int i = 0; i < numberOfSettings; i++) {
-                String key = in.readString();
-                String value = in.readOptionalString();
-                builder.put(key, value);
+        for (int i = 0; i < numberOfSettings; i++) {
+            String key = in.readString();
+            Object value = in.readGenericValue();
+            if (value == null) {
+                builder.putNull(key);
+            } else if (value instanceof List) {
+                builder.putList(key, (List<String>) value);
+            } else {
+                builder.put(key, value.toString());
             }
         }
         return builder.build();
@@ -555,27 +546,10 @@ public final class Settings implements ToXContentFragment {
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
         Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeVInt(entries.size());
-            for (Map.Entry<String, Object> entry : entries) {
-                out.writeString(entry.getKey());
-                out.writeGenericValue(entry.getValue());
-            }
-        } else {
-            int size = entries.stream().mapToInt(e -> e.getValue() instanceof List ? ((List)e.getValue()).size() : 1).sum();
-            out.writeVInt(size);
-            for (Map.Entry<String, Object> entry : entries) {
-                if (entry.getValue() instanceof List) {
-                    int idx = 0;
-                    for (String value : (List<String>)entry.getValue()) {
-                        out.writeString(entry.getKey() + "." + idx++);
-                        out.writeOptionalString(value);
-                    }
-                } else {
-                    out.writeString(entry.getKey());
-                    out.writeOptionalString(toString(entry.getValue()));
-                }
-            }
+        out.writeVInt(entries.size());
+        for (Map.Entry<String, Object> entry : entries) {
+            out.writeString(entry.getKey());
+            out.writeGenericValue(entry.getValue());
         }
     }
 
@@ -699,7 +673,7 @@ public final class Settings implements ToXContentFragment {
 
 
     public static final Set<String> FORMAT_PARAMS =
-        Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
+            Set.of("settings_filter", "flat_settings");
 
     /**
      * Returns {@code true} if this settings object contains no settings
@@ -1350,13 +1324,18 @@ public final class Settings implements ToXContentFragment {
         }
 
         @Override
-        public SecureString getString(String setting) throws GeneralSecurityException{
+        public SecureString getString(String setting) throws GeneralSecurityException {
             return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
-        public InputStream getFile(String setting) throws GeneralSecurityException{
+        public InputStream getFile(String setting) throws GeneralSecurityException {
             return delegate.getFile(addPrefix.apply(setting));
+        }
+
+        @Override
+        public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+            return delegate.getSHA256Digest(addPrefix.apply(setting));
         }
 
         @Override

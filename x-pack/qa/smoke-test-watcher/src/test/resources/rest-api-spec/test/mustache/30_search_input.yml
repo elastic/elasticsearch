@@ -3,11 +3,10 @@ setup:
   - do:
       cluster.health:
           wait_for_status: yellow
-  - do: {xpack.watcher.stats:{}}
+  - do: {watcher.stats:{}}
   - do:
       index:
         index: idx
-        type: type
         id: 1
         body: >
           {
@@ -17,7 +16,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 2
         body: >
           {
@@ -27,7 +25,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 3
         body: >
           {
@@ -37,7 +34,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 4
         body: >
           {
@@ -51,7 +47,7 @@ setup:
 ---
 "Test search input mustache integration (using request body)":
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "trigger_data" : {
@@ -126,7 +122,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "trigger_data" : {
@@ -168,11 +164,8 @@ setup:
 
 ---
 "Test search input mustache integration (using request body and rest_total_hits_as_int)":
-  - skip:
-      version: " - 6.99.99"
-      reason: "rest_total_hits_as_int support was added in 7.0"
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "trigger_data" : {
@@ -222,10 +215,6 @@ setup:
 
 ---
 "Test search input mustache integration (using request template and rest_total_hits_as_int)":
-  - skip:
-      version: " - 6.99.99"
-      reason: "rest_total_hits_as_int support was added in 7.0"
-
   - do:
       put_script:
         id: "search-template"
@@ -250,7 +239,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "trigger_data" : {

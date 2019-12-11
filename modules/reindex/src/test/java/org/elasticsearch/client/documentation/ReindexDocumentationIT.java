@@ -78,11 +78,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(ReindexPlugin.class);
-    }
-
     @Before
     public void setup() {
         client().admin().indices().prepareCreate(INDEX_NAME).get();
@@ -106,7 +101,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         Client client = client();
         client.admin().indices().prepareCreate("foo").get();
         client.admin().indices().prepareCreate("bar").get();
-        client.admin().indices().preparePutMapping(INDEX_NAME).setType("_doc").setSource("cat", "type=keyword").get();
+        client.admin().indices().preparePutMapping(INDEX_NAME).setSource("cat", "type=keyword").get();
         {
             // tag::update-by-query
             UpdateByQueryRequestBuilder updateByQuery =
@@ -121,13 +116,16 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
               new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index")
                 .filter(QueryBuilders.termQuery("level", "awesome"))
-                .size(1000)
+                .maxDocs(1000)
                 .script(new Script(ScriptType.INLINE,
-                    "ctx._source.awesome = 'absolutely'",
                     "painless",
+                    "ctx._source.awesome = 'absolutely'",
                     Collections.emptyMap()));
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-filter
+
+            // validate order of string params to Script constructor
+            assertEquals(updateByQuery.request().getScript().getLang(), "painless");
         }
         {
             // tag::update-by-query-size
@@ -144,7 +142,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             UpdateByQueryRequestBuilder updateByQuery =
                new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index")
-                .size(100)
+                .maxDocs(100)
                 .source()
                 .addSort("cat", SortOrder.DESC);
             BulkByScrollResponse response = updateByQuery.get();
@@ -157,16 +155,19 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             updateByQuery.source("source_index")
                 .script(new Script(
                     ScriptType.INLINE,
+                    "painless",
                     "if (ctx._source.awesome == 'absolutely') {"
                         + "  ctx.op='noop'"
                         + "} else if (ctx._source.awesome == 'lame') {"
                         + "  ctx.op='delete'"
                         + "} else {"
                         + "ctx._source.awesome = 'absolutely'}",
-                    "painless",
                     Collections.emptyMap()));
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-script
+
+            // validate order of string params to Script constructor
+            assertEquals(updateByQuery.request().getScript().getLang(), "painless");
         }
         {
             // tag::update-by-query-multi-index
@@ -194,7 +195,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
     }
 
-    public void testTasks() throws InterruptedException {
+    public void testTasks() throws Exception {
         final Client client = client();
         final ReindexRequestBuilder builder = reindexAndPartiallyBlock();
 
@@ -278,13 +279,13 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
      * Similar to what CancelTests does: blocks some operations to be able to catch some tasks in running state
      * @see CancelTests#testCancel(String, AbstractBulkByScrollRequestBuilder, CancelTests.CancelAssertion, Matcher)
      */
-    private ReindexRequestBuilder reindexAndPartiallyBlock() throws InterruptedException {
+    private ReindexRequestBuilder reindexAndPartiallyBlock() throws Exception {
         final Client client = client();
         final int numDocs = randomIntBetween(10, 100);
         ALLOWED_OPERATIONS.release(numDocs);
 
         indexRandom(true, false, true, IntStream.range(0, numDocs)
-            .mapToObj(i -> client().prepareIndex(INDEX_NAME, "_doc", Integer.toString(i)).setSource("n", Integer.toString(i)))
+            .mapToObj(i -> client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
             .collect(Collectors.toList()));
 
         // Checks that the all documents have been indexed and correctly counted
@@ -292,7 +293,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
         ReindexRequestBuilder builder = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source(INDEX_NAME)
-            .destination("target_index", "_doc");
+            .destination("target_index");
         // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
@@ -304,9 +305,12 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         builder.execute();
 
         // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertTrue("updates blocked", awaitBusy(
-            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
-            1, TimeUnit.MINUTES));
+        assertBusy(
+            () -> {
+                assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
+                assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
+            },
+            1, TimeUnit.MINUTES);
         return builder;
     }
 
@@ -322,16 +326,16 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
-            return preCheck(index, index.type());
+            return preCheck(index);
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-            return preCheck(delete, delete.type());
+            return preCheck(delete);
         }
 
-        private <T extends Engine.Operation> T preCheck(T operation, String type) {
-            if (("_doc".equals(type) == false) || (operation.origin() != Engine.Operation.Origin.PRIMARY)) {
+        private <T extends Engine.Operation> T preCheck(T operation) {
+            if (operation.origin() != Engine.Operation.Origin.PRIMARY) {
                 return operation;
             }
 

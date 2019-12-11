@@ -1,0 +1,18 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-commands]]
+=== SQL Commands
+
+This section contains the list of SQL commands supported by {es-sql} along with their syntax:
+
+<<sql-syntax-describe-table>>:: Describe a table.
+<<sql-syntax-select>>:: Retrieve rows from zero or more tables.
+<<sql-syntax-show-columns>>:: List columns in table.
+<<sql-syntax-show-functions>>:: List supported functions.
+<<sql-syntax-show-tables>>:: List tables available.
+
+include::describe-table.asciidoc[]
+include::select.asciidoc[]
+include::show-columns.asciidoc[]
+include::show-functions.asciidoc[]
+include::show-tables.asciidoc[]

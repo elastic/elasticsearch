@@ -36,6 +36,10 @@ import java.util.function.Supplier;
 
 public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
 
+    public DieWithDignityPlugin() {
+        assert System.getProperty("die.with.dignity.test") != null : "test should pass the `die.with.dignity.test` property";
+    }
+
     @Override
     public List<RestHandler> getRestHandlers(
             final Settings settings,
@@ -45,7 +49,7 @@ public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
             final SettingsFilter settingsFilter,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.singletonList(new RestDieWithDignityAction(settings, restController));
+        return Collections.singletonList(new RestDieWithDignityAction(restController));
     }
 
 }

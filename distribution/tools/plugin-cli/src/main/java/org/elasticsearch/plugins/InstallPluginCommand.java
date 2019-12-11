@@ -23,8 +23,9 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.Constants;
 import org.bouncycastle.bcpg.ArmoredInputStream;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
@@ -44,6 +45,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
@@ -52,6 +55,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -82,7 +86,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -130,36 +133,28 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     static final int PLUGIN_MALFORMED = 2;
 
     /** The builtin modules, which are plugins, but cannot be installed or removed. */
-    static final Set<String> MODULES;
+    private static final Set<String> MODULES;
     static {
-        try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/modules.txt");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            Set<String> modules = new HashSet<>();
-            String line = reader.readLine();
-            while (line != null) {
-                modules.add(line.trim());
-                line = reader.readLine();
-            }
-            MODULES = Collections.unmodifiableSet(modules);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        try (var stream = InstallPluginCommand.class.getResourceAsStream("/modules.txt")) {
+            MODULES = Streams.readAllLines(stream)
+                .stream()
+                .map(String::trim)
+                .collect(Collectors.toUnmodifiableSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
     /** The official plugins that can be installed simply by name. */
     static final Set<String> OFFICIAL_PLUGINS;
     static {
-        try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/plugins.txt");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            Set<String> plugins = new TreeSet<>(); // use tree set to get sorting for help command
-            String line = reader.readLine();
-            while (line != null) {
-                plugins.add(line.trim());
-                line = reader.readLine();
-            }
-            OFFICIAL_PLUGINS = Collections.unmodifiableSet(plugins);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        try (var stream = InstallPluginCommand.class.getResourceAsStream("/plugins.txt")) {
+            OFFICIAL_PLUGINS = Streams.readAllLines(stream)
+                .stream()
+                .map(String::trim)
+                .collect(Sets.toUnmodifiableSortedSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -506,17 +501,26 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
 
-        try {
-            final byte[] zipBytes = Files.readAllBytes(zip);
-            final String actualChecksum = MessageDigests.toHexString(MessageDigest.getInstance(digestAlgo).digest(zipBytes));
-            if (expectedChecksum.equals(actualChecksum) == false) {
-                throw new UserException(
+        // read the bytes of the plugin zip in chunks to avoid out of memory errors
+        try (InputStream zis = Files.newInputStream(zip)) {
+            try {
+                final MessageDigest digest = MessageDigest.getInstance(digestAlgo);
+                final byte[] bytes = new byte[8192];
+                int read;
+                while ((read = zis.read(bytes)) != -1) {
+                    assert read > 0 : read;
+                    digest.update(bytes, 0, read);
+                }
+                final String actualChecksum = MessageDigests.toHexString(digest.digest());
+                if (expectedChecksum.equals(actualChecksum) == false) {
+                    throw new UserException(
                         ExitCodes.IO_ERROR,
                         digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + actualChecksum);
+                }
+            } catch (final NoSuchAlgorithmException e) {
+                // this should never happen as we are using SHA-1 and SHA-512 here
+                throw new AssertionError(e);
             }
-        } catch (final NoSuchAlgorithmException e) {
-            // this should never happen as we are using SHA-1 and SHA-512 here
-            throw new AssertionError(e);
         }
 
         if (officialPlugin) {
@@ -557,7 +561,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             // compute the signature of the downloaded plugin zip
             final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
             final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleProvider()), key);
+            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
             final byte[] buffer = new byte[1024];
             int read;
             while ((read = fin.read(buffer)) != -1) {
@@ -703,7 +707,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " +
                     "uninstall it first using command 'remove %s'",
-                destination.toAbsolutePath(),
+                destination,
                 pluginName);
             throw new UserException(PLUGIN_EXISTS, message);
         }
@@ -833,7 +837,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
-                if ("bin".equals(file.getParent().getFileName().toString())) {
+                final String parentDirName = file.getParent().getFileName().toString();
+                if ("bin".equals(parentDirName)
+                    // "MacOS" is an alternative to "bin" on macOS
+                    || (Constants.MAC_OS_X && "MacOS".equals(parentDirName))) {
                     setFileAttributes(file, BIN_FILES_PERMS);
                 } else {
                     setFileAttributes(file, PLUGIN_FILES_PERMS);

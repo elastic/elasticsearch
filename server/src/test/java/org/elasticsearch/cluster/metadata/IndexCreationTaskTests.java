@@ -55,6 +55,7 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,7 +72,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -111,6 +114,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         super.setUp();
         setupIndicesService();
         setupClusterState();
+        when(request.mappings()).thenReturn("{}");
     }
 
     public void testMatchTemplates() throws Exception {
@@ -127,7 +131,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testApplyDataFromTemplate() throws Exception {
         addMatchingTemplate(builder -> builder
                 .putAlias(AliasMetaData.builder("alias1"))
-                .putMapping("mapping1", createMapping())
+                .putMapping("_doc", createMapping())
                 .settings(Settings.builder().put("key1", "value1"))
         );
 
@@ -135,19 +139,19 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
     }
 
     public void testApplyDataFromRequest() throws Exception {
         setupRequestAlias(new Alias("alias1"));
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
     }
 
     public void testInvalidAliasName() throws Exception {
@@ -162,19 +166,19 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         addMatchingTemplate(builder -> builder
                     .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
-                    .putMapping("mapping1", tplMapping)
+                    .putMapping("_doc", tplMapping)
                     .settings(Settings.builder().put("key1", "tplValue"))
         );
 
         setupRequestAlias(new Alias("alias1").searchRouting("fromReq"));
-        setupRequestMapping("mapping1", reqMapping);
+        setupRequestMapping("type", reqMapping);
         reqSettings.put("key1", "reqValue");
 
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
-        assertThat(getMappingsFromResponse().get("mapping1").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
+        assertThat(getMappingsFromResponse().toString(), equalTo("{_doc={properties={field={type=keyword}}}}"));
     }
 
     public void testDefaultSettings() throws Exception {
@@ -236,17 +240,15 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testRequestStateOpen() throws Exception {
-        when(request.state()).thenReturn(IndexMetaData.State.OPEN);
-
         executeTask();
-
         verify(allocationService, times(1)).reroute(anyObject(), anyObject());
     }
 
     @SuppressWarnings("unchecked")
     public void testIndexRemovalOnFailure() throws Exception {
-        doThrow(new RuntimeException("oops")).when(mapper).merge(anyMap(), anyObject());
+        doThrow(new RuntimeException("oops")).when(mapper).merge(anyString(), anyMap(), anyObject());
 
+        setupRequestMapping("type", createMapping("keyword"));
         expectThrows(RuntimeException.class, this::executeTask);
 
         verify(indicesService, times(1)).removeIndex(anyObject(), anyObject(), anyObject());
@@ -275,7 +277,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         assertThat(result.metaData().index("test").getAliases(), not(hasKey("alias1")));
         assertThat(result.metaData().index("test").getCustomData(), not(hasKey("custom1")));
         assertThat(result.metaData().index("test").getSettings().keySet(), not(Matchers.contains("key1")));
-        assertThat(getMappingsFromResponse(), not(Matchers.hasKey("mapping1")));
     }
 
     public void testValidateWaitForActiveShardsFailure() throws Exception {
@@ -289,7 +290,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testWriteIndex() throws Exception {
         Boolean writeIndex = randomBoolean() ? null : randomBoolean();
         setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
@@ -302,12 +303,32 @@ public class IndexCreationTaskTests extends ESTestCase {
             .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
             .numberOfShards(1).numberOfReplicas(0).build();
         idxBuilder.put("test2", existingWriteIndex);
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
         setupRequestAlias(new Alias("alias1").writeIndex(true));
 
         Exception exception = expectThrows(IllegalStateException.class, () -> executeTask());
         assertThat(exception.getMessage(), startsWith("alias [alias1] has more than one write index ["));
+    }
+
+    public void testTypedTemplateWithTypelessIndexCreation() throws Exception {
+        addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
+        setupRequestMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent("{\"_doc\":{}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testTypedTemplate() throws Exception {
+        addMatchingTemplate(builder -> builder.putMapping("type",
+            "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
+    }
+
+    public void testTypelessTemplate() throws Exception {
+        addMatchingTemplate(builder -> builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
@@ -334,10 +355,6 @@ public class IndexCreationTaskTests extends ESTestCase {
             .numberOfReplicas(numReplicas);
     }
 
-    private Map<String, String> createCustom() {
-        return Collections.singletonMap("a", "b");
-    }
-
     private interface MetaDataBuilderConfigurator {
         void configure(IndexTemplateMetaData.Builder builder) throws IOException;
     }
@@ -350,9 +367,9 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Map<String, Object>> getMappingsFromResponse() {
+    private Map<String, Map<String, Object>> getMappingsFromResponse() throws IOException {
         final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
-        verify(mapper).merge(argument.capture(), anyObject());
+        verify(mapper).merge(anyString(), argument.capture(), anyObject());
         return argument.getValue();
     }
 
@@ -361,7 +378,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     private void setupRequestMapping(String mappingKey, CompressedXContent mapping) throws IOException {
-        when(request.mappings()).thenReturn(Collections.singletonMap(mappingKey, mapping.string()));
+        when(request.mappings()).thenReturn(mapping.string());
     }
 
     private CompressedXContent createMapping() throws IOException {
@@ -371,7 +388,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     private CompressedXContent createMapping(String fieldType) throws IOException {
         final String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", fieldType)
@@ -403,7 +420,14 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
             logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS) {
+
+            @Override
+            protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+                // we have to make this a no-op since we are not mocking enough for this method to be able to execute
+            }
+
+        };
         return task.execute(state);
     }
 
@@ -458,5 +482,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(service.getIndexEventListener()).thenReturn(mock(IndexEventListener.class));
 
         when(indicesService.createIndex(anyObject(), anyObject())).thenReturn(service);
+        when(allocationService.reroute(any(ClusterState.class), anyString())).thenAnswer(
+            (Answer<ClusterState>) invocationOnMock -> (ClusterState) invocationOnMock.getArguments()[0]);
     }
 }

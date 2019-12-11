@@ -20,7 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -46,6 +47,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     private ActionListener<Boolean> listener;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         capturedDeleteByQueryRequests = new ArrayList<>();
         client = mock(Client.class);
@@ -69,7 +71,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         givenClientRequestsSucceed();
         givenJobs(Collections.emptyList());
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         verify(listener).onResponse(true);
         verify(client).search(any());
@@ -83,7 +85,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("bar").build()
         ));
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         verify(listener).onResponse(true);
         verify(client).search(any());
@@ -98,7 +100,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
@@ -106,6 +108,22 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         dbqRequest = capturedDeleteByQueryRequests.get(1);
         assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-2")}));
         verify(listener).onResponse(true);
+    }
+
+    public void testRemove_GivenTimeout() throws Exception {
+        givenClientRequestsSucceed();
+        givenJobs(Arrays.asList(
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
+        ));
+
+        final int timeoutAfter = randomIntBetween(0, 1);
+        AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
+
+        createExpiredResultsRemover().remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(timeoutAfter));
+        verify(listener).onResponse(false);
     }
 
     public void testRemove_GivenClientRequestsFailed() throws IOException {
@@ -116,7 +134,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
@@ -132,6 +150,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         givenClientRequests(false);
     }
 
+    @SuppressWarnings("unchecked")
     private void givenClientRequests(boolean shouldSucceed) {
         doAnswer(new Answer<Void>() {
             @Override
@@ -151,6 +170,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
     }
 
+    @SuppressWarnings("unchecked")
     private void givenJobs(List<Job> jobs) throws IOException {
         SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
 
@@ -160,6 +180,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover() {
-        return new ExpiredResultsRemover(client, mock(Auditor.class));
+        return new ExpiredResultsRemover(client, mock(AnomalyDetectionAuditor.class));
     }
 }

@@ -23,7 +23,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-jobs-get-result-buckets
-        type:   doc
         id:     "jobs-get-result-buckets_1464739200000_1"
         body:
           {
@@ -40,7 +39,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-jobs-get-result-buckets
-        type:   doc
         id:     "jobs-get-result-buckets_1470009600000_2"
         body:
           {
@@ -57,7 +55,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-jobs-get-result-buckets
-        type:   doc
         id:     "jobs-get-result-buckets_1470096000000_3"
         body:
           {

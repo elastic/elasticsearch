@@ -1,0 +1,29 @@
+{
+  "sql.query":{
+    "documentation":{
+      "url":"Execute SQL"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_sql",
+          "methods":[
+            "POST",
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      }
+    },
+    "body":{
+      "description":"Use the `query` element to start a query. Use the `cursor` element to continue a query.",
+      "required":true
+    }
+  }
+}

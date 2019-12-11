@@ -63,7 +63,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 public class DefaultSearchContextTests extends ESTestCase {
 
     public void testPreProcess() throws Exception {
@@ -72,7 +71,6 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
-        when(shardSearchRequest.types()).thenReturn(new String[]{});
 
         IndexShard indexShard = mock(IndexShard.class);
         QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
@@ -111,12 +109,14 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir);
              IndexReader reader = w.getReader();
-             Engine.Searcher searcher = new Engine.Searcher("test", new IndexSearcher(reader), reader)) {
+             Engine.Searcher searcher = new Engine.Searcher("test", reader,
+                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                 IndexSearcher.getDefaultQueryCachingPolicy(), reader)) {
 
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
 
             DefaultSearchContext context1 = new DefaultSearchContext(1L, shardSearchRequest, target, searcher, null, indexService,
-                indexShard, bigArrays, null, timeout, null, Version.CURRENT);
+                indexShard, bigArrays, null, timeout, null);
             context1.from(300);
 
             // resultWindow greater than maxResultWindow and scrollContext is null
@@ -157,7 +157,7 @@ public class DefaultSearchContextTests extends ESTestCase {
 
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(2L, shardSearchRequest, target, searcher,
-                null, indexService, indexShard, bigArrays, null, timeout, null, Version.CURRENT);
+                null, indexService, indexShard, bigArrays, null, timeout, null);
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -174,7 +174,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
 
             DefaultSearchContext context3 = new DefaultSearchContext(3L, shardSearchRequest, target, searcher, null,
-                indexService, indexShard, bigArrays, null, timeout, null, Version.CURRENT);
+                indexService, indexShard, bigArrays, null, timeout, null);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));

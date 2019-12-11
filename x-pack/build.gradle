@@ -4,6 +4,22 @@ import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 Project xpackRootProject = project
 
 subprojects {
+
+  // We define a specific repository for opensaml since the shibboleth project doesn't publish to maven central and the
+  // artifacts that are located there are not curated/updated by the project
+  // see: https://wiki.shibboleth.net/confluence/display/DEV/Use+of+Maven+Central
+  repositories {
+    maven {
+      name "opensaml"
+      url "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
+      content {
+        includeGroup "org.opensaml"
+        includeGroup "net.shibboleth.utilities"
+        includeGroup "net.shibboleth"
+      }
+    }
+  }
+
   group = 'org.elasticsearch.plugin'
   ext.xpackRootProject = xpackRootProject
   ext.xpackProject = { String projectName -> xpackRootProject.project(projectName) }
@@ -14,10 +30,10 @@ subprojects {
     project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
     project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
-  
+
   tasks.withType(LicenseHeadersTask.class) {
-      approvedLicenses = ['Elastic License', 'Generated']
-      additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
+    approvedLicenses = ['Elastic License', 'Generated']
+    additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
   }
 
   ext.licenseName = 'Elastic License'
@@ -25,19 +41,4 @@ subprojects {
 
   project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
   project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
-}
-
-subprojects {
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ccr:${version}": xpackModule('ccr')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": xpackModule('graph')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ilm:${version}": xpackModule('ilm')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-logstash:${version}": xpackModule('logstash')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": xpackModule('ml')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": xpackModule('monitoring')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": xpackModule('security')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-sql:${version}": xpackModule('sql')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": xpackModule('upgrade')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": xpackModule('watcher')]
 }

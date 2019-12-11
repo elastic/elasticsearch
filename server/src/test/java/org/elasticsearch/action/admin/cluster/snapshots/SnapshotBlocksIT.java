@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -58,11 +57,11 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
         docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(OTHER_INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(OTHER_INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
 
         logger.info("--> register a repository");
@@ -114,11 +113,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is blocked when an index is blocked for reads");
         try {
             enableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
-            assertBlocked(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
-                .setIndices(COMMON_INDEX_NAME_MASK), IndexMetaData.INDEX_READ_BLOCK);
-            logger.info("-->  creating a snapshot is not blocked when an read-blocked index is not part of the snapshot");
             assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
-                .setIndices(OTHER_INDEX_NAME).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
+                .setIndices(COMMON_INDEX_NAME_MASK).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
         } finally {
             disableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
         }
@@ -136,7 +132,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
     public void testRestoreSnapshotWithBlocks() {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
-        assertFalse(client().admin().indices().prepareExists(INDEX_NAME, OTHER_INDEX_NAME).get().isExists());
+        assertFalse(indexExists(INDEX_NAME));
+        assertFalse(indexExists(OTHER_INDEX_NAME));
 
         logger.info("-->  restoring a snapshot is blocked when the cluster is read only");
         try {
@@ -152,8 +149,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
                 .setWaitForCompletion(true)
                 .execute().actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertTrue(client().admin().indices().prepareExists(INDEX_NAME).get().isExists());
-        assertTrue(client().admin().indices().prepareExists(OTHER_INDEX_NAME).get().isExists());
+        assertTrue(indexExists(INDEX_NAME));
+        assertTrue(indexExists(OTHER_INDEX_NAME));
     }
 
     public void testGetSnapshotWithBlocks() {
@@ -161,8 +158,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
             GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots(REPOSITORY_NAME).execute().actionGet();
-            assertThat(response.getSnapshots(), hasSize(1));
-            assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
+            assertThat(response.getSnapshots(REPOSITORY_NAME), hasSize(1));
+            assertThat(response.getSnapshots(REPOSITORY_NAME).get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
         } finally {
             setClusterReadOnly(false);
         }

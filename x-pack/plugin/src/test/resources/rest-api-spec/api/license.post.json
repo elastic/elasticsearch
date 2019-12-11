@@ -1,0 +1,28 @@
+{
+  "license.post":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/update-license.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license",
+          "methods":[
+            "PUT",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "acknowledge":{
+        "type":"boolean",
+        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      }
+    },
+    "body":{
+      "description":"licenses to be installed"
+    }
+  }
+}

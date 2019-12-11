@@ -6,14 +6,24 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import java.time.Duration;
+import java.time.OffsetTime;
 import java.time.Period;
-import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
+
+import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
 
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
  * widen to double or float or long or int in this order.
  */
-public abstract class Arithmetics {
+public final class Arithmetics {
+
+    private Arithmetics() {}
+
+    private enum IntervalOperation {
+        ADD,
+        SUB
+    }
 
     static Number add(Number l, Number r) {
         if (l == null || r == null) {
@@ -33,20 +43,12 @@ public abstract class Arithmetics {
         return Integer.valueOf(Math.addExact(l.intValue(), r.intValue()));
     }
 
-    static ZonedDateTime add(ZonedDateTime l, Period r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.plus(r);
+    static Temporal add(Temporal l, Period r) {
+        return periodArithmetics(l, r, IntervalOperation.ADD);
     }
 
-    static ZonedDateTime add(ZonedDateTime l, Duration r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.plus(r);
+    static Temporal add(Temporal l, Duration r) {
+        return durationArithmetics(l, r, IntervalOperation.ADD);
     }
 
     static Number sub(Number l, Number r) {
@@ -67,20 +69,12 @@ public abstract class Arithmetics {
         return Integer.valueOf(Math.subtractExact(l.intValue(), r.intValue()));
     }
 
-    static ZonedDateTime sub(ZonedDateTime l, Period r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.minus(r);
+    static Temporal sub(Temporal l, Period r) {
+        return periodArithmetics(l, r, IntervalOperation.SUB);
     }
 
-    static ZonedDateTime sub(ZonedDateTime l, Duration r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.minus(r);
+    static Temporal sub(Temporal l, Duration r) {
+        return durationArithmetics(l, r, IntervalOperation.SUB);
     }
 
     static Number mul(Number l, Number r) {
@@ -161,5 +155,37 @@ public abstract class Arithmetics {
         }
 
         return Integer.valueOf(Math.negateExact(n.intValue()));
+    }
+
+    private static Temporal periodArithmetics(Temporal l, Period r, IntervalOperation operation) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        if (l instanceof OffsetTime) {
+            return l;
+        }
+
+        if (operation == IntervalOperation.ADD) {
+            return l.plus(r);
+        } else {
+            return l.minus(r);
+        }
+    }
+
+    private static Temporal durationArithmetics(Temporal l, Duration r, IntervalOperation operation) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        if (l instanceof OffsetTime) {
+            r = Duration.ofMillis(r.toMillis() % DAY_IN_MILLIS);
+        }
+
+        if (operation == IntervalOperation.ADD) {
+            return l.plus(r);
+        } else {
+            return l.minus(r);
+        }
     }
 }

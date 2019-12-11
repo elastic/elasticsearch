@@ -89,21 +89,21 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     public void testRemoveGivenNoJobs() throws IOException {
         SearchResponse response = createSearchResponse(Collections.emptyList());
 
+        @SuppressWarnings("unchecked")
         ActionFuture<SearchResponse> future = mock(ActionFuture.class);
         when(future.actionGet()).thenReturn(response);
         when(client.search(any())).thenReturn(future);
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client);
-        remover.remove(listener);
+        remover.remove(listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
-        assertEquals(remover.getRetentionDaysCallCount, 0);
+        assertEquals(0, remover.getRetentionDaysCallCount);
     }
 
-
-    public void testRemoveGivenMulipleBatches() throws IOException {
+    public void testRemoveGivenMultipleBatches() throws IOException {
         // This is testing AbstractExpiredJobDataRemover.WrappedBatchedJobsIterator
         int totalHits = 7;
         List<SearchResponse> responses = new ArrayList<>();
@@ -126,18 +126,45 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         AtomicInteger searchCount = new AtomicInteger(0);
 
+        @SuppressWarnings("unchecked")
         ActionFuture<SearchResponse> future = mock(ActionFuture.class);
         doAnswer(invocationOnMock -> responses.get(searchCount.getAndIncrement())).when(future).actionGet();
         when(client.search(any())).thenReturn(future);
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client);
-        remover.remove(listener);
+        remover.remove(listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
-        assertEquals(searchCount.get(), 3);
-        assertEquals(remover.getRetentionDaysCallCount, 7);
+        assertEquals(3, searchCount.get());
+        assertEquals(7, remover.getRetentionDaysCallCount);
+    }
+
+    public void testRemoveGivenTimeOut() throws IOException {
+
+        int totalHits = 3;
+        SearchResponse response = createSearchResponse(Arrays.asList(
+                JobTests.buildJobBuilder("job1").build(),
+                JobTests.buildJobBuilder("job2").build(),
+                JobTests.buildJobBuilder("job3").build()
+            ), totalHits);
+
+        final int timeoutAfter = randomIntBetween(0, totalHits - 1);
+        AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<SearchResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        when(client.search(any())).thenReturn(future);
+
+        TestListener listener = new TestListener();
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client);
+        remover.remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+
+        listener.waitToCompletion();
+        assertThat(listener.success, is(false));
+        assertEquals(timeoutAfter, remover.getRetentionDaysCallCount);
     }
 
     static class TestListener implements ActionListener<Boolean> {
@@ -156,7 +183,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             latch.countDown();
         }
 
-        public void waitToCompletion() {
+        void waitToCompletion() {
             try {
                 latch.await(3, TimeUnit.SECONDS);
             } catch (InterruptedException e) {

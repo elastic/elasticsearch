@@ -37,6 +37,12 @@ public interface HttpRequest {
         HTTP_1_1
     }
 
+    /**
+     * Returns the HTTP method used in the HTTP request.
+     *
+     * @return the {@link RestRequest.Method} used in the REST request
+     * @throws IllegalArgumentException if the HTTP method is invalid
+     */
     RestRequest.Method method();
 
     /**
@@ -62,4 +68,16 @@ public interface HttpRequest {
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
 
+    /**
+     * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}
+     * after this method has been invoked is undefined and implementation specific.
+     */
+    void release();
+
+    /**
+     * If this instances uses any pooled resources, creates a copy of this instance that does not use any pooled resources and releases
+     * any resources associated with this instance. If the instance does not use any shared resources, returns itself.
+     * @return a safe unpooled http request
+     */
+    HttpRequest releaseAndCopy();
 }

@@ -1,0 +1,30 @@
+--
+:api: stop-data-frame-analytics
+:request: StopDataFrameAnalyticsRequest
+:response: StopDataFrameAnalyticsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Stop {dfanalytics-jobs} API
+
+Stops a running {dfanalytics-job}.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Stop {dfanalytics-jobs} request
+
+A +{request}+ object requires a {dfanalytics-job} ID.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new stop request referencing an existing {dfanalytics-job}
+<2> Optionally used to stop a failed task
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ object acknowledges the {dfanalytics-job} has stopped.

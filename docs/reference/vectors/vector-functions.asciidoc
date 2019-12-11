@@ -1,0 +1,197 @@
+[role="xpack"]
+[testenv="basic"]
+[[vector-functions]]
+===== Functions for vector fields
+
+NOTE: During vector functions' calculation, all matched documents are
+linearly scanned. Thus, expect the query time grow linearly
+with the number of matched documents. For this reason, we recommend
+to limit the number of matched documents with a `query` parameter.
+
+Let's create an index with a `dense_vector` mapping and index a couple
+of documents into it.
+
+[source,console]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_dense_vector": {
+        "type": "dense_vector",
+        "dims": 3
+      },
+      "status" : {
+        "type" : "keyword"
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{
+  "my_dense_vector": [0.5, 10, 6],
+  "status" : "published"
+}
+
+PUT my_index/_doc/2
+{
+  "my_dense_vector": [-0.5, 10, 10],
+  "status" : "published"
+}
+
+POST my_index/_refresh
+
+--------------------------------------------------
+// TESTSETUP
+
+The `cosineSimilarity` function calculates the measure of
+cosine similarity between a given query vector and document vectors.
+
+[source,console]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published" <1>
+            }
+          }
+        }
+      },
+      "script": {
+        "source": "cosineSimilarity(params.query_vector, 'my_dense_vector') + 1.0", <2>
+        "params": {
+          "query_vector": [4, 3.4, -0.2]  <3>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> To restrict the number of documents on which script score calculation is applied, provide a filter.
+<2> The script adds 1.0 to the cosine similarity to prevent the score from being negative.
+<3> To take advantage of the script optimizations, provide a query vector as a script parameter.
+
+NOTE: If a document's dense vector field has a number of dimensions
+different from the query's vector, an error will be thrown.
+
+The `dotProduct` function calculates the measure of
+dot product between a given query vector and document vectors.
+
+[source,console]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published"
+            }
+          }
+        }
+      },
+      "script": {
+        "source": """
+          double value = dotProduct(params.query_vector, 'my_dense_vector');
+          return sigmoid(1, Math.E, -value); <1>
+        """,
+        "params": {
+          "query_vector": [4, 3.4, -0.2]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> Using the standard sigmoid function prevents scores from being negative.
+
+The `l1norm` function calculates L^1^ distance
+(Manhattan distance) between a given query vector and
+document vectors.
+
+[source,console]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published"
+            }
+          }
+        }
+      },
+      "script": {
+        "source": "1 / (1 + l1norm(params.queryVector, 'my_dense_vector'))", <1>
+        "params": {
+          "queryVector": [4, 3.4, -0.2]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> Unlike `cosineSimilarity` that represent similarity, `l1norm` and
+`l2norm` shown below represent distances or differences. This means, that
+the more similar the vectors are, the lower the scores will be that are
+produced by the `l1norm` and `l2norm` functions.
+Thus, as we need more similar vectors to score higher,
+we reversed the output from `l1norm` and `l2norm`. Also, to avoid
+division by 0 when a document vector matches the query exactly,
+we added `1` in the denominator.
+
+The `l2norm` function calculates L^2^ distance
+(Euclidean distance) between a given query vector and
+document vectors.
+
+[source,console]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published"
+            }
+          }
+        }
+      },
+      "script": {
+        "source": "1 / (1 + l2norm(params.queryVector, 'my_dense_vector'))",
+        "params": {
+          "queryVector": [4, 3.4, -0.2]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+NOTE: If a document doesn't have a value for a vector field on which
+a vector function is executed, an error will be thrown.
+
+You can check if a document has a value for the field `my_vector` by
+`doc['my_vector'].size() == 0`. Your overall script can look like this:
+
+[source,js]
+--------------------------------------------------
+"source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, 'my_vector')"
+--------------------------------------------------
+// NOTCONSOLE

@@ -127,7 +127,6 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         public final String[] fieldContent;
         public String index = "test";
         public String alias = "alias";
-        public String type = "type1";
 
         public TestDoc(String id, TestFieldSetting[] fieldSettings, String[] fieldContent) {
             this.id = id;
@@ -149,7 +148,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         @Override
         public String toString() {
 
-            StringBuilder sb = new StringBuilder("index:").append(index).append(" type:").append(type).append(" id:").append(id);
+            StringBuilder sb = new StringBuilder("index:").append(index).append(" id:").append(id);
             for (int i = 0; i < fieldSettings.length; i++) {
                 TestFieldSetting f = fieldSettings[i];
                 sb.append("\n").append("Field: ").append(f).append("\n  content:").append(fieldContent[i]);
@@ -236,7 +235,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             }
             final String id = routingKeyForShard(index, i);
             TestDoc doc = new TestDoc(id, fieldSettings, contentArray.clone());
-            index(doc.index, doc.type, doc.id, docSource);
+            index(doc.index, doc.id, docSource);
             testDocs[i] = doc;
         }
 
@@ -403,7 +402,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected TermVectorsRequestBuilder getRequestForConfig(TestConfig config) {
-        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id)
+        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.id)
             .setPayloads(config.requestPayloads)
             .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
             .setSelectedFields(config.selectedFields).setRealtime(false);

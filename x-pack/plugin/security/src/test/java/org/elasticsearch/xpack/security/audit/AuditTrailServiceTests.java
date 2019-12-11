@@ -13,15 +13,18 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -147,13 +150,14 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAccessGranted() throws Exception {
         Authentication authentication =new Authentication(new User("_username", "r1"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
-        String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
+        AuthorizationInfo authzInfo =
+            () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { randomAlphaOfLengthBetween(1, 6) });
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.accessGranted(requestId, authentication, "_action", message, roles);
+        service.accessGranted(requestId, authentication, "_action", message, authzInfo);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessGranted(requestId, authentication, "_action", message, roles);
+                verify(auditTrail).accessGranted(requestId, authentication, "_action", message, authzInfo);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -163,13 +167,14 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAccessDenied() throws Exception {
         Authentication authentication = new Authentication(new User("_username", "r1"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
-        String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
+        AuthorizationInfo authzInfo =
+            () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { randomAlphaOfLengthBetween(1, 6) });
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.accessDenied(requestId, authentication, "_action", message, roles);
+        service.accessDenied(requestId, authentication, "_action", message, authzInfo);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessDenied(requestId, authentication, "_action", message, roles);
+                verify(auditTrail).accessDenied(requestId, authentication, "_action", message, authzInfo);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

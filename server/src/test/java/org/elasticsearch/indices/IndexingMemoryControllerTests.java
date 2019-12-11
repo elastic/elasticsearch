@@ -18,17 +18,18 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardIT;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -363,7 +364,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 100; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index", "type", id).setSource("field", "value").get();
+            client().prepareIndex("index").setId(id).setSource("field", "value").get();
         }
 
         // Force merge so we know all merges are done before we start deleting:
@@ -399,7 +400,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 100; i++) {
             String id = Integer.toString(i);
-            client().prepareDelete("index", "type", id).get();
+            client().prepareDelete("index", id).get();
         }
 
         final long indexingBufferBytes1 = shard.getIndexBufferRAMBytesUsed();
@@ -423,10 +424,10 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i)).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         }
 
-        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
@@ -450,7 +451,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
 
             assertEquals(1, imc.availableShards().size());
-            assertTrue(newShard.recoverFromStore());
+            assertTrue(IndexShardTestCase.recoverFromStore(newShard));
             assertTrue("we should have flushed in IMC at least once but did: " + flushes.get(), flushes.get() >= 1);
             IndexShardTestCase.updateRoutingEntry(newShard, routing.moveToStarted());
         } finally {

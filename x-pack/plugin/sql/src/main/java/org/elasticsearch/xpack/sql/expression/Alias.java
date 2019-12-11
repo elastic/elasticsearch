@@ -5,14 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
 
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -44,11 +40,11 @@ public class Alias extends NamedExpression {
         this(source, name, qualifier, child, null);
     }
 
-    public Alias(Source source, String name, String qualifier, Expression child, ExpressionId id) {
+    public Alias(Source source, String name, String qualifier, Expression child, NameId id) {
         this(source, name, qualifier, child, id, false);
     }
 
-    public Alias(Source source, String name, String qualifier, Expression child, ExpressionId id, boolean synthetic) {
+    public Alias(Source source, String name, String qualifier, Expression child, NameId id, boolean synthetic) {
         super(source, name, singletonList(child), id, synthetic);
         this.child = child;
         this.qualifier = qualifier;
@@ -75,6 +71,10 @@ public class Alias extends NamedExpression {
         return qualifier;
     }
 
+    public String qualifiedName() {
+        return qualifier == null ? name() : qualifier + "." + name();
+    }
+
     @Override
     public Nullability nullable() {
         return child.nullable();
@@ -88,33 +88,11 @@ public class Alias extends NamedExpression {
     @Override
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
-            lazyAttribute = createAttribute();
+            lazyAttribute = resolved() == true ?
+                new ReferenceAttribute(source(), name(), dataType(), qualifier, nullable(), id(), synthetic()) :
+                new UnresolvedAttribute(source(), name(), qualifier);
         }
         return lazyAttribute;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new SqlIllegalArgumentException("Encountered a bug; an alias should never be scripted");
-    }
-
-    private Attribute createAttribute() {
-        if (resolved()) {
-            Expression c = child();
-
-            Attribute attr = Expressions.attribute(c);
-            if (attr != null) {
-                return attr.clone(source(), name(), qualifier, child.nullable(), id(), synthetic());
-            }
-            else {
-                // TODO: WE need to fix this fake Field
-                return new FieldAttribute(source(), null, name(),
-                        new EsField(name(), child.dataType(), Collections.emptyMap(), true),
-                        qualifier, child.nullable(), id(), synthetic());
-            }
-        }
-
-        return new UnresolvedAttribute(source(), name(), qualifier);
     }
 
     @Override

@@ -12,6 +12,7 @@
           query:
             match_all: {}
 
+  - is_false: num_reduce_phases
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
@@ -28,6 +29,7 @@
         rest_total_hits_as_int: true
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
 
+  - is_false: num_reduce_phases
   - is_false: _clusters
   - match: {hits.total:      6    }
   - length: {hits.hits:      2    }

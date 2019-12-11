@@ -39,7 +39,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     private boolean tokenizeOnSymbol = false;
 
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings);
+        super(indexSettings, settings, name);
 
         for (final String c : settings.getAsList("tokenize_on_chars")) {
             if (c == null || c.length() == 0) {

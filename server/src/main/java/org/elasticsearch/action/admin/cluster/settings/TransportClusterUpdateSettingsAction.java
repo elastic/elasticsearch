@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -36,12 +38,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 public class TransportClusterUpdateSettingsAction extends
     TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportClusterUpdateSettingsAction.class);
 
     private final AllocationService allocationService;
 
@@ -52,7 +60,7 @@ public class TransportClusterUpdateSettingsAction extends
                                                 ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
         super(ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
+            ClusterUpdateSettingsRequest::new, indexNameExpressionResolver);
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
     }
@@ -78,14 +86,13 @@ public class TransportClusterUpdateSettingsAction extends
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-
     @Override
-    protected ClusterUpdateSettingsResponse newResponse() {
-        return new ClusterUpdateSettingsResponse();
+    protected ClusterUpdateSettingsResponse read(StreamInput in) throws IOException {
+        return new ClusterUpdateSettingsResponse(in);
     }
 
     @Override
-    protected void masterOperation(final ClusterUpdateSettingsRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final ClusterUpdateSettingsRequest request, final ClusterState state,
                                    final ActionListener<ClusterUpdateSettingsResponse> listener) {
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         clusterService.submitStateUpdateTask("cluster_update_settings",

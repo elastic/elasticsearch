@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cli.CommandLoggingConfigurator;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.env.NodeRepurposeCommand;
+import org.elasticsearch.env.OverrideNodeVersionCommand;
 
 // NodeToolCli does not extend LoggingAwareCommand, because LoggingAwareCommand performs logging initialization
 // after LoggingAwareCommand instance is constructed.
@@ -32,9 +34,13 @@ import org.elasticsearch.cli.Terminal;
 public class NodeToolCli extends MultiCommand {
 
     public NodeToolCli() {
-        super("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes", ()->{});
+        super("A CLI tool to do unsafe cluster and index manipulations on current node",
+            ()->{});
         CommandLoggingConfigurator.configureLoggingWithoutConfig();
+        subcommands.put("repurpose", new NodeRepurposeCommand());
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
+        subcommands.put("detach-cluster", new DetachClusterCommand());
+        subcommands.put("override-version", new OverrideNodeVersionCommand());
     }
 
     public static void main(String[] args) throws Exception {

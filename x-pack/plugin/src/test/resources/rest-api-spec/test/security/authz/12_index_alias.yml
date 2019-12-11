@@ -37,10 +37,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -51,10 +50,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -65,10 +63,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.put_alias:
@@ -132,7 +129,6 @@ teardown:
       create:
         id: 1
         index: can_write_1
-        type: doc
         body: >
           {
             "name" : "doc1"
@@ -143,7 +139,6 @@ teardown:
       create:
         id: 2
         index: can_write_2
-        type: doc
         body: >
           {
             "name" : "doc2"
@@ -154,9 +149,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_write_1", "_type": "doc", "_id": "3"}}'
+            - '{"index": {"_index": "can_write_1", "_id": "3"}}'
             - '{"name": "doc3"}'
-            - '{"index": {"_index": "can_write_1", "_type": "doc", "_id": "4"}}'
+            - '{"index": {"_index": "can_write_1", "_id": "4"}}'
             - '{"name": "doc4"}'
 
   - do:
@@ -164,9 +159,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_write_1", "_type": "doc", "_id": "5"}}'
+            - '{"index": {"_index": "can_write_1", "_id": "5"}}'
             - '{"name": "doc5"}'
-            - '{"index": {"_index": "can_write_2", "_type": "doc", "_id": "6"}}'
+            - '{"index": {"_index": "can_write_2", "_id": "6"}}'
             - '{"name": "doc6"}'
 
   - do:
@@ -174,11 +169,11 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_write_1", "_type": "doc", "_id": "7"}}'
+            - '{"index": {"_index": "can_write_1", "_id": "7"}}'
             - '{"name": "doc7"}'
-            - '{"index": {"_index": "can_write_2", "_type": "doc", "_id": "8"}}'
+            - '{"index": {"_index": "can_write_2", "_id": "8"}}'
             - '{"name": "doc8"}'
-            - '{"index": {"_index": "can_write_3", "_type": "doc", "_id": "9"}}'
+            - '{"index": {"_index": "can_write_3", "_id": "9"}}'
             - '{"name": "doc9"}'
 
   - do: # superuser
@@ -202,7 +197,6 @@ teardown:
         refresh: true
         id: 7
         index: can_read_1
-        type: doc
         body: >
           {
             "name" : "doc7"
@@ -215,7 +209,6 @@ teardown:
         refresh: true
         id: 8
         index: can_read_2
-        type: doc
         body: >
           {
             "name" : "doc8"
@@ -226,9 +219,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_read_1", "_type": "doc", "_id": "9"}}'
+            - '{"index": {"_index": "can_read_1", "_id": "9"}}'
             - '{"name": "doc9"}'
-            - '{"index": {"_index": "can_read_1", "_type": "doc", "_id": "10"}}'
+            - '{"index": {"_index": "can_read_1", "_id": "10"}}'
             - '{"name": "doc10"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -241,9 +234,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_read_1", "_type": "doc", "_id": "11"}}'
+            - '{"index": {"_index": "can_read_1", "_id": "11"}}'
             - '{"name": "doc11"}'
-            - '{"index": {"_index": "can_read_2", "_type": "doc", "_id": "12"}}'
+            - '{"index": {"_index": "can_read_2", "_id": "12"}}'
             - '{"name": "doc12"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -264,9 +257,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_read_1", "_type": "doc", "_id": "13"}}'
+            - '{"index": {"_index": "can_read_1", "_id": "13"}}'
             - '{"name": "doc13"}'
-            - '{"index": {"_index": "can_write_1", "_type": "doc", "_id": "14"}}'
+            - '{"index": {"_index": "can_write_1", "_id": "14"}}'
             - '{"name": "doc14"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -285,15 +278,15 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_read_1", "_type": "doc", "_id": "15"}}'
+            - '{"index": {"_index": "can_read_1", "_id": "15"}}'
             - '{"name": "doc15"}'
-            - '{"index": {"_index": "can_write_1", "_type": "doc", "_id": "16"}}'
+            - '{"index": {"_index": "can_write_1", "_id": "16"}}'
             - '{"name": "doc16"}'
-            - '{"index": {"_index": "can_read_2", "_type": "doc", "_id": "17"}}'
+            - '{"index": {"_index": "can_read_2", "_id": "17"}}'
             - '{"name": "doc17"}'
-            - '{"index": {"_index": "can_write_2", "_type": "doc", "_id": "18"}}'
+            - '{"index": {"_index": "can_write_2", "_id": "18"}}'
             - '{"name": "doc18"}'
-            - '{"index": {"_index": "can_write_3", "_type": "doc", "_id": "19"}}'
+            - '{"index": {"_index": "can_write_3", "_id": "19"}}'
             - '{"name": "doc19"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -345,19 +338,19 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "can_read_1", "_type": "doc", "_id": "20"}}'
+            - '{"index": {"_index": "can_read_1", "_id": "20"}}'
             - '{"name": "doc20"}'
-            - '{"index": {"_index": "can_write_1", "_type": "doc", "_id": "21"}}'
+            - '{"index": {"_index": "can_write_1", "_id": "21"}}'
             - '{"name": "doc21"}'
-            - '{"index": {"_index": "can_read_2", "_type": "doc", "_id": "22"}}'
+            - '{"index": {"_index": "can_read_2", "_id": "22"}}'
             - '{"name": "doc22"}'
-            - '{"index": {"_index": "can_write_2", "_type": "doc", "_id": "23"}}'
+            - '{"index": {"_index": "can_write_2", "_id": "23"}}'
             - '{"name": "doc23"}'
-            - '{"index": {"_index": "can_write_3", "_type": "doc", "_id": "24"}}'
+            - '{"index": {"_index": "can_write_3", "_id": "24"}}'
             - '{"name": "doc24"}'
-            - '{"update": {"_index": "can_write_3", "_type": "doc", "_id": "24"}}'
+            - '{"update": {"_index": "can_write_3", "_id": "24"}}'
             - '{"doc": { "name": "doc_24"}}'
-            - '{"delete": {"_index": "can_write_3", "_type": "doc", "_id": "24"}}'
+            - '{"delete": {"_index": "can_write_3", "_id": "24"}}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
   - match: { items.0.index.error.type: "security_exception" }

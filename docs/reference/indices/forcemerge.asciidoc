@@ -1,71 +1,172 @@
 [[indices-forcemerge]]
-== Force Merge
+=== Force merge API
+++++
+<titleabbrev>Force merge</titleabbrev>
+++++
 
-The force merge API allows to force merging of one or more indices through an
-API. The merge relates to the number of segments a Lucene index holds within
-each shard. The force merge operation allows to reduce the number of segments by
-merging them.
+Forces a <<index-modules-merge,merge>> on the shards of one or more indices.
 
-This call will block until the merge is complete. If the http connection is
-lost, the request will continue in the background, and any new requests will
-block until the previous force merge is complete.
-
-WARNING: Force merge should only be called against *read-only indices*. Running 
-force merge against a read-write index can cause very large segments to be produced 
-(>5Gb per segment), and the merge policy will never consider it for merging again until 
-it mostly consists of deleted docs. This can cause very large segments to remain in the shards.
-
-[source,js]
---------------------------------------------------
+[source,console]
+----
 POST /twitter/_forcemerge
---------------------------------------------------
-// CONSOLE
+----
 // TEST[setup:twitter]
 
-[float]
-[[forcemerge-parameters]]
-=== Request Parameters
 
-The force merge API accepts the following request parameters:
+[[forcemerge-api-request]]
+==== {api-request-title}
 
-[horizontal]
-`max_num_segments`:: The number of segments to merge to. To fully
-merge the index, set it to `1`. Defaults to simply checking if a
-merge needs to execute, and if so, executes it.
+`POST /<index>/_forcemerge`
 
-`only_expunge_deletes`:: Should the merge process only expunge segments with
-deletes in it. In Lucene, a document is not deleted from a segment, just marked
-as deleted. During a merge process of segments, a new segment is created that
-does not have those deletes. This flag allows to only merge segments that have
-deletes. Defaults to `false`.  Note that this won't override the
-`index.merge.policy.expunge_deletes_allowed` threshold.
+`POST /_forcemerge`
 
-`flush`::  Should a flush be performed after the forced merge. Defaults to
-`true`.
 
-[source,js]
---------------------------------------------------
-POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=true
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT kimchy\n/]
+[[forcemerge-api-desc]]
+==== {api-description-title}
 
-[float]
+Use the force merge API to force a <<index-modules-merge,merge>> on the
+shards of one or more indices. Merging reduces the number of segments in each
+shard by merging some of them together, and also frees up the space used by
+deleted documents. Merging normally happens automatically, but sometimes it is
+useful to trigger a merge manually.
+
+WARNING: **Force merge should only be called against an index after you have
+finished writing to it.** Force merge can cause very large (>5GB) segments to
+be produced, and if you continue to write to such an index then the automatic
+merge policy will never consider these segments for future merges until they
+mostly consist of deleted documents. This can cause very large segments to
+remain in the index which can result in increased disk usage and worse search
+performance.
+
+
+[[forcemerge-blocks]]
+===== Blocks during a force merge
+
+Calls to this API block until the merge is complete. If the client connection
+is lost before completion then the force merge process will continue in the
+background. Any new requests to force merge the same indices will also block
+until the ongoing force merge is complete.
+
+
 [[forcemerge-multi-index]]
-=== Multi Index
+===== Force merging multiple indices
 
 The force merge API can be applied to more than one index with a single call, or
 even on `_all` the indices. Multi index operations are executed one shard at a
 time per node. Force merge makes the storage for the shard being merged
-temporarily increase, up to double its size in case `max_num_segments` is set
-to `1`, as all segments need to be rewritten into a new one.
+temporarily increase, up to double its size in case `max_num_segments` parameter
+is set to `1`, as all segments need to be rewritten into a new one.
 
 
-[source,js]
---------------------------------------------------
+[[forcemerge-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
++
+To force merge all indices in the cluster,
+omit this parameter
+or use a value of `_all` or `*`.
+
+
+[[forcemerge-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`flush`::
+(Optional, boolean)
+If `true`,
+{es} performs a <<indices-flush,flush>> on the indices
+after the force merge.
+Defaults to `true`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`max_num_segments`::
++
+--
+(Optional, integer)
+The number of segments to merge to.
+To fully merge the index,
+set it to `1`.
+
+Defaults to checking if a merge needs to execute.
+If so, executes it.
+--
+
+`only_expunge_deletes`::
++
+--
+(Optional, boolean)
+If `true`,
+only expunge segments containing document deletions.
+Defaults to `false`.
+
+In Lucene,
+a document is not deleted from a segment;
+just marked as deleted.
+During a merge,
+a new segment is created
+that does not contain those document deletions.
+
+NOTE: This parameter does *not* override the
+`index.merge.policy.expunge_deletes_allowed` setting.
+--
+
+
+[[forcemerge-api-example]]
+==== {api-examples-title}
+
+
+[[forcemerge-api-specific-ex]]
+===== Force merge a specific index
+
+[source,console]
+----
+POST /twitter/_forcemerge
+----
+// TEST[continued]
+
+
+[[forcemerge-api-multiple-ex]]
+===== Force merge several indices
+
+[source,console]
+----
 POST /kimchy,elasticsearch/_forcemerge
-
-POST /_forcemerge
---------------------------------------------------
-// CONSOLE
+----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+
+
+[[forcemerge-api-all-ex]]
+===== Force merge all indices
+
+[source,console]
+----
+POST /_forcemerge
+----
+
+
+[[forcemerge-api-time-based-index-ex]]
+===== Time-based indices
+
+Force-merging is useful for time-based indices,
+particularly when using <<indices-rollover-index,rollover>>.
+In these cases,
+each index only receives indexing traffic for a certain period of time.
+Once an index receive no more writes,
+its shards can be force-merged to a single segment.
+
+[source,console]
+--------------------------------------------------
+POST /logs-000001/_forcemerge?max_num_segments=1
+--------------------------------------------------
+// TEST[setup:twitter]
+// TEST[s/logs-000001/twitter/]
+
+This can be a good idea because single-segment shards can sometimes use simpler
+and more efficient data structures to perform searches.

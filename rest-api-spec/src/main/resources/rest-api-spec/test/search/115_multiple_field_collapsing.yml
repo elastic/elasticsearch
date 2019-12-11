@@ -1,8 +1,6 @@
 ---
 "two levels fields collapsing":
-    - skip:
-        version: " - 6.99.99"
-        reason: using multiple field collapsing from 7.0 on
+
     - do:
         indices.create:
           index: addresses
@@ -11,31 +9,30 @@
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  country: {"type": "keyword"}
-                  city: {"type": "keyword"}
-                  address: {"type": "text"}
+              properties:
+                country: {"type": "keyword"}
+                city: {"type": "keyword"}
+                address: {"type": "text"}
 
     - do:
         bulk:
           refresh: true
           body:
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "1" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "1" } }'
             - '{"country" : "Canada", "city" : "Saskatoon", "address" : "701 Victoria Avenue" }'
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "2" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "2" } }'
             - '{"country" : "Canada", "city" : "Toronto", "address" : "74 Victoria Street, Suite, 74 Victoria Street, Suite 300" }'
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "3" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "3" } }'
             - '{"country" : "Canada", "city" : "Toronto", "address" : "350 Victoria St" }'
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "4" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "4" } }'
             - '{"country" : "Canada", "city" : "Toronto", "address" : "20 Victoria Street" }'
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "5" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "5" } }'
             - '{"country" : "UK", "city" : "London", "address" : "58 Victoria Street" }'
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "6" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "6" } }'
             - '{"country" : "UK", "city" : "London", "address" : "Victoria Street Victoria Palace Theatre" }'
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "7" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "7" } }'
             - '{"country" : "UK", "city" : "Manchester", "address" : "75 Victoria street Westminster" }'
-            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "8" } }'
+            - '{ "index" : { "_index" : "addresses", "_id" : "8" } }'
             - '{"country" : "UK", "city" : "London", "address" : "Victoria Station Victoria Arcade" }'
 
 

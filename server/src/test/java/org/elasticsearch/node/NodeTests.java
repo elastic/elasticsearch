@@ -26,17 +26,30 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -136,5 +149,143 @@ public class NodeTests extends ESTestCase {
                 .put(Node.NODE_DATA_SETTING.getKey(), true);
     }
 
+    public void testCloseOnOutstandingTask() throws Exception {
+        Node node = new MockNode(baseSettings().build(), basePlugins());
+        node.start();
+        ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
+        AtomicBoolean shouldRun = new AtomicBoolean(true);
+        final CountDownLatch threadRunning = new CountDownLatch(1);
+        threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
+            while (shouldRun.get());
+        });
+        threadRunning.await();
+        node.close();
+        shouldRun.set(false);
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
+    }
 
+    public void testCloseRaceWithTaskExecution() throws Exception {
+        Node node = new MockNode(baseSettings().build(), basePlugins());
+        node.start();
+        ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
+        AtomicBoolean shouldRun = new AtomicBoolean(true);
+        final CountDownLatch running = new CountDownLatch(3);
+        Thread submitThread = new Thread(() -> {
+            running.countDown();
+            try {
+                running.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError("interrupted while waiting", e);
+            }
+            try {
+                threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+                    while (shouldRun.get());
+                });
+            } catch (RejectedExecutionException e) {
+                assertThat(e.getMessage(), containsString("[Terminated,"));
+            }
+        });
+        Thread closeThread = new Thread(() -> {
+            running.countDown();
+            try {
+                running.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError("interrupted while waiting", e);
+            }
+            try {
+                node.close();
+            } catch (IOException e) {
+                throw new AssertionError("node close failed", e);
+            }
+        });
+        submitThread.start();
+        closeThread.start();
+        running.countDown();
+        running.await();
+
+        submitThread.join();
+        closeThread.join();
+
+        shouldRun.set(false);
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
+    }
+
+    public void testAwaitCloseTimeoutsOnNonInterruptibleTask() throws Exception {
+        Node node = new MockNode(baseSettings().build(), basePlugins());
+        node.start();
+        ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
+        AtomicBoolean shouldRun = new AtomicBoolean(true);
+        final CountDownLatch threadRunning = new CountDownLatch(1);
+        threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
+            while (shouldRun.get());
+        });
+        threadRunning.await();
+        node.close();
+        assertFalse(node.awaitClose(0, TimeUnit.MILLISECONDS));
+        shouldRun.set(false);
+        assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
+    }
+
+    public void testCloseOnInterruptibleTask() throws Exception {
+        Node node = new MockNode(baseSettings().build(), basePlugins());
+        node.start();
+        ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
+        final CountDownLatch threadRunning = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch finishLatch = new CountDownLatch(1);
+        final AtomicBoolean interrupted = new AtomicBoolean(false);
+        threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                interrupted.set(true);
+                Thread.currentThread().interrupt();
+            } finally {
+                finishLatch.countDown();
+            }
+        });
+        threadRunning.await();
+        node.close();
+        // close should not interrupt ongoing tasks
+        assertFalse(interrupted.get());
+        // but awaitClose should
+        node.awaitClose(0, TimeUnit.SECONDS);
+        finishLatch.await();
+        assertTrue(interrupted.get());
+    }
+
+    public void testCloseOnLeakedIndexReaderReference() throws Exception {
+        Node node = new MockNode(baseSettings().build(), basePlugins());
+        node.start();
+        IndicesService indicesService = node.injector().getInstance(IndicesService.class);
+        assertAcked(node.client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        IndexService indexService = indicesService.iterator().next();
+        IndexShard shard = indexService.getShard(0);
+        Searcher searcher = shard.acquireSearcher("test");
+        node.close();
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
+        searcher.close();
+        assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
+    }
+
+    public void testCloseOnLeakedStoreReference() throws Exception {
+        Node node = new MockNode(baseSettings().build(), basePlugins());
+        node.start();
+        IndicesService indicesService = node.injector().getInstance(IndicesService.class);
+        assertAcked(node.client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        IndexService indexService = indicesService.iterator().next();
+        IndexShard shard = indexService.getShard(0);
+        shard.store().incRef();
+        node.close();
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
+        shard.store().decRef();
+        assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
+    }
 }

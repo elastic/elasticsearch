@@ -27,7 +27,6 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -36,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -82,7 +82,7 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
+    public <T extends ScriptFactory> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);
@@ -271,7 +271,13 @@ public class MockScriptEngine implements ScriptEngine {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
-            MovingFunctionScript.Factory factory = mockCompiled::createMovingFunctionScript;
+            MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
+                @Override
+                public double execute(Map<String, Object> params1, double[] values) {
+                    params1.put("_values", values);
+                    return (double) script.apply(params1);
+                }
+            };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = new MockScoreScript(script);
@@ -297,6 +303,35 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(compiler.compile(script, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
+    }
+
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        // TODO(stu): make part of `compile()`
+        return Set.of(
+            FieldScript.CONTEXT,
+            TermsSetQueryScript.CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
+            IngestScript.CONTEXT,
+            AggregationScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
+            UpdateScript.CONTEXT,
+            BucketAggregationScript.CONTEXT,
+            BucketAggregationSelectorScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
+            TemplateScript.CONTEXT,
+            FilterScript.CONTEXT,
+            SimilarityScript.CONTEXT,
+            SimilarityWeightScript.CONTEXT,
+            MovingFunctionScript.CONTEXT,
+            ScoreScript.CONTEXT,
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+            IntervalFilterScript.CONTEXT
+        );
     }
 
     private Map<String, Object> createVars(Map<String, Object> params) {
@@ -333,10 +368,6 @@ public class MockScriptEngine implements ScriptEngine {
 
         public SimilarityWeightScript createSimilarityWeightScript() {
             return new MockSimilarityWeightScript(script != null ? script : ctx -> 42d);
-        }
-
-        public MovingFunctionScript createMovingFunctionScript() {
-            return new MockMovingFunctionScript();
         }
 
         public ScriptedMetricAggContexts.InitScript createMetricAggInitScript(Map<String, Object> params, Map<String, Object> state) {
@@ -544,13 +575,6 @@ public class MockScriptEngine implements ScriptEngine {
         return new Script(ScriptType.INLINE, "mock", script, emptyMap());
     }
 
-    public class MockMovingFunctionScript extends MovingFunctionScript {
-        @Override
-        public double execute(Map<String, Object> params, double[] values) {
-            return MovingFunctions.unweightedAvg(values);
-        }
-    }
-
     public class MockScoreScript implements ScoreScript.Factory {
 
         private final Function<Map<String, Object>, Object> script;
@@ -572,7 +596,7 @@ public class MockScriptEngine implements ScriptEngine {
                     Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, lookup, ctx) {
                         @Override
-                        public double execute() {
+                        public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());
                             vars.put("doc", getDoc());
                             if (scorerHolder[0] != null) {

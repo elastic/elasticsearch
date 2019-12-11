@@ -19,7 +19,9 @@ A `cumulative_sum` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[cumulative-sum-params]]
 .`cumulative_sum` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the cumulative sum for (see <<buckets-path-syntax>> for more
@@ -29,7 +31,7 @@ A `cumulative_sum` aggregation looks like this in isolation:
 
 The following snippet calculates the cumulative sum of the total monthly `sales`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -38,7 +40,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {
@@ -56,14 +58,13 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this cumulative sum aggregation to use the output of the `sales` aggregation for the cumulative sum
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

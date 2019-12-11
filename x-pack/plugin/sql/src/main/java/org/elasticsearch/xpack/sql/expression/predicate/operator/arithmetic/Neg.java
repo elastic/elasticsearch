@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
@@ -15,6 +14,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Unar
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 /**
  * Negation function (@{code -x}).
@@ -37,7 +38,7 @@ public class Neg extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

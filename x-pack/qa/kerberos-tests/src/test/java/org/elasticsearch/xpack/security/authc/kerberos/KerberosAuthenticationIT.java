@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.ietf.jgss.GSSException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,6 +41,9 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration test to demonstrate authentication against a real MIT Kerberos
@@ -103,6 +107,37 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
+    public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
+        final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
+        final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
+        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(userPrincipalName,
+                new SecureString(password.toCharArray()), enabledDebugLogs);
+        final String host = getClusterHosts().get(0).getHostName();
+        final String kerberosTicket = callbackHandler.getBase64EncodedTokenForSpnegoHeader(host);
+
+        final Request request = new Request("POST", "/_security/oauth2/token");
+        String json = "{" +
+                      "  \"grant_type\" : \"_kerberos\", " +
+                      "  \"kerberos_ticket\" : \"" + kerberosTicket  + "\"" +
+                      "}";
+        request.setJsonEntity(json);
+
+        try (RestClient client = buildClientForUser("test_kibana_user")) {
+            final Response response = client.performRequest(request);
+            assertOK(response);
+            final Map<String, Object> map = parseResponseAsMap(response.getEntity());
+            assertThat(map.get("access_token"), notNullValue());
+            assertThat(map.get("type"), is("Bearer"));
+            assertThat(map.get("refresh_token"), notNullValue());
+            final Object base64OutToken = map.get("kerberos_authentication_response_token");
+            assertThat(base64OutToken, notNullValue());
+            final String outToken = callbackHandler.handleResponse((String) base64OutToken);
+            assertThat(outToken, is(nullValue()));
+            assertThat(callbackHandler.isEstablished(), is(true));
+        }
+    }
+
     @Override
     @SuppressForbidden(reason = "SPNEGO relies on hostnames and we need to ensure host isn't a IP address")
     protected HttpHost buildHttpHost(String host, int port) {
@@ -138,6 +173,13 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         return convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
     }
 
+    private RestClient buildClientForUser(String user) throws IOException {
+        final String token = basicAuthHeaderValue(user, new SecureString("x-pack-test-password".toCharArray()));
+        Settings settings = Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        final HttpHost[] hosts = getClusterHosts().toArray(new HttpHost[getClusterHosts().size()]);
+        return buildClient(settings, hosts);
+    }
+
     private RestClient buildRestClientForKerberos(final SpnegoHttpClientConfigCallbackHandler callbackHandler) throws IOException {
         final Settings settings = restAdminSettings();
         final HttpHost[] hosts = getClusterHosts().toArray(new HttpHost[getClusterHosts().size()]);
@@ -148,13 +190,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         return restClientBuilder.build();
     }
 
-    private static void configureRestClientBuilder(final RestClientBuilder restClientBuilder, final Settings settings)
-            throws IOException {
-        final String requestTimeoutString = settings.get(CLIENT_RETRY_TIMEOUT);
-        if (requestTimeoutString != null) {
-            final TimeValue maxRetryTimeout = TimeValue.parseTimeValue(requestTimeoutString, CLIENT_RETRY_TIMEOUT);
-            restClientBuilder.setMaxRetryTimeoutMillis(Math.toIntExact(maxRetryTimeout.getMillis()));
-        }
+    private static void configureRestClientBuilder(final RestClientBuilder restClientBuilder, final Settings settings) {
         final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
         if (socketTimeoutString != null) {
             final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);

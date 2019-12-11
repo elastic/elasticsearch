@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -36,7 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -48,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Supplier;
 
 public abstract class TransportBroadcastAction<
             Request extends BroadcastRequest<Request>,
@@ -66,8 +66,8 @@ public abstract class TransportBroadcastAction<
 
     protected TransportBroadcastAction(String actionName, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                       Supplier<ShardRequest> shardRequest, String shardExecutor) {
+                                       IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
+                                       Writeable.Reader<ShardRequest> shardRequest, String shardExecutor) {
         super(actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -75,7 +75,7 @@ public abstract class TransportBroadcastAction<
         this.transportShardAction = actionName + "[s]";
         this.shardExecutor = shardExecutor;
 
-        transportService.registerRequestHandler(transportShardAction, shardRequest, ThreadPool.Names.SAME, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, shardRequest, new ShardTransportHandler());
     }
 
     @Override
@@ -87,7 +87,7 @@ public abstract class TransportBroadcastAction<
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
-    protected abstract ShardResponse newShardResponse();
+    protected abstract ShardResponse readShardResponse(StreamInput in) throws IOException;
 
     protected abstract ShardResponse shardOperation(ShardRequest request, Task task) throws IOException;
 
@@ -180,9 +180,7 @@ public abstract class TransportBroadcastAction<
                             new TransportResponseHandler<ShardResponse>() {
                                 @Override
                                 public ShardResponse read(StreamInput in) throws IOException {
-                                    ShardResponse response = newShardResponse();
-                                    response.readFrom(in);
-                                    return response;
+                                    return readShardResponse(in);
                                 }
 
                                 @Override
@@ -287,45 +285,21 @@ public abstract class TransportBroadcastAction<
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            asyncShardOperation(request, task,  new ActionListener<ShardResponse>() {
-                @Override
-                public void onResponse(ShardResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
+            asyncShardOperation(request, task,
+                ActionListener.wrap(channel::sendResponse, e -> {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception e1) {
+                            logger.warn(() -> new ParameterizedMessage(
+                                "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
+                        }
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn(() -> new ParameterizedMessage(
-                            "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
-                    }
-                }
-            });
+                ));
         }
     }
 
-    protected void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
-        transportService.getThreadPool().executor(getExecutor(request)).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            protected void doRun() throws Exception {
-                listener.onResponse(shardOperation(request, task));
-            }
-        });
+    private void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
+        transportService.getThreadPool().executor(shardExecutor)
+            .execute(ActionRunnable.supply(listener, () -> shardOperation(request, task)));
     }
-
-    protected String getExecutor(ShardRequest request) {
-        return shardExecutor;
-    }
-
 }

@@ -60,6 +60,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TruncateTranslogAction;
+import org.elasticsearch.indices.IndicesModule;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -72,6 +73,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
@@ -80,6 +84,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     private final OptionSpec<String> folderOption;
     private final OptionSpec<String> indexNameOption;
     private final OptionSpec<Integer> shardIdOption;
+    static final String TRUNCATE_CLEAN_TRANSLOG_FLAG = "truncate-clean-translog";
 
     private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
     private final TruncateTranslogAction truncateTranslogAction;
@@ -99,7 +104,12 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             .withRequiredArg()
             .ofType(Integer.class);
 
-        namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+        parser.accepts(TRUNCATE_CLEAN_TRANSLOG_FLAG, "Truncate the translog even if it is not corrupt");
+
+        namedXContentRegistry = new NamedXContentRegistry(
+                Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
+                        .flatMap(Function.identity())
+                        .collect(Collectors.toList()));
 
         removeCorruptedLuceneSegmentsAction = new RemoveCorruptedLuceneSegmentsAction();
         truncateTranslogAction = new TruncateTranslogAction(namedXContentRegistry);
@@ -126,8 +136,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
         final String indexName;
         final int shardId;
-        final int fromNodeId;
-        final int toNodeId;
 
         if (options.has(folderOption)) {
             final Path path = getPath(folderOption.value(options)).getParent();
@@ -142,77 +150,62 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardParent);
 
             final String shardIdFileName = path.getFileName().toString();
-            final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
             if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
-                && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID check
-                && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
                 indexName = indexMetaData.getIndex().getName();
-                fromNodeId = Integer.parseInt(nodeIdFileName);
-                toNodeId = fromNodeId + 1;
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
-                    + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
+                    + " ], expected .../indices/[INDEX-UUID]/[SHARD-ID]");
             }
         } else {
             // otherwise resolve shardPath based on the index name and shard id
             indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-
-            // resolve shard path in case of multi-node layout per environment
-            fromNodeId = 0;
-            toNodeId = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         }
 
-        // have to iterate over possibleLockId as NodeEnvironment; on a contrast to it - we have to fail if node is busy
-        for (int possibleLockId = fromNodeId; possibleLockId < toNodeId; possibleLockId++) {
-            try {
-                try (NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment, Files::exists)) {
-                    final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
-                    for (NodeEnvironment.NodePath nodePath : nodePaths) {
-                        if (Files.exists(nodePath.indicesPath)) {
-                            // have to scan all index uuid folders to resolve from index name
-                            try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
-                                for (Path file : stream) {
-                                    if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
-                                        continue;
-                                    }
+        try (NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
+            final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
+            for (NodeEnvironment.NodePath nodePath : nodePaths) {
+                if (Files.exists(nodePath.indicesPath)) {
+                    // have to scan all index uuid folders to resolve from index name
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
+                        for (Path file : stream) {
+                            if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                                continue;
+                            }
 
-                                    final IndexMetaData indexMetaData =
-                                        IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
-                                    if (indexMetaData == null) {
-                                        continue;
-                                    }
-                                    final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                                    final Index index = indexMetaData.getIndex();
-                                    if (indexName.equals(index.getName()) == false) {
-                                        continue;
-                                    }
-                                    final ShardId shId = new ShardId(index, shardId);
+                            final IndexMetaData indexMetaData =
+                                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
+                            if (indexMetaData == null) {
+                                continue;
+                            }
+                            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+                            final Index index = indexMetaData.getIndex();
+                            if (indexName.equals(index.getName()) == false) {
+                                continue;
+                            }
+                            final ShardId shId = new ShardId(index, shardId);
 
-                                    final Path shardPathLocation = nodePath.resolve(shId);
-                                    if (Files.exists(shardPathLocation) == false) {
-                                        continue;
-                                    }
-                                    final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
-                                        new Path[]{shardPathLocation}, possibleLockId, nodePath.path);
-                                    if (shardPath != null) {
-                                        consumer.accept(shardPath);
-                                        return;
-                                    }
-                                }
+                            final Path shardPathLocation = nodePath.resolve(shId);
+                            if (Files.exists(shardPathLocation) == false) {
+                                continue;
+                            }
+                            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
+                                new Path[]{shardPathLocation}, nodePath.path);
+                            if (shardPath != null) {
+                                consumer.accept(shardPath);
+                                return;
                             }
                         }
                     }
                 }
-            } catch (LockObtainFailedException lofe) {
-                throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
-                    + "], is Elasticsearch still running ?");
             }
+        } catch (LockObtainFailedException lofe) {
+            throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
+                + "], is Elasticsearch still running ?");
         }
-        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "] and shard id [" + shardId + "]");
     }
 
     public static boolean isCorruptMarkerFileIsPresent(final Directory directory) throws IOException {
@@ -220,7 +213,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
         final String[] files = directory.listAll();
         for (String file : files) {
-            if (file.startsWith(Store.CORRUPTED)) {
+            if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 found = true;
                 break;
             }
@@ -238,9 +231,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 terminal);
         }
         String[] files = directory.listAll();
-        boolean found = false;
         for (String file : files) {
-            if (file.startsWith(Store.CORRUPTED)) {
+            if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 directory.deleteFile(file);
 
                 terminal.println("Deleted corrupt marker " + file + " from " + path);
@@ -282,7 +274,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         findAndProcessShardPath(options, environment, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
-            final Path nodePath = getNodePath(shardPath);
             if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
                 throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }
@@ -308,7 +299,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     terminal.println("Opening Lucene index at " + indexPath);
                     terminal.println("");
                     try {
-                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(shardPath, indexDir,
+                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(indexDir,
                             writeIndexLock, printStream, verbose);
                     } catch (Exception e) {
                         terminal.println(e.getMessage());
@@ -320,8 +311,11 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     terminal.println("");
 
                     ////////// Translog
-                    // as translog relies on data stored in an index commit - we have to have non unrecoverable index to truncate translog
-                    if (indexCleanStatus.v1() != CleanStatus.UNRECOVERABLE) {
+                    if (options.has(TRUNCATE_CLEAN_TRANSLOG_FLAG)) {
+                        translogCleanStatus = Tuple.tuple(CleanStatus.OVERRIDDEN,
+                            "Translog was not analysed and will be truncated due to the --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " flag");
+                    } else if (indexCleanStatus.v1() != CleanStatus.UNRECOVERABLE) {
+                        // translog relies on data stored in an index commit so we have to have a recoverable index to check the translog
                         terminal.println("");
                         terminal.println("Opening translog at " + translogPath);
                         terminal.println("");
@@ -344,7 +338,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     final CleanStatus translogStatus = translogCleanStatus.v1();
 
                     if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
-                        throw new ElasticsearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath());
+                        throw new ElasticsearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath()
+                            + " (pass --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " to truncate the translog anyway)");
                     }
 
                     if (indexStatus == CleanStatus.UNRECOVERABLE) {
@@ -374,7 +369,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     confirm("Continue and remove corrupted data from the shard ?", terminal);
 
                     if (indexStatus != CleanStatus.CLEAN) {
-                        removeCorruptedLuceneSegmentsAction.execute(terminal, shardPath, indexDir,
+                        removeCorruptedLuceneSegmentsAction.execute(terminal, indexDir,
                             writeIndexLock, printStream, verbose);
                     }
 
@@ -392,7 +387,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
                 // newHistoryCommit obtains its own lock
                 addNewHistoryCommit(indexDir, terminal, translogStatus != CleanStatus.CLEAN);
-                newAllocationId(environment, shardPath, terminal);
+                newAllocationId(shardPath, terminal);
                 if (indexStatus != CleanStatus.CLEAN) {
                     dropCorruptMarkerFiles(terminal, indexPath, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
                 }
@@ -444,7 +439,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         }
     }
 
-    protected void newAllocationId(Environment environment, ShardPath shardPath, Terminal terminal) throws IOException {
+    private void newAllocationId(ShardPath shardPath, Terminal terminal) throws IOException {
         final Path shardStatePath = shardPath.getShardStatePath();
         final ShardStateMetaData shardStateMetaData =
             ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardStatePath);
@@ -491,10 +486,9 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 : new AllocateEmptyPrimaryAllocationCommand(index, id, nodeId, false));
 
         terminal.println("");
-        terminal.println("POST /_cluster/reroute'\n"
-            + Strings.toString(commands, true, true) + "'");
+        terminal.println("POST /_cluster/reroute\n" + Strings.toString(commands, true, true));
         terminal.println("");
-        terminal.println("You must accept the possibility of data loss by changing parameter `accept_data_loss` to `true`.");
+        terminal.println("You must accept the possibility of data loss by changing the `accept_data_loss` parameter to `true`.");
         terminal.println("");
     }
 
@@ -510,7 +504,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         CLEAN("clean"),
         CLEAN_WITH_CORRUPTED_MARKER("marked corrupted, but no corruption detected"),
         CORRUPTED("corrupted"),
-        UNRECOVERABLE("corrupted and unrecoverable");
+        UNRECOVERABLE("corrupted and unrecoverable"),
+        OVERRIDDEN("to be truncated regardless of whether it is corrupt");
 
         private final String msg;
 

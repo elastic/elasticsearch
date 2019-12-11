@@ -1,0 +1,22 @@
+[float]
+[[breaking_80_transport_changes]]
+=== Transport changes
+
+//tag::notable-breaking-changes[]
+[float]
+==== Removal of old transport settings
+
+The following settings have been deprecated in 7.x and removed in 8.0. Each setting has a replacement
+setting that was introduced in 6.7.
+
+- `transport.tcp.port` replaced by `transport.port`
+- `transport.tcp.compress` replaced by `transport.compress`
+- `transport.tcp.connect_timeout` replaced by `transport.connect_timeout`
+- `transport.tcp_no_delay` replaced by `transport.tcp.no_delay`
+- `transport.profiles.profile_name.tcp_no_delay` replaced by `transport.profiles.profile_name.tcp.no_delay`
+- `transport.profiles.profile_name.tcp_keep_alive` replaced by `transport.profiles.profile_name.tcp.keep_alive`
+- `transport.profiles.profile_name.reuse_address` replaced by `transport.profiles.profile_name.tcp.reuse_address`
+- `transport.profiles.profile_name.send_buffer_size` replaced by `transport.profiles.profile_name.tcp.send_buffer_size`
+- `transport.profiles.profile_name.receive_buffer_size` replaced by `transport.profiles.profile_name.tcp.receive_buffer_size`
+
+// end::notable-breaking-changes[]

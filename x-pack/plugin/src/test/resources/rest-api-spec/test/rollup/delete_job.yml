@@ -6,17 +6,16 @@ setup:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                the_field:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -27,7 +26,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -42,7 +41,7 @@ setup:
 "Test basic delete_job":
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -55,7 +54,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -78,15 +77,14 @@ setup:
             search_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
   - do:
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: foo
   - is_true: acknowledged
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
       jobs: []
@@ -95,7 +93,7 @@ setup:
 "Test delete job twice":
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -108,7 +106,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -131,15 +129,14 @@ setup:
             search_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
   - do:
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: foo
   - is_true: acknowledged
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
       jobs: []
@@ -148,7 +145,7 @@ setup:
 "Test delete running job":
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -161,7 +158,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -184,16 +181,15 @@ setup:
             search_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
   - do:
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
   - is_true: started
 
   - do:
       catch: request
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: foo
   - is_false: acknowledged
   - match: { task_failures.0.reason.type: "illegal_state_exception" }
@@ -206,5 +202,5 @@ setup:
       catch: /the task with id \[does_not_exist\] doesn't exist/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: does_not_exist

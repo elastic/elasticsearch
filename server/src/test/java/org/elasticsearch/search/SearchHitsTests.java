@@ -22,13 +22,11 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,15 +35,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHits> {
+public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
@@ -171,8 +167,8 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
     }
 
     @Override
-    protected SearchHits createBlankInstance() {
-        return new SearchHits();
+    protected Writeable.Reader<SearchHits> instanceReader() {
+        return SearchHits::new;
     }
 
     @Override
@@ -207,8 +203,8 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
 
     public void testToXContent() throws IOException {
         SearchHit[] hits = new SearchHit[] {
-            new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-            new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()) };
+            new SearchHit(1, "id1", Collections.emptyMap()),
+            new SearchHit(2, "id2", Collections.emptyMap()) };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
@@ -218,16 +214,16 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
         searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("{\"hits\":{\"total\":{\"value\":1000,\"relation\":\"eq\"},\"max_score\":1.5," +
-            "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":null},"+
-            "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":null}]}}", Strings.toString(builder));
+            "\"hits\":[{\"_id\":\"id1\",\"_score\":null},"+
+            "{\"_id\":\"id2\",\"_score\":null}]}}", Strings.toString(builder));
     }
 
     public void testFromXContentWithShards() throws IOException {
         for (boolean withExplanation : new boolean[] {true, false}) {
             final SearchHit[] hits = new SearchHit[]{
-                new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-                new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()),
-                new SearchHit(10, "id10", new Text("type"), Collections.emptyMap())
+                new SearchHit(1, "id1", Collections.emptyMap()),
+                new SearchHit(2, "id2", Collections.emptyMap()),
+                new SearchHit(10, "id10", Collections.emptyMap())
             };
 
             for (SearchHit hit : hits) {
@@ -269,39 +265,5 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
             }
 
         }
-    }
-
-    public void testReadFromPre6_6_0() throws IOException {
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode("AQC/gAAAAAA="))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0)));
-            SearchHits searchHits = new SearchHits();
-            searchHits.readFrom(in);
-            assertEquals(0, searchHits.getHits().length);
-            assertNotNull(searchHits.getTotalHits());
-            assertEquals(0L, searchHits.getTotalHits().value);
-            assertEquals(TotalHits.Relation.EQUAL_TO, searchHits.getTotalHits().relation);
-            assertEquals(-1F, searchHits.getMaxScore(), 0F);
-            assertNull(searchHits.getSortFields());
-            assertNull(searchHits.getCollapseField());
-            assertNull(searchHits.getCollapseValues());
-        }
-    }
-
-    public void testSerializationPre6_6_0() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0));
-        SearchHits original = createTestItem(randomFrom(XContentType.values()), false, true, TotalHits.Relation.EQUAL_TO);
-        SearchHits deserialized = copyInstance(original, version);
-        assertArrayEquals(original.getHits(), deserialized.getHits());
-        assertEquals(original.getMaxScore(), deserialized.getMaxScore(), 0F);
-        if (original.getTotalHits() == null) {
-            assertNull(deserialized.getTotalHits());
-        } else {
-            assertNotNull(deserialized.getTotalHits());
-            assertEquals(original.getTotalHits().value, deserialized.getTotalHits().value);
-            assertEquals(original.getTotalHits().relation, deserialized.getTotalHits().relation);
-        }
-        assertNull(deserialized.getSortFields());
-        assertNull(deserialized.getCollapseField());
-        assertNull(deserialized.getCollapseValues());
     }
 }

@@ -1,0 +1,13 @@
+[testenv="platinum"]
+If you temporarily halted the tasks associated with your {ml} jobs,
+use the <<ml-set-upgrade-mode,set upgrade mode API>> to return them to active
+states:
+
+[source,console]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=false
+--------------------------------------------------
+
+If you closed all {ml} jobs before the upgrade, open the jobs and start the
+datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
+<<ml-start-datafeed,start datafeed>> APIs.

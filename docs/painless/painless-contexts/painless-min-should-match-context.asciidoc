@@ -25,7 +25,7 @@ results.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.
 
 *Example*
 
@@ -52,7 +52,7 @@ Math.min(params['num_terms'], params['min_actors_to_see'])
 The following request finds seats to performances with at least
 two of the three specified actors.
 
-[source,js]
+[source,console]
 ----
 GET seats/_search
 {
@@ -71,6 +71,5 @@ GET seats/_search
     }
 }
 ----
-// CONSOLE
 // TEST[skip: requires setup from other pages]
 

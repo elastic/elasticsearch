@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -40,16 +41,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
 
     private final ClusterService clusterService;
-    private final TransportShardMultiGetAction shardAction;
+    private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportMultiGetAction(TransportService transportService, ClusterService clusterService,
-                                   TransportShardMultiGetAction shardAction, ActionFilters actionFilters,
+                                   NodeClient client, ActionFilters actionFilters,
                                    IndexNameExpressionResolver resolver) {
         super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
-        this.shardAction = shardAction;
+        this.client = client;
         this.indexNameExpressionResolver = resolver;
     }
 
@@ -70,12 +71,12 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
                 item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
                 if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex))) {
-                    responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(),
-                        new RoutingMissingException(concreteSingleIndex, item.type(), item.id())));
+                    responses.set(i, newItemFailure(concreteSingleIndex, item.id(),
+                        new RoutingMissingException(concreteSingleIndex, item.id())));
                     continue;
                 }
             } catch (Exception e) {
-                responses.set(i, newItemFailure(item.index(), item.type(), item.id(), e));
+                responses.set(i, newItemFailure(item.index(), item.id(), e));
                 continue;
             }
 
@@ -105,7 +106,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
-            shardAction.execute(shardRequest, new ActionListener<MultiGetShardResponse>() {
+            client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(MultiGetShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {
@@ -122,7 +123,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     // create failures for all relevant requests
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
                         MultiGetRequest.Item item = shardRequest.items.get(i);
-                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.type(), item.id(), e));
+                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.id(), e));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -136,7 +137,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         }
     }
 
-    private static MultiGetItemResponse newItemFailure(String index, String type, String id, Exception exception) {
-        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, type, id, exception));
+    private static MultiGetItemResponse newItemFailure(String index, String id, Exception exception) {
+        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, id, exception));
     }
 }

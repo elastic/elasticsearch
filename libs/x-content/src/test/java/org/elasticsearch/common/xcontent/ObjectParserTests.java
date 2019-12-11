@@ -33,7 +33,9 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,12 +44,10 @@ import static org.hamcrest.Matchers.hasSize;
 public class ObjectParserTests extends ESTestCase {
 
     public void testBasics() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\n"
-                + "  \"test\" : \"foo\",\n"
-                + "  \"test_number\" : 2,\n"
-                + "  \"test_array\":  [1,2,3,4]\n"
-                + "}");
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
+            "{ \"test\" : \"foo\", \"test_number\" : 2, \"test_array\": [1,2,3,4] }"
+        );
         class TestStruct {
             public String test;
             int testNumber;
@@ -174,8 +174,10 @@ public class ObjectParserTests extends ESTestCase {
                 }
             }
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                "{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}");
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
+            "{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}"
+        );
         ObjectParser<Foo, CustomParseContext> objectParser = new ObjectParser<>("foo");
         objectParser.declareString(Foo::setName, new ParseField("name"));
         objectParser.declareObjectOrDefault(Foo::setURI, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));
@@ -447,10 +449,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\"named\": {\n"
-                + "  \"a\": {}"
-                + "}}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": { \"a\": {} }}");
         NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
         assertThat(h.named, hasSize(1));
         assertEquals("a", h.named.get(0).name);
@@ -458,10 +457,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrder() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\"named\": [\n"
-                + "  {\"a\": {}}"
-                + "]}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}} ] }");
         NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
         assertThat(h.named, hasSize(1));
         assertEquals("a", h.named.get(0).name);
@@ -469,10 +465,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectTwoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\"named\": [\n"
-                + "  {\"a\": {}, \"b\": {}}"
-                + "]}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}, \"b\": {}}]}");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
         assertThat(e.getCause().getMessage(),
@@ -481,10 +474,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectNoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\"named\": [\n"
-                + "  {}"
-                + "]}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {} ]}");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
         assertThat(e.getCause().getMessage(),
@@ -493,10 +483,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectJunkInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\"named\": [\n"
-                + "  \"junk\""
-                + "]}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ \"junk\" ] }");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
         assertThat(e.getCause().getMessage(),
@@ -505,10 +492,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrderNotSupported() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\"named\": [\n"
-                + "  {\"a\": {}}"
-                + "]}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}} ] }");
 
         // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
         ObjectParser<NamedObjectHolder, Void> objectParser = new ObjectParser<>("named_object_holder",
@@ -599,11 +583,10 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testArraysOfGenericValues() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            "{\n"
-                + "  \"test_array\":  [ 1, null, \"3\", 4.2],\n"
-                + "  \"int_array\":  [ 1, 2, 3]\n"
-                + "}");
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
+            "{ \"test_array\": [ 1, null, \"3\", 4.2], \"int_array\":  [ 1, 2, 3] }"
+        );
         class TestStruct {
             List<Object> testArray = new ArrayList<>();
 
@@ -732,5 +715,42 @@ public class ObjectParserTests extends ESTestCase {
         public void setFoo(int foo) {
             this.foo = foo;
         }
+    }
+
+    private static class ObjectWithArbitraryFields {
+        String name;
+        Map<String, Object> fields = new HashMap<>();
+        void setField(String key, Object value) {
+            fields.put(key, value);
+        }
+        void setName(String name) {
+            this.name = name;
+        }
+    }
+
+    public void testConsumeUnknownFields() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            "{\n"
+                + "  \"test\" : \"foo\",\n"
+                + "  \"test_number\" : 2,\n"
+                + "  \"name\" : \"geoff\",\n"
+                + "  \"test_boolean\" : true,\n"
+                + "  \"test_null\" : null,\n"
+                + "  \"test_array\":  [1,2,3,4],\n"
+                + "  \"test_nested\": { \"field\" : \"value\", \"field2\" : [ \"list1\", \"list2\" ] }\n"
+                + "}");
+        ObjectParser<ObjectWithArbitraryFields, Void> op
+            = new ObjectParser<>("unknown", ObjectWithArbitraryFields::setField, ObjectWithArbitraryFields::new);
+        op.declareString(ObjectWithArbitraryFields::setName, new ParseField("name"));
+
+        ObjectWithArbitraryFields o = op.parse(parser, null);
+        assertEquals("geoff", o.name);
+        assertEquals(6, o.fields.size());
+        assertEquals("foo", o.fields.get("test"));
+        assertEquals(2, o.fields.get("test_number"));
+        assertEquals(true, o.fields.get("test_boolean"));
+        assertNull(o.fields.get("test_null"));
+        assertEquals(List.of(1, 2, 3, 4), o.fields.get("test_array"));
+        assertEquals(Map.of("field", "value", "field2", List.of("list1", "list2")), o.fields.get("test_nested"));
     }
 }

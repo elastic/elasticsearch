@@ -22,14 +22,14 @@ package org.elasticsearch.ingest.common;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 
-public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase {
+public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<String> {
     @Override
     protected String modifyInput(String input) {
         return "Hello%20G%C3%BCnter" + input;
     }
 
     @Override
-    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField) {
+    protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
         return new URLDecodeProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
     }
 

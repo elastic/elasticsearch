@@ -17,6 +17,7 @@ dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
 }
 
@@ -29,18 +30,18 @@ check {
   dependsOn 'qa:gce:check'
 }
 
-unitTest {
+test {
   // this is needed for insecure plugins, remove if possible!
-  systemProperty 'tests.artifact', project.name 
+  systemProperty 'tests.artifact', project.name
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
-  'com.google.common.base.Splitter', 
-  'com.google.common.collect.Lists', 
-  'javax.servlet.ServletContextEvent', 
-  'javax.servlet.ServletContextListener', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.log.Hierarchy', 
+  'com.google.common.base.Splitter',
+  'com.google.common.collect.Lists',
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
   'org.apache.log.Logger'
 )

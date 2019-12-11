@@ -1,0 +1,34 @@
+String distroConfig = System.getProperty('tests.local_distro.config')
+if (distroConfig != null) {
+  // setup the test distribution as an artifact of this project
+  String distroType = System.getProperty('tests.distro.type')
+
+  Task buildDistro
+  File buildFile
+  if (['rpm', 'deb'].contains(distroType)) {
+    buildDistro = project.tasks.create("build" + distroType.capitalize(), Copy) {
+      from 'files'
+      into 'build/files'
+      include 'fake_elasticsearch.tar.gz'
+      // this shouldn't be extracted so we just rename the file so it is a dummy package
+      rename { filename -> filename.replace('tar.gz', distroType) }
+    }
+    buildFile = project.file("build/files/fake_elasticsearch." + distroType)
+  } else {
+    String distroPlatform = System.getProperty('tests.distro.platform')
+    String extension = "tar.gz"
+    if (distroType == 'archive' && distroPlatform == 'windows' || distroType == 'integ-test-zip') {
+      extension = "zip"
+    }
+    // copy file as is
+    buildDistro = project.tasks.create("buildArchive", Copy) {
+      from 'files'
+      include "fake_elasticsearch.${extension}"
+      into 'build/files'
+    }
+    buildFile = project.file("build/files/fake_elasticsearch.${extension}")
+  }
+
+  configurations.create(distroConfig)
+  artifacts.add(distroConfig, [file: buildFile, builtBy: buildDistro])
+}

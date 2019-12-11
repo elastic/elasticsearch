@@ -10,7 +10,9 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.OffsetTime;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
@@ -21,6 +23,8 @@ import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
+import static org.elasticsearch.xpack.sql.type.DataType.TEXT;
+import static org.elasticsearch.xpack.sql.type.DataType.TIME;
 
 /**
  * Conversions from one Elasticsearch data type to another Elasticsearch data types.
@@ -41,11 +45,17 @@ public abstract class DataTypeConversion {
         if (left == right) {
             return left;
         }
-        if (DataTypes.isNull(left)) {
+        if (left.isNull()) {
             return right;
         }
-        if (DataTypes.isNull(right)) {
+        if (right.isNull()) {
             return left;
+        }
+        if (left.isString() && right.isString()) {
+            if (left == TEXT) {
+                return TEXT;
+            }
+            return right;
         }
         if (left.isNumeric() && right.isNumeric()) {
             // if one is int
@@ -77,34 +87,61 @@ public abstract class DataTypeConversion {
 
         // interval and dates
         if (left == DATE) {
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
         if (right == DATE) {
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
+                return right;
+            }
+        }
+        if (left == TIME) {
+            if (right == DATE) {
+                return DATETIME;
+            }
+            if (right.isInterval()) {
+                return left;
+            }
+        }
+        if (right == TIME) {
+            if (left == DATE) {
+                return DATETIME;
+            }
+            if (left.isInterval()) {
                 return right;
             }
         }
         if (left == DATETIME) {
-            if (right == DATE) {
+            if (right == DATE || right == TIME) {
                 return left;
             }
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
         if (right == DATETIME) {
-            if (left == DATE) {
+            if (left == DATE || left == TIME) {
                 return right;
             }
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
                 return right;
             }
         }
-        if (DataTypes.isInterval(left)) {
+        // Interval * integer is a valid operation
+        if (left.isInterval()) {
+            if (right.isInteger()) {
+                return left;
+            }
+        }
+        if (right.isInterval()) {
+            if (left.isInteger()) {
+                return right;
+            }
+        }
+        if (left.isInterval()) {
             // intervals widening
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 // null returned for incompatible intervals
                 return DataTypes.compatibleInterval(left, right);
             }
@@ -143,7 +180,7 @@ public abstract class DataTypeConversion {
         
         Conversion conversion = conversion(from, to);
         if (conversion == null) {
-            throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [" + to + "]");
+            throw new SqlIllegalArgumentException("cannot convert from [" + from.typeName + "] to [" + to.typeName + "]");
         }
         return conversion;
     }
@@ -169,6 +206,8 @@ public abstract class DataTypeConversion {
                 return conversionToDouble(from);
             case DATE:
                 return conversionToDate(from);
+            case TIME:
+                return conversionToTime(from);
             case DATETIME:
                 return conversionToDateTime(from);
             case BOOLEAN:
@@ -182,6 +221,9 @@ public abstract class DataTypeConversion {
     private static Conversion conversionToString(DataType from) {
         if (from == DATE) {
             return Conversion.DATE_TO_STRING;
+        }
+        if (from == TIME) {
+            return Conversion.TIME_TO_STRING;
         }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_STRING;
@@ -212,6 +254,9 @@ public abstract class DataTypeConversion {
         if (from == DATE) {
             return Conversion.DATE_TO_LONG;
         }
+        if (from == TIME) {
+            return Conversion.TIME_TO_LONG;
+        }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_LONG;
         }
@@ -233,6 +278,9 @@ public abstract class DataTypeConversion {
         }
         if (from == DATE) {
             return Conversion.DATE_TO_INT;
+        }
+        if (from == TIME) {
+            return Conversion.TIME_TO_INT;
         }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_INT;
@@ -256,6 +304,9 @@ public abstract class DataTypeConversion {
         if (from == DATE) {
             return Conversion.DATE_TO_SHORT;
         }
+        if (from == TIME) {
+            return Conversion.TIME_TO_SHORT;
+        }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_SHORT;
         }
@@ -277,6 +328,9 @@ public abstract class DataTypeConversion {
         }
         if (from == DATE) {
             return Conversion.DATE_TO_BYTE;
+        }
+        if (from == TIME) {
+            return Conversion.TIME_TO_BYTE;
         }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_BYTE;
@@ -300,6 +354,9 @@ public abstract class DataTypeConversion {
         if (from == DATE) {
             return Conversion.DATE_TO_FLOAT;
         }
+        if (from == TIME) {
+            return Conversion.TIME_TO_FLOAT;
+        }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_FLOAT;
         }
@@ -322,6 +379,9 @@ public abstract class DataTypeConversion {
         if (from == DATE) {
             return Conversion.DATE_TO_DOUBLE;
         }
+        if (from == TIME) {
+            return Conversion.TIME_TO_DOUBLE;
+        }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_DOUBLE;
         }
@@ -343,6 +403,28 @@ public abstract class DataTypeConversion {
         }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_DATE;
+        }
+        return null;
+    }
+
+    private static Conversion conversionToTime(DataType from) {
+        if (from.isRational()) {
+            return Conversion.RATIONAL_TO_TIME;
+        }
+        if (from.isInteger()) {
+            return Conversion.INTEGER_TO_TIME;
+        }
+        if (from == BOOLEAN) {
+            return Conversion.BOOL_TO_TIME; // We emit an int here which is ok because of Java's casting rules
+        }
+        if (from.isString()) {
+            return Conversion.STRING_TO_TIME;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_TIME;
+        }
+        if (from == DATETIME) {
+            return Conversion.DATETIME_TO_TIME;
         }
         return null;
     }
@@ -375,6 +457,9 @@ public abstract class DataTypeConversion {
         }
         if (from == DATE) {
             return Conversion.DATE_TO_BOOLEAN;
+        }
+        if (from == TIME) {
+            return Conversion.TIME_TO_BOOLEAN;
         }
         if (from == DATETIME) {
             return Conversion.DATETIME_TO_BOOLEAN;
@@ -455,6 +540,7 @@ public abstract class DataTypeConversion {
         NULL(value -> null),
         
         DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
+        TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
         DATETIME_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
         OTHER_TO_STRING(String::valueOf),
 
@@ -462,6 +548,7 @@ public abstract class DataTypeConversion {
         INTEGER_TO_LONG(fromLong(value -> value)),
         STRING_TO_LONG(fromString(Long::valueOf, "long")),
         DATE_TO_LONG(fromDateTime(value -> value)),
+        TIME_TO_LONG(fromTime(value -> value)),
         DATETIME_TO_LONG(fromDateTime(value -> value)),
 
         RATIONAL_TO_INT(fromDouble(value -> safeToInt(safeToLong(value)))),
@@ -469,6 +556,7 @@ public abstract class DataTypeConversion {
         BOOL_TO_INT(fromBool(value -> value ? 1 : 0)),
         STRING_TO_INT(fromString(Integer::valueOf, "integer")),
         DATE_TO_INT(fromDateTime(DataTypeConversion::safeToInt)),
+        TIME_TO_INT(fromTime(DataTypeConversion::safeToInt)),
         DATETIME_TO_INT(fromDateTime(DataTypeConversion::safeToInt)),
 
         RATIONAL_TO_SHORT(fromDouble(value -> safeToShort(safeToLong(value)))),
@@ -476,6 +564,7 @@ public abstract class DataTypeConversion {
         BOOL_TO_SHORT(fromBool(value -> value ? (short) 1 : (short) 0)),
         STRING_TO_SHORT(fromString(Short::valueOf, "short")),
         DATE_TO_SHORT(fromDateTime(DataTypeConversion::safeToShort)),
+        TIME_TO_SHORT(fromTime(DataTypeConversion::safeToShort)),
         DATETIME_TO_SHORT(fromDateTime(DataTypeConversion::safeToShort)),
 
         RATIONAL_TO_BYTE(fromDouble(value -> safeToByte(safeToLong(value)))),
@@ -483,6 +572,7 @@ public abstract class DataTypeConversion {
         BOOL_TO_BYTE(fromBool(value -> value ? (byte) 1 : (byte) 0)),
         STRING_TO_BYTE(fromString(Byte::valueOf, "byte")),
         DATE_TO_BYTE(fromDateTime(DataTypeConversion::safeToByte)),
+        TIME_TO_BYTE(fromTime(DataTypeConversion::safeToByte)),
         DATETIME_TO_BYTE(fromDateTime(DataTypeConversion::safeToByte)),
 
         // TODO floating point conversions are lossy but conversions to integer conversions are not. Are we ok with that?
@@ -491,6 +581,7 @@ public abstract class DataTypeConversion {
         BOOL_TO_FLOAT(fromBool(value -> value ? 1f : 0f)),
         STRING_TO_FLOAT(fromString(Float::valueOf, "float")),
         DATE_TO_FLOAT(fromDateTime(value -> (float) value)),
+        TIME_TO_FLOAT(fromTime(value -> (float) value)),
         DATETIME_TO_FLOAT(fromDateTime(value -> (float) value)),
 
         RATIONAL_TO_DOUBLE(fromDouble(Double::valueOf)),
@@ -498,6 +589,7 @@ public abstract class DataTypeConversion {
         BOOL_TO_DOUBLE(fromBool(value -> value ? 1d : 0d)),
         STRING_TO_DOUBLE(fromString(Double::valueOf, "double")),
         DATE_TO_DOUBLE(fromDateTime(Double::valueOf)),
+        TIME_TO_DOUBLE(fromTime(Double::valueOf)),
         DATETIME_TO_DOUBLE(fromDateTime(Double::valueOf)),
 
         RATIONAL_TO_DATE(toDate(RATIONAL_TO_LONG)),
@@ -505,6 +597,13 @@ public abstract class DataTypeConversion {
         BOOL_TO_DATE(toDate(BOOL_TO_INT)),
         STRING_TO_DATE(fromString(DateUtils::asDateOnly, "date")),
         DATETIME_TO_DATE(fromDatetimeToDate()),
+
+        RATIONAL_TO_TIME(toTime(RATIONAL_TO_LONG)),
+        INTEGER_TO_TIME(toTime(INTEGER_TO_LONG)),
+        BOOL_TO_TIME(toTime(BOOL_TO_INT)),
+        STRING_TO_TIME(fromString(DateUtils::asTimeOnly, "time")),
+        DATE_TO_TIME(fromDatetimeToTime()),
+        DATETIME_TO_TIME(fromDatetimeToTime()),
 
         RATIONAL_TO_DATETIME(toDateTime(RATIONAL_TO_LONG)),
         INTEGER_TO_DATETIME(toDateTime(INTEGER_TO_LONG)),
@@ -515,6 +614,7 @@ public abstract class DataTypeConversion {
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "boolean")),
         DATE_TO_BOOLEAN(fromDateTime(value -> value != 0)),
+        TIME_TO_BOOLEAN(fromTime(value -> value != 0)),
         DATETIME_TO_BOOLEAN(fromDateTime(value -> value != 0)),
 
         BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L)),
@@ -546,8 +646,8 @@ public abstract class DataTypeConversion {
                     return converter.apply(value.toString());
                 } catch (NumberFormatException e) {
                     throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]", value, to);
-                } catch (IllegalArgumentException e) {
-                    throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]:{}", value, to, e.getMessage());
+                } catch (DateTimeParseException | IllegalArgumentException e) {
+                    throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]: {}", value, to, e.getMessage());
                 }
             };
         }
@@ -556,20 +656,32 @@ public abstract class DataTypeConversion {
             return (Object l) -> converter.apply(((Boolean) l));
         }
 
-        private static Function<Object, Object> fromDateTime(Function<Long, Object> converter) {
-            return l -> converter.apply(((ZonedDateTime) l).toInstant().toEpochMilli());
+        private static Function<Object, Object> fromTime(Function<Long, Object> converter) {
+            return l -> converter.apply(((OffsetTime) l).atDate(DateUtils.EPOCH).toInstant().toEpochMilli());
         }
 
-        private static Function<Object, Object> toDateTime(Conversion conversion) {
-            return l -> DateUtils.asDateTime(((Number) conversion.convert(l)).longValue());
+        private static Function<Object, Object> fromDateTime(Function<Long, Object> converter) {
+            return l -> converter.apply(((ZonedDateTime) l).toInstant().toEpochMilli());
         }
 
         private static Function<Object, Object> toDate(Conversion conversion) {
             return l -> DateUtils.asDateOnly(((Number) conversion.convert(l)).longValue());
         }
 
+        private static Function<Object, Object> toTime(Conversion conversion) {
+            return l -> DateUtils.asTimeOnly(((Number) conversion.convert(l)).longValue());
+        }
+
+        private static Function<Object, Object> toDateTime(Conversion conversion) {
+            return l -> DateUtils.asDateTime(((Number) conversion.convert(l)).longValue());
+        }
+
         private static Function<Object, Object> fromDatetimeToDate() {
             return l -> DateUtils.asDateOnly((ZonedDateTime) l);
+        }
+
+        private static Function<Object, Object> fromDatetimeToTime() {
+            return l -> ((ZonedDateTime) l).toOffsetDateTime().toOffsetTime();
         }
 
         public Object convert(Object l) {

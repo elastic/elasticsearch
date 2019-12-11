@@ -25,40 +25,53 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
+import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     
     public static final String NAME = "annotated";
-
-    AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer = null;    
     
     @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
-        annotatedHighlighterAnalyzer = new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, type));
-        return annotatedHighlighterAnalyzer;
+    protected Analyzer getAnalyzer(DocumentMapper docMapper, HitContext hitContext) {
+        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, hitContext), hitContext);
     }
 
     // Convert the marked-up values held on-disk to plain-text versions for highlighting
     @Override
-    protected List<Object> loadFieldValues(MappedFieldType fieldType, Field field, SearchContext context, HitContext hitContext)
-            throws IOException {
-        List<Object> fieldValues = super.loadFieldValues(fieldType, field, context, hitContext);
+    protected List<Object> loadFieldValues(MappedFieldType fieldType,
+                                           Field field,
+                                           QueryShardContext context,
+                                           HitContext hitContext,
+                                           boolean forceSource) throws IOException {
+        List<Object> fieldValues = super.loadFieldValues(fieldType, field, context, hitContext, forceSource);
         String[] fieldValuesAsString = fieldValues.toArray(new String[fieldValues.size()]);
-        annotatedHighlighterAnalyzer.init(fieldValuesAsString);
-        return Arrays.asList((Object[]) annotatedHighlighterAnalyzer.getPlainTextValuesForHighlighter());
+
+        AnnotatedText[] annotations = new AnnotatedText[fieldValuesAsString.length];
+        for (int i = 0; i < fieldValuesAsString.length; i++) {
+            annotations[i] = AnnotatedText.parse(fieldValuesAsString[i]);
+        }
+        // Store the annotations in the hitContext
+        hitContext.cache().put(AnnotatedText.class.getName(), annotations);
+
+        ArrayList<Object> result = new ArrayList<>(annotations.length);
+        for (int i = 0; i < annotations.length; i++) {
+            result.add(annotations[i].textMinusMarkup);
+        }
+        return result;
     }
 
     @Override
-    protected PassageFormatter getPassageFormatter(SearchContextHighlight.Field field, Encoder encoder) {
-        return new AnnotatedPassageFormatter(annotatedHighlighterAnalyzer, encoder);
-
+    protected PassageFormatter getPassageFormatter(HitContext hitContext,SearchContextHighlight.Field field, Encoder encoder) {
+        // Retrieve the annotations from the hitContext
+        AnnotatedText[] annotations = (AnnotatedText[]) hitContext.cache().get(AnnotatedText.class.getName());
+        return new AnnotatedPassageFormatter(annotations, encoder);
     }
 
 }

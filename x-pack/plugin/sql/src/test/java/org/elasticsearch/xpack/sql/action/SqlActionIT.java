@@ -33,7 +33,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
         int countIndex = dataBeforeCount ? 1 : 0;
-        assertEquals(new ColumnInfo("", "data", "text", 0), response.columns().get(dataIndex));
+        assertEquals(new ColumnInfo("", "data", "text", 2147483647), response.columns().get(dataIndex));
         assertEquals(new ColumnInfo("", "count", "long", 20), response.columns().get(countIndex));
 
         assertThat(response.rows(), hasSize(2));

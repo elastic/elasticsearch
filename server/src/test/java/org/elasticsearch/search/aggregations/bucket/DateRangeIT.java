@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -39,12 +38,14 @@ import org.hamcrest.Matchers;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -65,7 +66,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class DateRangeIT extends ESIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        return client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
                 .timeField("date", date(month, day))
@@ -96,7 +97,8 @@ public class DateRangeIT extends ESIntegTestCase {
                 indexDoc(2, 15, 3), // Feb 15
                 indexDoc(3, 2, 4),  // Mar 2
                 indexDoc(3, 15, 5), // Mar 15
-                indexDoc(3, 23, 6))); // Mar 23
+                indexDoc(3, 23, 6)  // Mar 23
+        ));
 
         // dummy docs
         for (int i = docs.size(); i < numDocs; ++i) {
@@ -104,7 +106,7 @@ public class DateRangeIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
         for (int i = 0; i < 2; i++) {
-            docs.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+            docs.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .endObject()));
@@ -300,7 +302,9 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testSingleValueFieldWithDateMath() throws Exception {
         ZoneId timezone = randomZone();
         int timeZoneOffset = timezone.getRules().getOffset(date(2, 15).toInstant()).getTotalSeconds();
-        String suffix = timezone.equals(ZoneOffset.UTC) ? "Z" : timezone.getId();
+        //there is a daylight saving time change on 11th March so suffix will be different
+        String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).format(DateTimeFormatter.ofPattern("xxx", Locale.ROOT));
+        String mar15Suffix = timeZoneOffset == 0 ? "Z" : date(3,15, timezone).format(DateTimeFormatter.ofPattern("xxx", Locale.ROOT));
         long expectedFirstBucketCount = timeZoneOffset < 0 ? 3L : 2L;
 
         SearchResponse response = client().prepareSearch("idx")
@@ -322,29 +326,29 @@ public class DateRangeIT extends ESIntegTestCase {
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000" + suffix));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000" + feb15Suffix));
         assertThat(((ZonedDateTime) bucket.getFrom()), nullValue());
         assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(2, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
         assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000" + suffix));
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix));
         assertThat(bucket.getDocCount(), equalTo(expectedFirstBucketCount));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000" + suffix +
-                "-2012-03-15T00:00:00.000" + suffix));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix +
+                "-2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(2, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
         assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(3, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000" + suffix));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000" + suffix));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000" + suffix + "-*"));
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix + "-*"));
         assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(3, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
         assertThat(((ZonedDateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000" + suffix));
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2L - expectedFirstBucketCount));
     }
@@ -888,9 +892,9 @@ public class DateRangeIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true,
-                client().prepareIndex("cache_test_idx", "type", "1")
+                client().prepareIndex("cache_test_idx").setId("1")
                         .setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
-                client().prepareIndex("cache_test_idx", "type", "2")
+                client().prepareIndex("cache_test_idx").setId("2")
                         .setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject()));
 
         // Make sure we are starting with a clear cache
@@ -936,9 +940,9 @@ public class DateRangeIT extends ESIntegTestCase {
         String indexName = "dateformat_test_idx";
         assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=strict_hour_minute_second"));
         indexRandom(true,
-                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
-                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
-                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
+                client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
+                client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
+                client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
 
         // using no format should work when to/from is compatible with format in
         // mapping
@@ -986,9 +990,9 @@ public class DateRangeIT extends ESIntegTestCase {
         String indexName = "dateformat_numeric_test_idx";
         assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=epoch_second"));
         indexRandom(true,
-                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
-                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
-                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", 3008).endObject()));
+                client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
+                client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
+                client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", 3008).endObject()));
 
         // using no format should work when to/from is compatible with format in
         // mapping
@@ -996,39 +1000,24 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(dateRange("date_range").field("date").addRange(1000, 3000).addRange(3000, 4000)).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         List<Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // using no format should also work when and to/from are string values
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange("1000", "3000").addRange("3000", "4000")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // also e-notation should work, fractional parts should be truncated
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1.0e3, 3000.8123).addRange(3000.8123, 4.0e3)).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // using different format should work when to/from is compatible with
         // format in aggregation

@@ -77,14 +77,14 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
      * it is fixed.
      *
      * Note: we have this test inside of the `avg_bucket` package so that we can get access to the package-private
-     * `doReduce()` needed for testing this
+     * `reduce()` needed for testing this
      */
     public void testSameAggNames() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         AvgAggregationBuilder avgBuilder = new AvgAggregationBuilder("foo").field(VALUE_FIELD);
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo")
-            .dateHistogramInterval(DateHistogramInterval.YEAR)
+            .calendarInterval(DateHistogramInterval.YEAR)
             .field(DATE_FIELD)
             .subAggregation(new AvgAggregationBuilder("foo").field(VALUE_FIELD));
 
@@ -120,9 +120,9 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
                 valueFieldType.setName(VALUE_FIELD);
                 valueFieldType.setHasDocValues(true);
 
-                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, null,
+                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000,
                     new MappedFieldType[]{fieldType, valueFieldType});
-                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, null,
+                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000,
                     new MappedFieldType[]{fieldType, valueFieldType});
             }
 
@@ -140,6 +140,6 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
 }

@@ -1,0 +1,18 @@
+[[shape-queries]]
+[role="xpack"]
+[testenv="basic"]
+== Shape queries
+
+Like <<geo-shape,`geo_shape`>> Elasticsearch supports the ability to index
+arbitrary two dimension (non Geospatial) geometries making it possible to
+map out virtual worlds, sporting venues, theme parks, and CAD diagrams. The
+<<shape,`shape`>> field type supports points, lines, polygons, multi-polygons,
+envelope, etc.
+
+The queries in this group are:
+
+<<query-dsl-shape-query,`shape`>> query::
+Finds documents with shapes that either intersect, are within, or do not
+intersect a specified shape.
+
+include::shape-query.asciidoc[]

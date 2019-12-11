@@ -22,11 +22,9 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -43,34 +41,27 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Streamable, ToXContentFragment, Iterable<SearchHit> {
+public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
     public static SearchHits empty() {
         return empty(true);
     }
 
     public static SearchHits empty(boolean withTotalHits) {
-        // We shouldn't use static final instance, since that could directly be returned by native transport clients
+        // TODO: consider using static final instance
         return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
     }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
 
-    private SearchHit[] hits;
-
-    private Total totalHits;
-
-    private float maxScore;
-
+    private final SearchHit[] hits;
+    private final TotalHits totalHits;
+    private final float maxScore;
     @Nullable
-    private SortField[] sortFields;
+    private final SortField[] sortFields;
     @Nullable
-    private String collapseField;
+    private final String collapseField;
     @Nullable
-    private Object[] collapseValues;
-
-    SearchHits() {
-
-    }
+    private final Object[] collapseValues;
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
@@ -79,19 +70,61 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
                       @Nullable String collapseField, @Nullable Object[] collapseValues) {
         this.hits = hits;
-        this.totalHits = totalHits == null ? null : new Total(totalHits);
+        this.totalHits = totalHits;
         this.maxScore = maxScore;
         this.sortFields = sortFields;
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
     }
 
+    public SearchHits(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            totalHits = Lucene.readTotalHits(in);
+        } else {
+            // track_total_hits is false
+            totalHits = null;
+        }
+        maxScore = in.readFloat();
+        int size = in.readVInt();
+        if (size == 0) {
+            hits = EMPTY;
+        } else {
+            hits = new SearchHit[size];
+            for (int i = 0; i < hits.length; i++) {
+                hits[i] = new SearchHit(in);
+            }
+        }
+        sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        collapseField = in.readOptionalString();
+        collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        final boolean hasTotalHits = totalHits != null;
+        out.writeBoolean(hasTotalHits);
+        if (hasTotalHits) {
+            Lucene.writeTotalHits(out, totalHits);
+        }
+        out.writeFloat(maxScore);
+        out.writeVInt(hits.length);
+        if (hits.length > 0) {
+            for (SearchHit hit : hits) {
+                hit.writeTo(out);
+            }
+        }
+        out.writeOptionalArray(Lucene::writeSortField, sortFields);
+        out.writeOptionalString(collapseField);
+        out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
+    }
+
     /**
      * The total number of hits for the query or null if the tracking of total hits
      * is disabled in the request.
      */
+    @Nullable
     public TotalHits getTotalHits() {
-        return totalHits == null ? null : totalHits.in;
+        return totalHits;
     }
 
     /**
@@ -156,11 +189,12 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         builder.startObject(Fields.HITS);
         boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitAsInt) {
-            long total = totalHits == null ? -1 : totalHits.in.value;
+            long total = totalHits == null ? -1 : totalHits.value;
             builder.field(Fields.TOTAL, total);
         } else if (totalHits != null) {
             builder.startObject(Fields.TOTAL);
-            totalHits.toXContent(builder, params);
+            builder.field("value", totalHits.value);
+            builder.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
             builder.endObject();
         }
         if (Float.isNaN(maxScore)) {
@@ -222,58 +256,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         return new SearchHits(hits.toArray(new SearchHit[0]), totalHits, maxScore);
     }
 
-    public static SearchHits readSearchHits(StreamInput in) throws IOException {
-        SearchHits hits = new SearchHits();
-        hits.readFrom(in);
-        return hits;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            totalHits = new Total(in);
-        } else {
-            // track_total_hits is false
-            totalHits = null;
-        }
-        maxScore = in.readFloat();
-        int size = in.readVInt();
-        if (size == 0) {
-            hits = EMPTY;
-        } else {
-            hits = new SearchHit[size];
-            for (int i = 0; i < hits.length; i++) {
-                hits[i] = SearchHit.readSearchHit(in);
-            }
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
-            collapseField = in.readOptionalString();
-            collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        final boolean hasTotalHits = totalHits != null;
-        out.writeBoolean(hasTotalHits);
-        if (hasTotalHits) {
-            totalHits.writeTo(out);
-        }
-        out.writeFloat(maxScore);
-        out.writeVInt(hits.length);
-        if (hits.length > 0) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalArray(Lucene::writeSortField, sortFields);
-            out.writeOptionalString(collapseField);
-            out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
-        }
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj == null || getClass() != obj.getClass()) {
@@ -322,48 +304,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
             return Relation.EQUAL_TO;
         } else {
             throw new IllegalArgumentException("invalid total hits relation: " + relation);
-        }
-    }
-
-    private static String printRelation(Relation relation) {
-        return relation == Relation.EQUAL_TO ? "eq" : "gte";
-    }
-
-    private static class Total implements Writeable, ToXContentFragment {
-        final TotalHits in;
-
-        Total(TotalHits in) {
-            this.in = Objects.requireNonNull(in);
-        }
-
-        Total(StreamInput in) throws IOException {
-            this.in = Lucene.readTotalHits(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Lucene.writeTotalHits(out, in);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Total total = (Total) o;
-            return in.value == total.in.value &&
-                in.relation == total.in.relation;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(in.value, in.relation);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("value", in.value);
-            builder.field("relation", printRelation(in.relation));
-            return builder;
         }
     }
 }

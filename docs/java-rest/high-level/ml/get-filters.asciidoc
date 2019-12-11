@@ -3,15 +3,15 @@
 :request: GetFiltersRequest
 :response: GetFiltersResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Filters API
+=== Get filters API
 
-The Get Filters API retrieves one or more filter results.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Retrieves one or more filter results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Filters Request
+==== Get filters request
 
 A +{request}+ object gets created.
 
@@ -19,16 +19,16 @@ A +{request}+ object gets created.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request
+<1> Constructing a new request.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-filter-id]
 --------------------------------------------------
-<1> The id of the filter to get. Otherwise it will return all filters.
+<1> The ID of the filter to get. Otherwise, it will return all filters.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -40,7 +40,7 @@ include-tagged::{doc-tests-file}[{api}-page-params]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get Filters Response
+==== Get filters response
 
 The returned +{response}+ contains the requested filters:
 
@@ -48,5 +48,5 @@ The returned +{response}+ contains the requested filters:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of filters that were matched
-<2> The filters retrieved
+<1> The count of filters that were matched.
+<2> The filters retrieved.

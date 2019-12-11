@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.script;
 
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,12 +24,12 @@ public class ParamsBuilder {
         return this;
     }
 
-    public ParamsBuilder agg(AggregateFunctionAttribute agg) {
+    public ParamsBuilder agg(AggregateFunction agg) {
         params.add(new Agg(agg));
         return this;
     }
 
-    public ParamsBuilder grouping(GroupingFunctionAttribute grouping) {
+    public ParamsBuilder grouping(GroupingFunction grouping) {
         params.add(new Grouping(grouping));
         return this;
     }

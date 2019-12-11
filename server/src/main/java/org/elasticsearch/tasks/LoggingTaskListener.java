@@ -49,7 +49,7 @@ public final class LoggingTaskListener<Response> implements TaskListener<Respons
     }
 
     @Override
-    public void onFailure(Task task, Throwable e) {
+    public void onFailure(Task task, Exception e) {
         logger.warn(() -> new ParameterizedMessage("{} failed with exception", task.getId()), e);
     }
 }

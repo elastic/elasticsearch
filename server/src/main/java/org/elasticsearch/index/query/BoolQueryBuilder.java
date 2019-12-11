@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -90,9 +89,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         shouldClauses.addAll(readQueries(in));
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            in.readBoolean(); // disable_coord
-        }
         minimumShouldMatch = in.readOptionalString();
     }
 
@@ -103,9 +99,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         writeQueries(out, shouldClauses);
         writeQueries(out, filterClauses);
         out.writeBoolean(adjustPureNegative);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            out.writeBoolean(true); // disable_coord
-        }
         out.writeOptionalString(minimumShouldMatch);
     }
 
@@ -257,7 +250,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         doXArrayContent(FILTER, filterClauses, builder, params);
         doXArrayContent(MUST_NOT, mustNotClauses, builder, params);
         doXArrayContent(SHOULD, shouldClauses, builder, params);
-        builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
+        if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
+            builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
+        }
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
@@ -424,12 +419,19 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
         changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
+        // early termination when must clause is empty and optional clauses is returning MatchNoneQueryBuilder
+        if(mustClauses.size() == 0 && filterClauses.size() == 0 && shouldClauses.size() > 0
+            && newBuilder.shouldClauses.stream().allMatch(b -> b instanceof MatchNoneQueryBuilder)) {
+                return new MatchNoneQueryBuilder();
+        }
+
         // lets do some early termination and prevent any kind of rewriting if we have a mandatory query that is a MatchNoneQueryBuilder
         Optional<QueryBuilder> any = Stream.concat(newBuilder.mustClauses.stream(), newBuilder.filterClauses.stream())
             .filter(b -> b instanceof MatchNoneQueryBuilder).findAny();
         if (any.isPresent()) {
             return any.get();
         }
+
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
             newBuilder.minimumShouldMatch = minimumShouldMatch;

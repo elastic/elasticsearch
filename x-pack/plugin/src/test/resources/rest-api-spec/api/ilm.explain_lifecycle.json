@@ -1,24 +1,34 @@
 {
-  "ilm.explain_lifecycle": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html",
-    "methods": [ "GET" ],
-    "url": {
-      "path": "/{index}/_ilm/explain",
-      "paths": ["/{index}/_ilm/explain"],
-      "parts": {
-        "index": {
-          "type" : "string",
-          "description" : "The name of the index to explain"
-        }
-      },
-      "params": {
-        "human": {
-          "type" : "boolean",
-          "default" : "false",
-          "description" : "Return data such as dates in a human readable format"
-        }
-      }
+  "ilm.explain_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ilm/explain",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the index to explain"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "only_managed": {
+        "type": "boolean",
+        "description": "filters the indices included in the response to ones managed by ILM"
+      },
+      "only_errors": {
+        "type": "boolean",
+        "description": "filters the indices included in the response to ones in an ILM error state, implies only_managed"
+      }
+    }
   }
 }

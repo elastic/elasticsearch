@@ -16,6 +16,19 @@ command line option to <<setup-installation-daemon,write the PID to a file>>.
 The `_upgrade` API is no longer useful and will be removed.  Instead, see
 <<reindex-upgrade>>.
 
+[role="exclude",id="migration-api-assistance"]
+=== Migration Assistance API
+
+The Migration Assistance API has been replaced with the
+<<migration-api-deprecation, Deprecation Info API>>.
+
+[role="exclude",id="migration-api-upgrade"]
+=== Migration Upgrade API
+
+The Migration Upgrade API has been removed. Use the
+{kibana-ref}/upgrade-assistant.html[{kib} Upgrade Assistant] or
+<<reindex-upgrade,Reindex manually>> instead.
+
 [role="exclude",id="docs-bulk-udp"]
 === Bulk UDP API
 
@@ -69,15 +82,13 @@ The `_uid` field has been removed in favour of the <<mapping-id-field,`_id` fiel
 === memcached
 
 The `memcached` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 [role="exclude",id="modules-thrift"]
 === Thrift
 
 The `thrift` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 // QUERY DSL
 
@@ -232,13 +243,6 @@ as a query in ``query context'' and as a filter in ``filter context'' (see
 === Terms Filter
 
 The `terms` filter has been replaced by the <<query-dsl-terms-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-type-filter"]
-=== Type Filter
-
-The `type` filter has been replaced by the <<query-dsl-type-query>>. It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
 
@@ -400,7 +404,7 @@ GET _search
 move the query and filter to the `must` and `filter` parameters in the `bool`
 query:
 
-[source,js]
+[source,console]
 -------------------------
 GET _search
 {
@@ -420,7 +424,6 @@ GET _search
   }
 }
 -------------------------
-// CONSOLE
 
 [role="exclude",id="query-dsl-or-query"]
 === Or query
@@ -499,10 +502,10 @@ See {painless}/painless-debugging.html[Painless Debugging] in the
 guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="painless-api-reference"]
-=== Painless API Reference
+=== Painless Contexts API Reference
 
-See the {painless}/painless-api-reference.html[Painless API Reference] in
-the guide to the {painless}/index.html[Painless Scripting Language].
+See the {painless}/painless-api-reference.html[Painless Contexts API Reference]
+in the guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude", id="security-api-roles"]
 === Role management APIs
@@ -548,7 +551,7 @@ See <<security-api-has-privileges>>.
 [role="exclude",id="xpack-commands"]
 === X-Pack commands
 
-See <<commands>>. 
+See <<commands>>.
 
 [role="exclude",id="ml-api-definitions"]
 === Machine learning API definitions
@@ -576,3 +579,490 @@ See <<gce-hosts-provider>>.
 
 Zen discovery is replaced by the <<modules-discovery,discovery and cluster
 formation module>>.
+
+[role="exclude",id="settings-xpack"]
+=== {xpack} settings in {es}
+
+include::{asciidoc-dir}/../../shared/settings.asciidoc[]
+
+[role="exclude",id="_faster_phrase_queries_with_literal_index_phrases_literal"]
+
+See <<faster-phrase-queries>>.
+
+[role="exclude",id="_faster_prefix_queries_with_literal_index_prefixes_literal.html"]
+
+See <<faster-prefix-queries>>.
+
+[role="exclude",id="setup-xpack"]
+=== Set up {xpack}
+
+{xpack} is an Elastic Stack extension that provides security, alerting,
+monitoring, reporting, machine learning, and many other capabilities. By default,
+when you install {es}, {xpack} is installed.
+
+[role="exclude",id="setup-xpack-client"]
+=== Configuring {xpack} Java Clients
+
+The `TransportClient` is deprecated in favour of the
+{java-rest}/java-rest-high.html[Java High Level REST Client] and was removed in
+Elasticsearch 8.0. The
+{java-rest}/java-rest-high-level-migration.html[migration guide] describes all
+the steps needed to migrate.
+
+[role="exclude",id="query-dsl-common-terms-query"]
+=== Common Terms Query
+
+The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
+query>> instead. The `match` query skips blocks of documents efficiently,
+without any configuration, if the total number of hits is not tracked.
+
+[role="exclude",id="indices-types-exists"]
+=== Types Exists
+
+The types exists endpoint has been removed. See <<removal-of-types>> for
+more details.
+
+[role="exclude",id="xpack-api"]
+=== X-Pack APIs
+
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
+
+[role="exclude",id="ml-calendar-resource"]]
+=== Calendar resources
+
+See <<ml-get-calendar>> and
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="ml-filter-resource"]
+=== Filter resources
+
+See <<ml-get-filter>> and
+{stack-ov}/ml-rules.html[Machine learning custom rules].
+
+[role="exclude",id="ml-event-resource"]
+=== Scheduled event resources
+
+See <<ml-get-calendar-event>> and
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="index-apis"]
+=== Index APIs
+{es} index APIs are now documented in <<indices>>.
+
+[role="exclude",id="search-request-docvalue-fields"]
+=== Doc value fields parameter for request body search API
+See <<request-body-search-docvalue-fields>>.
+
+[role="exclude",id="search-request-explain"]
+=== Explain parameter for request body search API
+See <<request-body-search-explain>>.
+
+[role="exclude",id="search-request-collapse"]
+=== Collapse parameter for request body search API
+See <<request-body-search-collapse>>.
+
+[role="exclude",id="search-request-from-size"]
+=== From and size parameters for request body search API
+See <<request-body-search-from-size>>.
+
+[role="exclude",id="search-request-highlighting"]
+=== Highlight parameter for request body search API
+See <<request-body-search-highlighting>>.
+
+[role="exclude",id="search-request-index-boost"]
+=== Index boost parameter for request body search API
+See <<request-body-search-index-boost>>.
+
+[role="exclude",id="search-request-inner-hits"]
+=== Inner hits parameter for request body search API
+See <<request-body-search-inner-hits>>.
+
+[role="exclude",id="search-request-min-score"]
+=== Minimum score parameter for request body search API
+See <<request-body-search-min-score>>.
+
+[role="exclude",id="search-request-named-queries-and-filters"]
+=== Named query parameter for request body search API
+See <<request-body-search-queries-and-filters>>.
+
+[role="exclude",id="search-request-post-filter"]
+=== Post filter parameter for request body search API
+See <<request-body-search-post-filter>>.
+
+[role="exclude",id="search-request-preference"]
+=== Preference parameter for request body search API
+See <<request-body-search-preference>>.
+
+[role="exclude",id="search-request-query"]
+=== Query parameter for request body search API
+See <<request-body-search-query>>.
+
+[role="exclude",id="search-request-rescore"]
+=== Rescoring parameter for request body search API
+See <<request-body-search-rescore>>.
+
+[role="exclude",id="search-request-script-fields"]
+=== Script fields parameter for request body search API
+See <<request-body-search-script-fields>>.
+
+[role="exclude",id="search-request-scroll"]
+=== Scroll parameter for request body search API
+See <<request-body-search-scroll>>.
+
+[role="exclude",id="search-request-search-after"]
+=== Search after parameter for request body search API
+See <<request-body-search-search-after>>.
+
+[role="exclude",id="search-request-search-type"]
+=== Search type parameter for request body search API
+See <<request-body-search-search-type>>.
+
+[role="exclude",id="search-request-seq-no-primary-term"]
+=== Sequence numbers and primary terms parameter for request body search API
+See <<request-body-search-search-type>>.
+
+[role="exclude",id="search-request-sort"]
+=== Sort parameter for request body search API
+See <<request-body-search-sort>>.
+
+[role="exclude",id="search-request-source-filtering"]
+=== Source filtering parameter for request body search API
+See <<request-body-search-source-filtering>>.
+
+[role="exclude",id="search-request-stored-fields"]
+=== Stored fields parameter for request body search API
+See <<request-body-search-stored-fields>>.
+
+[role="exclude",id="search-request-track-total-hits"]
+=== Track total hits parameter for request body search API
+See <<request-body-search-track-total-hits>>.
+
+[role="exclude",id="search-request-version"]
+=== Version parameter for request body search API
+See <<request-body-search-version>>.
+
+[role="exclude",id="search-suggesters-term"]
+=== Term suggester
+See <<term-suggester>>.
+
+[role="exclude",id="search-suggesters-phrase"]
+=== Phrase suggester
+See <<phrase-suggester>>.
+
+[role="exclude",id="search-suggesters-completion"]
+=== Completion suggester
+See <<completion-suggester>>.
+
+[role="exclude",id="suggester-context"]
+=== Context suggester
+See <<context-suggester>>.
+
+[role="exclude",id="returning-suggesters-type"]
+=== Return suggester type
+See <<return-suggesters-type>>.
+
+[role="exclude",id="search-profile-queries"]
+=== Profiling queries
+See <<profiling-queries>>.
+
+[role="exclude",id="search-profile-aggregations"]
+=== Profiling aggregations
+See <<profiling-aggregations>>.
+
+[role="exclude",id="search-profile-considerations"]
+=== Profiling considerations
+See <<profiling-considerations>>.
+
+[role="exclude",id="_explain_analyze"]
+=== Explain analyze API
+See <<explain-analyze-api>>.
+
+[role="exclude",id="indices-synced-flush"]
+=== Synced flush API
+See <<indices-synced-flush-api>>.
+
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="getting-started-explore"]
+=== Exploring your cluster
+See <<cat>>.
+
+[role="exclude",id="getting-started-cluster-health"]
+=== Cluster health
+See <<cat-health>>.
+
+[role="exclude", id="getting-started-list-indices"]
+=== List all indices
+See <<cat-indices>>.
+
+[role="exclude", id="getting-started-create-index"]
+=== Create an index
+See <<indices-create-index>>.
+
+[role="exclude", id="getting-started-query-document"]
+=== Index and query a document
+See <<getting-started-index>>.
+
+[role="exclude", id="getting-started-delete-index"]
+=== Delete an index
+See <<indices-delete-index>>.
+
+[role="exclude", id="getting-started-modify-data"]
+== Modifying your data
+See <<docs-update>>.
+
+[role="exclude", id="indexing-replacing-documents"]
+=== Indexing/replacing documents
+See <<docs-index_>>.
+
+[role="exclude", id="getting-started-explore-data"]
+=== Exploring your data
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-search-API"]
+=== Search API
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-conclusion"]
+=== Conclusion
+See <<getting-started-next-steps>>.
+
+[role="exclude",id="ccs-reduction"]
+=== {ccs-cap} reduction
+See <<ccs-works>>.
+
+[role="exclude",id="administer-elasticsearch"]
+=== Administering {es}
+See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
+
+[role="exclude",id="delete-data-frame-transform"]
+===  Delete {transforms} API
+
+See <<delete-transform>>.
+
+[role="exclude",id="get-data-frame-transform-stats"]
+=== Get {transform} statistics API
+
+See <<get-transform-stats>>.
+
+[role="exclude",id="get-data-frame-transform"]
+=== Get {transforms} API
+
+See <<get-transform>>.
+
+[role="exclude",id="preview-data-frame-transform"]
+=== Preview {transforms} API
+
+See <<preview-transform>>.
+
+[role="exclude",id="put-data-frame-transform"]
+===  Create {transforms} API
+
+See <<put-transform>>.
+
+[role="exclude",id="start-data-frame-transform"]
+=== Start {transforms} API
+
+See <<start-transform>>.
+
+[role="exclude",id="stop-data-frame-transform"]
+=== Stop {transforms} API
+
+See <<stop-transform>>.
+
+[role="exclude",id="update-data-frame-transform"]
+=== Update {transforms} API
+
+See <<update-transform>>.
+
+[role="exclude",id="data-frame-apis"]
+=== {transform-cap} APIs
+
+See <<transform-apis>>.
+
+[role="exclude",id="data-frame-transform-resource"]
+=== {transform-cap} resources
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-dest"]
+=== Dest objects
+
+See <<transform-dest>>.
+
+[role="exclude",id="data-frame-transform-source"]
+==== Source objects
+
+See <<transform-source>>.
+
+[role="exclude",id="data-frame-transform-pivot"]
+==== Pivot objects
+
+See <<transform-pivot>>.
+
+[role="exclude",id="configuring-monitoring"]
+=== Configuring monitoring
+
+See <<monitoring-overview>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitor-elasticsearch-cluster>>.
+
+[role="exclude",id="docker-cli-run"]
+=== Docker Run
+
+See <<docker-cli-run-dev-mode>>.
+
+[role="exclude",id="auditing"]
+=== Audit logging
+
+See <<enable-audit-logging>>.
+
+[role="exclude",id="analysis-compound-word-tokenfilter"]
+=== Compound word token filters
+
+See <<analysis-dict-decomp-tokenfilter>> and
+<<analysis-hyp-decomp-tokenfilter>>.
+
+[role="exclude",id="configuring-native-realm"]
+=== Configuring a native realm
+
+See <<native-realm-configuration>>.
+
+[role="exclude",id="native-settings"]
+==== Native realm settings
+
+See <<ref-native-settings>>. 
+
+[role="exclude",id="configuring-saml-realm"]
+=== Configuring a SAML realm
+
+See <<saml-guide>>.
+
+[role="exclude",id="saml-settings"]
+==== SAML realm settings
+
+See <<ref-saml-settings>>. 
+
+[role="exclude",id="_saml_realm_signing_settings"]
+==== SAML realm signing settings
+
+See <<ref-saml-signing-settings>>. 
+
+[role="exclude",id="_saml_realm_encryption_settings"]
+==== SAML realm encryption settings
+
+See <<ref-saml-encryption-settings>>. 
+
+[role="exclude",id="_saml_realm_ssl_settings"]
+==== SAML realm SSL settings
+
+See <<ref-saml-ssl-settings>>. 
+
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>. 
+
+[role="exclude",id="ldap-user-search"]
+=== User search mode and user DN templates mode
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="configuring-ldap-realm"]
+=== Configuring an LDAP realm
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="ldap-settings"]
+=== LDAP realm settings
+
+See <<ref-ldap-settings>>.
+
+[role="exclude",id="ldap-ssl"]
+=== Setting up SSL between Elasticsearch and LDAP
+
+See <<tls-ldap>>. 
+
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+
+[role="exclude",id="beats"]
+=== Beats and Security
+
+See:
+* {auditbeat-ref}/securing-beats.html[{auditbeat}]
+* {filebeat-ref}/securing-beats.html[{filebeat}]
+* {heartbeat-ref}/securing-beats.html[{heartbeat}]
+* {metricbeat-ref}/securing-beats.html[{metricbeat}]
+* {packetbeat-ref}/securing-beats.html[{packetbeat}]
+* {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
+
+[role="exclude",id="configuring-pki-realm"]
+=== Configuring a PKI realm
+
+See <<pki-realm>>.
+
+[role="exclude",id="pki-settings"]
+==== PKI realm settings
+
+See <<ref-pki-settings>>.
+
+[role="exclude",id="configuring-ad-realm"]
+=== Configuring an Active Directory realm
+
+See <<ad-realm-configuration>>.
+
+[role="exclude",id="ad-settings"]
+=== Active Directory realm settings
+
+See <<ref-ad-settings>>.
+
+[role="exclude",id="mapping-roles-ad"]
+=== Mapping Active Directory users and groups to roles
+
+See <<ad-realm-configuration>>. 
+
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.
+
+[role="exclude",id="rollup-job-config"]
+=== Rollup job configuration
+
+See <<rollup-put-job-api-request-body>>.
+
+[role="exclude",id="ml-job-resource"]
+=== Job resources
+
+This page was deleted.
+[[ml-analysisconfig]]
+See the details in
+[[ml-apimodelplotconfig]]
+<<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.
+
+[role="exclude",id="ml-datafeed-resource"]
+=== {dfeed-cap} resources
+
+This page was deleted.
+[[ml-datafeed-chunking-config]]
+See the details in <<ml-put-datafeed>>, <<ml-update-datafeed>>, 
+[[ml-datafeed-delayed-data-check-config]]
+<<ml-get-datafeed>>, 
+[[ml-datafeed-counts]]
+<<ml-get-datafeed-stats>>.

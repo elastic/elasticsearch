@@ -17,7 +17,7 @@ setup:
   - set: { nodes.$master.http.publish_address: http_host }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "watch" : {

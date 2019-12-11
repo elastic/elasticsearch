@@ -22,6 +22,7 @@ package org.elasticsearch.nio;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 public class NioServerSocketChannel extends NioChannel {
 
@@ -32,7 +33,6 @@ public class NioServerSocketChannel extends NioChannel {
 
     public NioServerSocketChannel(ServerSocketChannel serverSocketChannel) {
         this.serverSocketChannel = serverSocketChannel;
-        attemptToSetLocalAddress();
     }
 
     /**
@@ -47,6 +47,10 @@ public class NioServerSocketChannel extends NioChannel {
         } else {
             throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }
+    }
+
+    public void addBindListener(BiConsumer<Void, Exception> listener) {
+        context.addBindListener(listener);
     }
 
     @Override

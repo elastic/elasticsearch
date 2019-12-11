@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-    testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}"
+  testCompile project(":client:rest-high-level")
 }

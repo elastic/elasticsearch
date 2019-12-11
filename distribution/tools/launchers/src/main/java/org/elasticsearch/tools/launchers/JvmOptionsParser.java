@@ -19,26 +19,30 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.elasticsearch.tools.java_version_checker.JavaVersion;
+import java.util.stream.Collectors;
 
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
@@ -51,14 +55,14 @@ final class JvmOptionsParser {
      *
      * @param args the args to the program which should consist of a single option, the path to the JVM options
      */
-    public static void main(final String[] args) throws IOException {
+    public static void main(final String[] args) throws InterruptedException, IOException {
         if (args.length != 1) {
             throw new IllegalArgumentException("expected one argument specifying path to jvm.options but was " + Arrays.toString(args));
         }
         final List<String> jvmOptions = new ArrayList<>();
         final SortedMap<Integer, String> invalidLines = new TreeMap<>();
         try (InputStream is = Files.newInputStream(Paths.get(args[0]));
-             Reader reader = new InputStreamReader(is, Charset.forName("UTF-8"));
+             Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
              BufferedReader br = new BufferedReader(reader)) {
             parse(
                     JavaVersion.majorVersion(JavaVersion.CURRENT),
@@ -78,9 +82,28 @@ final class JvmOptionsParser {
         }
 
         if (invalidLines.isEmpty()) {
-            List<String> ergonomicJvmOptions = JvmErgonomics.choose(jvmOptions);
-            jvmOptions.addAll(ergonomicJvmOptions);
-            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
+            // now append the JVM options from ES_JAVA_OPTS
+            final String environmentJvmOptions = System.getenv("ES_JAVA_OPTS");
+            if (environmentJvmOptions != null) {
+                jvmOptions.addAll(Arrays.stream(environmentJvmOptions.split("\\s+"))
+                        .filter(Predicate.not(String::isBlank))
+                        .collect(Collectors.toUnmodifiableList()));
+            }
+            final Map<String, String> substitutions = new HashMap<>();
+            substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
+            if (null != System.getenv("ES_PATH_CONF")){
+                substitutions.put("ES_PATH_CONF", System.getenv("ES_PATH_CONF"));
+            }
+            final List<String> substitutedJvmOptions =
+                substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
+            final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
+            final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+            final List<String> finalJvmOptions =
+                new ArrayList<>(systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size());
+            finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
+            finalJvmOptions.addAll(substitutedJvmOptions);
+            finalJvmOptions.addAll(ergonomicJvmOptions);
+            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(finalJvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
         } else {
@@ -104,6 +127,24 @@ final class JvmOptionsParser {
             }
             Launchers.exit(1);
         }
+    }
+
+    static List<String> substitutePlaceholders(final List<String> jvmOptions, final Map<String, String> substitutions) {
+        final Map<String, String> placeholderSubstitutions =
+            substitutions.entrySet().stream().collect(Collectors.toMap(e -> "${" + e.getKey() + "}", Map.Entry::getValue));
+        return jvmOptions.stream()
+            .map(
+                jvmOption -> {
+                    String actualJvmOption = jvmOption;
+                    int start = jvmOption.indexOf("${");
+                    if (start >= 0 && jvmOption.indexOf('}', start) > 0) {
+                        for (final Map.Entry<String, String> placeholderSubstitution : placeholderSubstitutions.entrySet()) {
+                            actualJvmOption = actualJvmOption.replace(placeholderSubstitution.getKey(), placeholderSubstitution.getValue());
+                        }
+                    }
+                    return actualJvmOption;
+                })
+            .collect(Collectors.toList());
     }
 
     /**

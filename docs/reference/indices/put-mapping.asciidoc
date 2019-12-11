@@ -1,14 +1,15 @@
 [[indices-put-mapping]]
-== Put Mapping
+=== Put mapping API
+++++
+<titleabbrev>Put mapping</titleabbrev>
+++++
 
-The PUT mapping API allows you to add fields to an existing index or to change search only settings of existing fields.
+Adds new fields to an existing index or changes the search settings of existing
+fields.
 
-[source,js]
---------------------------------------------------
-PUT twitter <1>
-{}
-
-PUT twitter/_mapping <2>
+[source,console]
+----
+PUT /twitter/_mapping
 {
   "properties": {
     "email": {
@@ -16,28 +17,97 @@ PUT twitter/_mapping <2>
     }
   }
 }
---------------------------------------------------
-// CONSOLE
-<1> <<indices-create-index,Creates an index>> called `twitter` without any mapping.
-<2> Uses the PUT mapping API to add a new field called `email`.
+----
+// TEST[setup:twitter]
 
-More information on how to define mappings can be found in the <<mapping,mapping>> section.
+[[put-mapping-api-request]]
+==== {api-request-title}
 
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
+`PUT /<index>/_mapping`
 
-[float]
-=== Multi-index
+`PUT /_mapping`
+
+
+[[put-mapping-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
++
+To update the mapping of all indices, omit this parameter or use a value of
+`_all`.
+
+
+[[put-mapping-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[put-mapping-api-request-body]]
+==== {api-request-body-title}
+
+`properties`::
++
+--
+(Required, <<mapping,mapping object>>) Mapping for a field. For new
+fields, this mapping can include:
+
+* Field name
+* <<field-datatypes,Field datatype>>
+* <<mapping-params,Mapping parameters>>
+
+For existing fields, see <<updating-field-mappings>>.
+--
+
+
+[[put-mapping-api-example]]
+==== {api-examples-title}
+
+[[put-field-mapping-api-basic-ex]]
+===== Example with index setup
+
+The put mapping API requires an existing index. The following
+<<indices-create-index, create index>> API request creates the `publications`
+index with no mapping.
+
+[source,console]
+----
+PUT /publications
+----
+
+The following put mapping API request adds `title`, a new <<text,`text`>> field,
+to the `publications` index.
+
+[source,console]
+----
+PUT /publications/_mapping
+{
+  "properties": {
+    "title":  { "type": "text"}
+  }
+}
+----
+// TEST[continued]
+
+[[put-mapping-api-multi-ex]]
+===== Multiple indices
 
 The PUT mapping API can be applied to multiple indices with a single request.
 For example, we can update the `twitter-1` and `twitter-2` mappings at the same time:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # Create the two indices
-PUT twitter-1
-PUT twitter-2
+PUT /twitter-1
+PUT /twitter-2
 
 # Update both mappings
 PUT /twitter-1,twitter-2/_mapping <1>
@@ -49,26 +119,28 @@ PUT /twitter-1,twitter-2/_mapping <1>
   }
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[setup:twitter]
+
 <1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
 
 
-[[updating-field-mappings]]
-[float]
-=== Updating field mappings
+[[add-new-field-to-object]]
+===== Add new properties to an existing object field
 
-In general, the mapping for existing fields cannot be updated.  There are some
-exceptions to this rule. For instance:
+You can use the put mapping API
+to add new properties
+to an existing <<object,`object`>> field.
+To see how this works,
+try the following example.
 
-* new <<properties>> can be added to <<object>> fields.
-* new <<multi-fields,multi-fields>> can be added to existing fields.
-* the <<ignore-above>> parameter can be updated.
+Use the <<indices-create-index,create index>> API
+to create an index
+with the `name` object field
+and an inner `first` text field.
 
-For example:
-
-[source,js]
------------------------------------
-PUT my_index <1>
+[source,console]
+----
+PUT /my_index
 {
   "mappings": {
     "properties": {
@@ -78,35 +150,426 @@ PUT my_index <1>
             "type": "text"
           }
         }
-      },
+      }
+    }
+  }
+}
+----
+
+Use the put mapping API
+to add a new inner `last` text field
+to the `name` field.
+
+[source,console]
+----
+PUT /my_index/_mapping
+{
+  "properties": {
+    "name": {
+      "properties": {
+        "last": {
+          "type": "text"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+Use the <<indices-get-mapping,get mapping>> API
+to verify your changes.
+
+[source,console]
+----
+GET /my_index/_mapping
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my_index" : {
+    "mappings" : {
+      "properties" : {
+        "name" : {
+          "properties" : {
+            "first" : {
+              "type" : "text"
+            },
+            "last" : {
+              "type" : "text"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+
+[[add-multi-fields-existing-field-ex]]
+===== Add multi-fields to an existing field
+
+<<multi-fields,Multi-fields>>
+let you index the same field
+in different ways.
+You can use the put mapping API
+to update the `fields` mapping parameter
+and enable multi-fields for an existing field.
+
+To see how this works,
+try the following example.
+
+Use the <<indices-create-index,create index>> API
+to create an index
+with the `city` <<text,text>> field.
+
+[source,console]
+----
+PUT /my_index
+{
+  "mappings": {
+    "properties": {
+      "city": {
+        "type": "text"
+      }
+    }
+  }
+}
+----
+
+While text fields work well for full-text search,
+<<keyword,keyword>> fields are not analyzed
+and may work better for sorting or aggregations.
+
+Use the put mapping API
+to enable a multi-field for the `city` field.
+This request adds the `city.raw` keyword multi-field,
+which can be used for sorting.
+
+[source,console]
+----
+PUT /my_index/_mapping
+{
+  "properties": {
+    "city": {
+      "type": "text",
+      "fields": {
+        "raw": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+Use the <<indices-get-mapping,get mapping>> API
+to verify your changes.
+
+[source,console]
+----
+GET /my_index/_mapping
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my_index" : {
+    "mappings" : {
+      "properties" : {
+        "city" : {
+          "type" : "text",
+          "fields" : {
+            "raw" : {
+              "type" : "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+
+[[change-existing-mapping-parms]]
+===== Change supported mapping parameters for an existing field
+
+The documentation for each <<mapping-params,mapping parameter>>
+indicates whether you can update it
+for an existing field
+using the put mapping API.
+For example,
+you can use the put mapping API
+to update the <<ignore-above,`ignore_above`>> parameter.
+
+To see how this works,
+try the following example.
+
+Use the <<indices-create-index,create index>> API to create an index
+containing a `user_id` keyword field.
+The `user_id` field
+has an `ignore_above` parameter value
+of `20`.
+
+[source,console]
+----
+PUT /my_index
+{
+  "mappings": {
+    "properties": {
+      "user_id": {
+        "type": "keyword",
+        "ignore_above": 20
+      }
+    }
+  }
+}
+----
+
+Use the put mapping API
+to change the `ignore_above` parameter value
+to `100`.
+
+[source,console]
+----
+PUT /my_index/_mapping
+{
+  "properties": {
+    "user_id": {
+      "type": "keyword",
+      "ignore_above": 100
+    }
+  }
+}
+----
+// TEST[continued]
+
+Use the <<indices-get-mapping,get mapping>> API
+to verify your changes.
+
+[source,console]
+----
+GET /my_index/_mapping
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my_index" : {
+    "mappings" : {
+      "properties" : {
+        "user_id" : {
+          "type" : "keyword",
+          "ignore_above" : 100
+        }
+      }
+    }
+  }
+}
+----
+
+
+[[updating-field-mappings]]
+===== Change the mapping of an existing field
+
+// tag::change-field-mapping[]
+Except for supported <<mapping-params,mapping parameters>>,
+you can't change the mapping or field type of an existing field.
+Changing an existing field could invalidate data that's already indexed.
+
+If you need to change the mapping of a field,
+create a new index with the correct mapping
+and <<docs-reindex,reindex>> your data into that index.
+// end::change-field-mapping[]
+
+To see how this works,
+try the following example.
+
+Use the <<indices-create-index,create index>> API
+to create the `users` index
+with the `user_id` field
+with the <<number,`long`>> field type.
+
+[source,console]
+----
+PUT /users
+{
+  "mappings" : {
+    "properties": {
+      "user_id": {
+        "type": "long"
+      }
+    }
+  }
+}
+----
+
+Use the <<docs-index_,index>> API
+to index several documents
+with `user_id` field values.
+
+[source,console]
+----
+POST /users/_doc?refresh=wait_for
+{
+    "user_id" : 12345
+}
+
+POST /users/_doc?refresh=wait_for
+{
+    "user_id" : 12346
+}
+----
+// TEST[continued]
+
+To change the `user_id` field
+to the <<keyword,`keyword`>> field type,
+use the create index API
+to create the `new_users` index with the correct mapping.
+
+[source,console]
+----
+PUT /new_users
+{
+  "mappings" : {
+    "properties": {
       "user_id": {
         "type": "keyword"
       }
     }
   }
 }
+----
+// TEST[continued]
 
-PUT my_index/_mapping
+Use the <<docs-reindex,reindex>> API
+to copy documents from the `users` index
+to the `new_users` index.
+
+[source,console]
+----
+POST /_reindex
 {
-  "properties": {
-    "name": {
-      "properties": {
-        "last": { <2>
-          "type": "text"
-        }
+  "source": {
+    "index": "users"
+  },
+  "dest": {
+    "index": "new_users"
+  }
+}
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "took": 147,
+  "timed_out": false,
+  "total": 2,
+  "updated": 0,
+  "created": 2,
+  "deleted": 0,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": -1.0,
+  "throttled_until_millis": 0,
+  "failures" : [ ]
+}
+----
+// TESTRESPONSE[s/"took": 147/"took": "$body.took"/]
+
+
+[[rename-existing-field]]
+===== Rename a field
+
+// tag::rename-field[]
+Renaming a field would invalidate data already indexed under the old field name.
+Instead, add an <<alias, `alias`>> field to create an alternate field name.
+// end::rename-field[]
+
+For example,
+use the <<indices-create-index,create index>> API
+to create an index
+with the `user_identifier` field.
+
+[source,console]
+----
+PUT /my_index
+{
+  "mappings": {
+    "properties": {
+      "user_identifier": {
+        "type": "keyword"
       }
-    },
-    "user_id": {
-      "type": "keyword",
-      "ignore_above": 100 <3>
     }
   }
 }
------------------------------------
-// CONSOLE
-<1> Create an index with a `first` field under the `name` <<object>> field, and a `user_id` field.
-<2> Add a `last` field under the `name` object field.
-<3> Update the `ignore_above` setting from its default of 0.
+----
 
-Each <<mapping-params,mapping parameter>> specifies whether or not its setting
-can be updated on an existing field.
+Use the put mapping API to add the `user_id` field alias
+for the existing `user_identifier` field.
+
+[source,console]
+----
+PUT /my_index/_mapping
+{
+  "properties": {
+    "user_id": {
+      "type": "alias",
+      "path": "user_identifier"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Use the <<indices-get-mapping,get mapping>> API
+to verify your changes.
+
+[source,console]
+----
+GET /my_index/_mapping
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my_index" : {
+    "mappings" : {
+      "properties" : {
+        "user_id" : {
+          "type" : "alias",
+          "path" : "user_identifier"
+        },
+        "user_identifier" : {
+          "type" : "keyword"
+        }
+      }
+    }
+  }
+}
+----

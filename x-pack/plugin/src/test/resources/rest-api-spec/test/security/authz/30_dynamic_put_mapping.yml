@@ -72,7 +72,6 @@ teardown:
       create:
         id: 1
         index: write_alias
-        type: doc
         body: >
           {
             "name" : "doc1"
@@ -83,7 +82,6 @@ teardown:
       create:
         id: 2
         index: write_alias
-        type: doc
         body: >
           {
             "name2" : "doc2"

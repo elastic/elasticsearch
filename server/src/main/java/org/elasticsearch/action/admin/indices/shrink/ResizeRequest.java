@@ -58,6 +58,14 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
 
+    public ResizeRequest(StreamInput in) throws IOException {
+        super(in);
+        targetIndexRequest = new CreateIndexRequest(in);
+        sourceIndex = in.readString();
+        type = in.readEnum(ResizeType.class);
+        copySettings = in.readOptionalBoolean();
+    }
+
     ResizeRequest() {}
 
     public ResizeRequest(String targetIndex, String sourceIndex) {
@@ -89,37 +97,15 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        targetIndexRequest = new CreateIndexRequest();
-        targetIndexRequest.readFrom(in);
-        sourceIndex = in.readString();
-        if (in.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
-            type = in.readEnum(ResizeType.class);
-        } else {
-            type = ResizeType.SHRINK; // BWC this used to be shrink only
-        }
-        if (in.getVersion().before(Version.V_6_4_0)) {
-            copySettings = null;
-        } else {
-            copySettings = in.readOptionalBoolean();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
-        if (out.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
-            out.writeEnum(type);
+        if (type == ResizeType.CLONE && out.getVersion().before(Version.V_7_4_0)) {
+            throw new IllegalArgumentException("can't send clone request to a node that's older than " + Version.V_7_4_0);
         }
-        // noinspection StatementWithEmptyBody
-        if (out.getVersion().before(Version.V_6_4_0)) {
-
-        } else {
-            out.writeOptionalBoolean(copySettings);
-        }
+        out.writeEnum(type);
+        out.writeOptionalBoolean(copySettings);
     }
 
     @Override

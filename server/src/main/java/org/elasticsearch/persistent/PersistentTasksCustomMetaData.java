@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -347,11 +348,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             id = in.readString();
             allocationId = in.readLong();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                params = (P) in.readNamedWriteable(PersistentTaskParams.class);
-            } else {
-                params = (P) in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            }
+            params = (P) in.readNamedWriteable(PersistentTaskParams.class);
             state = in.readOptionalNamedWriteable(PersistentTaskState.class);
             assignment = new Assignment(in.readOptionalString(), in.readString());
             allocationIdOnLastStatusUpdate = in.readOptionalLong();
@@ -362,11 +359,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             out.writeString(id);
             out.writeLong(allocationId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeNamedWriteable(params);
-            } else {
-                out.writeOptionalNamedWriteable(params);
-            }
+            out.writeNamedWriteable(params);
             out.writeOptionalNamedWriteable(state);
             out.writeOptionalString(assignment.executorNode);
             out.writeString(assignment.explanation);
@@ -540,7 +533,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(lastAllocationId);
         Map<String, PersistentTask<?>> filteredTasks = tasks.values().stream()
-            .filter(t -> ClusterState.FeatureAware.shouldSerialize(out, t.getParams()))
+            .filter(t -> VersionedNamedWriteable.shouldSerialize(out, t.getParams()))
             .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
         out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }

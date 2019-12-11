@@ -9,7 +9,7 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 <<custom-date-formats,custom formats>> can be specified using the familiar
 `yyyy/MM/dd` syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -23,7 +23,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded
@@ -33,7 +32,7 @@ down to the nearest day.
 ==== Custom date formats
 
 Completely customizable date formats are supported.  The syntax for these is explained
-http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[in the Joda docs].
+https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
 
 [[built-in-date-formats]]
 ==== Built In Formats
@@ -69,7 +68,6 @@ The following tables lists all the defaults ISO formats supported:
 
     A generic ISO datetime parser where the date is mandatory and the time is
     optional.
-    http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser--[Full details here].
 
 `basic_date`::
 

@@ -36,18 +36,23 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ -x "$JAVA_HOME/bin/java" ]; then
+if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
+  JAVA_TYPE="JAVA_HOME"
 else
-  set +e
-  JAVA=`which java`
-  set -e
+  if [ "$(uname -s)" = "Darwin" ]; then
+    # macOS has a different structure
+    JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
+  else
+    JAVA="$ES_HOME/jdk/bin/java"
+  fi
+  JAVA_TYPE="bundled jdk"
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java; set JAVA_HOME or ensure java is in PATH" >&2
-  exit 1
-fi
+    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+    exit 1
+  fi
 
 # do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
@@ -79,7 +84,6 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
+ES_BUNDLED_JDK=${es.bundled_jdk}
 
-if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
-fi
+cd "$ES_HOME"

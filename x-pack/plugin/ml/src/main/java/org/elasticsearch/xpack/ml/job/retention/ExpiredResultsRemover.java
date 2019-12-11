@@ -12,17 +12,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -45,9 +47,9 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
     private final Client client;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
 
-    public ExpiredResultsRemover(Client client, Auditor auditor) {
+    public ExpiredResultsRemover(Client client, AnomalyDetectionAuditor auditor) {
         super(client);
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
@@ -85,7 +87,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     private DeleteByQueryRequest createDBQRequest(Job job, long cutoffEpochMs) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
-        request.setSlices(5);
+        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+
+        // Delete the documents gradually.
+        // With DEFAULT_SCROLL_SIZE = 1000 this implies we spread deletion of 1 million documents over 5000 seconds ~= 83 minutes.
+        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE);
+        request.setRequestsPerSecond(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
@@ -94,6 +101,9 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                 .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
                 .mustNot(excludeFilter);
         request.setQuery(query);
+
+        // _doc is the most efficient sort order and will also disable scoring
+        request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
         return request;
     }
 

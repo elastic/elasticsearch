@@ -1,4 +1,4 @@
-[source,Painless]
+[source,console]
 ----
 POST _watcher/watch/_execute
 {
@@ -99,12 +99,13 @@ POST _watcher/watch/_execute
   }
 }
 ----
+// TEST[skip: requires setup from other pages]
 
 The following example shows the use of metadata and transforming dates into a readable format.
 
-[source,Painless]
+[source,console]
 ----
-POST _xpack/watcher/watch/_execute
+POST _watcher/watch/_execute
 {
   "watch" : {
     "metadata" : { "min_hits": 10000 },
@@ -155,3 +156,4 @@ POST _xpack/watcher/watch/_execute
   }
 }
 ----
+// TEST[skip: requires setup from other pages]

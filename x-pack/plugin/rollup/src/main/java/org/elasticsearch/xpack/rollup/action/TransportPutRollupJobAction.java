@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -32,13 +34,18 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -49,14 +56,20 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
+
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
+    private static final DeprecationLogger deprecationLogger
+        = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
 
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
@@ -64,7 +77,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                                        ClusterService clusterService, XPackLicenseState licenseState,
                                        PersistentTasksService persistentTasksService, Client client) {
         super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutRollupJobAction.Request::new);
+            PutRollupJobAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -76,12 +89,12 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(PutRollupJobAction.Request request, ClusterState clusterState,
+    protected void masterOperation(Task task, PutRollupJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.isRollupAllowed()) {
@@ -90,12 +103,14 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         }
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        checkForDeprecatedTZ(request);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
             .indices(request.getConfig().getIndexPattern())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
+        fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
-        client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
+        client.fieldCaps(fieldCapsRequest, new ActionListener<>() {
             @Override
             public void onResponse(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
                 ActionRequestValidationException validationException = request.validateMappings(fieldCapabilitiesResponse.get());
@@ -115,6 +130,15 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         });
     }
 
+    static void checkForDeprecatedTZ(PutRollupJobAction.Request request) {
+        String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
+        String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
+        if (modernTZ != null) {
+            deprecationLogger.deprecated("Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
+                + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
+        }
+    }
+
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
         // ensure we only filter for the allowed headers
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
@@ -126,13 +150,14 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                             PersistentTasksService persistentTasksService, Client client, Logger logger) {
 
-        String jobMetadata = "\"" + job.getConfig().getId() + "\":" + job.getConfig().toJSONString();
-
-        String mapping = Rollup.DYNAMIC_MAPPING_TEMPLATE
-                .replace(Rollup.MAPPING_METADATA_PLACEHOLDER, jobMetadata);
-
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getRollupIndex());
-        request.mapping(RollupField.TYPE_NAME, mapping, XContentType.JSON);
+        try {
+            XContentBuilder mapping = createMappings(job.getConfig());
+            request.source(mapping);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
 
         client.execute(CreateIndexAction.INSTANCE, request,
                 ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
@@ -147,6 +172,40 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 }));
     }
 
+    private static XContentBuilder createMappings(RollupJobConfig config) throws IOException {
+        return XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+                .startObject("mappings")
+                    .startObject("_doc")
+                        .startObject("_meta")
+                            .field(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.CURRENT.toString())
+                            .startObject("_rollup")
+                                .field(config.getId(), config)
+                            .endObject()
+                        .endObject()
+                        .startArray("dynamic_templates")
+                            .startObject()
+                                .startObject("strings")
+                                    .field("match_mapping_type", "string")
+                                    .startObject("mapping")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject()
+                                .startObject("date_histograms")
+                                    .field("path_match", "*.date_histogram.timestamp")
+                                    .startObject("mapping")
+                                        .field("type", "date")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endObject()
+            .endObject();
+    }
+
     @SuppressWarnings("unchecked")
     static void updateMapping(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                               PersistentTasksService persistentTasksService, Client client, Logger logger) {
@@ -154,7 +213,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         final String indexName = job.getConfig().getRollupIndex();
 
         CheckedConsumer<GetMappingsResponse, Exception> getMappingResponseHandler = getMappingResponse -> {
-            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
+            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName);
             Object m = mappings.getSourceAsMap().get("_meta");
             if (m == null) {
                 String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
@@ -196,7 +255,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             Map<String, Object> newMapping = mappings.getSourceAsMap();
             newMapping.put("_meta", metadata);
             PutMappingRequest request = new PutMappingRequest(indexName);
-            request.type(RollupField.TYPE_NAME);
             request.source(newMapping);
             client.execute(PutMappingAction.INSTANCE, request,
                     ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService),

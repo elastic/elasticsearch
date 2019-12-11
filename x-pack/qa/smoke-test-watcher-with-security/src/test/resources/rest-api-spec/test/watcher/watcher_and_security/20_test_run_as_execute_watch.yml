@@ -18,7 +18,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch"
         ignore: 404
 
@@ -27,7 +27,7 @@ teardown:
   - skip:
       features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -63,13 +63,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
@@ -83,7 +83,7 @@ teardown:
   - skip:
       features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -119,14 +119,14 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
       headers: { es-security-runas-user: x_pack_rest_user }
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
@@ -140,7 +140,7 @@ teardown:
   - do:
       # by impersonating this request as powerless user we cannot query the my_test_index
       # headers: { es-security-runas-user: powerless_user }
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -176,13 +176,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   # because we are not allowed to read the index, there wont be any data
@@ -193,7 +193,7 @@ teardown:
 ---
 "Test watch search transform is run as user who added the watch":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -227,7 +227,7 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
 
@@ -242,7 +242,7 @@ teardown:
 ---
 "Test watch search transform does not work without permissions":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -277,7 +277,7 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
 
@@ -294,7 +294,7 @@ teardown:
   - skip:
       features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -318,13 +318,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
@@ -343,7 +343,7 @@ teardown:
   - skip:
       features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -367,13 +367,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }

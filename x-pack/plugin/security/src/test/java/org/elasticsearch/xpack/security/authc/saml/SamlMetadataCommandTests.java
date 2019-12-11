@@ -165,9 +165,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
 
         final UserException userException = expectThrows(UserException.class, () -> command.buildEntityDescriptor(terminal, options, env));
         assertThat(userException.getMessage(), containsString("multiple SAML realms"));
-        assertThat(terminal.getOutput(), containsString("saml_a"));
-        assertThat(terminal.getOutput(), containsString("saml_b"));
-        assertThat(terminal.getOutput(), containsString("Use the -realm option"));
+        assertThat(terminal.getErrorOutput(), containsString("saml_a"));
+        assertThat(terminal.getErrorOutput(), containsString("saml_b"));
+        assertThat(terminal.getErrorOutput(), containsString("Use the -realm option"));
     }
 
     public void testSpecifyRealmNameAsParameter() throws Exception {
@@ -423,7 +423,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
                 descriptor, env));
         assertThat(userException.getMessage(), containsString("Unable to create metadata document"));
-        assertThat(terminal.getOutput(), containsString("Error parsing Private Key from"));
+        assertThat(terminal.getErrorOutput(), containsString("Error parsing Private Key from"));
     }
 
     public void testSigningMetadataWithPem() throws Exception {
@@ -688,7 +688,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     private boolean validateSignature(Signature signature) {
         try {
             Certificate[] certificates = CertParsingUtils.
-                    readCertificates(Collections.singletonList(getDataPath("saml.crt").toString()), null);
+                    readCertificates(Collections.singletonList(getDataPath("saml.crt").toString()), newEnvironment());
             PrivateKey key = PemUtils.readPrivateKey(getDataPath("saml.key"),
                     ""::toCharArray);
             Credential verificationCredential = new BasicX509Credential((java.security.cert.X509Certificate) certificates[0], key);

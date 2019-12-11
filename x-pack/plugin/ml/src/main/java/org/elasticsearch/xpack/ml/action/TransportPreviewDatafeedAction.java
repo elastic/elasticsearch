@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -29,7 +32,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
@@ -38,54 +40,66 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final Client client;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobResultsProvider jobResultsProvider;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportPreviewDatafeedAction(ThreadPool threadPool, TransportService transportService,
                                           ActionFilters actionFilters, Client client, JobConfigProvider jobConfigProvider,
-                                          DatafeedConfigProvider datafeedConfigProvider) {
-        super(PreviewDatafeedAction.NAME, transportService, actionFilters,
-            (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
+                                          DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider,
+                                          NamedXContentRegistry xContentRegistry) {
+        super(PreviewDatafeedAction.NAME, transportService, actionFilters, PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.jobResultsProvider = jobResultsProvider;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
-
         datafeedConfigProvider.getDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                datafeedConfigBuilder -> {
-                    DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-                    jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
-                            jobBuilder -> {
-                                DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
-                                Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                                        .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                                previewDatafeed.setHeaders(headers);
+            datafeedConfigBuilder -> {
+                DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+                jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
+                    jobBuilder -> {
+                        DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
+                        Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
+                            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                        previewDatafeed.setHeaders(headers);
+                        jobResultsProvider.datafeedTimingStats(
+                            jobBuilder.getId(),
+                            timingStats -> {
                                 // NB: this is using the client from the transport layer, NOT the internal client.
                                 // This is important because it means the datafeed search will fail if the user
                                 // requesting the preview doesn't have permission to search the relevant indices.
-                                DataExtractorFactory.create(client, previewDatafeed.build(), jobBuilder.build(),
-                                        new ActionListener<DataExtractorFactory>() {
-                                    @Override
-                                    public void onResponse(DataExtractorFactory dataExtractorFactory) {
-                                        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
-                                        threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
-                                    }
+                                DataExtractorFactory.create(
+                                    client,
+                                    previewDatafeed.build(),
+                                    jobBuilder.build(),
+                                    xContentRegistry,
+                                    // Fake DatafeedTimingStatsReporter that does not have access to results index
+                                    new DatafeedTimingStatsReporter(timingStats, (ts, refreshPolicy) -> {}),
+                                    new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(DataExtractorFactory dataExtractorFactory) {
+                                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
+                                            threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
+                                        }
 
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        listener.onFailure(e);
-                                    }
-                                });
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            listener.onFailure(e);
+                                        }
+                                    });
                             },
-                            listener::onFailure
-                    ));
-                },
-                listener::onFailure
-        ));
+                            listener::onFailure);
+                    },
+                    listener::onFailure));
+            },
+            listener::onFailure));
     }
 
     /** Visible for testing */

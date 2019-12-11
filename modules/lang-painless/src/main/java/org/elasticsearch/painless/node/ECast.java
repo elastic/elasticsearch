@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
@@ -46,19 +48,19 @@ final class ECast extends AExpression {
 
     @Override
     void extractVariables(Set<String> variables) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void analyze(Locals locals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        child.write(writer, globals);
-        writer.writeDebugInfo(location);
-        writer.writeCast(cast);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        child.write(classWriter, methodWriter, globals);
+        methodWriter.writeDebugInfo(location);
+        methodWriter.writeCast(cast);
     }
 
     @Override

@@ -37,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -60,11 +59,9 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but does not exercise important portion of the stack like transport and task management.
  */
-@TestLogging("org.elasticsearch.index.reindex:DEBUG,org.elasticsearch.action.bulk:DEBUG")
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
-    protected static final String TYPE = "reindex-cancel-type";
 
     // Semaphore used to allow & block indexing operations during the test
     private static final Semaphore ALLOWED_OPERATIONS = new Semaphore(0);
@@ -95,7 +92,7 @@ public class CancelTests extends ReindexTestCase {
 
         logger.debug("setting up [{}] docs", numDocs);
         indexRandom(true, false, true, IntStream.range(0, numDocs)
-                .mapToObj(i -> client().prepareIndex(INDEX, TYPE, String.valueOf(i)).setSource("n", i))
+                .mapToObj(i -> client().prepareIndex().setIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList()));
 
         // Checks that the all documents have been indexed and correctly counted
@@ -120,10 +117,9 @@ public class CancelTests extends ReindexTestCase {
          * exhausted their slice while others might have quite a bit left
          * to work on. We can't control that. */
         logger.debug("waiting for updates to be blocked");
-        boolean blocked = awaitBusy(
-            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
+        assertBusy(
+            () -> assertTrue("updates blocked", ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0),
             1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertTrue("updates blocked", blocked);
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
@@ -212,12 +208,12 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancel() throws Exception {
-        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest", TYPE), (response, total, modified) -> {
+        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest"), (response, total, modified) -> {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
             refresh("dest");
-            assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
-        }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
+            assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
+        }, equalTo("reindex from [" + INDEX + "] to [dest]"));
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -247,13 +243,13 @@ public class CancelTests extends ReindexTestCase {
 
     public void testReindexCancelWithWorkers() throws Exception {
         testCancel(ReindexAction.NAME,
-                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", TYPE).setSlices(5),
+                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest").setSlices(5),
                 (response, total, modified) -> {
                     assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     refresh("dest");
-                    assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
+                    assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
                 },
-                equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
+                equalTo("reindex from [" + INDEX + "] to [dest]"));
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
@@ -302,16 +298,16 @@ public class CancelTests extends ReindexTestCase {
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
-            return preCheck(index, index.type());
+            return preCheck(index);
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-            return preCheck(delete, delete.type());
+            return preCheck(delete);
         }
 
-        private <T extends Engine.Operation> T preCheck(T operation, String type) {
-            if ((TYPE.equals(type) == false) || (operation.origin() != Origin.PRIMARY)) {
+        private <T extends Engine.Operation> T preCheck(T operation) {
+            if ((operation.origin() != Origin.PRIMARY)) {
                 return operation;
             }
 

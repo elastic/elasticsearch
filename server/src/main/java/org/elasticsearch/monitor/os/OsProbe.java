@@ -42,6 +42,24 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * The {@link OsProbe} class retrieves information about the physical and swap size of the machine
+ * memory, as well as the system load average and cpu load.
+ *
+ * In some exceptional cases, it's possible the underlying native method used by
+ * {@link #getFreePhysicalMemorySize()} and {@link #getTotalPhysicalMemorySize()} can return a
+ * negative value. Because of this, we prevent those methods from returning negative values,
+ * returning 0 instead.
+ *
+ * The OS can report a negative number in a number of cases:
+ * - Non-supported OSes (HP-UX, or AIX)
+ * - A failure of macOS to initialize host statistics
+ * - An OS that does not support the {@code _SC_PHYS_PAGES} or {@code _SC_PAGE_SIZE} flags for the {@code sysconf()} linux kernel call
+ * - An overflow of the product of {@code _SC_PHYS_PAGES} and {@code _SC_PAGE_SIZE}
+ * - An error case retrieving these values from a linux kernel
+ * - A non-standard libc implementation not implementing the required values
+ * For a more exhaustive explanation, see https://github.com/elastic/elasticsearch/pull/42725
+ */
 public class OsProbe {
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
@@ -67,12 +85,19 @@ public class OsProbe {
      */
     public long getFreePhysicalMemorySize() {
         if (getFreePhysicalMemorySize == null) {
-            return -1;
+            logger.warn("getFreePhysicalMemorySize is not available");
+            return 0;
         }
         try {
-            return (long) getFreePhysicalMemorySize.invoke(osMxBean);
+            final long freeMem = (long) getFreePhysicalMemorySize.invoke(osMxBean);
+            if (freeMem < 0) {
+                logger.warn("OS reported a negative free memory value [{}]", freeMem);
+                return 0;
+            }
+            return freeMem;
         } catch (Exception e) {
-            return -1;
+            logger.warn("exception retrieving free physical memory", e);
+            return 0;
         }
     }
 
@@ -81,12 +106,19 @@ public class OsProbe {
      */
     public long getTotalPhysicalMemorySize() {
         if (getTotalPhysicalMemorySize == null) {
-            return -1;
+            logger.warn("getTotalPhysicalMemorySize is not available");
+            return 0;
         }
         try {
-            return (long) getTotalPhysicalMemorySize.invoke(osMxBean);
+            final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
+            if (totalMem < 0) {
+                logger.warn("OS reported a negative total memory value [{}]", totalMem);
+                return 0;
+            }
+            return totalMem;
         } catch (Exception e) {
-            return -1;
+            logger.warn("exception retrieving total physical memory", e);
+            return 0;
         }
     }
 
@@ -479,17 +511,26 @@ public class OsProbe {
                 assert !controllerMap.isEmpty();
 
                 final String cpuAcctControlGroup = controllerMap.get("cpuacct");
-                assert cpuAcctControlGroup != null;
+                if (cpuAcctControlGroup == null) {
+                    logger.debug("no [cpuacct] data found in cgroup stats");
+                    return null;
+                }
                 final long cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
 
                 final String cpuControlGroup = controllerMap.get("cpu");
-                assert cpuControlGroup != null;
+                if (cpuControlGroup == null) {
+                    logger.debug("no [cpu] data found in cgroup stats");
+                    return null;
+                }
                 final long cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
                 final long cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
                 final OsStats.Cgroup.CpuStat cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
 
                 final String memoryControlGroup = controllerMap.get("memory");
-                assert memoryControlGroup != null;
+                if (memoryControlGroup == null) {
+                    logger.debug("no [memory] data found in cgroup stats");
+                    return null;
+                }
                 final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
                 final String cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
 

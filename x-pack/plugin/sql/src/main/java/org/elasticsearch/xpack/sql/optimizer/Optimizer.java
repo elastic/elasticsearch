@@ -10,9 +10,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
-import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.ExpressionSet;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
@@ -20,31 +18,35 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -66,6 +68,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
@@ -73,22 +76,25 @@ import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import static java.util.stream.Collectors.toList;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.combineAnd;
@@ -112,16 +118,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch aggregate = new Batch("Aggregation",
-                new PruneDuplicatesInGroupBy(),
-                new ReplaceDuplicateAggsWithReferences(),
-                new ReplaceAggsWithMatrixStats(),
-                new ReplaceAggsWithExtendedStats(),
-                new ReplaceAggsWithStats(),
-                new PromoteStatsToExtendedStats(),
-                new ReplaceAggsWithPercentiles(),
-                new ReplaceAggsWithPercentileRanks()
-                );
+        Batch pivot = new Batch("Pivot Rewrite", Limiter.ONCE,
+                new RewritePivot());
+
+        Batch refs = new Batch("Replace References", Limiter.ONCE,
+                new ReplaceReferenceAttributeWithSource());
 
         Batch operators = new Batch("Operator Optimization",
                 // combining
@@ -131,6 +132,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new FoldNull(),
                 new ConstantFolding(),
                 new SimplifyConditional(),
+                new SimplifyCase(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -139,29 +141,121 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 // prune/elimination
+                new PruneLiteralsInGroupBy(),
+                new PruneDuplicatesInGroupBy(),
                 new PruneFilters(),
-                new PruneOrderBy(),
+                new PruneOrderByForImplicitGrouping(),
+                new PruneLiteralsInOrderBy(),
                 new PruneOrderByNestedFields(),
                 new PruneCast(),
                 // order by alignment of the aggs
                 new SortAggregateOnOrderBy()
-                // requires changes in the folding
-                // since the exact same function, with the same ID can appear in multiple places
-                // see https://github.com/elastic/x-pack-elasticsearch/issues/3527
-                //new PruneDuplicateFunctions()
+                );
+
+        Batch aggregate = new Batch("Aggregation Rewrite",
+                new ReplaceMinMaxWithTopHits(),
+                new ReplaceAggsWithMatrixStats(),
+                new ReplaceAggsWithExtendedStats(),
+                new ReplaceAggsWithStats(),
+                new PromoteStatsToExtendedStats(),
+                new ReplaceAggsWithPercentiles(),
+                new ReplaceAggsWithPercentileRanks()
                 );
 
         Batch local = new Batch("Skip Elasticsearch",
                 new SkipQueryOnLimitZero(),
                 new SkipQueryIfFoldingProjection()
                 );
-        //new BalanceBooleanTrees());
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
+                CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(operators, aggregate, local, label);
+        return Arrays.asList(pivot, refs, operators, aggregate, local, label);
     }
 
+    static class RewritePivot extends OptimizerRule<Pivot> {
+
+        @Override
+        protected LogicalPlan rule(Pivot plan) {
+            // 1. add the IN filter
+            List<Expression> rawValues = new ArrayList<>(plan.values().size());
+            for (NamedExpression namedExpression : plan.values()) {
+                // everything should have resolved to an alias
+                if (namedExpression instanceof Alias) {
+                    rawValues.add(Literal.of(((Alias) namedExpression).child()));
+                }
+                // fallback - should not happen
+                else {
+                    UnresolvedAttribute attr = new UnresolvedAttribute(namedExpression.source(), namedExpression.name(), null,
+                            "Unexpected alias");
+                    return new Pivot(plan.source(), plan.child(), plan.column(), singletonList(attr), plan.aggregates());
+                }
+            }
+            Filter filter = new Filter(plan.source(), plan.child(), new In(plan.source(), plan.column(), rawValues));
+            // 2. preserve the PIVOT
+            return new Pivot(plan.source(), filter, plan.column(), plan.values(), plan.aggregates(), plan.groupings());
+        }
+    }
+
+    //
+    // Replace any reference attribute with its source, if it does not affect the result.
+    // This avoid ulterior look-ups between attributes and its source across nodes, which is
+    // problematic when doing script translation.
+    //
+    static class ReplaceReferenceAttributeWithSource extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+
+            // collect aliases
+            plan.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                if (e instanceof Alias) {
+                    Alias a = (Alias) e;
+                    collectRefs.put(a.toAttribute(), a.child());
+                }
+            }));
+
+            plan = plan.transformUp(p -> {
+                // non attribute defining plans get their references removed
+                if ((p instanceof Pivot || p instanceof Aggregate || p instanceof Project) == false || p.children().isEmpty()) {
+                    p = p.transformExpressionsOnly(e -> {
+                        if (e instanceof ReferenceAttribute) {
+                            e = collectRefs.getOrDefault(e, e);
+                        }
+                        return e;
+                    });
+                }
+                return p;
+            });
+
+            return plan;
+        }
+    }
+
+    static class PruneLiteralsInGroupBy extends OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate agg) {
+            List<Expression> groupings = agg.groupings();
+            List<Expression> prunedGroupings = new ArrayList<>();
+
+            for (Expression g : groupings) {
+                if (g.foldable()) {
+                    prunedGroupings.add(g);
+                }
+            }
+
+            // everything was eliminated, the grouping
+            if (prunedGroupings.size() > 0) {
+                List<Expression> newGroupings = new ArrayList<>(groupings);
+                newGroupings.removeAll(prunedGroupings);
+                return new Aggregate(agg.source(), agg.child(), newGroupings, agg.aggregates());
+            }
+
+            return agg;
+        }
+    }
 
     static class PruneDuplicatesInGroupBy extends OptimizerRule<Aggregate> {
 
@@ -179,522 +273,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class ReplaceDuplicateAggsWithReferences extends OptimizerRule<Aggregate> {
-
-        @Override
-        protected LogicalPlan rule(Aggregate agg) {
-            List<? extends NamedExpression> aggs = agg.aggregates();
-
-            Map<Expression, NamedExpression> unique = new HashMap<>();
-            Map<NamedExpression, Expression> reverse = new HashMap<>();
-
-            // find duplicates by looking at the function and canonical form
-            for (NamedExpression ne : aggs) {
-                if (ne instanceof Alias) {
-                    Alias a = (Alias) ne;
-                    unique.putIfAbsent(a.child(), a);
-                    reverse.putIfAbsent(ne, a.child());
-                }
-                else {
-                    unique.putIfAbsent(ne.canonical(), ne);
-                    reverse.putIfAbsent(ne, ne.canonical());
-                }
-            }
-
-            if (unique.size() != aggs.size()) {
-                List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
-                for (NamedExpression ne : aggs) {
-                    newAggs.add(unique.get(reverse.get(ne)));
-                }
-                return new Aggregate(agg.source(), agg.child(), agg.groupings(), newAggs);
-            }
-
-            return agg;
-        }
-    }
-
-    static class ReplaceAggsWithMatrixStats extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            Map<Expression, MatrixStats> seen = new LinkedHashMap<>();
-            Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
-
-            p = p.transformExpressionsUp(e -> rule(e, seen, promotedFunctionIds));
-
-            // nothing found
-            if (seen.isEmpty()) {
-                return p;
-            }
-
-            return ReplaceAggsWithStats.updateAggAttributes(p, promotedFunctionIds);
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan e) {
-            return e;
-        }
-
-        protected Expression rule(Expression e, Map<Expression, MatrixStats> seen, Map<String, AggregateFunctionAttribute> promotedIds) {
-            if (e instanceof MatrixStatsEnclosed) {
-                AggregateFunction f = (AggregateFunction) e;
-
-                Expression argument = f.field();
-                MatrixStats matrixStats = seen.get(argument);
-
-                if (matrixStats == null) {
-                    matrixStats = new MatrixStats(f.source(), argument);
-                    seen.put(argument, matrixStats);
-                }
-
-                InnerAggregate ia = new InnerAggregate(f.source(), f, matrixStats, f.field());
-                promotedIds.putIfAbsent(f.functionId(), ia.toAttribute());
-                return ia;
-            }
-
-            return e;
-        }
-    }
-
-    static class ReplaceAggsWithExtendedStats extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
-            Map<Expression, ExtendedStats> seen = new LinkedHashMap<>();
-            p = p.transformExpressionsUp(e -> rule(e, seen, promotedFunctionIds));
-
-            // nothing found
-            if (seen.isEmpty()) {
-                return p;
-            }
-
-            // update old agg attributes
-            return ReplaceAggsWithStats.updateAggAttributes(p, promotedFunctionIds);
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan e) {
-            return e;
-        }
-
-        protected Expression rule(Expression e, Map<Expression, ExtendedStats> seen,
-                Map<String, AggregateFunctionAttribute> promotedIds) {
-            if (e instanceof ExtendedStatsEnclosed) {
-                AggregateFunction f = (AggregateFunction) e;
-
-                Expression argument = f.field();
-                ExtendedStats extendedStats = seen.get(argument);
-
-                if (extendedStats == null) {
-                    extendedStats = new ExtendedStats(f.source(), argument);
-                    seen.put(argument, extendedStats);
-                }
-
-                InnerAggregate ia = new InnerAggregate(f, extendedStats);
-                promotedIds.putIfAbsent(f.functionId(), ia.toAttribute());
-                return ia;
-            }
-
-            return e;
-        }
-    }
-
-    static class ReplaceAggsWithStats extends Rule<LogicalPlan, LogicalPlan> {
-
-        private static class Match {
-            final Stats stats;
-            int count = 1;
-            final Set<Class<? extends AggregateFunction>> functionTypes = new LinkedHashSet<>();
-
-            Match(Stats stats) {
-                this.stats = stats;
-            }
-
-            @Override
-            public String toString() {
-                return stats.toString();
-            }
-        }
-
-        @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            Map<Expression, Match> potentialPromotions = new LinkedHashMap<>();
-
-            p.forEachExpressionsUp(e -> collect(e, potentialPromotions));
-
-            // no promotions found - skip
-            if (potentialPromotions.isEmpty()) {
-                return p;
-            }
-
-            // start promotion
-
-            // old functionId to new function attribute
-            Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
-
-            // 1. promote aggs to InnerAggs
-            p = p.transformExpressionsUp(e -> promote(e, potentialPromotions, promotedFunctionIds));
-
-            // 2. update the old agg attrs to the promoted agg functions
-            return updateAggAttributes(p, promotedFunctionIds);
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan e) {
-            return e;
-        }
-
-        private Expression collect(Expression e, Map<Expression, Match> seen) {
-            if (Stats.isTypeCompatible(e)) {
-                AggregateFunction f = (AggregateFunction) e;
-
-                Expression argument = f.field();
-                Match match = seen.get(argument);
-
-                if (match == null) {
-                    match = new Match(new Stats(f.source(), argument));
-                    match.functionTypes.add(f.getClass());
-                    seen.put(argument, match);
-                }
-                else {
-                    if (match.functionTypes.add(f.getClass())) {
-                        match.count++;
-                    }
-                }
-            }
-
-            return e;
-        }
-
-        private static Expression promote(Expression e, Map<Expression, Match> seen, Map<String, AggregateFunctionAttribute> attrs) {
-            if (Stats.isTypeCompatible(e)) {
-                AggregateFunction f = (AggregateFunction) e;
-
-                Expression argument = f.field();
-                Match counter = seen.get(argument);
-
-                // if the stat has at least two different functions for it, promote it as stat
-                if (counter != null && counter.count > 1) {
-                    InnerAggregate innerAgg = new InnerAggregate(f, counter.stats);
-                    attrs.putIfAbsent(f.functionId(), innerAgg.toAttribute());
-                    return innerAgg;
-                }
-            }
-            return e;
-        }
-
-        static LogicalPlan updateAggAttributes(LogicalPlan p, Map<String, AggregateFunctionAttribute> promotedFunctionIds) {
-            // 1. update old agg function attributes
-            p = p.transformExpressionsUp(e -> updateAggFunctionAttrs(e, promotedFunctionIds));
-
-            // 2. update all scalar function consumers of the promoted aggs
-            // since they contain the old ids in scrips and processorDefinitions that need regenerating
-
-            // 2a. collect ScalarFunctions that unwrapped refer to any of the updated aggregates
-            // 2b. replace any of the old ScalarFunction attributes
-
-            final Set<String> newAggIds = new LinkedHashSet<>(promotedFunctionIds.size());
-
-            for (AggregateFunctionAttribute afa : promotedFunctionIds.values()) {
-                newAggIds.add(afa.functionId());
-            }
-
-            final Map<String, ScalarFunctionAttribute> updatedScalarAttrs = new LinkedHashMap<>();
-            final Map<ExpressionId, ScalarFunctionAttribute> updatedScalarAliases = new LinkedHashMap<>();
-
-            p = p.transformExpressionsUp(e -> {
-
-                // replace scalar attributes of the old replaced functions
-                if (e instanceof ScalarFunctionAttribute) {
-                    ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) e;
-                    // check aliases
-                    sfa = updatedScalarAttrs.getOrDefault(sfa.functionId(), sfa);
-                    // check scalars
-                    sfa = updatedScalarAliases.getOrDefault(sfa.id(), sfa);
-                    return sfa;
-                }
-
-                // unwrap aliases as they 'hide' functions under their own attributes
-                if (e instanceof Alias) {
-                    Attribute att = Expressions.attribute(e);
-                    if (att instanceof ScalarFunctionAttribute) {
-                        ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) att;
-                        // the underlying function has been updated
-                        // thus record the alias as well
-                        if (updatedScalarAttrs.containsKey(sfa.functionId())) {
-                            updatedScalarAliases.put(sfa.id(), sfa);
-                        }
-                    }
-                }
-
-                else if (e instanceof ScalarFunction) {
-                    ScalarFunction sf = (ScalarFunction) e;
-
-                    // if it's a unseen function check if the function children/arguments refers to any of the promoted aggs
-                    if (!updatedScalarAttrs.containsKey(sf.functionId()) && e.anyMatch(c -> {
-                        Attribute a = Expressions.attribute(c);
-                        if (a instanceof FunctionAttribute) {
-                            return newAggIds.contains(((FunctionAttribute) a).functionId());
-                        }
-                        return false;
-                    })) {
-                        // if so, record its attribute
-                        updatedScalarAttrs.put(sf.functionId(), sf.toAttribute());
-                    }
-                }
-
-                return e;
-            });
-
-            return p;
-        }
-
-
-        private static Expression updateAggFunctionAttrs(Expression e, Map<String, AggregateFunctionAttribute> promotedIds) {
-            if (e instanceof AggregateFunctionAttribute) {
-                AggregateFunctionAttribute ae = (AggregateFunctionAttribute) e;
-                AggregateFunctionAttribute promoted = promotedIds.get(ae.functionId());
-                if (promoted != null) {
-                    return ae.withFunctionId(promoted.functionId(), promoted.propertyPath());
-                }
-            }
-            return e;
-        }
-    }
-
-    static class PromoteStatsToExtendedStats extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            Map<Expression, ExtendedStats> seen = new LinkedHashMap<>();
-
-            // count the extended stats
-            p.forEachExpressionsUp(e -> count(e, seen));
-            // then if there's a match, replace the stat inside the InnerAgg
-            return p.transformExpressionsUp(e -> promote(e, seen));
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan e) {
-            return e;
-        }
-
-        private void count(Expression e, Map<Expression, ExtendedStats> seen) {
-            if (e instanceof InnerAggregate) {
-                InnerAggregate ia = (InnerAggregate) e;
-                if (ia.outer() instanceof ExtendedStats) {
-                    ExtendedStats extStats = (ExtendedStats) ia.outer();
-                    seen.putIfAbsent(extStats.field(), extStats);
-                }
-            }
-        }
-
-        protected Expression promote(Expression e, Map<Expression, ExtendedStats> seen) {
-            if (e instanceof InnerAggregate) {
-                InnerAggregate ia = (InnerAggregate) e;
-                if (ia.outer() instanceof Stats) {
-                    Stats stats = (Stats) ia.outer();
-                    ExtendedStats ext = seen.get(stats.field());
-                    if (ext != null && stats.field().equals(ext.field())) {
-                        return new InnerAggregate(ia.inner(), ext);
-                    }
-                }
-            }
-
-            return e;
-        }
-    }
-
-    static class ReplaceAggsWithPercentiles extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            // percentile per field/expression
-            Map<Expression, Set<Expression>> percentsPerField = new LinkedHashMap<>();
-
-            // count gather the percents for each field
-            p.forEachExpressionsUp(e -> count(e, percentsPerField));
-
-            Map<Expression, Percentiles> percentilesPerField = new LinkedHashMap<>();
-            // create a Percentile agg for each field (and its associated percents)
-            percentsPerField.forEach((k, v) -> {
-                percentilesPerField.put(k, new Percentiles(v.iterator().next().source(), k, new ArrayList<>(v)));
-            });
-
-            // now replace the agg with pointer to the main ones
-            Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
-            p = p.transformExpressionsUp(e -> rule(e, percentilesPerField, promotedFunctionIds));
-            // finally update all the function references as well
-            return p.transformExpressionsDown(e -> ReplaceAggsWithStats.updateAggFunctionAttrs(e, promotedFunctionIds));
-        }
-
-        private void count(Expression e, Map<Expression, Set<Expression>> percentsPerField) {
-            if (e instanceof Percentile) {
-                Percentile p = (Percentile) e;
-                Expression field = p.field();
-                Set<Expression> percentiles = percentsPerField.get(field);
-
-                if (percentiles == null) {
-                    percentiles = new LinkedHashSet<>();
-                    percentsPerField.put(field, percentiles);
-                }
-
-                percentiles.add(p.percent());
-            }
-        }
-
-        protected Expression rule(Expression e, Map<Expression, Percentiles> percentilesPerField,
-                Map<String, AggregateFunctionAttribute> promotedIds) {
-            if (e instanceof Percentile) {
-                Percentile p = (Percentile) e;
-                Percentiles percentiles = percentilesPerField.get(p.field());
-
-                InnerAggregate ia = new InnerAggregate(p, percentiles);
-                promotedIds.putIfAbsent(p.functionId(), ia.toAttribute());
-                return ia;
-            }
-
-            return e;
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan e) {
-            return e;
-        }
-    }
-
-    static class ReplaceAggsWithPercentileRanks extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            // percentile per field/expression
-            Map<Expression, Set<Expression>> valuesPerField = new LinkedHashMap<>();
-
-            // count gather the percents for each field
-            p.forEachExpressionsUp(e -> count(e, valuesPerField));
-
-            Map<Expression, PercentileRanks> ranksPerField = new LinkedHashMap<>();
-            // create a PercentileRanks agg for each field (and its associated values)
-            valuesPerField.forEach((k, v) -> {
-                ranksPerField.put(k, new PercentileRanks(v.iterator().next().source(), k, new ArrayList<>(v)));
-            });
-
-            // now replace the agg with pointer to the main ones
-            Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
-            p = p.transformExpressionsUp(e -> rule(e, ranksPerField, promotedFunctionIds));
-            // finally update all the function references as well
-            return p.transformExpressionsDown(e -> ReplaceAggsWithStats.updateAggFunctionAttrs(e, promotedFunctionIds));
-        }
-
-        private void count(Expression e, Map<Expression, Set<Expression>> ranksPerField) {
-            if (e instanceof PercentileRank) {
-                PercentileRank p = (PercentileRank) e;
-                Expression field = p.field();
-                Set<Expression> percentiles = ranksPerField.get(field);
-
-                if (percentiles == null) {
-                    percentiles = new LinkedHashSet<>();
-                    ranksPerField.put(field, percentiles);
-                }
-
-                percentiles.add(p.value());
-            }
-        }
-
-        protected Expression rule(Expression e, Map<Expression, PercentileRanks> ranksPerField,
-                Map<String, AggregateFunctionAttribute> promotedIds) {
-            if (e instanceof PercentileRank) {
-                PercentileRank p = (PercentileRank) e;
-                PercentileRanks ranks = ranksPerField.get(p.field());
-
-                InnerAggregate ia = new InnerAggregate(p, ranks);
-                promotedIds.putIfAbsent(p.functionId(), ia.toAttribute());
-                return ia;
-            }
-
-            return e;
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan e) {
-            return e;
-        }
-    }
-
-    static class PruneFilters extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition().transformUp(PruneFilters::foldBinaryLogic);
-
-            if (condition instanceof Literal) {
-                if (TRUE.equals(condition)) {
-                    return filter.child();
-                }
-                if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
-                }
-            }
-
-            if (!condition.equals(filter.condition())) {
-                return new Filter(filter.source(), filter.child(), condition);
-            }
-            return filter;
-        }
-
-        private static Expression foldBinaryLogic(Expression expression) {
-            if (expression instanceof Or) {
-                Or or = (Or) expression;
-                boolean nullLeft = Expressions.isNull(or.left());
-                boolean nullRight = Expressions.isNull(or.right());
-                if (nullLeft && nullRight) {
-                    return Literal.NULL;
-                }
-                if (nullLeft) {
-                    return or.right();
-                }
-                if (nullRight) {
-                    return or.left();
-                }
-            }
-            if (expression instanceof And) {
-                And and = (And) expression;
-                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return Literal.NULL;
-                }
-            }
-            return expression;
-        }
-    }
-
-    static class ReplaceAliasesInHaving extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            if (filter.child() instanceof Aggregate) {
-                Expression cond = filter.condition();
-                // resolve attributes to their actual
-                Expression newCondition = cond.transformDown(a -> {
-
-                    return a;
-                }, AggregateFunctionAttribute.class);
-
-                if (newCondition != cond) {
-                    return new Filter(filter.source(), filter.child(), newCondition);
-                }
-            }
-            return filter;
-        }
-    }
-
     static class PruneOrderByNestedFields extends OptimizerRule<Project> {
 
-        private void findNested(Expression exp, Map<String, Function> functions, Consumer<FieldAttribute> onFind) {
+        private void findNested(Expression exp, AttributeMap<Function> functions, Consumer<FieldAttribute> onFind) {
             exp.forEachUp(e -> {
-                if (e instanceof FunctionAttribute) {
-                    FunctionAttribute sfa = (FunctionAttribute) e;
-                    Function f = functions.get(sfa.functionId());
+                if (e instanceof ReferenceAttribute) {
+                    Function f = functions.get(e);
                     if (f != null) {
                         findNested(f, functions, onFind);
                     }
@@ -714,8 +298,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (project.child() instanceof OrderBy) {
                 OrderBy ob = (OrderBy) project.child();
 
-                // resolve function aliases (that are hiding the target)
-                Map<String, Function> functions = Functions.collectFunctions(project);
+                // resolve function references (that maybe hiding the target)
+                final Map<Attribute, Function> collectRefs = new LinkedHashMap<>();
+
+                // collect Attribute sources
+                // only Aliases are interesting since these are the only ones that hide expressions
+                // FieldAttribute for example are self replicating.
+                project.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                    if (e instanceof Alias) {
+                        Alias a = (Alias) e;
+                        if (a.child() instanceof Function) {
+                            collectRefs.put(a.toAttribute(), (Function) a.child());
+                        }
+                    }
+                }));
+
+                AttributeMap<Function> functions = new AttributeMap<>(collectRefs);
 
                 // track the direct parents
                 Map<String, Order> nestedOrders = new LinkedHashMap<>();
@@ -774,35 +372,53 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class PruneOrderBy extends OptimizerRule<OrderBy> {
+    static class PruneLiteralsInOrderBy extends OptimizerRule<OrderBy> {
 
         @Override
         protected LogicalPlan rule(OrderBy ob) {
-            List<Order> order = ob.order();
+            List<Order> prunedOrders = new ArrayList<>();
 
-            // remove constants
-            List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
-
-            if (nonConstant.isEmpty()) {
-                return ob.child();
+            for (Order o : ob.order()) {
+                if (o.child().foldable()) {
+                    prunedOrders.add(o);
+                }
             }
 
-            // if the sort points to an agg, consider it only if there's grouping
-            if (ob.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) ob.child();
+            // everything was eliminated, the order isn't needed anymore
+            if (prunedOrders.size() == ob.order().size()) {
+                return ob.child();
+            }
+            if (prunedOrders.size() > 0) {
+                List<Order> newOrders = new ArrayList<>(ob.order());
+                newOrders.removeAll(prunedOrders);
+                return new OrderBy(ob.source(), ob.child(), newOrders);
+            }
 
-                if (a.groupings().isEmpty()) {
-                    AttributeSet aggsAttr = new AttributeSet(Expressions.asAttributes(a.aggregates()));
+            return ob;
+        }
+    }
+    
+    static class PruneOrderByForImplicitGrouping extends OptimizerRule<OrderBy> {
 
-                    List<Order> nonAgg = nonConstant.stream().filter(o -> {
-                        if (o.child() instanceof NamedExpression) {
-                            return !aggsAttr.contains(((NamedExpression) o.child()).toAttribute());
-                        }
-                        return true;
-                    }).collect(toList());
+        @Override
+        protected LogicalPlan rule(OrderBy ob) {
+            Holder<Boolean> foundAggregate = new Holder<>(Boolean.FALSE);
+            Holder<Boolean> foundImplicitGroupBy = new Holder<>(Boolean.FALSE);
 
-                    return nonAgg.isEmpty() ? ob.child() : new OrderBy(ob.source(), ob.child(), nonAgg);
+            // if the first found aggregate has no grouping, there's no need to do ordering
+            ob.forEachDown(a -> {
+                // take into account
+                if (foundAggregate.get() == Boolean.TRUE) {
+                    return;
                 }
+                foundAggregate.set(Boolean.TRUE);
+                if (a.groupings().isEmpty()) {
+                    foundImplicitGroupBy.set(Boolean.TRUE);
+                }
+            }, Aggregate.class);
+
+            if (foundImplicitGroupBy.get() == Boolean.TRUE) {
+                return ob.child();
             }
             return ob;
         }
@@ -817,34 +433,60 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(OrderBy ob) {
             List<Order> order = ob.order();
 
-            // remove constants
-            List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
+            // put the items in reverse order so the iteration happens back to front
+            List<Order> nonConstant = new LinkedList<>();
+            for (int i = order.size() - 1; i >= 0; i--) {
+                nonConstant.add(order.get(i));
+            }
 
-            // if the sort points to an agg, change the agg order based on the order
-            if (ob.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) ob.child();
-                List<Expression> groupings = new ArrayList<>(a.groupings());
-                boolean orderChanged = false;
+            Holder<Boolean> foundAggregate = new Holder<>(Boolean.FALSE);
 
-                for (int orderIndex = 0; orderIndex < nonConstant.size(); orderIndex++) {
-                    Order o = nonConstant.get(orderIndex);
+            // if the first found aggregate has no grouping, there's no need to do ordering
+            return ob.transformDown(a -> {
+                // take into account
+                if (foundAggregate.get() == Boolean.TRUE) {
+                    return a;
+                }
+                foundAggregate.set(Boolean.TRUE);
+
+                List<Expression> groupings = new LinkedList<>(a.groupings());
+
+                for (Order o : nonConstant) {
                     Expression fieldToOrder = o.child();
                     for (Expression group : a.groupings()) {
-                        if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
+                        Holder<Boolean> isMatching = new Holder<>(Boolean.FALSE);
+                        if (equalsAsAttribute(fieldToOrder, group)) {
+                            isMatching.set(Boolean.TRUE);
+                        } else {
+                            a.aggregates().forEach(alias -> {
+                                if (alias instanceof Alias) {
+                                    Expression child = ((Alias) alias).child();
+                                    // Check if the groupings (a, y) match the orderings (b, x) through the aggregates' aliases (x, y)
+                                    // e.g. SELECT a AS x, b AS y ... GROUP BY a, y ORDER BY b, x
+                                    if ((equalsAsAttribute(child, group)
+                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))
+                                        || (equalsAsAttribute(alias, group)
+                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
+                                        isMatching.set(Boolean.TRUE);
+                                    }
+                                }
+                            });
+                        }
+
+                        if (isMatching.get() == true) {
                             // move grouping in front
                             groupings.remove(group);
-                            groupings.add(orderIndex, group);
-                            orderChanged = true;
+                            groupings.add(0, group);
                         }
                     }
                 }
 
-                if (orderChanged) {
-                    Aggregate newAgg = new Aggregate(a.source(), a.child(), groupings, a.aggregates());
-                    return new OrderBy(ob.source(), newAgg, ob.order());
+                if (groupings.equals(a.groupings()) == false) {
+                    return new Aggregate(a.source(), a.child(), groupings, a.aggregates());
                 }
-            }
-            return ob;
+
+                return a;
+            }, Aggregate.class);
         }
     }
 
@@ -869,96 +511,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            final Map<Attribute, Attribute> replacedCast = new LinkedHashMap<>();
-
-            // first eliminate casts inside Aliases
+            // eliminate redundant casts
             LogicalPlan transformed = plan.transformExpressionsUp(e -> {
-                // cast wrapped in an alias
-                if (e instanceof Alias) {
-                    Alias as = (Alias) e;
-                    if (as.child() instanceof Cast) {
-                        Cast c = (Cast) as.child();
-
-                        if (c.from() == c.to()) {
-                            Alias newAs = new Alias(as.source(), as.name(), as.qualifier(), c.field(), as.id(), as.synthetic());
-                            replacedCast.put(as.toAttribute(), newAs.toAttribute());
-                            return newAs;
-                        }
-                    }
-                    return e;
-                }
-                return e;
-            });
-
-            // then handle stand-alone casts (mixed together the cast rule will kick in before the alias)
-            transformed = transformed.transformExpressionsUp(e -> {
                 if (e instanceof Cast) {
                     Cast c = (Cast) e;
-
                     if (c.from() == c.to()) {
-                        Expression argument = c.field();
-                        if (argument instanceof NamedExpression) {
-                            replacedCast.put(c.toAttribute(), ((NamedExpression) argument).toAttribute());
-                        }
-
-                        return argument;
+                        return c.field();
                     }
                 }
                 return e;
             });
 
-
-            // replace attributes from previous removed Casts
-            if (!replacedCast.isEmpty()) {
-                return transformed.transformUp(p -> {
-                    List<Attribute> newProjections = new ArrayList<>();
-
-                    boolean changed = false;
-                    for (NamedExpression ne : p.projections()) {
-                        Attribute found = replacedCast.get(ne.toAttribute());
-                        if (found != null) {
-                            changed = true;
-                            newProjections.add(found);
-                        }
-                        else {
-                            newProjections.add(ne.toAttribute());
-                        }
-                    }
-
-                    return changed ? new Project(p.source(), p.child(), newProjections) : p;
-
-                }, Project.class);
-            }
             return transformed;
-        }
-    }
-
-    static class PruneDuplicateFunctions extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            List<Function> seen = new ArrayList<>();
-            return p.transformExpressionsUp(e -> rule(e, seen));
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan e) {
-            return e;
-        }
-
-        protected Expression rule(Expression exp, List<Function> seen) {
-            Expression e = exp;
-            if (e instanceof Function) {
-                Function f = (Function) e;
-                for (Function seenFunction : seen) {
-                    if (seenFunction != f && f.functionEquals(seenFunction)) {
-                        return seenFunction;
-                    }
-                }
-                seen.add(f);
-            }
-
-            return exp;
         }
     }
 
@@ -976,11 +540,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // eliminate lower project but first replace the aliases in the upper one
                 return new Project(p.source(), p.child(), combineProjections(project.projections(), p.projections()));
             }
+
             if (child instanceof Aggregate) {
                 Aggregate a = (Aggregate) child;
                 return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
             }
-
+            // if the pivot custom columns are not used, convert the project + pivot into a GROUP BY/Aggregate
+            if (child instanceof Pivot) {
+                Pivot p = (Pivot) child;
+                if (project.outputSet().subsetOf(p.groupingSet())) {
+                    return new Aggregate(p.source(), p.child(), new ArrayList<>(project.projections()), project.projections());
+                }
+            }
+            // TODO: add rule for combining Agg/Pivot with underlying project
             return project;
         }
 
@@ -988,23 +560,25 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // that might be reused by the upper one, these need to be replaced.
         // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
         private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
+
+            //TODO: this need rewriting when moving functions of NamedExpression
+
             // collect aliases in the lower list
-            Map<Attribute, Alias> map = new LinkedHashMap<>();
+            Map<Attribute, NamedExpression> map = new LinkedHashMap<>();
             for (NamedExpression ne : lower) {
-                if (ne instanceof Alias) {
-                    Alias a = (Alias) ne;
-                    map.put(a.toAttribute(), a);
+                if ((ne instanceof Attribute) == false) {
+                    map.put(ne.toAttribute(), ne);
                 }
             }
 
-            AttributeMap<Alias> aliases = new AttributeMap<>(map);
+            AttributeMap<NamedExpression> aliases = new AttributeMap<>(map);
             List<NamedExpression> replaced = new ArrayList<>();
 
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
             for (NamedExpression ne : upper) {
                 NamedExpression replacedExp = (NamedExpression) ne.transformUp(a -> {
-                    Alias as = aliases.get(a);
+                    NamedExpression as = aliases.get(a);
                     return as != null ? as : a;
                 }, Attribute.class);
 
@@ -1047,12 +621,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return plan;
             }
 
-            AtomicBoolean stop = new AtomicBoolean(false);
+            Holder<Boolean> stop = new Holder<>(Boolean.FALSE);
 
             // propagate folding up to unary nodes
             // anything higher and the propagate stops
             plan = plan.transformUp(p -> {
-                if (stop.get() == false && canPropagateFoldable(p)) {
+                if (stop.get() == Boolean.FALSE && canPropagateFoldable(p)) {
                     return p.transformExpressionsDown(e -> {
                         if (e instanceof Attribute && attrs.contains(e)) {
                             Alias as = aliases.get(e);
@@ -1067,7 +641,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (p.children().size() > 1) {
-                    stop.set(true);
+                    stop.set(Boolean.TRUE);
                 }
 
                 return p;
@@ -1098,12 +672,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected Expression rule(Expression e) {
             if (e instanceof IsNotNull) {
                 if (((IsNotNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
+                    return new Literal(e.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
 
             } else if (e instanceof IsNull) {
                 if (((IsNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
+                    return new Literal(e.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
 
             } else if (e instanceof In) {
@@ -1112,9 +686,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e.nullable() == Nullability.TRUE && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                return Literal.of(e, null);
-            }
+            } else if (e instanceof Alias == false
+                    && e.nullable() == Nullability.TRUE
+                    && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                    return Literal.of(e, null);
+                }
 
             return e;
         }
@@ -1128,12 +704,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Alias) {
-                Alias a = (Alias) e;
-                return a.child().foldable() ? Literal.of(a.name(), a.child()) : a;
-            }
-
-            return e.foldable() ? Literal.of(e) : e;
+            return e.foldable() && (e instanceof Literal == false) ? Literal.of(e) : e;
         }
     }
 
@@ -1170,6 +741,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    static class SimplifyCase extends OptimizerExpressionRule {
+
+        SimplifyCase() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Case) {
+                Case c = (Case) e;
+
+                // Remove or foldable conditions that fold to FALSE
+                // Stop at the 1st foldable condition that folds to TRUE
+                List<IfConditional> newConditions = new ArrayList<>();
+                for (IfConditional conditional : c.conditions()) {
+                    if (conditional.condition().foldable()) {
+                        Boolean res = (Boolean) conditional.condition().fold();
+                        if (res == Boolean.TRUE) {
+                            newConditions.add(conditional);
+                            break;
+                        }
+                    } else {
+                        newConditions.add(conditional);
+                    }
+                }
+
+                if (newConditions.size() < c.children().size()) {
+                    return c.replaceChildren(combine(newConditions, c.elseResult()));
+                }
+            }
+
+            return e;
+        }
+    }
 
     static class BooleanSimplification extends OptimizerExpressionRule {
 
@@ -1179,7 +784,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof BinaryPredicate) {
+            if (e instanceof And || e instanceof Or) {
                 return simplifyAndOr((BinaryPredicate<?, ?, ?, ?>) e);
             }
             if (e instanceof Not) {
@@ -1272,6 +877,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return bc;
         }
 
+        @SuppressWarnings("rawtypes")
         private Expression simplifyNot(Not n) {
             Expression c = n.field();
 
@@ -1530,14 +1136,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         // </<= AND >/>=
                         else if ((other instanceof GreaterThan || other instanceof GreaterThanOrEqual)
                                 && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
-                            bcs.remove(j);
-                            bcs.remove(i);
+                                    bcs.remove(j);
+                                    bcs.remove(i);
 
                             ranges.add(new Range(and.source(), main.left(),
                                     other.right(), other instanceof GreaterThanOrEqual,
                                     main.right(), main instanceof LessThanOrEqual));
 
-                            changed = true;
+                                    changed = true;
                         }
                     }
                 }
@@ -1609,16 +1215,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             lowerEq = comp == 0 && main.includeLower() == other.includeLower();
                             // AND
                             if (conjunctive) {
-                                        // (2 < a < 3) AND (1 < a < 3) -> (1 < a < 3)
+                                // (2 < a < 3) AND (1 < a < 3) -> (1 < a < 3)
                                 lower = comp > 0 ||
-                                        // (2 < a < 3) AND (2 < a <= 3) -> (2 < a < 3)
+                                // (2 < a < 3) AND (2 < a <= 3) -> (2 < a < 3)
                                         (comp == 0 && !main.includeLower() && other.includeLower());
                             }
                             // OR
                             else {
-                                        // (1 < a < 3) OR (2 < a < 3) -> (1 < a < 3)
+                                // (1 < a < 3) OR (2 < a < 3) -> (1 < a < 3)
                                 lower = comp < 0 ||
-                                        // (2 <= a < 3) OR (2 < a < 3) -> (2 <= a < 3)
+                                // (2 <= a < 3) OR (2 < a < 3) -> (2 <= a < 3)
                                         (comp == 0 && main.includeLower() && !other.includeLower()) || lowerEq;
                             }
                         }
@@ -1635,16 +1241,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                             // AND
                             if (conjunctive) {
-                                        // (1 < a < 2) AND (1 < a < 3) -> (1 < a < 2)
+                                // (1 < a < 2) AND (1 < a < 3) -> (1 < a < 2)
                                 upper = comp < 0 ||
-                                        // (1 < a < 2) AND (1 < a <= 2) -> (1 < a < 2)
+                                // (1 < a < 2) AND (1 < a <= 2) -> (1 < a < 2)
                                         (comp == 0 && !main.includeUpper() && other.includeUpper());
                             }
                             // OR
                             else {
-                                        // (1 < a < 3) OR (1 < a < 2) -> (1 < a < 3)
+                                // (1 < a < 3) OR (1 < a < 2) -> (1 < a < 3)
                                 upper = comp > 0 ||
-                                        // (1 < a <= 3) OR (1 < a < 3) -> (2 < a < 3)
+                                // (1 < a <= 3) OR (1 < a < 3) -> (2 < a < 3)
                                         (comp == 0 && main.includeUpper() && !other.includeUpper()) || upperEq;
                             }
                         }
@@ -1703,7 +1309,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             if (comp != null) {
                                 // 2 < a AND (2 <= a < 3) -> 2 < a < 3
                                 boolean lowerEq = comp == 0 && other.includeLower() && main instanceof GreaterThan;
-                                 // 2 < a AND (1 < a < 3) -> 2 < a < 3
+                                // 2 < a AND (1 < a < 3) -> 2 < a < 3
                                 boolean lower = comp > 0 || lowerEq;
 
                                 if (lower) {
@@ -1768,18 +1374,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         Integer compare = BinaryComparison.compare(value, other.right().fold());
 
                         if (compare != null) {
-                                 // AND
+                            // AND
                             if ((conjunctive &&
-                                  // a > 3 AND a > 2 -> a > 3
-                                  (compare > 0 ||
-                                  // a > 2 AND a >= 2 -> a > 2
-                                  (compare == 0 && main instanceof GreaterThan && other instanceof GreaterThanOrEqual)))
-                                ||
-                                // OR
-                                (!conjunctive &&
-                                  // a > 2 OR a > 3 -> a > 2
-                                  (compare < 0 ||
-                                  // a >= 2 OR a > 2 -> a >= 2
+                            // a > 3 AND a > 2 -> a > 3
+                                    (compare > 0 ||
+                                    // a > 2 AND a >= 2 -> a > 2
+                                            (compare == 0 && main instanceof GreaterThan && other instanceof GreaterThanOrEqual)))
+                                    ||
+                                    // OR
+                                    (!conjunctive &&
+                                    // a > 2 OR a > 3 -> a > 2
+                                            (compare < 0 ||
+                                            // a >= 2 OR a > 2 -> a >= 2
                                   (compare == 0 && main instanceof GreaterThanOrEqual && other instanceof GreaterThan)))) {
                                 bcs.remove(i);
                                 bcs.add(i, main);
@@ -1795,45 +1401,370 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 else if ((other instanceof LessThan || other instanceof LessThanOrEqual) &&
                         (main instanceof LessThan || main instanceof LessThanOrEqual)) {
 
-                    if (main.left().semanticEquals(other.left())) {
-                        Integer compare = BinaryComparison.compare(value, other.right().fold());
+                            if (main.left().semanticEquals(other.left())) {
+                                Integer compare = BinaryComparison.compare(value, other.right().fold());
 
-                        if (compare != null) {
-                                 // AND
-                            if ((conjunctive &&
-                                  // a < 2 AND a < 3 -> a < 2
-                                  (compare < 0 ||
-                                  // a < 2 AND a <= 2 -> a < 2
+                                if (compare != null) {
+                                    // AND
+                                    if ((conjunctive &&
+                                    // a < 2 AND a < 3 -> a < 2
+                                    (compare < 0 ||
+                                    // a < 2 AND a <= 2 -> a < 2
                                   (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual)))
                                 ||
-                                // OR
-                                (!conjunctive &&
-                                  // a < 2 OR a < 3 -> a < 3
-                                  (compare > 0 ||
-                                  // a <= 2 OR a < 2 -> a <= 2
-                                  (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
-                                bcs.remove(i);
-                                bcs.add(i, main);
+                                    // OR
+                                    (!conjunctive &&
+                                    // a < 2 OR a < 3 -> a < 3
+                                    (compare > 0 ||
+                                    // a <= 2 OR a < 2 -> a <= 2
+                                    (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
+                                        bcs.remove(i);
+                                        bcs.add(i, main);
 
+                                    }
+                                    // found a match
+                                    return true;
+                                }
+
+                                return false;
                             }
-                            // found a match
-                            return true;
                         }
-
-                        return false;
-                    }
-                }
             }
 
             return false;
         }
     }
 
+
+    static class ReplaceAggsWithMatrixStats extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            // minimal reuse of the same matrix stat object
+            final Map<Expression, MatrixStats> seen = new LinkedHashMap<>();
+
+            return p.transformExpressionsUp(e -> {
+                if (e instanceof MatrixStatsEnclosed) {
+                    AggregateFunction f = (AggregateFunction) e;
+
+                    Expression argument = f.field();
+                    MatrixStats matrixStats = seen.get(argument);
+
+                    if (matrixStats == null) {
+                        Source source = new Source(f.sourceLocation(), "MATRIX(" + argument.sourceText() + ")");
+                        matrixStats = new MatrixStats(source, argument);
+                        seen.put(argument, matrixStats);
+                    }
+
+                    InnerAggregate ia = new InnerAggregate(f.source(), f, matrixStats, argument);
+                    return ia;
+                }
+
+                return e;
+            });
+        }
+    }
+
+    static class ReplaceAggsWithExtendedStats extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            // minimal reuse of the same matrix stat object
+            final Map<Expression, ExtendedStats> seen = new LinkedHashMap<>();
+
+            return p.transformExpressionsUp(e -> {
+                if (e instanceof ExtendedStatsEnclosed) {
+                    AggregateFunction f = (AggregateFunction) e;
+
+                    Expression argument = f.field();
+                    ExtendedStats extendedStats = seen.get(argument);
+
+                    if (extendedStats == null) {
+                        Source source = new Source(f.sourceLocation(), "EXT_STATS(" + argument.sourceText() + ")");
+                        extendedStats = new ExtendedStats(source, argument);
+                        seen.put(argument, extendedStats);
+                    }
+
+                    InnerAggregate ia = new InnerAggregate(f, extendedStats);
+                    return ia;
+                }
+
+                return e;
+            });
+        }
+    }
+
+    static class ReplaceAggsWithStats extends OptimizerBasicRule {
+
+        private static class Match {
+            final Stats stats;
+            private final Set<Class<? extends AggregateFunction>> functionTypes = new LinkedHashSet<>();
+            private Map<Class<? extends AggregateFunction>, InnerAggregate> innerAggs = null;
+
+            Match(Stats stats) {
+                this.stats = stats;
+            }
+
+            @Override
+            public String toString() {
+                return stats.toString();
+            }
+
+            public void add(Class<? extends AggregateFunction> aggType) {
+                functionTypes.add(aggType);
+            }
+
+            // if the stat has at least two different functions for it, promote it as stat
+            // also keep the promoted function around for reuse
+            public AggregateFunction maybePromote(AggregateFunction agg) {
+                if (functionTypes.size() > 1) {
+                    if (innerAggs == null) {
+                        innerAggs = new LinkedHashMap<>();
+                    }
+                    return innerAggs.computeIfAbsent(agg.getClass(), k -> new InnerAggregate(agg, stats));
+                }
+                return agg;
+            }
+        }
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            // 1. first check whether there are at least 2 aggs for the same fields so that there can be a promotion
+            final Map<Expression, Match> potentialPromotions = new LinkedHashMap<>();
+
+            p.forEachExpressionsUp(e -> {
+                if (Stats.isTypeCompatible(e)) {
+                    AggregateFunction f = (AggregateFunction) e;
+
+                    Expression argument = f.field();
+                    Match match = potentialPromotions.get(argument);
+
+                    if (match == null) {
+                        Source source = new Source(f.sourceLocation(), "STATS(" + argument.sourceText() + ")");
+                        match = new Match(new Stats(source, argument));
+                        potentialPromotions.put(argument, match);
+                    }
+                    match.add(f.getClass());
+                }
+            });
+
+            // no promotions found - skip
+            if (potentialPromotions.isEmpty()) {
+                return p;
+            }
+
+            // start promotion
+
+            // 2. promote aggs to InnerAggs
+            return p.transformExpressionsUp(e -> {
+                if (Stats.isTypeCompatible(e)) {
+                    AggregateFunction f = (AggregateFunction) e;
+
+                    Expression argument = f.field();
+                    Match match = potentialPromotions.get(argument);
+
+                    if (match != null) {
+                        return match.maybePromote(f);
+                    }
+                }
+                return e;
+            });
+        }
+    }
+
+    static class PromoteStatsToExtendedStats extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            final Map<Expression, ExtendedStats> seen = new LinkedHashMap<>();
+
+            // count the extended stats
+            p.forEachExpressionsUp(e -> {
+                if (e instanceof InnerAggregate) {
+                    InnerAggregate ia = (InnerAggregate) e;
+                    if (ia.outer() instanceof ExtendedStats) {
+                        ExtendedStats extStats = (ExtendedStats) ia.outer();
+                        seen.putIfAbsent(extStats.field(), extStats);
+                    }
+                }
+            });
+
+            // then if there's a match, replace the stat inside the InnerAgg
+            return p.transformExpressionsUp(e -> {
+                if (e instanceof InnerAggregate) {
+                    InnerAggregate ia = (InnerAggregate) e;
+                    if (ia.outer() instanceof Stats) {
+                        Stats stats = (Stats) ia.outer();
+                        ExtendedStats ext = seen.get(stats.field());
+                        if (ext != null && stats.field().equals(ext.field())) {
+                            return new InnerAggregate(ia.inner(), ext);
+                        }
+                    }
+                }
+
+                return e;
+            });
+        }
+    }
+
+    static class ReplaceAggsWithPercentiles extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            // percentile per field/expression
+            Map<Expression, Set<Expression>> percentsPerField = new LinkedHashMap<>();
+
+            // count gather the percents for each field
+            p.forEachExpressionsUp(e -> {
+                if (e instanceof Percentile) {
+                    Percentile per = (Percentile) e;
+                    Expression field = per.field();
+                    Set<Expression> percentiles = percentsPerField.get(field);
+
+                    if (percentiles == null) {
+                        percentiles = new LinkedHashSet<>();
+                        percentsPerField.put(field, percentiles);
+                    }
+
+                    percentiles.add(per.percent());
+                }
+            });
+
+            Map<Expression, Percentiles> percentilesPerField = new LinkedHashMap<>();
+            // create a Percentile agg for each field (and its associated percents)
+            percentsPerField.forEach((k, v) -> {
+                percentilesPerField.put(k, new Percentiles(v.iterator().next().source(), k, new ArrayList<>(v)));
+            });
+
+            return p.transformExpressionsUp(e -> {
+                if (e instanceof Percentile) {
+                    Percentile per = (Percentile) e;
+                    Percentiles percentiles = percentilesPerField.get(per.field());
+                    return new InnerAggregate(per, percentiles);
+                }
+
+                return e;
+            });
+        }
+    }
+
+    static class ReplaceAggsWithPercentileRanks extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            // percentile per field/expression
+            final Map<Expression, Set<Expression>> percentPerField = new LinkedHashMap<>();
+
+            // count gather the percents for each field
+            p.forEachExpressionsUp(e -> {
+                if (e instanceof PercentileRank) {
+                    PercentileRank per = (PercentileRank) e;
+                    Expression field = per.field();
+                    Set<Expression> percentiles = percentPerField.get(field);
+
+                    if (percentiles == null) {
+                        percentiles = new LinkedHashSet<>();
+                        percentPerField.put(field, percentiles);
+                    }
+
+                    percentiles.add(per.value());
+                }
+            });
+
+            Map<Expression, PercentileRanks> ranksPerField = new LinkedHashMap<>();
+            // create a PercentileRanks agg for each field (and its associated values)
+            percentPerField.forEach((k, v) -> {
+                ranksPerField.put(k, new PercentileRanks(v.iterator().next().source(), k, new ArrayList<>(v)));
+            });
+
+            return p.transformExpressionsUp(e -> {
+                if (e instanceof PercentileRank) {
+                    PercentileRank per = (PercentileRank) e;
+                    PercentileRanks ranks = ranksPerField.get(per.field());
+                    return new InnerAggregate(per, ranks);
+                }
+
+                return e;
+            });
+        }
+    }
+
+    static class ReplaceMinMaxWithTopHits extends OptimizerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            Map<Expression, TopHits> mins = new HashMap<>();
+            Map<Expression, TopHits> maxs = new HashMap<>();
+            return plan.transformExpressionsDown(e -> {
+                if (e instanceof Min) {
+                    Min min = (Min) e;
+                    if (min.field().dataType().isString()) {
+                        return mins.computeIfAbsent(min.field(), k -> new First(min.source(), k, null));
+                    }
+                }
+                if (e instanceof Max) {
+                    Max max = (Max) e;
+                    if (max.field().dataType().isString()) {
+                        return maxs.computeIfAbsent(max.field(), k -> new Last(max.source(), k, null));
+                    }
+                }
+                return e;
+            });
+        }
+    }
+
+    static class PruneFilters extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            Expression condition = filter.condition().transformUp(PruneFilters::foldBinaryLogic);
+
+            if (condition instanceof Literal) {
+                if (TRUE.equals(condition)) {
+                    return filter.child();
+                }
+                if (FALSE.equals(condition) || Expressions.isNull(condition)) {
+                    return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
+                }
+            }
+
+            if (!condition.equals(filter.condition())) {
+                return new Filter(filter.source(), filter.child(), condition);
+            }
+            return filter;
+        }
+
+        private static Expression foldBinaryLogic(Expression expression) {
+            if (expression instanceof Or) {
+                Or or = (Or) expression;
+                boolean nullLeft = Expressions.isNull(or.left());
+                boolean nullRight = Expressions.isNull(or.right());
+                if (nullLeft && nullRight) {
+                    return Literal.NULL;
+                }
+                if (nullLeft) {
+                    return or.right();
+                }
+                if (nullRight) {
+                    return or.left();
+                }
+            }
+            if (expression instanceof And) {
+                And and = (And) expression;
+                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
+                    return Literal.NULL;
+                }
+            }
+            return expression;
+        }
+    }
+
+
     static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override
         protected LogicalPlan rule(Limit limit) {
             if (limit.limit() instanceof Literal) {
-                if (Integer.valueOf(0).equals((((Literal) limit.limit()).fold()))) {
+                if (Integer.valueOf(0).equals((limit.limit().fold()))) {
                     return new LocalRelation(limit.source(), new EmptyExecutable(limit.output()));
                 }
             }
@@ -1844,30 +1775,49 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Project) {
-                Project p = (Project) plan;
+            Holder<LocalRelation> optimizedPlan = new Holder<>();
+            plan.forEachDown(p -> {
                 List<Object> values = extractConstants(p.projections());
                 if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
                     isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
-                    return new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 }
+            }, Project.class);
+
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
-            if (plan instanceof Aggregate) {
-                Aggregate a = (Aggregate) plan;
+
+            plan.forEachDown(a -> {
                 List<Object> values = extractConstants(a.aggregates());
                 if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
-                    return new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
+            }, Aggregate.class);
+
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
+
             return plan;
         }
 
         private List<Object> extractConstants(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
-                if (n.foldable()) {
+                if (n instanceof Alias) {
+                    Alias a = (Alias) n;
+                    if (a.child().foldable()) {
+                        values.add(a.child().fold());
+                    }
+                    // not everything is foldable, bail out early
+                    else {
+                        return values;
+                    }
+                } else if (n.foldable()) {
                     values.add(n.fold());
-                } else {
+                }
+                else {
                     // not everything is foldable, bail-out early
                     return values;
                 }
@@ -1947,6 +1897,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         protected abstract Expression rule(Expression e);
+    }
+
+    abstract static class OptimizerBasicRule extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public abstract LogicalPlan apply(LogicalPlan plan);
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan;
+        }
     }
 
     enum TransformDirection {

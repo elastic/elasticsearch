@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +30,12 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     private List<ApplicationPrivilegeDescriptor> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+
+    public PutPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
 
     public PutPrivilegesRequest() {
         privileges = Collections.emptyList();
@@ -96,7 +101,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     }
 
     public void setPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges) {
-        this.privileges = Collections.unmodifiableList(new ArrayList<>(privileges));
+        this.privileges = List.copyOf(privileges);
     }
 
     @Override
@@ -110,13 +115,6 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     public String toString() {
         return getClass().getSimpleName() + "{[" + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
             + "];" + refreshPolicy + "}";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

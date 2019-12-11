@@ -31,9 +31,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -44,8 +43,8 @@ public abstract class AbstractIndicesPrivileges {
     static final ParseField FIELD_PERMISSIONS = new ParseField("field_security");
     static final ParseField QUERY = new ParseField("query");
 
-    protected final Set<String> indices;
-    protected final Set<String> privileges;
+    protected final List<String> indices;
+    protected final List<String> privileges;
     protected final boolean allowRestrictedIndices;
 
     AbstractIndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices) {
@@ -55,15 +54,15 @@ public abstract class AbstractIndicesPrivileges {
         if (null == privileges || privileges.isEmpty()) {
             throw new IllegalArgumentException("indices privileges must define at least one privilege");
         }
-        this.indices = Collections.unmodifiableSet(new HashSet<>(indices));
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
+        this.indices = List.copyOf(indices);
+        this.privileges = List.copyOf(privileges);
         this.allowRestrictedIndices = allowRestrictedIndices;
     }
 
     /**
      * The indices names covered by the privileges.
      */
-    public Set<String> getIndices() {
+    public List<String> getIndices() {
         return this.indices;
     }
 
@@ -72,7 +71,7 @@ public abstract class AbstractIndicesPrivileges {
      * such privileges, but the {@code String} datatype allows for flexibility in defining
      * finer grained privileges.
      */
-    public Set<String> getPrivileges() {
+    public List<String> getPrivileges() {
         return this.privileges;
     }
 
@@ -106,8 +105,8 @@ public abstract class AbstractIndicesPrivileges {
         @SuppressWarnings("unchecked")
         private static FieldSecurity buildObjectFromParserArgs(Object[] args) {
             return new FieldSecurity(
-                (Collection<String>) args[0],
-                (Collection<String>) args[1]
+                (List<String>) args[0],
+                (List<String>) args[1]
             );
         }
 
@@ -121,15 +120,15 @@ public abstract class AbstractIndicesPrivileges {
         }
 
         // null or singleton '*' means all fields are granted, empty means no fields are granted
-        private final Set<String> grantedFields;
+        private final List<String> grantedFields;
         // null or empty means no fields are denied
-        private final Set<String> deniedFields;
+        private final List<String> deniedFields;
 
         FieldSecurity(Collection<String> grantedFields, Collection<String> deniedFields) {
             // unspecified granted fields means no restriction
-            this.grantedFields = grantedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(grantedFields));
+            this.grantedFields = grantedFields == null ? null : List.copyOf(grantedFields);
             // unspecified denied fields means no restriction
-            this.deniedFields = deniedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(deniedFields));
+            this.deniedFields = deniedFields == null ? null : List.copyOf(deniedFields);
         }
 
         /**
@@ -137,7 +136,7 @@ public abstract class AbstractIndicesPrivileges {
          * all the document's fields are granted access to. Can also be empty, in which
          * case no fields are granted access to.
          */
-        public Set<String> getGrantedFields() {
+        public List<String> getGrantedFields() {
             return grantedFields;
         }
 
@@ -145,7 +144,7 @@ public abstract class AbstractIndicesPrivileges {
          * The document fields that cannot be accessed or queried. Can be null or empty,
          * in which case no fields are denied.
          */
-        public Set<String> getDeniedFields() {
+        public List<String> getDeniedFields() {
             return deniedFields;
         }
 

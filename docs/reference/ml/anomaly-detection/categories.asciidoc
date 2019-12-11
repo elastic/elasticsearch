@@ -1,0 +1,278 @@
+[role="xpack"]
+[[ml-configuring-categories]]
+=== Categorizing log messages
+
+Application log events are often unstructured and contain variable data. For
+example:
+//Obtained from it_ops_new_app_logs.json
+[source,js]
+----------------------------------
+{"time":1454516381000,"message":"org.jdbi.v2.exceptions.UnableToExecuteStatementException: com.mysql.jdbc.exceptions.MySQLTimeoutException: Statement cancelled due to timeout or client request [statement:\"SELECT id, customer_id, name, force_disabled, enabled FROM customers\"]","type":"logs"}
+----------------------------------
+//NOTCONSOLE
+
+You can use {ml} to observe the static parts of the message, cluster similar
+messages together, and classify them into message categories.
+
+The {ml} model learns what volume and pattern is normal for each category over
+time. You can then detect anomalies and surface rare events or unusual types of
+messages by using count or rare functions. For example:
+
+//Obtained from it_ops_new_app_logs.sh
+[source,console]
+----------------------------------
+PUT _ml/anomaly_detectors/it_ops_new_logs
+{
+  "description" : "IT Ops Application Logs",
+  "analysis_config" : {
+    "categorization_field_name": "message", <1>
+    "bucket_span":"30m",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory", <2>
+      "detector_description": "Unusual message counts"
+    }],
+    "categorization_filters":[ "\\[statement:.*\\]"]
+  },
+  "analysis_limits":{
+    "categorization_examples_limit": 5
+  },
+  "data_description" : {
+    "time_field":"time",
+    "time_format": "epoch_ms"
+  }
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+<1> The `categorization_field_name` property indicates which field will be
+categorized.
+<2> The resulting categories are used in a detector by setting `by_field_name`,
+`over_field_name`, or `partition_field_name` to the keyword `mlcategory`. If you
+do not specify this keyword in one of those properties, the API request fails.
+
+The optional `categorization_examples_limit` property specifies the
+maximum number of examples that are stored in memory and in the results data
+store for each category. The default value is `4`. Note that this setting does
+not affect the categorization; it just affects the list of visible examples. If
+you increase this value, more examples are available, but you must have more
+storage available. If you set this value to `0`, no examples are stored.
+
+The optional `categorization_filters` property can contain an array of regular
+expressions. If a categorization field value matches the regular expression, the
+portion of the field that is matched is not taken into consideration when
+defining categories. The categorization filters are applied in the order they
+are listed in the job configuration, which allows you to disregard multiple
+sections of the categorization field value. In this example, we have decided that
+we do not want the detailed SQL to be considered in the message categorization.
+This particular categorization filter removes the SQL statement from the categorization
+algorithm.
+
+If your data is stored in {es}, you can create an advanced {anomaly-job} with
+these same properties:
+
+[role="screenshot"]
+image::images/ml-category-advanced.jpg["Advanced job configuration options related to categorization"]
+
+NOTE: To add the `categorization_examples_limit` property, you must use the
+**Edit JSON** tab and copy the `analysis_limits` object from the API example.
+
+[float]
+[[ml-configuring-analyzer]]
+==== Customizing the categorization analyzer
+
+Categorization uses English dictionary words to identify log message categories.
+By default, it also uses English tokenization rules. For this reason, if you use
+the default categorization analyzer, only English language log messages are
+supported, as described in the <<ml-limitations>>.
+
+You can, however, change the tokenization rules by customizing the way the
+categorization field values are interpreted. For example:
+
+[source,console]
+----------------------------------
+PUT _ml/anomaly_detectors/it_ops_new_logs2
+{
+  "description" : "IT Ops Application Logs",
+  "analysis_config" : {
+    "categorization_field_name": "message",
+    "bucket_span":"30m",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory",
+      "detector_description": "Unusual message counts"
+    }],
+    "categorization_analyzer":{
+      "char_filter": [
+        { "type": "pattern_replace", "pattern": "\\[statement:.*\\]" } <1>
+      ],
+      "tokenizer": "ml_classic", <2>
+      "filter": [
+        { "type" : "stop", "stopwords": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+          "GMT", "UTC"
+        ] } <3>
+      ]
+    }
+  },
+  "analysis_limits":{
+    "categorization_examples_limit": 5
+  },
+  "data_description" : {
+    "time_field":"time",
+    "time_format": "epoch_ms"
+  }
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+<1> The
+{ref}/analysis-pattern-replace-charfilter.html[`pattern_replace` character filter]
+here achieves exactly the same as the `categorization_filters` in the first
+example.
+<2> The `ml_classic` tokenizer works like the non-customizable tokenization
+that was used for categorization in older versions of machine learning. If you
+want the same categorization behavior as older versions, use this property value.
+<3> By default, English day or month words are filtered from log messages before
+categorization. If your logs are in a different language and contain
+dates, you might get better results by filtering the day or month words in your
+language.
+
+The optional `categorization_analyzer` property allows even greater customization
+of how categorization interprets the categorization field value. It can refer to
+a built-in {es} analyzer or a combination of zero or more character filters,
+a tokenizer, and zero or more token filters. If you omit the
+`categorization_analyzer`, the following default values are used:
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/_validate
+{
+  "analysis_config" : {
+    "categorization_analyzer" : {
+      "tokenizer" : "ml_classic",
+      "filter" : [
+        { "type" : "stop", "stopwords": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+          "GMT", "UTC"
+        ] }
+      ]
+    },
+    "categorization_field_name": "message",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory"
+    }]
+  },
+  "data_description" : {
+  }
+}
+--------------------------------------------------
+
+If you specify any part of the `categorization_analyzer`, however, any omitted
+sub-properties are _not_ set to default values.
+
+The `ml_classic` tokenizer and the day and month stopword filter are more or less
+equivalent to the following analyzer, which is defined using only built-in {es}
+{ref}/analysis-tokenizers.html[tokenizers] and
+{ref}/analysis-tokenfilters.html[token filters]:
+
+[source,console]
+----------------------------------
+PUT _ml/anomaly_detectors/it_ops_new_logs3
+{
+  "description" : "IT Ops Application Logs",
+  "analysis_config" : {
+    "categorization_field_name": "message",
+    "bucket_span":"30m",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory",
+      "detector_description": "Unusual message counts"
+    }],
+    "categorization_analyzer":{
+      "tokenizer": {
+        "type" : "simple_pattern_split",
+        "pattern" : "[^-0-9A-Za-z_.]+" <1>
+      },
+      "filter": [
+        { "type" : "pattern_replace", "pattern": "^[0-9].*" }, <2>
+        { "type" : "pattern_replace", "pattern": "^[-0-9A-Fa-f.]+$" }, <3>
+        { "type" : "pattern_replace", "pattern": "^[^0-9A-Za-z]+" }, <4>
+        { "type" : "pattern_replace", "pattern": "[^0-9A-Za-z]+$" }, <5>
+        { "type" : "stop", "stopwords": [
+          "",
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+          "GMT", "UTC"
+        ] }
+      ]
+    }
+  },
+  "analysis_limits":{
+    "categorization_examples_limit": 5
+  },
+  "data_description" : {
+    "time_field":"time",
+    "time_format": "epoch_ms"
+  }
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+<1> Tokens basically consist of hyphens, digits, letters, underscores and dots.
+<2> By default, categorization ignores tokens that begin with a digit.
+<3> By default, categorization also ignores tokens that are hexadecimal numbers.
+<4> Underscores, hyphens, and dots are removed from the beginning of tokens.
+<5> Underscores, hyphens, and dots are also removed from the end of tokens.
+
+The key difference between the default `categorization_analyzer` and this example
+analyzer is that using the `ml_classic` tokenizer is several times faster. The
+difference in behavior is that this custom analyzer does not include accented
+letters in tokens whereas the `ml_classic` tokenizer does, although that could
+be fixed by using more complex regular expressions.
+
+If you are categorizing non-English messages in a language where words are
+separated by spaces, you might get better results if you change the day or month
+words in the stop token filter to the appropriate words in your language. If you
+are categorizing messages in a language where words are not separated by spaces,
+you must use a different tokenizer as well in order to get sensible
+categorization results.
+
+It is important to be aware that analyzing for categorization of machine
+generated log messages is a little different from tokenizing for search.
+Features that work well for search, such as stemming, synonym substitution, and
+lowercasing are likely to make the results of categorization worse. However, in
+order for drill down from {ml} results to work correctly, the tokens that the
+categorization analyzer produces must be similar to those produced by the search
+analyzer. If they are sufficiently similar, when you search for the tokens that
+the categorization analyzer produces then you find the original document that
+the categorization field value came from.
+
+NOTE: To add the `categorization_analyzer` property in {kib}, you must use the
+**Edit JSON** tab and copy the `categorization_analyzer` object from one of the
+API examples above.
+
+[float]
+[[ml-viewing-categories]]
+==== Viewing categorization results
+
+After you open the job and start the {dfeed} or supply data to the job, you can
+view the categorization results in {kib}. For example:
+
+[role="screenshot"]
+image::images/ml-category-anomalies.jpg["Categorization example in the Anomaly Explorer"]
+
+For this type of job, the **Anomaly Explorer** contains extra information for
+each anomaly: the name of the category (for example, `mlcategory 11`) and
+examples of the messages in that category. In this case, you can use these
+details to investigate occurrences of unusually high message counts for specific
+message categories.

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -48,7 +49,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public abstract class TransportInstanceSingleOperationAction<
             Request extends InstanceShardOperationRequest<Request>,
@@ -66,7 +66,7 @@ public abstract class TransportInstanceSingleOperationAction<
     protected TransportInstanceSingleOperationAction(String actionName, ThreadPool threadPool,
                                                      ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                     Supplier<Request> request) {
+                                                     Writeable.Reader<Request> request) {
         super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -74,7 +74,7 @@ public abstract class TransportInstanceSingleOperationAction<
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor();
         this.shardActionName = actionName + "[s]";
-        transportService.registerRequestHandler(shardActionName, request, executor, new ShardTransportHandler());
+        transportService.registerRequestHandler(shardActionName, executor, request, new ShardTransportHandler());
     }
 
     @Override
@@ -86,7 +86,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
     protected abstract void shardOperation(Request request, ActionListener<Response> listener);
 
-    protected abstract Response newResponse();
+    protected abstract Response newResponse(StreamInput in) throws IOException;
 
     protected ClusterBlockException checkGlobalBlock(ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
@@ -143,7 +143,7 @@ public abstract class TransportInstanceSingleOperationAction<
                         throw blockException;
                     }
                 }
-                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName());
+                request.concreteIndex(indexNameExpressionResolver.concreteWriteIndex(clusterState, request).getName());
                 resolveRequest(clusterState, request);
                 blockException = checkRequestBlock(clusterState, request);
                 if (blockException != null) {
@@ -183,9 +183,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
                 @Override
                 public Response read(StreamInput in) throws IOException {
-                    Response response = newResponse();
-                    response.readFrom(in);
-                    return response;
+                    return newResponse(in);
                 }
 
                 @Override
@@ -254,27 +252,16 @@ public abstract class TransportInstanceSingleOperationAction<
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            shardOperation(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
+            shardOperation(request,
+                ActionListener.wrap(channel::sendResponse, e -> {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            logger.warn("failed to send response for get", inner);
+                        }
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn("failed to send response for get", inner);
-                    }
-                }
-            });
-
+                ));
         }
     }
 }

@@ -38,11 +38,9 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.AbstractMap;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.UnaryOperator;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -60,22 +58,13 @@ public class MetaDataIndexUpgradeService {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
-    private final UnaryOperator<IndexMetaData> upgraders;
 
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings,
-                                       Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders) {
+                                       IndexScopedSettings indexScopedSettings) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
-        this.upgraders = indexMetaData -> {
-            IndexMetaData newIndexMetaData = indexMetaData;
-            for (UnaryOperator<IndexMetaData> upgrader : indexMetaDataUpgraders) {
-                newIndexMetaData = upgrader.apply(newIndexMetaData);
-            }
-            return newIndexMetaData;
-        };
     }
 
     /**
@@ -88,17 +77,18 @@ public class MetaDataIndexUpgradeService {
     public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetaData)) {
-            return indexMetaData;
+            /*
+             * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
+             * needed by this index.
+             */
+            return archiveBrokenIndexSettings(indexMetaData);
         }
         checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);
-        IndexMetaData newMetaData = indexMetaData;
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
-        newMetaData = archiveBrokenIndexSettings(newMetaData);
+        final IndexMetaData newMetaData = archiveBrokenIndexSettings(indexMetaData);
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetaData);
-        // apply plugin checks
-        newMetaData = upgraders.apply(newMetaData);
         return markAsUpgraded(newMetaData);
     }
 
@@ -111,18 +101,15 @@ public class MetaDataIndexUpgradeService {
     }
 
     /**
-     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
-     * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
-     * before they can be opened by this version of elasticsearch.
+     * Elasticsearch does not support indices created before the previous major version. They must be reindexed using an earlier version
+     * before they can be opened here.
      */
     private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
-        if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData,
-            minimumIndexCompatibilityVersion) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created with version ["
+        if (isSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion) == false) {
+            throw new IllegalStateException("The index " + indexMetaData.getIndex() + " was created with version ["
                 + indexMetaData.getCreationVersion() + "] but the minimum compatible version is ["
-
-                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
-                + ".x before upgrading to " + Version.CURRENT + ".");
+                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch "
+                + minimumIndexCompatibilityVersion.major + ".x before upgrading to " + Version.CURRENT + ".");
         }
     }
 
@@ -191,9 +178,9 @@ public class MetaDataIndexUpgradeService {
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
+                     new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null);
+                        mapperRegistry, () -> null, () -> false);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {

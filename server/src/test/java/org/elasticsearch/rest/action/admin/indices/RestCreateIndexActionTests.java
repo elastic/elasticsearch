@@ -19,44 +19,65 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
-import org.junit.Before;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
-import static org.mockito.Mockito.mock;
+public class RestCreateIndexActionTests extends ESTestCase {
 
-public class RestCreateIndexActionTests extends RestActionTestCase {
-    private RestCreateIndexAction action;
+    public void testPrepareTypelessRequest() throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .startObject("mappings")
+                .startObject("properties")
+                    .startObject("field1").field("type", "keyword").endObject()
+                    .startObject("field2").field("type", "text").endObject()
+                .endObject()
+            .endObject()
+            .startObject("aliases")
+                .startObject("read_alias").endObject()
+            .endObject()
+        .endObject();
 
-    @Before
-    public void setupAction() {
-        action = new RestCreateIndexAction(Settings.EMPTY, controller());
+        Map<String, Object> contentAsMap = XContentHelper.convertToMap(
+            BytesReference.bytes(content), true, content.contentType()).v2();
+        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap);
+
+        XContentBuilder expectedContent = XContentFactory.jsonBuilder().startObject()
+            .startObject("mappings")
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("field1").field("type", "keyword").endObject()
+                        .startObject("field2").field("type", "text").endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+            .startObject("aliases")
+                .startObject("read_alias").endObject()
+            .endObject()
+        .endObject();
+        Map<String, Object> expectedContentAsMap = XContentHelper.convertToMap(
+            BytesReference.bytes(expectedContent), true, expectedContent.contentType()).v2();
+
+        assertEquals(expectedContentAsMap, source);
     }
 
-    public void testIncludeTypeName() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index")
-            .withParams(params)
-            .build();
+    public void testMalformedMappings() throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .field("mappings", "some string")
+            .startObject("aliases")
+                .startObject("read_alias").endObject()
+            .endObject()
+        .endObject();
 
-        action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
-        assertWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
+        Map<String, Object> contentAsMap = XContentHelper.convertToMap(
+            BytesReference.bytes(content), true, content.contentType()).v2();
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index")
-            .build();
-        action.prepareRequest(validRequest, mock(NodeClient.class));
+        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap);
+        assertEquals(contentAsMap, source);
     }
 }

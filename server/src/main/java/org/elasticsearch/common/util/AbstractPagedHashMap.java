@@ -37,10 +37,6 @@ abstract class AbstractPagedHashMap implements Releasable {
         return BitMixer.mix64(value);
     }
 
-    static long hash(double value) {
-        return hash(Double.doubleToLongBits(value));
-    }
-
     final BigArrays bigArrays;
     final float maxLoadFactor;
     long size, maxSize;

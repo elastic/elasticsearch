@@ -33,6 +33,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 
 public final class HttpTransportSettings {
@@ -42,7 +43,7 @@ public final class HttpTransportSettings {
     public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN =
         new Setting<>("http.cors.allow-origin", "", (value) -> value, Property.NodeScope);
     public static final Setting<Integer> SETTING_CORS_MAX_AGE =
-        Setting.intSetting("http.cors.max-age", 1728000, Property.NodeScope);
+        intSetting("http.cors.max-age", 1728000, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_METHODS =
         new Setting<>("http.cors.allow-methods", "OPTIONS,HEAD,GET,POST,PUT,DELETE", (value) -> value, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS =
@@ -50,13 +51,13 @@ public final class HttpTransportSettings {
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
-        Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
+        intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
         Setting.boolSetting("http.compression", true, Property.NodeScope);
     // we intentionally use a different compression level as Netty here as our benchmarks have shown that a compression level of 3 is the
     // best compromise between reduction in network traffic and added latency. For more details please check #7309.
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL =
-        Setting.intSetting("http.compression_level", 3, Property.NodeScope);
+        intSetting("http.compression_level", 3, Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_HOST =
         listSetting("http.host", emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST =
@@ -67,7 +68,7 @@ public final class HttpTransportSettings {
     public static final Setting<PortsRange> SETTING_HTTP_PORT =
         new Setting<>("http.port", "9200-9300", PortsRange::new, Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_PUBLISH_PORT =
-        Setting.intSetting("http.publish_port", -1, -1, Property.NodeScope);
+        intSetting("http.publish_port", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED =
         Setting.boolSetting("http.detailed_errors.enabled", true, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_CONTENT_TYPE_REQUIRED =
@@ -91,7 +92,7 @@ public final class HttpTransportSettings {
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE =
         Setting.byteSizeSetting("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT =
-        Setting.intSetting("http.max_warning_header_count", -1, -1, Property.NodeScope);
+        intSetting("http.max_warning_header_count", -1, -1, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_WARNING_HEADER_SIZE =
         Setting.byteSizeSetting("http.max_warning_header_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH =
@@ -107,13 +108,16 @@ public final class HttpTransportSettings {
 
     // Tcp socket settings
 
-    // TODO: Deprecate in 7.0
-    public static final Setting<Boolean> OLD_SETTING_HTTP_TCP_NO_DELAY =
-        boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
-        boolSetting("http.tcp.no_delay", OLD_SETTING_HTTP_TCP_NO_DELAY, Setting.Property.NodeScope);
+        boolSetting("http.tcp.no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
         boolSetting("http.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_IDLE =
+        intSetting("http.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_INTERVAL =
+        intSetting("http.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_COUNT =
+        intSetting("http.tcp.keep_count", NetworkService.TCP_KEEP_COUNT, -1, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =
         boolSetting("http.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_SEND_BUFFER_SIZE =

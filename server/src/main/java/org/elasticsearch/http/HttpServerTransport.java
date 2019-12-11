@@ -54,12 +54,11 @@ public interface HttpServerTransport extends LifecycleComponent {
          * Dispatches a bad request. For example, if a request is malformed it will be dispatched via this method with the cause of the bad
          * request.
          *
-         * @param request       the request to dispatch
          * @param channel       the response channel of this request
          * @param threadContext the thread context
          * @param cause         the cause of the bad request
          */
-        void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause);
+        void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
     }
 }

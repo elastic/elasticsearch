@@ -1,0 +1,39 @@
+[float]
+[[breaking_80_settings_changes]]
+=== Settings changes
+
+[float]
+[[search-remote-settings-removed]]
+==== The `search.remote` settings have been removed
+
+In 6.5 these settings were deprecated in favor of `cluster.remote`. In 7.x we
+provided automatic upgrading of these settings to their `cluster.remote`
+counterparts. In 8.0.0, these settings have been removed. Elasticsearch will
+refuse to start if you have these settings in your configuration or cluster
+state.
+
+[float]
+[[remove-pidfile]]
+==== `pidfile` setting is replaced by `node.pidfile`
+
+To ensure that all settings are in a proper namespace, the `pidfile` setting was
+previously deprecated in version 7.4.0 of Elasticsearch, and is removed in
+version 8.0.0. Instead, use `node.pidfile`.
+
+[float]
+[[remove-processors]]
+==== `processors` setting is replaced by `node.processors`
+
+To ensure that all settings are in a proper namespace, the `processors` setting
+was previously deprecated in version 7.4.0 of Elasticsearch, and is removed in
+version 8.0.0. Instead, use `node.processors`.
+
+[float]
+==== `node.processors` can no longer exceed the available number of processors
+
+Previously it was possible to set the number of processors used to set the
+default sizes for the thread pools to be more than the number of available
+processors. As this leads to more context switches and more threads but without
+an increase in the number of physical CPUs on which to schedule these additional
+threads, the `node.processors` setting is now bounded by the number of available
+processors.

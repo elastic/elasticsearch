@@ -22,7 +22,7 @@ index.store.type: niofs
 It is a _static_ setting that can be set on a per-index basis at index
 creation time:
 
-[source,js]
+[source,console]
 ---------------------------------
 PUT /my_index
 {
@@ -31,7 +31,6 @@ PUT /my_index
   }
 }
 ---------------------------------
-// CONSOLE
 
 WARNING: This is an expert-only setting and may be removed in the future.
 
@@ -84,7 +83,8 @@ setting is useful, for example, if you are in an environment where you can not
 control the ability to create a lot of memory maps so you need disable the
 ability to use memory-mapping.
 
-=== Pre-loading data into the file system cache
+[[preload-data-to-file-system-cache]]
+=== Preloading data into the file system cache
 
 NOTE: This is an expert setting, the details of which may change in the future.
 
@@ -112,7 +112,7 @@ index.store.preload: ["nvd", "dvd"]
 
 or in the index settings at index creation time:
 
-[source,js]
+[source,console]
 ---------------------------------
 PUT /my_index
 {
@@ -121,7 +121,6 @@ PUT /my_index
   }
 }
 ---------------------------------
-// CONSOLE
 
 The default value is the empty array, which means that nothing will be loaded
 into the file-system cache eagerly. For indices that are actively searched,

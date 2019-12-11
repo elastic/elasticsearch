@@ -22,8 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -94,9 +93,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         super("search_context");
     }
 
-    public abstract void setTask(SearchTask task);
+    public abstract void setTask(SearchShardTask task);
 
-    public abstract SearchTask getTask();
+    public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
 
@@ -395,7 +394,11 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract ObjectMapper getObjectMapper(String name);
 
-    public abstract Counter timeEstimateCounter();
+    /**
+     * Returns time in milliseconds that can be used for relative time calculations.
+     * WARN: This is not the epoch time.
+     */
+    public abstract long getRelativeTimeInMillis();
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();

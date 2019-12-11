@@ -39,8 +39,16 @@ import java.util.Locale;
 */
 public abstract class Terminal {
 
+    /** Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses */
+    private static final PrintWriter ERROR_WRITER = newErrorWriter();
+
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+
+    @SuppressForbidden(reason = "Writer for System.err")
+    private static PrintWriter newErrorWriter() {
+        return new PrintWriter(System.err);
+    }
 
     /** Defines the available verbosity levels of messages to be printed. */
     public enum Verbosity {
@@ -70,8 +78,13 @@ public abstract class Terminal {
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public abstract char[] readSecret(String prompt);
 
-    /** Returns a Writer which can be used to write to the terminal directly. */
+    /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public abstract PrintWriter getWriter();
+
+    /** Returns a Writer which can be used to write to the terminal directly using standard error. */
+    public PrintWriter getErrorWriter() {
+        return ERROR_WRITER;
+    }
 
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
     public final void println(String msg) {
@@ -83,12 +96,33 @@ public abstract class Terminal {
         print(verbosity, msg + lineSeparator);
     }
 
-    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    /** Prints message to the terminal's standard output at {@code verbosity} level, without a newline. */
     public final void print(Verbosity verbosity, String msg) {
+        print(verbosity, msg, false);
+    }
+
+    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    private void print(Verbosity verbosity, String msg, boolean isError) {
         if (isPrintable(verbosity)) {
-            getWriter().print(msg);
-            getWriter().flush();
+            PrintWriter writer = isError ? getErrorWriter() : getWriter();
+            writer.print(msg);
+            writer.flush();
         }
+    }
+
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
+    public final void errorPrint(Verbosity verbosity, String msg) {
+        print(verbosity, msg, true);
+    }
+
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
+    public final void errorPrintln(String msg) {
+        errorPrintln(Verbosity.NORMAL, msg);
+    }
+
+    /** Prints a line to the terminal's standard error at {@code verbosity} level. */
+    public final void errorPrintln(Verbosity verbosity, String msg) {
+        errorPrint(verbosity, msg + lineSeparator);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */
@@ -110,11 +144,16 @@ public abstract class Terminal {
             answer = answer.toLowerCase(Locale.ROOT);
             boolean answerYes = answer.equals("y");
             if (answerYes == false && answer.equals("n") == false) {
-                println("Did not understand answer '" + answer + "'");
+                errorPrintln("Did not understand answer '" + answer + "'");
                 continue;
             }
             return answerYes;
         }
+    }
+
+    public void flush() {
+        this.getWriter().flush();
+        this.getErrorWriter().flush();
     }
 
     private static class ConsoleTerminal extends Terminal {
@@ -165,7 +204,7 @@ public abstract class Terminal {
 
         @Override
         public String readText(String text) {
-            getWriter().print(text);
+            getErrorWriter().print(text); // prompts should go to standard error to avoid mixing with list output
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
                 final String line = reader.readLine();

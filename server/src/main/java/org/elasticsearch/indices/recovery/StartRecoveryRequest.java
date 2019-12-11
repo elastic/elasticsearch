@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +43,16 @@ public class StartRecoveryRequest extends TransportRequest {
     private boolean primaryRelocation;
     private long startingSeqNo;
 
-    public StartRecoveryRequest() {
+    public StartRecoveryRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        targetAllocationId = in.readString();
+        sourceNode = new DiscoveryNode(in);
+        targetNode = new DiscoveryNode(in);
+        metadataSnapshot = new Store.MetadataSnapshot(in);
+        primaryRelocation = in.readBoolean();
+        startingSeqNo = in.readLong();
     }
 
     /**
@@ -112,23 +120,6 @@ public class StartRecoveryRequest extends TransportRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
-        targetAllocationId = in.readString();
-        sourceNode = new DiscoveryNode(in);
-        targetNode = new DiscoveryNode(in);
-        metadataSnapshot = new Store.MetadataSnapshot(in);
-        primaryRelocation = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            startingSeqNo = in.readLong();
-        } else {
-            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
@@ -138,9 +129,6 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeLong(startingSeqNo);
-        }
+        out.writeLong(startingSeqNo);
     }
-
 }

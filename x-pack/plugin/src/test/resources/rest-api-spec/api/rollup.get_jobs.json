@@ -1,0 +1,30 @@
+{
+  "rollup.get_jobs":{
+    "documentation":{
+      "url":""
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_rollup/job/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the job(s) to fetch. Accepts glob patterns, or left blank for all jobs"
+            }
+          }
+        },
+        {
+          "path":"/_rollup/job/",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

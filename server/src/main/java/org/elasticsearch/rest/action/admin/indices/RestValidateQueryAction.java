@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -27,8 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -45,19 +42,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestValidateQueryAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in validate query requests is deprecated.";
 
-    public RestValidateQueryAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestValidateQueryAction(RestController controller) {
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
         controller.registerHandler(GET, "/{index}/_validate/query", this);
         controller.registerHandler(POST, "/{index}/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
     }
 
     @Override
@@ -70,12 +60,6 @@ public class RestValidateQueryAction extends BaseRestHandler {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
-
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("validate_query_with_types", TYPES_DEPRECATION_MESSAGE);
-            validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        }
-
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
 

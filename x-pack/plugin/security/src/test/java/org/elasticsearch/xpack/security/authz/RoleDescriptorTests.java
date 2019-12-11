@@ -22,8 +22,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
@@ -55,13 +55,13 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
     }
 
-    public void testToString() throws Exception {
+    public void testToString() {
         RoleDescriptor.IndicesPrivileges[] groups = new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("i1", "i2")
                         .privileges("read")
                         .grantedFields("body", "title")
-                        .query("{\"query\": {\"match_all\": {}}}")
+                        .query("{\"match_all\": {}}")
                         .build()
         };
         final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
@@ -72,17 +72,17 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
 
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
-            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[]{
+            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            conditionalClusterPrivileges, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
+            configurableClusterPrivileges, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
 
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none]" +
                 ", global=[{APPLICATION:manage:applications=app01,app02}]" +
                 ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]" +
-                ", field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
+                ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
                 ", runAs=[sudo], metadata=[{}]]"));
     }
@@ -94,7 +94,7 @@ public class RoleDescriptorTests extends ESTestCase {
                         .privileges("read")
                         .grantedFields("body", "title")
                         .allowRestrictedIndices(randomBoolean())
-                        .query("{\"query\": {\"match_all\": {}}}")
+                        .query("{\"match_all\": {}}")
                         .build()
         };
         final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
@@ -104,13 +104,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
-            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = {
+            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            conditionalClusterPrivileges, new String[]{ "sudo" }, metadata, Collections.emptyMap());
+            configurableClusterPrivileges, new String[]{ "sudo" }, metadata, Collections.emptyMap());
         XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
         assertThat(parsed, equalTo(descriptor));
@@ -136,7 +136,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 "\"p2\"]}, {\"names\": \"idx2\", \"allow_restricted_indices\": true, \"privileges\": [\"p3\"], \"field_security\": " +
                 "{\"grant\": [\"f1\", \"f2\"]}}, {\"names\": " +
                 "\"idx2\", \"allow_restricted_indices\": false," +
-                "\"privileges\": [\"p3\"], \"field_security\": {\"grant\": [\"f1\", \"f2\"]}, \"query\": \"{\\\"match_all\\\": {}}\"}]}";
+                "\"privileges\": [\"p3\"], \"field_security\": {\"grant\": [\"f1\", \"f2\"]}, \"query\": {\"match_all\": {}} }]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -189,10 +189,10 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
         assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(1));
 
-        final ConditionalClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
-        assertThat(conditionalPrivilege.getCategory(), equalTo(ConditionalClusterPrivilege.Category.APPLICATION));
-        assertThat(conditionalPrivilege, instanceOf(ConditionalClusterPrivileges.ManageApplicationPrivileges.class));
-        assertThat(((ConditionalClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
+        final ConfigurableClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
+        assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.APPLICATION));
+        assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.ManageApplicationPrivileges.class));
+        assertThat(((ConfigurableClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash"));
 
         q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
@@ -213,8 +213,8 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("not_supported"));
     }
 
-    public void testSerialization() throws Exception {
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, null);
+    public void testSerializationForCurrentVersion() throws Exception {
+        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
@@ -233,25 +233,37 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
-            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = {
+            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         final RoleDescriptor descriptor = new RoleDescriptor("test", new String[]{"all", "none"}, groups, applicationPrivileges,
-            conditionalClusterPrivileges, new String[] { "sudo" }, metadata, null);
-        RoleDescriptor.writeTo(descriptor, output);
+            configurableClusterPrivileges, new String[] { "sudo" }, metadata, null);
+        descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry);
         streamInput.setVersion(version);
-        final RoleDescriptor serialized = RoleDescriptor.readFrom(streamInput);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
         assertEquals(descriptor, serialized);
     }
 
     public void testParseEmptyQuery() throws Exception {
         String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], " +
                 "\"privileges\": [\"p1\", \"p2\"], \"query\": \"\"}]}";
+        RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
+        assertEquals("test", rd.getName());
+        assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
+        assertEquals(1, rd.getIndicesPrivileges().length);
+        assertArrayEquals(new String[] { "idx1", "idx2" }, rd.getIndicesPrivileges()[0].getIndices());
+        assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
+        assertNull(rd.getIndicesPrivileges()[0].getQuery());
+    }
+
+    public void testParseNullQuery() throws Exception {
+        String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], " +
+            "\"privileges\": [\"p1\", \"p2\"], \"query\": null}]}";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -274,7 +286,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseIgnoresTransientMetadata() throws Exception {
-        final RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all" }, null, null,
+        final RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all" }, null, null, null, null,
                 Collections.singletonMap("_unlicensed_feature", true), Collections.singletonMap("foo", "bar"));
         XContentBuilder b = jsonBuilder();
         descriptor.toXContent(b, ToXContent.EMPTY_PARAMS);
@@ -283,4 +295,5 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(1, parsed.getTransientMetadata().size());
         assertEquals(true, parsed.getTransientMetadata().get("enabled"));
     }
+
 }

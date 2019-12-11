@@ -26,7 +26,6 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
@@ -53,27 +52,10 @@ public final class SimilarityService extends AbstractIndexComponent {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityService.class));
     public static final String DEFAULT_SIMILARITY = "BM25";
-    private static final String CLASSIC_SIMILARITY = "classic";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
     public static final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> BUILT_IN;
     static {
         Map<String, Function<Version, Supplier<Similarity>>> defaults = new HashMap<>();
-        defaults.put(CLASSIC_SIMILARITY, version -> {
-            if (version.onOrAfter(Version.V_7_0_0)) {
-                return () -> {
-                    throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
-                            + "similarity or build a custom [scripted] similarity instead.");
-                };
-            } else {
-                final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
-                return () -> {
-                    deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
-                            + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
-                            + "instead.");
-                    return similarity;
-                };
-            }
-        });
         defaults.put("BM25", version -> {
             final LegacyBM25Similarity similarity = SimilarityProviders.createBM25Similarity(Settings.EMPTY, version);
             return () -> similarity;
@@ -84,18 +66,6 @@ public final class SimilarityService extends AbstractIndexComponent {
         });
 
         Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> builtIn = new HashMap<>();
-        builtIn.put(CLASSIC_SIMILARITY,
-                (settings, version, script) -> {
-                    if (version.onOrAfter(Version.V_7_0_0)) {
-                        throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
-                                + "similarity or build a custom [scripted] similarity instead.");
-                    } else {
-                        deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
-                                + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
-                                + "instead.");
-                        return SimilarityProviders.createClassicSimilarity(settings, version);
-                    }
-                });
         builtIn.put("BM25",
                 (settings, version, scriptService) -> SimilarityProviders.createBM25Similarity(settings, version));
         builtIn.put("boolean",
@@ -212,9 +182,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         for (int freq = 1; freq <= 10; ++freq) {
             float score = scorer.score(freq, norm);
             if (score < 0) {
-                fail(indexCreatedVersion, "Similarities should not return negative scores:\n" +
-                        scorer.explain(Explanation.match(freq, "term freq"), norm));
-                break;
+                throw new IllegalArgumentException("Similarities should not return negative scores:\n" +
+                    scorer.explain(Explanation.match(freq, "term freq"), norm));
             }
         }
     }
@@ -230,10 +199,9 @@ public final class SimilarityService extends AbstractIndexComponent {
         for (int freq = 1; freq <= 10; ++freq) {
             float score = scorer.score(freq, norm);
             if (score < previousScore) {
-                fail(indexCreatedVersion, "Similarity scores should not decrease when term frequency increases:\n" +
-                        scorer.explain(Explanation.match(freq - 1, "term freq"), norm) + "\n" +
-                        scorer.explain(Explanation.match(freq, "term freq"), norm));
-                break;
+                throw new IllegalArgumentException("Similarity scores should not decrease when term frequency increases:\n" +
+                    scorer.explain(Explanation.match(freq - 1, "term freq"), norm) + "\n" +
+                    scorer.explain(Explanation.match(freq, "term freq"), norm));
             }
             previousScore = score;
         }
@@ -256,22 +224,12 @@ public final class SimilarityService extends AbstractIndexComponent {
             }
             float score = scorer.score(1, norm);
             if (score > previousScore) {
-                fail(indexCreatedVersion, "Similarity scores should not increase when norm increases:\n" +
-                        scorer.explain(Explanation.match(1, "term freq"), norm - 1) + "\n" +
-                        scorer.explain(Explanation.match(1, "term freq"), norm));
-                break;
+                throw new IllegalArgumentException("Similarity scores should not increase when norm increases:\n" +
+                    scorer.explain(Explanation.match(1, "term freq"), norm - 1) + "\n" +
+                    scorer.explain(Explanation.match(1, "term freq"), norm));
             }
             previousScore = score;
             previousNorm = norm;
         }
     }
-
-    private static void fail(Version indexCreatedVersion, String message) {
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException(message);
-        } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            deprecationLogger.deprecated(message);
-        }
-    }
-
 }

@@ -1,0 +1,53 @@
+[float]
+[[breaking_80_search_changes]]
+=== Search Changes
+
+[float]
+==== Removal of types
+
+The `/{index}/{type}/_search`, `/{index}/{type}/_msearch`, `/{index}/{type}/_search/template` and `/{index}/{type}/_msearch/template` REST endpoints have been removed in favour of `/{index}/_search`, `/{index}/_msearch`, `/{index}/_search/template` and `/{index}/_msearch/template`; since indexes no longer contain types, these typed endpoints are obsolete..
+
+The `/{index}/{type}/_termvectors`, `/{index}/{type}/{id}/_termvectors` and `/{index}/{type}/_mtermvectors` REST endpoints have been removed in favour of `/{index}/_termvectors`, `/{index}/{id}/_termvectors` and `/{index}/_mtermvectors`; since indexes no longer contain types, these typed endpoints are obsolete..
+
+The `/{index}/{type}/{doc}` and `/{index}/{type}/_mget` REST endpoints have been removed in favour of `/{index}/_doc/{doc}` and `/{index}/_mget`; since indexes no longer contain types, these typed endpoints are obsolete.
+
+[float]
+==== Removal of queries
+
+The `common` query, deprecated in 7.x, has been removed in 8.0.
+The same functionality can be achieved by the `match` query if the total number of hits is not tracked.
+
+[float]
+===== Removal of query parameters
+
+The `cutoff_frequency` parameter, deprecated in 7.x, has been removed in 8.0 from `match` and `multi_match` queries.
+The same functionality can be achieved without any configuration provided that the total number of hits is not tracked.
+
+[float]
+===== Removal of sort parameters
+
+The `nested_filter` and `nested_path` options, deprecated in 6.x, have been removed in favor of the `nested` context.
+
+
+[float]
+===== Shard allocation awareness in Search and Get requests
+
+{es} will no longer prefer using shards in the same location (with the same awareness attribute values) to process
+`_search` and `_get` requests. Adaptive replica selection (activated by default in this version) will route requests
+more efficiently using the service time of prior inter-node communications.
+
+[float]
+==== Removal of sparse vector fields
+The `sparse_vector` field type was deprecated in 7.6 and is now removed in
+8.0. We have not seen much interest in this experimental field type, and don't
+see a clear use case as it's currently designed. If you have feedback or
+suggestions around sparse vector functionality, please let us know through
+GitHub or the 'discuss' forums.
+
+[float]
+==== Update to vector function signatures
+The vector functions of the form `function(query, doc['field'])` were
+deprecated in 7.6, and are now removed in 8.x. The form
+`function(query, 'field')` should be used instead. For example,
+`cosineSimilarity(query, doc['field'])` is replaced by
+`cosineSimilarity(query, 'field')`.

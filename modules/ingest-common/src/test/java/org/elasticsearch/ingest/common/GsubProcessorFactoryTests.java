@@ -42,7 +42,7 @@ public class GsubProcessorFactoryTests extends AbstractStringProcessorFactoryTes
     }
 
     @Override
-    protected void assertProcessor(AbstractStringProcessor processor) {
+    protected void assertProcessor(AbstractStringProcessor<?> processor) {
         GsubProcessor gsubProcessor = (GsubProcessor) processor;
         assertThat(gsubProcessor.getPattern().toString(), equalTo("\\."));
         assertThat(gsubProcessor.getReplacement(), equalTo("-"));

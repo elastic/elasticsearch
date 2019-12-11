@@ -52,28 +52,6 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      */
     String index();
 
-
-    /**
-     * Set the type for this request
-     * @return the Request
-     */
-    T type(String type);
-
-    /**
-     * Get the type that this request operates on
-     * @return the type
-     */
-    String type();
-
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * @return the Request
-     */
-    T defaultTypeIfNull(String defaultType);
-    
-    
     /**
      * Get the id of the document for this request
      * @return the id
@@ -222,17 +200,11 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.readFrom(in);
-            docWriteRequest = indexRequest;
+            docWriteRequest = new IndexRequest(in);
         } else if (type == 1) {
-            DeleteRequest deleteRequest = new DeleteRequest();
-            deleteRequest.readFrom(in);
-            docWriteRequest = deleteRequest;
+            docWriteRequest = new DeleteRequest(in);
         } else if (type == 2) {
-            UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.readFrom(in);
-            docWriteRequest = updateRequest;
+            docWriteRequest = new UpdateRequest(in);
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }
@@ -257,16 +229,20 @@ public interface DocWriteRequest<T> extends IndicesRequest {
 
     static ActionRequestValidationException validateSeqNoBasedCASParams(
         DocWriteRequest request, ActionRequestValidationException validationException) {
-        if (request.versionType().validateVersionForWrites(request.version()) == false) {
-            validationException = addValidationError("illegal version value [" + request.version() + "] for version type ["
-                + request.versionType().name() + "]", validationException);
+        final long version = request.version();
+        final VersionType versionType = request.versionType();
+        if (versionType.validateVersionForWrites(version) == false) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["
+                + versionType.name() + "]", validationException);
         }
-        if (request.versionType() == VersionType.FORCE) {
-            validationException = addValidationError("version type [force] may no longer be used", validationException);
+
+        if (versionType == VersionType.INTERNAL && version != Versions.MATCH_ANY && version != Versions.MATCH_DELETED) {
+            validationException = addValidationError("internal versioning can not be used for optimistic concurrency control. " +
+                "Please use `if_seq_no` and `if_primary_term` instead", validationException);
         }
 
         if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (
-            request.versionType() != VersionType.INTERNAL || request.version() != Versions.MATCH_ANY
+            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
         )) {
             validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -16,11 +17,11 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -29,10 +30,11 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -41,7 +43,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -59,16 +60,16 @@ public class DatafeedManager {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     // Use allocationId as key instead of datafeed id
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
     private final AutodetectProcessManager autodetectProcessManager;
-    private volatile boolean isolated;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                           Supplier<Long> currentTimeSupplier, Auditor auditor, AutodetectProcessManager autodetectProcessManager) {
+                           Supplier<Long> currentTimeSupplier, AnomalyDetectionAuditor auditor,
+                           AutodetectProcessManager autodetectProcessManager) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = threadPool;
@@ -78,7 +79,6 @@ public class DatafeedManager {
         this.autodetectProcessManager = autodetectProcessManager;
         clusterService.addListener(taskRunner);
     }
-
 
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
         String datafeedId = task.getDatafeedId();
@@ -96,7 +96,12 @@ public class DatafeedManager {
 
                         @Override
                         public void onFailure(Exception e) {
-                            finishHandler.accept(e);
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                // The task was stopped in the meantime, no need to do anything
+                                logger.info("[{}] Aborting as datafeed has been stopped", datafeedId);
+                            } else {
+                                finishHandler.accept(e);
+                            }
                         }
                     });
                 }, finishHandler::accept
@@ -131,18 +136,20 @@ public class DatafeedManager {
      * This is used before the JVM is killed.  It differs from stopAllDatafeedsOnThisNode in that it leaves
      * the datafeed tasks in the "started" state, so that they get restarted on a different node.
      */
-    public void isolateAllDatafeedsOnThisNode() {
-        isolated = true;
+    public void isolateAllDatafeedsOnThisNodeBeforeShutdown() {
         Iterator<Holder> iter = runningDatafeedsOnThisNode.values().iterator();
         while (iter.hasNext()) {
             Holder next = iter.next();
             next.isolateDatafeed();
-            next.setRelocating();
+            // TODO: it's not ideal that this "isolate" method does something a bit different to the one below
+            next.setNodeIsShuttingDown();
             iter.remove();
         }
     }
 
     public void isolateDatafeed(long allocationId) {
+        // This calls get() rather than remove() because we expect that the persistent task will
+        // be removed shortly afterwards and that operation needs to be able to find the holder
         Holder holder = runningDatafeedsOnThisNode.get(allocationId);
         if (holder != null) {
             holder.isolateDatafeed();
@@ -153,7 +160,8 @@ public class DatafeedManager {
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {
-        holder.future = threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
+        holder.cancellable =
+            Scheduler.wrapAsCancellable(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -195,7 +203,7 @@ public class DatafeedManager {
                     holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
-                if (isolated == false) {
+                if (holder.isIsolated() == false) {
                     if (next != null) {
                         doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
                     } else {
@@ -204,14 +212,14 @@ public class DatafeedManager {
                     }
                 }
             }
-        });
+        }));
     }
 
     void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
         if (holder.isRunning() && !holder.isIsolated()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_THREAD_POOL_NAME, new AbstractRunnable() {
+            holder.cancellable = threadPool.schedule(new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {
@@ -224,7 +232,7 @@ public class DatafeedManager {
                     long nextDelayInMsSinceEpoch;
                     try {
                         nextDelayInMsSinceEpoch = holder.executeRealTime();
-                        holder.problemTracker.reportNoneEmptyCount();
+                        holder.problemTracker.reportNonEmptyDataCount();
                     } catch (DatafeedJob.ExtractionProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
                         holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
@@ -236,8 +244,15 @@ public class DatafeedManager {
                             return;
                         }
                     } catch (DatafeedJob.EmptyDataCountException e) {
+                        int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
+                        if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {
+                            logger.warn("Datafeed for [" + jobId + "] has seen no data in [" + emptyDataCount
+                                + "] attempts, and never seen any data previously, so stopping...");
+                            // In this case we auto-close the job, as though a lookback-only datafeed stopped
+                            holder.stop("no_data", TimeValue.timeValueSeconds(20), e, true);
+                            return;
+                        }
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportEmptyDataCount();
                     } catch (Exception e) {
                         logger.error("Unexpected datafeed failure for job [" + jobId + "] stopping...", e);
                         holder.stop("general_realtime_error", TimeValue.timeValueSeconds(20), e);
@@ -248,7 +263,7 @@ public class DatafeedManager {
                         doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
                     }
                 }
-            });
+            }, delay, MachineLearning.DATAFEED_THREAD_POOL_NAME);
         }
     }
 
@@ -294,11 +309,11 @@ public class DatafeedManager {
         // To ensure that we wait until lookback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
         private final DatafeedJob datafeedJob;
-        private final boolean autoCloseJob;
+        private final boolean defaultAutoCloseJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> finishHandler;
-        volatile Future<?> future;
-        private volatile boolean isRelocating;
+        volatile Scheduler.Cancellable cancellable;
+        private volatile boolean isNodeShuttingDown;
 
         Holder(TransportStartDatafeedAction.DatafeedTask task, String datafeedId, DatafeedJob datafeedJob,
                ProblemTracker problemTracker, Consumer<Exception> finishHandler) {
@@ -306,9 +321,14 @@ public class DatafeedManager {
             this.allocationId = task.getAllocationId();
             this.datafeedId = datafeedId;
             this.datafeedJob = datafeedJob;
-            this.autoCloseJob = task.isLookbackOnly();
+            this.defaultAutoCloseJob = task.isLookbackOnly();
             this.problemTracker = problemTracker;
             this.finishHandler = finishHandler;
+        }
+
+        boolean shouldStopAfterEmptyData(int emptyDataCount) {
+            Integer emptyDataCountToStopAt = datafeedJob.getMaxEmptySearches();
+            return emptyDataCountToStopAt != null && emptyDataCount >= emptyDataCountToStopAt;
         }
 
         String getJobId() {
@@ -324,7 +344,11 @@ public class DatafeedManager {
         }
 
         public void stop(String source, TimeValue timeout, Exception e) {
-            if (isRelocating) {
+            stop(source, timeout, e, defaultAutoCloseJob);
+        }
+
+        public void stop(String source, TimeValue timeout, Exception e, boolean autoCloseJob) {
+            if (isNodeShuttingDown) {
                 return;
             }
 
@@ -337,16 +361,20 @@ public class DatafeedManager {
                     acquired = datafeedJobLock.tryLock(timeout.millis(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e1) {
                     Thread.currentThread().interrupt();
-                } finally {
+                } finally {  // It is crucial that none of the calls this "finally" block makes throws an exception for minor problems.
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeedId,
                             datafeedJob.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);
-                    FutureUtils.cancel(future);
-                    auditor.info(datafeedJob.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    if (cancellable != null) {
+                        cancellable.cancel();
+                    }
+                    auditor.info(datafeedJob.getJobId(),
+                            Messages.getMessage(isIsolated() ? Messages.JOB_AUDIT_DATAFEED_ISOLATED : Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    datafeedJob.finishReportingTimingStats();
                     finishHandler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),
                             acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");
-                    if (autoCloseJob) {
+                    if (autoCloseJob && isIsolated() == false) {
                         closeJob();
                     }
                     if (acquired) {
@@ -359,16 +387,18 @@ public class DatafeedManager {
         }
 
         /**
-         * This stops a datafeed WITHOUT updating the corresponding persistent task.  It must ONLY be called
-         * immediately prior to shutting down a node.  Then the datafeed task can remain "started", and be
-         * relocated to a different node.  Calling this method at any other time will ruin the datafeed.
+         * This stops a datafeed WITHOUT updating the corresponding persistent task.  When called it
+         * will stop the datafeed from sending data to its job as quickly as possible.  The caller
+         * must do something sensible with the corresponding persistent task.  If the node is shutting
+         * down the task will automatically get reassigned.  Otherwise the caller must take action to
+         * remove or reassign the persistent task, or the datafeed will be left in limbo.
          */
         public void isolateDatafeed() {
             datafeedJob.isolate();
         }
 
-        public void setRelocating() {
-            isRelocating = true;
+        public void setNodeIsShuttingDown() {
+            isNodeShuttingDown = true;
         }
 
         private Long executeLookBack(long startTime, Long endTime) throws Exception {

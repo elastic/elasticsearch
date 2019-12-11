@@ -25,10 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
-
-import static java.util.Collections.unmodifiableList;
 
 /**
  * Represents a test fragment that can be executed (e.g. api call, assertion)
@@ -37,9 +34,10 @@ public interface ExecutableSection {
     /**
      * Default list of {@link ExecutableSection}s available for tests.
      */
-    List<NamedXContentRegistry.Entry> DEFAULT_EXECUTABLE_CONTEXTS = unmodifiableList(Arrays.asList(
+    List<NamedXContentRegistry.Entry> DEFAULT_EXECUTABLE_CONTEXTS = List.of(
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("do"), DoSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("set"), SetSection::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("transform_and_set"), TransformAndSetSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("match"), MatchAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_true"), IsTrueAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_false"), IsFalseAssertion::parse),
@@ -48,7 +46,7 @@ public interface ExecutableSection {
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lt"), LessThanAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lte"), LessThanOrEqualToAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("contains"), ContainsAssertion::parse),
-            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse)));
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse));
 
     /**
      * {@link NamedXContentRegistry} that parses the default list of

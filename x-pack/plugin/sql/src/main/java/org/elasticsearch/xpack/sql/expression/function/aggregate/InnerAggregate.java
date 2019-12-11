@@ -6,18 +6,18 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
+import java.util.Objects;
 
 public class InnerAggregate extends AggregateFunction {
 
     private final AggregateFunction inner;
     private final CompoundNumericAggregate outer;
-    private final String innerId;
+    private final String innerName;
     // used when the result needs to be extracted from a map (like in MatrixAggs or Percentiles)
     private final Expression innerKey;
 
@@ -29,7 +29,7 @@ public class InnerAggregate extends AggregateFunction {
         super(source, outer.field(), outer.arguments());
         this.inner = inner;
         this.outer = outer;
-        this.innerId = ((EnclosedAgg) inner).innerName();
+        this.innerName = ((EnclosedAgg) inner).innerName();
         this.innerKey = innerKey;
     }
 
@@ -55,8 +55,8 @@ public class InnerAggregate extends AggregateFunction {
         return outer;
     }
 
-    public String innerId() {
-        return innerId;
+    public String innerName() {
+        return innerName;
     }
 
     public Expression innerKey() {
@@ -69,33 +69,28 @@ public class InnerAggregate extends AggregateFunction {
     }
 
     @Override
-    public String functionId() {
-        return outer.id().toString();
+    public String functionName() {
+        return inner.functionName();
     }
 
     @Override
-    public AggregateFunctionAttribute toAttribute() {
-        // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-        return new AggregateFunctionAttribute(source(), name(), dataType(), outer.id(), functionId(),
-                aggMetricValue(functionId(), innerId));
-    }
-
-    public static String aggMetricValue(String aggPath, String valueName) {
-        // handle aggPath inconsistency (for percentiles and percentileRanks) percentile[99.9] (valid) vs percentile.99.9 (invalid)
-        return aggPath + "[" + valueName + "]";
+    public int hashCode() {
+        return Objects.hash(inner, outer, innerKey);
     }
 
     @Override
-    public boolean functionEquals(Function f) {
-        if (super.equals(f)) {
-            InnerAggregate other = (InnerAggregate) f;
-            return inner.equals(other.inner) && outer.equals(other.outer);
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == true) {
+            InnerAggregate other = (InnerAggregate) obj;
+            return Objects.equals(inner, other.inner)
+                    && Objects.equals(outer, other.outer)
+                    && Objects.equals(innerKey, other.innerKey);
         }
         return false;
     }
 
     @Override
-    public String name() {
-        return inner.name();
+    public String toString() {
+        return nodeName() + "[" + outer + ">" + inner.nodeName() + "]";
     }
 }

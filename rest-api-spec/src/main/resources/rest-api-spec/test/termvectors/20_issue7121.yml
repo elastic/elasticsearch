@@ -1,9 +1,3 @@
-setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
-
----
 "Term vector API should return 'found: false' for docs between index and refresh":
   - do:
       indices.create:
@@ -16,11 +10,10 @@ setup:
                 number_of_replicas: 0
                 refresh_interval: -1
             mappings:
-              _doc:
-                properties:
-                  text:
-                     type : "text"
-                     term_vector : "with_positions_offsets"
+              properties:
+                text:
+                   type : "text"
+                   term_vector : "with_positions_offsets"
 
   - do:
       cluster.health:
@@ -29,7 +22,6 @@ setup:
   - do:
       index:
         index: testidx
-        type:  _doc
         id:    1
         body:
             text : "foo bar"
@@ -41,6 +33,5 @@ setup:
         realtime: false
 
   - match: { _index: "testidx" }
-  - match: { _type: "_doc" }
   - match: { _id: "1" }
   - is_false: found

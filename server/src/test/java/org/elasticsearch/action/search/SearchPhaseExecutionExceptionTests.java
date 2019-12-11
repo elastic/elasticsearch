@@ -25,13 +25,16 @@ import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
@@ -54,36 +57,40 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
                 });
 
         // Failures are grouped (by default)
-        assertEquals("{" +
-                "\"type\":\"search_phase_execution_exception\"," +
-                "\"reason\":\"all shards failed\"," +
-                "\"phase\":\"test\"," +
-                "\"grouped\":true," +
-                "\"failed_shards\":[" +
-                        "{" +
-                            "\"shard\":0," +
-                            "\"index\":\"foo\"," +
-                            "\"node\":\"node_1\"," +
-                            "\"reason\":{" +
-                                        "\"type\":\"parsing_exception\"," +
-                                        "\"reason\":\"foobar\"," +
-                                        "\"line\":1," +
-                                        "\"col\":2" +
-                            "}" +
-                        "}," +
-                        "{" +
-                            "\"shard\":1," +
-                            "\"index\":\"foo\"," +
-                            "\"node\":\"node_2\"," +
-                            "\"reason\":{" +
-                                        "\"type\":\"index_shard_closed_exception\"," +
-                                        "\"reason\":\"CurrentState[CLOSED] Closed\"," +
-                                        "\"index_uuid\":\"_na_\"," +
-                                        "\"shard\":\"1\"," +
-                                        "\"index\":\"foo\"" +
-                            "}" +
-                        "}" +
-                "]}", Strings.toString(exception));
+        final String expectedJson = XContentHelper.stripWhitespace(
+            "{"
+                + "  \"type\": \"search_phase_execution_exception\","
+                + "  \"reason\": \"all shards failed\","
+                + "  \"phase\": \"test\","
+                + "  \"grouped\": true,"
+                + "  \"failed_shards\": ["
+                + "    {"
+                + "      \"shard\": 0,"
+                + "      \"index\": \"foo\","
+                + "      \"node\": \"node_1\","
+                + "      \"reason\": {"
+                + "        \"type\": \"parsing_exception\","
+                + "        \"reason\": \"foobar\","
+                + "        \"line\": 1,"
+                + "        \"col\": 2"
+                + "      }"
+                + "    },"
+                + "    {"
+                + "      \"shard\": 1,"
+                + "      \"index\": \"foo\","
+                + "      \"node\": \"node_2\","
+                + "      \"reason\": {"
+                + "        \"type\": \"index_shard_closed_exception\","
+                + "        \"reason\": \"CurrentState[CLOSED] Closed\","
+                + "        \"index_uuid\": \"_na_\","
+                + "        \"shard\": \"1\","
+                + "        \"index\": \"foo\""
+                + "      }"
+                + "    }"
+                + "  ]"
+                + "}"
+        );
+        assertEquals(expectedJson, Strings.toString(exception));
     }
 
     public void testToAndFromXContent() throws IOException {
@@ -120,5 +127,40 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         assertThat(parsedException.getMetadata("es.phase"), hasItem(phase));
         // SearchPhaseExecutionException has no cause field
         assertNull(parsedException.getCause());
+    }
+
+    public void testPhaseFailureWithoutSearchShardFailure() {
+        final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
+        final String phase = randomFrom("fetch", "search", "other");
+        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
+            new EsRejectedExecutionException("ES rejected execution of fetch phase"), searchShardFailures);
+
+        assertEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
+    }
+
+    public void testPhaseFailureWithoutSearchShardFailureAndCause() {
+        final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
+        final String phase = randomFrom("fetch", "search", "other");
+        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", null, searchShardFailures);
+
+        assertEquals(actual.status(), RestStatus.SERVICE_UNAVAILABLE);
+    }
+
+    public void testPhaseFailureWithSearchShardFailure() {
+        final ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[randomIntBetween(1, 5)];
+        for (int i = 0; i < shardSearchFailures.length; i++) {
+            Exception cause = randomFrom(
+                new ParsingException(1, 2, "foobar", null),
+                new InvalidIndexTemplateException("foo", "bar")
+            );
+            shardSearchFailures[i] = new ShardSearchFailure(cause, new SearchShardTarget("node_" + i,
+                new ShardId("test", "_na_", i), null, OriginalIndices.NONE));
+        }
+
+        final String phase = randomFrom("fetch", "search", "other");
+        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
+            new EsRejectedExecutionException("ES rejected execution of fetch phase"), shardSearchFailures);
+
+        assertEquals(actual.status(), RestStatus.BAD_REQUEST);
     }
 }

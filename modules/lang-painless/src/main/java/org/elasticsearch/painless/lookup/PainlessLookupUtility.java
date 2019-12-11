@@ -202,6 +202,7 @@ public final class PainlessLookupUtility {
 
         return typesStringBuilder.toString();
     }
+
     /**
      * Converts a java type to a type based on the terminology specified as part of {@link PainlessLookupUtility} where if a type is an
      * object class or object array, the returned type will be the equivalent def class or def array. Otherwise, this behaves as an

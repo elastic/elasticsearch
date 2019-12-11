@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:util="http://www.springframework.org/schema/util" xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:c="http://www.springframework.org/schema/c" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+
+    default-init-method="initialize"
+    default-destroy-method="destroy">
+
+    <util:list id="shibboleth.AvailableAdminFlows">
+    
+        <!-- Status Page -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/status"
+            p:loggingId="%{idp.service.logging.status:Status}"
+            p:policyName="%{idp.status.accessPolicy:AccessByIPAddress}" />
+
+        <!-- Service Reload -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/reload-service-configuration"
+            p:loggingId="%{idp.service.logging.serviceReload:Reload}"
+            p:policyName="%{idp.reload.accessPolicy:AccessByIPAddress}" />
+
+        <!-- MetadataResolver Reload -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/reload-metadata"
+            p:loggingId="%{idp.service.logging.serviceReload:Reload}"
+            p:policyName="%{idp.reload.accessPolicy:AccessByIPAddress}" />
+
+        <!-- AttributeResolver Debugging -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/resolvertest"
+            p:loggingId="%{idp.service.logging.resolvertest:ResolverTest}"
+            p:policyName="%{idp.resolvertest.accessPolicy:AccessByIPAddress}" />
+
+        <!-- Metadata Query -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/mdquery"
+            p:loggingId="MetadataQuery"
+            p:policyName="AccessByIPAddress" />
+
+        <!-- REST AccountLockoutManager Access -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/lockout-manager"
+            p:loggingId="Lockout"
+            p:policyName="AccessByIPAddress" />
+
+        <!-- REST StorageService Access -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/storage"
+            p:loggingId="Storage"
+            p:policyName="AccessByIPAddress" />
+    
+        <!-- REST Interface to Metrics -->
+        <bean parent="shibboleth.AdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/metrics"
+            p:loggingId="Metrics"
+            p:policyNameLookupStrategy-ref="shibboleth.metrics.AccessPolicyStrategy" />
+
+        <!-- Attended Startup Unlock -->
+        <!--
+        <bean parent="shibboleth.OneTimeAdminFlow"
+            c:id="http://shibboleth.net/ns/profiles/unlock-keys"
+            p:loggingId="UnlockKeys"
+            p:authenticated="true"
+            p:policyName="AccessByAdminUser" />
+        -->
+    
+    </util:list>
+
+</beans>

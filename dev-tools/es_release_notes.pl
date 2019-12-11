@@ -32,7 +32,7 @@ my @Groups = (
     ">enhancement", ">bug",           ">regression",  ">upgrade"
 );
 my %Ignore = map { $_ => 1 }
-    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ":Core/Build", "backport" );
+    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ">test-mute", ":Core/Infra/Build", "backport" );
 
 my %Group_Labels = (
     '>breaking'      => 'Breaking changes',
@@ -48,7 +48,7 @@ my %Group_Labels = (
 
 my %Area_Overrides = (
     ':ml'            => 'Machine Learning',
-    ':beats'         => 'Beats Plugin',
+    ':Beats'         => 'Beats Plugin',
     ':Docs'          => 'Docs Infrastructure'
 );
 
@@ -87,11 +87,11 @@ sub dump_issues {
 :pull:  https://github.com/${User_Repo}pull/
 
 [[release-notes-$version]]
-== $version Release Notes
+== {es} version $version
 
 coming[$version]
 
-Also see <<breaking-changes-$branch>>.
+Also see <<breaking-changes-$branch,Breaking changes in $branch>>.
 
 ASCIIDOC
 

@@ -1,0 +1,53 @@
+{
+  "watcher.stats":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/stats",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_watcher/stats/{metric}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "metric":{
+              "type":"list",
+              "options":[
+                "_all",
+                "queued_watches",
+                "current_watches",
+                "pending_watches"
+              ],
+              "description":"Controls what additional stat metrics should be include in the response"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "metric":{
+        "type":"list",
+        "options":[
+          "_all",
+          "queued_watches",
+          "current_watches",
+          "pending_watches"
+        ],
+        "description":"Controls what additional stat metrics should be include in the response"
+      },
+      "emit_stacktraces":{
+        "type":"boolean",
+        "description":"Emits stack traces of currently running watches",
+        "required":false
+      }
+    }
+  }
+}

@@ -10,8 +10,11 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
@@ -19,12 +22,19 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -40,6 +50,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StGeometryType;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosql;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StX;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StY;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StZ;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -88,9 +105,11 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -143,32 +162,45 @@ public class FunctionRegistry {
         // Aggregate functions
         addToMap(def(Avg.class, Avg::new, "AVG"),
                 def(Count.class, Count::new, "COUNT"),
+                def(First.class, First::new, "FIRST", "FIRST_VALUE"),
+                def(Last.class, Last::new, "LAST", "LAST_VALUE"),
                 def(Max.class, Max::new, "MAX"),
                 def(Min.class, Min::new, "MIN"),
                 def(Sum.class, Sum::new, "SUM"));
         // Statistics
-        addToMap(def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
-                def(VarPop.class, VarPop::new,"VAR_POP"),
+        addToMap(
+                def(Kurtosis.class, Kurtosis::new, "KURTOSIS"),
+                def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "MAD"),
                 def(Percentile.class, Percentile::new, "PERCENTILE"),
                 def(PercentileRank.class, PercentileRank::new, "PERCENTILE_RANK"),
-                def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
-                def(Kurtosis.class, Kurtosis::new, "KURTOSIS"));
+                def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
+                def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
+                def(VarPop.class, VarPop::new,"VAR_POP")
+                );
         // histogram
         addToMap(def(Histogram.class, Histogram::new, "HISTOGRAM"));
         // Scalar functions
         // Conditional
-        addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
+        addToMap(def(Case.class, Case::new, "CASE"),
+                def(Coalesce.class, Coalesce::new, "COALESCE"),
+                def(Iif.class, Iif::new, "IIF"),
                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
                 def(Least.class, Least::new, "LEAST"));
         // Date
-        addToMap(def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
+        addToMap(def(CurrentDate.class, CurrentDate::new, "CURRENT_DATE", "CURDATE", "TODAY"),
+                def(CurrentTime.class, CurrentTime::new, "CURRENT_TIME", "CURTIME"),
+                def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
                 def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
+                def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
+                def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
                 def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
                 def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISO_WEEK_OF_YEAR", "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),
@@ -210,7 +242,7 @@ public class FunctionRegistry {
                 def(Sinh.class, Sinh::new, "SINH"),
                 def(Sqrt.class, Sqrt::new, "SQRT"),
                 def(Tan.class, Tan::new, "TAN"),
-                def(Truncate.class, Truncate::new, "TRUNCATE"));
+                def(Truncate.class, Truncate::new, "TRUNCATE", "TRUNC"));
         // String
         addToMap(def(Ascii.class, Ascii::new, "ASCII"),
                 def(BitLength.class, BitLength::new, "BIT_LENGTH"),
@@ -232,11 +264,23 @@ public class FunctionRegistry {
                 def(Space.class, Space::new, "SPACE"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
                 def(UCase.class, UCase::new, "UCASE"));
+
         // DataType conversion
         addToMap(def(Cast.class, Cast::new, "CAST", "CONVERT"));
         // Scalar "meta" functions
         addToMap(def(Database.class, Database::new, "DATABASE"),
                 def(User.class, User::new, "USER"));
+
+        // Geo Functions
+        addToMap(def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
+                def(StDistance.class, StDistance::new, "ST_DISTANCE"),
+                def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
+                def(StGeometryType.class, StGeometryType::new, "ST_GEOMETRYTYPE"),
+                def(StX.class, StX::new, "ST_X"),
+                def(StY.class, StY::new, "ST_Y"),
+                def(StZ.class, StZ::new, "ST_Z")
+        );
+
         // Special
         addToMap(def(Score.class, Score::new, "SCORE"));
     }
@@ -249,7 +293,7 @@ public class FunctionRegistry {
             for (String alias : f.aliases()) {
                 Object old = batchMap.put(alias, f);
                 if (old != null || defs.containsKey(alias)) {
-                    throw new IllegalArgumentException("alias [" + alias + "] is used by "
+                    throw new SqlIllegalArgumentException("alias [" + alias + "] is used by "
                             + "[" + (old != null ? old : defs.get(alias).name()) + "] and [" + f.name() + "]");
                 }
                 aliases.put(alias, f.name());
@@ -308,10 +352,10 @@ public class FunctionRegistry {
             java.util.function.Function<Source, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
-                throw new IllegalArgumentException("expects no arguments");
+                throw new SqlIllegalArgumentException("expects no arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.apply(source);
         };
@@ -328,16 +372,16 @@ public class FunctionRegistry {
             ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
-                throw new IllegalArgumentException("expects no arguments");
+                throw new SqlIllegalArgumentException("expects no arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, cfg);
         };
         return def(function, builder, false, names);
     }
-    
+
     interface ConfigurationAwareFunctionBuilder<T> {
         T build(Source source, Configuration configuration);
     }
@@ -352,10 +396,10 @@ public class FunctionRegistry {
             UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() > 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             Expression ex = children.size() == 1 ? children.get(0) : null;
             return ctorRef.build(source, ex, cfg);
@@ -377,10 +421,10 @@ public class FunctionRegistry {
             BiFunction<Source, Expression, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.apply(source, children.get(0));
         };
@@ -396,7 +440,7 @@ public class FunctionRegistry {
             MultiFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children);
         };
@@ -406,7 +450,7 @@ public class FunctionRegistry {
     interface MultiFunctionBuilder<T> {
         T build(Source source, List<Expression> children);
     }
-    
+
     /**
      * Build a {@linkplain FunctionDefinition} for a unary function that is not
      * aware of time zone but does support {@code DISTINCT}.
@@ -416,7 +460,7 @@ public class FunctionRegistry {
             DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             return ctorRef.build(source, children.get(0), distinct);
         };
@@ -436,10 +480,10 @@ public class FunctionRegistry {
             DatetimeUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), cfg.zoneId());
         };
@@ -458,10 +502,10 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 2) {
-                throw new IllegalArgumentException("expects exactly two arguments");
+                throw new SqlIllegalArgumentException("expects exactly two arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.get(1), cfg.zoneId());
         };
@@ -473,6 +517,28 @@ public class FunctionRegistry {
     }
 
     /**
+     * Build a {@linkplain FunctionDefinition} for a three-args function that
+     * requires a timezone.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() != 3) {
+                throw new SqlIllegalArgumentException("expects three arguments");
+            }
+            if (distinct) {
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.get(2), cfg.zoneId());
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface DatetimeThreeArgsFunctionBuilder<T> {
+        T build(Source source, Expression first, Expression second, Expression third, ZoneId zi);
+    }
+
+    /**
      * Build a {@linkplain FunctionDefinition} for a binary function that is
      * not aware of time zone and does not support {@code DISTINCT}.
      */
@@ -480,15 +546,16 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
+            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class)
+                    || TopHits.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
-                throw new IllegalArgumentException("expects one or two arguments");
+                throw new SqlIllegalArgumentException("expects one or two arguments");
             } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
-                throw new IllegalArgumentException("expects exactly two arguments");
+                throw new SqlIllegalArgumentException("expects exactly two arguments");
             }
 
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
@@ -513,7 +580,7 @@ public class FunctionRegistry {
         FunctionDefinition.Builder realBuilder = (uf, distinct, cfg) -> {
             try {
                 return builder.build(uf.source(), uf.children(), distinct, cfg);
-            } catch (IllegalArgumentException e) {
+            } catch (SqlIllegalArgumentException e) {
                 throw new ParsingException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
             }
         };
@@ -528,14 +595,14 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            boolean isLocateFunction = function.isAssignableFrom(Locate.class);
-            if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
-                throw new IllegalArgumentException("expects two or three arguments");
-            } else if (!isLocateFunction && children.size() != 3) {
-                throw new IllegalArgumentException("expects exactly three arguments");
+            boolean hasMinimumTwo = function.isAssignableFrom(Locate.class) || function.isAssignableFrom(Iif.class);
+            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
+                throw new SqlIllegalArgumentException("expects two or three arguments");
+            } else if (!hasMinimumTwo && children.size() != 3) {
+                throw new SqlIllegalArgumentException("expects exactly three arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
         };
@@ -551,10 +618,10 @@ public class FunctionRegistry {
             FourParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 4) {
-                throw new IllegalArgumentException("expects exactly four arguments");
+                throw new SqlIllegalArgumentException("expects exactly four arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.get(1), children.get(2), children.get(3));
         };

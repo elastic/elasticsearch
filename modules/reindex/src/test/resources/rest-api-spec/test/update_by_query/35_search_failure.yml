@@ -10,7 +10,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -26,14 +25,15 @@
               script:
                 lang: painless
                 source: throw new IllegalArgumentException("Cats!")
-  - match: {updated: 0}
-  - match: {version_conflicts: 0}
-  - match: {batches: 0}
-  - match: {failures.0.shard: 0}
-  - match: {failures.0.index:  source}
-  - is_true: failures.0.node
-  - match: {failures.0.reason.type:   script_exception}
-  - match: {failures.0.reason.reason: runtime error}
-  - match: {failures.0.reason.caused_by.type:   illegal_argument_exception}
-  - match: {failures.0.reason.caused_by.reason: Cats!}
-  - gte: { took: 0 }
+  - match: {error.type: search_phase_execution_exception}
+  - match: {error.reason: "Partial shards failure"}
+  - match: {error.phase: query}
+  - match: {error.root_cause.0.type:   script_exception}
+  - match: {error.root_cause.0.reason: runtime error}
+  - match: {error.failed_shards.0.shard: 0}
+  - match: {error.failed_shards.0.index:  source}
+  - is_true: error.failed_shards.0.node
+  - match: {error.failed_shards.0.reason.type:   script_exception}
+  - match: {error.failed_shards.0.reason.reason: runtime error}
+  - match: {error.failed_shards.0.reason.caused_by.type:   illegal_argument_exception}
+  - match: {error.failed_shards.0.reason.caused_by.reason: Cats!}

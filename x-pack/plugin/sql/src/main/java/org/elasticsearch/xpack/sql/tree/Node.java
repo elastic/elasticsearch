@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -281,6 +282,14 @@ public abstract class Node<T extends Node<T>> {
         return getClass().getSimpleName();
     }
 
+    /**
+     * The values of all the properties that are important
+     * to this {@link Node}.
+     */
+    public List<Object> nodeProperties() {
+        return info().properties();
+    }
+
     public String nodeString() {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
@@ -349,7 +358,6 @@ public abstract class Node<T extends Node<T>> {
      * {@code [} and {@code ]} of the output of {@link #treeString}.
      */
     public String propertiesToString(boolean skipIfChild) {
-        NodeInfo<? extends Node<T>> info = info();
         StringBuilder sb = new StringBuilder();
 
         List<?> children = children();
@@ -358,7 +366,7 @@ public abstract class Node<T extends Node<T>> {
         int maxWidth = 0;
         boolean needsComma = false;
 
-        List<Object> props = info.properties();
+        List<Object> props = nodeProperties();
         for (Object prop : props) {
             // consider a property if it is not ignored AND
             // it's not a child (optional)
@@ -371,7 +379,10 @@ public abstract class Node<T extends Node<T>> {
                 if (needsComma) {
                     sb.append(",");
                 }
-                String stringValue = Objects.toString(prop);
+                
+                String stringValue = toString(prop);
+                
+                //: Objects.toString(prop);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
                     int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
                     sb.append(stringValue.substring(0, cutoff));
@@ -389,11 +400,27 @@ public abstract class Node<T extends Node<T>> {
         return sb.toString();
     }
 
-    /**
-     * The values of all the properties that are important
-     * to this {@link Node}.
-     */
-    public List<Object> properties() {
-        return info().properties();
+    private String toString(Object obj) {
+        StringBuilder sb = new StringBuilder();
+        toString(sb, obj);
+        return sb.toString();
+    }
+
+    private void toString(StringBuilder sb, Object obj) {
+        if (obj instanceof Iterable) {
+            sb.append("[");
+            for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
+                Object o = it.next();
+                toString(sb, o);
+                if (it.hasNext() == true) {
+                    sb.append(", ");
+                }
+            }
+            sb.append("]");
+        } else if (obj instanceof Node<?>) {
+            sb.append(((Node<?>) obj).nodeString());
+        } else {
+            sb.append(Objects.toString(obj));
+        }
     }
 }

@@ -2,5 +2,5 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-unitTest.enabled = false
+test.enabled = false
 jarHell.enabled = false

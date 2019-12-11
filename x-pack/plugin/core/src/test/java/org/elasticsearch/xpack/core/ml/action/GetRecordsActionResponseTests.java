@@ -5,16 +5,17 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction.Response;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-public class GetRecordsActionResponseTests extends AbstractStreamableTestCase<GetRecordsAction.Response> {
+public class GetRecordsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -30,8 +31,7 @@ public class GetRecordsActionResponseTests extends AbstractStreamableTestCase<Ge
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
-
 }

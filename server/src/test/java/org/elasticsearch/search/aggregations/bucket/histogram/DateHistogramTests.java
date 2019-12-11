@@ -25,6 +25,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -45,29 +46,26 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
         DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
-            factory.interval(randomIntBetween(1, 100000));
+            factory.fixedInterval(new DateHistogramInterval(randomIntBetween(1, 100000) + "ms"));
         } else {
             if (randomBoolean()) {
-                factory.dateHistogramInterval(randomFrom(DateHistogramInterval.YEAR, DateHistogramInterval.QUARTER,
+                factory.calendarInterval(randomFrom(DateHistogramInterval.YEAR, DateHistogramInterval.QUARTER,
                         DateHistogramInterval.MONTH, DateHistogramInterval.WEEK, DateHistogramInterval.DAY, DateHistogramInterval.HOUR,
                         DateHistogramInterval.MINUTE, DateHistogramInterval.SECOND));
             } else {
-                int branch = randomInt(4);
+                int branch = randomInt(3);
                 switch (branch) {
                 case 0:
-                    factory.dateHistogramInterval(DateHistogramInterval.seconds(randomIntBetween(1, 1000)));
+                    factory.fixedInterval(DateHistogramInterval.seconds(randomIntBetween(1, 1000)));
                     break;
                 case 1:
-                    factory.dateHistogramInterval(DateHistogramInterval.minutes(randomIntBetween(1, 1000)));
+                    factory.fixedInterval(DateHistogramInterval.minutes(randomIntBetween(1, 1000)));
                     break;
                 case 2:
-                    factory.dateHistogramInterval(DateHistogramInterval.hours(randomIntBetween(1, 1000)));
+                    factory.fixedInterval(DateHistogramInterval.hours(randomIntBetween(1, 1000)));
                     break;
                 case 3:
-                    factory.dateHistogramInterval(DateHistogramInterval.days(randomIntBetween(1, 1000)));
-                    break;
-                case 4:
-                    factory.dateHistogramInterval(DateHistogramInterval.weeks(randomIntBetween(1, 1000)));
+                    factory.fixedInterval(DateHistogramInterval.days(randomIntBetween(1, 1000)));
                     break;
                 default:
                     throw new IllegalStateException("invalid branch: " + branch);
@@ -143,24 +141,24 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
         try (Directory dir = newDirectory();
                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 
-            long millis1 = DateFormatters.toZonedDateTime(format.parse("2018-03-11T11:55:00")).toInstant().toEpochMilli();
+            long millis1 = DateFormatters.from(format.parse("2018-03-11T11:55:00")).toInstant().toEpochMilli();
             w.addDocument(documentForDate(DATE_FIELD_NAME, millis1));
-            long millis2 = DateFormatters.toZonedDateTime(format.parse("2017-10-30T18:13:00")).toInstant().toEpochMilli();
+            long millis2 = DateFormatters.from(format.parse("2017-10-30T18:13:00")).toInstant().toEpochMilli();
             w.addDocument(documentForDate(DATE_FIELD_NAME, millis2));
 
             try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
 
-                long millis3 = DateFormatters.toZonedDateTime(format.parse("2018-03-25T02:44:00")).toInstant().toEpochMilli();
+                long millis3 = DateFormatters.from(format.parse("2018-03-25T02:44:00")).toInstant().toEpochMilli();
                 w.addDocument(documentForDate(DATE_FIELD_NAME, millis3));
 
                 try (IndexReader readerThatCrosses = DirectoryReader.open(w)) {
 
-                    QueryShardContext shardContextThatDoesntCross = createShardContext(readerThatDoesntCross);
-                    QueryShardContext shardContextThatCrosses = createShardContext(readerThatCrosses);
+                    QueryShardContext shardContextThatDoesntCross = createShardContext(new IndexSearcher(readerThatDoesntCross));
+                    QueryShardContext shardContextThatCrosses = createShardContext(new IndexSearcher(readerThatCrosses));
 
                     DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("my_date_histo");
                     builder.field(DATE_FIELD_NAME);
-                    builder.dateHistogramInterval(DateHistogramInterval.DAY);
+                    builder.calendarInterval(DateHistogramInterval.DAY);
 
                     // no timeZone => no rewrite
                     assertNull(builder.rewriteTimeZone(shardContextThatDoesntCross));
@@ -179,7 +177,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
 
                     // Rounded values are no longer all within the same transitions => no rewrite
-                    builder.dateHistogramInterval(DateHistogramInterval.MONTH);
+                    builder.calendarInterval(DateHistogramInterval.MONTH);
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
 
@@ -187,13 +185,13 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                     builder.field(DATE_FIELD_NAME);
                     builder.timeZone(tz);
 
-                    builder.interval(1000L * 60 * 60 * 24); // ~ 1 day
+                    builder.fixedInterval(new DateHistogramInterval(1000L * 60 * 60 * 24 + "ms")); // ~ 1 day
                     assertEquals(ZoneOffset.ofHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
 
                     // Because the interval is large, rounded values are not
                     // within the same transitions as the values => no rewrite
-                    builder.interval(1000L * 60 * 60 * 24 * 30); // ~ 1 month
+                    builder.fixedInterval(new DateHistogramInterval(1000L * 60 * 60 * 24 * 30 + "ms")); // ~ 1 month
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
                 }

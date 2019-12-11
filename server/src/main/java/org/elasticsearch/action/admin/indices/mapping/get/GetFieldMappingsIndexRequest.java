@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,20 +32,26 @@ import java.io.IOException;
 
 public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIndexRequest> {
 
-    private boolean probablySingleFieldRequest;
-    private boolean includeDefaults;
-    private String[] fields = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
+    private final boolean includeDefaults;
+    private final String[] fields;
 
-    private OriginalIndices originalIndices;
+    private final OriginalIndices originalIndices;
 
-    public GetFieldMappingsIndexRequest() {
+    GetFieldMappingsIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readStringArray();   // former types array
+        }
+        fields = in.readStringArray();
+        includeDefaults = in.readBoolean();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readBoolean();       // former probablySingleField boolean
+        }
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
-    GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index, boolean probablySingleFieldRequest) {
-        this.probablySingleFieldRequest = probablySingleFieldRequest;
+    GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index) {
         this.includeDefaults = other.includeDefaults();
-        this.types = other.types();
         this.fields = other.fields();
         assert index != null;
         this.index(index);
@@ -56,16 +63,8 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
         return null;
     }
 
-    public String[] types() {
-        return types;
-    }
-
     public String[] fields() {
         return fields;
-    }
-
-    public boolean probablySingleFieldRequest() {
-        return probablySingleFieldRequest;
     }
 
     public boolean includeDefaults() {
@@ -85,21 +84,15 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
-        out.writeBoolean(probablySingleFieldRequest);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeBoolean(false);
+        }
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        types = in.readStringArray();
-        fields = in.readStringArray();
-        includeDefaults = in.readBoolean();
-        probablySingleFieldRequest = in.readBoolean();
-        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
 }

@@ -28,16 +28,21 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +52,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.lang.Math.max;
@@ -97,7 +103,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             } else {
                 scoreDocs[i] = new ScoreDoc(docId, score);
             }
-            hits[i] = new SearchHit(docId, Integer.toString(i), new Text("test"), searchHitFields);
+            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields);
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
@@ -137,7 +143,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             SearchHit actual = actualHits.get(i);
 
             assertEquals(expected.getIndex(), actual.getIndex());
-            assertEquals(expected.getType(), actual.getType());
             assertEquals(expected.getId(), actual.getId());
             assertEquals(expected.getVersion(), actual.getVersion());
             assertEquals(expected.getScore(), actual.getScore(), 0.0f);
@@ -207,6 +212,38 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             Float.NaN :
             maxScore);
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
+    }
+
+    /**
+     * Assert that two objects are equals, calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} to print out their
+     * differences if they aren't equal.
+     */
+    private static <T extends ToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
+        if (Objects.equals(expected, actual)) {
+            return;
+        }
+        if (expected == null) {
+            throw new AssertionError("Expected null be actual was [" + actual.toString() + "]");
+        }
+        if (actual == null) {
+            throw new AssertionError("Didn't expect null but actual was [null]");
+        }
+        try (XContentBuilder actualJson = JsonXContent.contentBuilder();
+             XContentBuilder expectedJson = JsonXContent.contentBuilder()) {
+            actualJson.startObject();
+            actual.toXContent(actualJson, ToXContent.EMPTY_PARAMS);
+            actualJson.endObject();
+            expectedJson.startObject();
+            expected.toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
+            expectedJson.endObject();
+            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+            message.compareMaps(
+                XContentHelper.convertToMap(BytesReference.bytes(actualJson), false).v2(),
+                XContentHelper.convertToMap(BytesReference.bytes(expectedJson), false).v2());
+            throw new AssertionError("Didn't match expected value:\n" + message);
+        } catch (IOException e) {
+            throw new AssertionError("IOException while building failure message", e);
+        }
     }
 
     @Override

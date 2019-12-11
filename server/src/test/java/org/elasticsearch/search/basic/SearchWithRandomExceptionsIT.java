@@ -49,10 +49,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -65,10 +63,8 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Set<Class<? extends Plugin>> mocks = new HashSet<>(super.getMockPlugins());
-        mocks.remove(MockEngineFactoryPlugin.class);
-        return mocks;
+    protected boolean addMockInternalEngine() {
+        return false;
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -118,7 +114,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i)
+                IndexResponse indexResponse = client().prepareIndex("test").setId("" + i)
                         .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
                 if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;

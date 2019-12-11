@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.integration;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -18,15 +16,14 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.license.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -43,15 +40,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MockIngestPlugin;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.lang.Thread.State;
@@ -59,11 +48,14 @@ import java.lang.management.LockInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -73,13 +65,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -104,13 +94,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{\"_type\":\"test\"}}\n" +
-               "{\"foo\":{\"bar\":0}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
-               "{\"foo\":{\"bar\":1}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
-               "{\"foo\":{\"bar\":2}}\n" +
-               "\n";
+        return  "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":0}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":1}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":2}}\n" +
+                "\n";
     }
 
     /**
@@ -127,7 +117,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
-                            .add(system, null, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
+                            .add(system, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
                                  System.currentTimeMillis(), interval.millis())
                     .get();
 
@@ -178,10 +168,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                        equalTo(1L));
 
             for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, "test", interval);
+                assertMonitoringDoc(toMap(hit), system, interval);
             }
         });
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**
@@ -195,7 +184,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final boolean createAPMIndex = randomBoolean();
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
 
-        assertThat(client().prepareIndex(indexName, "doc", "0")
+        assertThat(client().prepareIndex(indexName).setId("0")
                            .setRefreshPolicy("true")
                            .setSource("{\"field\":\"value\"}", XContentType.JSON)
                            .get()
@@ -227,25 +216,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             for (final SearchHit hit : searchResponse.get().getHits()) {
                 final Map<String, Object> searchHit = toMap(hit);
-                final String type = (String) extractValue("_source.type", searchHit);
-
-                assertMonitoringDoc(searchHit, MonitoredSystem.ES, type, MonitoringService.MIN_INTERVAL);
-
-                if (ClusterStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertClusterStatsMonitoringDoc(searchHit, createAPMIndex);
-                } else if (IndexRecoveryMonitoringDoc.TYPE.equals(type)) {
-                    assertIndexRecoveryMonitoringDoc(searchHit);
-                } else if (IndicesStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertIndicesStatsMonitoringDoc(searchHit);
-                } else if (IndexStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertIndexStatsMonitoringDoc(searchHit);
-                } else if (NodeStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertNodeStatsMonitoringDoc(searchHit);
-                } else if (ShardMonitoringDoc.TYPE.equals(type)) {
-                    assertShardMonitoringDoc(searchHit);
-                } else {
-                    fail("Monitoring document of type [" + type + "] is not supported by this test");
-                }
+                assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
             }
         });
 
@@ -258,28 +229,26 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void assertMonitoringDoc(final Map<String, Object> document,
                                      final MonitoredSystem expectedSystem,
-                                     final String expectedType,
                                      final TimeValue interval) {
-        assertEquals(document.toString(),4, document.size());
+        assertEquals(document.toString(),3, document.size());
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));
-        assertThat(document.get("_type"), equalTo("doc"));
         assertThat((String) document.get("_id"), not(isEmptyOrNullString()));
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
         assertThat(source, notNullValue());
         assertThat((String) source.get("cluster_uuid"), not(isEmptyOrNullString()));
-        assertThat(source.get("type"), equalTo(expectedType));
 
         final String timestamp = (String) source.get("timestamp");
         assertThat(timestamp, not(isEmptyOrNullString()));
 
         assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
-        assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(),
-                                                                    expectedSystem,
-                                                                    ISODateTimeFormat.dateTime().parseMillis(timestamp))));
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd");
+        long isoTimestamp = Instant.from(DateFormatter.forPattern("strict_date_time").parse(timestamp)).toEpochMilli();
+        String isoDateTime = MonitoringTemplateUtils.indexName(formatter.withZone(ZoneOffset.UTC), expectedSystem, isoTimestamp);
+        assertThat(index, equalTo(isoDateTime));
 
         final Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
         if (sourceNode != null) {
@@ -306,207 +275,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(sourceNode.get("ip"), equalTo(node.getAddress().getAddress()));
         assertThat(sourceNode.get("name"), equalTo(node.getName()));
         assertThat((String) sourceNode.get("timestamp"), not(isEmptyOrNullString()));
-    }
-
-    /**
-     * Assert that a {@link ClusterStatsMonitoringDoc} contains the expected information
-     */
-    @SuppressWarnings("unchecked")
-    private void assertClusterStatsMonitoringDoc(final Map<String, Object> document,
-                                                 final boolean apmIndicesExist) {
-        final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(12, source.size());
-
-        assertThat((String) source.get("cluster_name"), not(isEmptyOrNullString()));
-        assertThat(source.get("version"), equalTo(Version.CURRENT.toString()));
-
-        final Map<String, Object> license = (Map<String, Object>) source.get("license");
-        assertThat(license, notNullValue());
-        assertThat((String) license.get(License.Fields.ISSUER), not(isEmptyOrNullString()));
-        assertThat((String) license.get(License.Fields.ISSUED_TO), not(isEmptyOrNullString()));
-        assertThat((Long) license.get(License.Fields.ISSUE_DATE_IN_MILLIS), greaterThan(0L));
-        assertThat((Integer) license.get(License.Fields.MAX_NODES), greaterThan(0));
-
-        String uid = (String) license.get("uid");
-        assertThat(uid, not(isEmptyOrNullString()));
-
-        String type = (String) license.get("type");
-        assertThat(type, not(isEmptyOrNullString()));
-
-        String status = (String) license.get(License.Fields.STATUS);
-        assertThat(status, not(isEmptyOrNullString()));
-
-        if ("basic".equals(license.get("type")) == false) {
-            Long expiryDate = (Long) license.get(License.Fields.EXPIRY_DATE_IN_MILLIS);
-            assertThat(expiryDate, greaterThan(0L));
-        }
-
-        Boolean clusterNeedsTLS = (Boolean) license.get("cluster_needs_tls");
-        assertThat(clusterNeedsTLS, isOneOf(true, null));
-
-        final Map<String, Object> clusterStats = (Map<String, Object>) source.get("cluster_stats");
-        assertThat(clusterStats, notNullValue());
-        assertThat(clusterStats.size(), equalTo(5));
-
-        final Map<String, Object> stackStats = (Map<String, Object>) source.get("stack_stats");
-        assertThat(stackStats, notNullValue());
-        assertThat(stackStats.size(), equalTo(2));
-
-        final Map<String, Object> apm = (Map<String, Object>) stackStats.get("apm");
-        assertThat(apm, notNullValue());
-        assertThat(apm.size(), equalTo(1));
-        assertThat(apm.remove("found"), is(apmIndicesExist));
-        assertThat(apm.keySet(), empty());
-
-        final Map<String, Object> xpackStats = (Map<String, Object>) stackStats.get("xpack");
-        assertThat(xpackStats, notNullValue());
-        assertThat("X-Pack stats must have at least monitoring, but others may be hidden", xpackStats.size(), greaterThanOrEqualTo(1));
-
-        final Map<String, Object> monitoring = (Map<String, Object>) xpackStats.get("monitoring");
-        // we don't make any assumptions about what's in it, only that it's there
-        assertThat(monitoring, notNullValue());
-
-        final Map<String, Object> clusterState = (Map<String, Object>) source.get("cluster_state");
-        assertThat(clusterState, notNullValue());
-        assertThat(clusterState.remove("nodes_hash"), notNullValue());
-        assertThat(clusterState.remove("status"), notNullValue());
-        assertThat(clusterState.remove("version"), notNullValue());
-        assertThat(clusterState.remove("state_uuid"), notNullValue());
-        assertThat(clusterState.remove("cluster_uuid"), notNullValue());
-        assertThat(clusterState.remove("master_node"), notNullValue());
-        assertThat(clusterState.remove("nodes"), notNullValue());
-        assertThat(clusterState.remove("term"), notNullValue());
-        assertThat(clusterState.remove("last_committed_config"), notNullValue());
-        assertThat(clusterState.remove("last_accepted_config"), notNullValue());
-        assertThat(clusterState.keySet(), empty());
-
-        final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
-        assertThat(clusterSettings, notNullValue());
-        assertThat(clusterSettings.remove("cluster"), notNullValue());
-        assertThat(clusterSettings.keySet(), empty());
-    }
-
-    /**
-     * Assert that a {@link IndexRecoveryMonitoringDoc} contains the expected information
-     */
-    @SuppressWarnings("unchecked")
-    private void assertIndexRecoveryMonitoringDoc(final Map<String, Object> document) {
-        final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(6, source.size());
-
-        final Map<String, Object> indexRecovery = (Map<String, Object>) source.get(IndexRecoveryMonitoringDoc.TYPE);
-        assertEquals(1, indexRecovery.size());
-
-        final List<Object> shards = (List<Object>) indexRecovery.get("shards");
-        assertThat(shards, notNullValue());
-    }
-
-    /**
-     * Assert that a {@link IndicesStatsMonitoringDoc} contains the expected information
-     */
-    @SuppressWarnings("unchecked")
-    private void assertIndicesStatsMonitoringDoc(final Map<String, Object> document) {
-        final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(6, source.size());
-
-        final Map<String, Object> indicesStats = (Map<String, Object>) source.get(IndicesStatsMonitoringDoc.TYPE);
-        assertEquals(1, indicesStats.size());
-
-        IndicesStatsMonitoringDoc.XCONTENT_FILTERS.forEach(filter ->
-                assertThat(filter + " must not be null in the monitoring document", extractValue(filter, source), notNullValue()));
-    }
-
-    /**
-     * Assert that a {@link IndexStatsMonitoringDoc} contains the expected information
-     */
-    @SuppressWarnings("unchecked")
-    private void assertIndexStatsMonitoringDoc(final Map<String, Object> document) {
-        final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(6, source.size());
-
-        // particular field values checked in the index stats tests
-        final Map<String, Object> indexStats = (Map<String, Object>) source.get(IndexStatsMonitoringDoc.TYPE);
-        assertEquals(7, indexStats.size());
-        assertThat((String) indexStats.get("index"), not(isEmptyOrNullString()));
-        assertThat((String) indexStats.get("uuid"), not(isEmptyOrNullString()));
-        assertThat(indexStats.get("created"), notNullValue());
-        assertThat((String) indexStats.get("status"), not(isEmptyOrNullString()));
-        assertThat(indexStats.get("shards"), notNullValue());
-        final Map<String, Object> shards = (Map<String, Object>) indexStats.get("shards");
-        assertEquals(11, shards.size());
-        assertThat(indexStats.get("primaries"), notNullValue());
-        assertThat(indexStats.get("total"), notNullValue());
-
-        IndexStatsMonitoringDoc.XCONTENT_FILTERS.forEach(filter ->
-                assertThat(filter + " must not be null in the monitoring document", extractValue(filter, source), notNullValue()));
-    }
-
-    /**
-     * Assert that a {@link NodeStatsMonitoringDoc} contains the expected information
-     */
-    @SuppressWarnings("unchecked")
-    private void assertNodeStatsMonitoringDoc(final Map<String, Object> document) {
-        final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(6, source.size());
-
-        NodeStatsMonitoringDoc.XCONTENT_FILTERS.forEach(filter -> {
-            if (Constants.WINDOWS && filter.startsWith("node_stats.os.cpu.load_average")) {
-                // load average is unavailable on Windows
-                return;
-            }
-
-            // fs and cgroup stats are only reported on Linux, but it's acceptable for _node/stats to report them as null if the OS is
-            //  misconfigured or not reporting them for some reason (e.g., older kernel)
-            if (filter.startsWith("node_stats.fs") || filter.startsWith("node_stats.os.cgroup")) {
-                return;
-            }
-
-            // load average is unavailable on macOS for 5m and 15m (but we get 1m), but it's also possible on Linux too
-            if ("node_stats.os.cpu.load_average.5m".equals(filter) || "node_stats.os.cpu.load_average.15m".equals(filter)) {
-                return;
-            }
-
-            // bulk is not a thread pool in the current version but we allow it to support mixed version clusters
-            if (filter.startsWith("node_stats.thread_pool.bulk")) {
-                return;
-            }
-
-            assertThat(filter + " must not be null in the monitoring document", extractValue(filter, source), notNullValue());
-        });
-    }
-
-    /**
-     * Assert that a {@link ShardMonitoringDoc} contains the expected information
-     */
-    @SuppressWarnings("unchecked")
-    private void assertShardMonitoringDoc(final Map<String, Object> document) {
-        final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(7, source.size());
-        assertThat(source.get("state_uuid"), notNullValue());
-
-        final Map<String, Object> shard = (Map<String, Object>) source.get("shard");
-        assertEquals(6, shard.size());
-
-        final String currentNodeId = (String) shard.get("node");
-        if (Strings.hasLength(currentNodeId)) {
-            assertThat(source.get("source_node"), notNullValue());
-        } else {
-            assertThat(source.get("source_node"), nullValue());
-        }
-
-        ShardMonitoringDoc.XCONTENT_FILTERS.forEach(filter -> {
-            if (filter.equals("shard.relocating_node")) {
-                // Shard's relocating node is null most of the time in this test, we only check that the field is here
-                assertTrue(filter + " must exist in the monitoring document", shard.containsKey("relocating_node"));
-                return;
-            }
-            if (filter.equals("shard.node")) {
-                // Current node is null for replicas in this test, we only check that the field is here
-                assertTrue(filter + " must exist in the monitoring document", shard.containsKey("node"));
-                return;
-            }
-            assertThat(filter + " must not be null in the monitoring document", extractValue(filter, source), notNullValue());
-        });
     }
 
     /**
@@ -613,7 +381,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                                .setSize(0)
                                .get().getHits().getTotalHits().value,
                        greaterThan(0L));
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -650,7 +418,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             } catch (Exception e) {
                 throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {

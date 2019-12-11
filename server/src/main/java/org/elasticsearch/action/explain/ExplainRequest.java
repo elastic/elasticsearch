@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -44,7 +45,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
-    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     private String routing;
     private String preference;
@@ -59,36 +59,25 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public ExplainRequest() {
     }
 
-    /**
-     * @deprecated Types are in the process of being removed. Use {@link ExplainRequest(String, String) instead.}
-     */
-    @Deprecated
-    public ExplainRequest(String index, String type, String id) {
-        this.index = index;
-        this.type = type;
-        this.id = id;
-    }
-
     public ExplainRequest(String index, String id) {
         this.index = index;
         this.id = id;
     }
 
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String type() {
-        return type;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public ExplainRequest type(String type) {
-        this.type = type;
-        return this;
+    ExplainRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type);
+        }
+        id = in.readString();
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        query = in.readNamedWriteable(QueryBuilder.class);
+        filteringAlias = new AliasFilter(in);
+        storedFields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        nowInMillis = in.readVLong();
     }
 
     public String id() {
@@ -172,9 +161,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (Strings.isEmpty(type)) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
@@ -185,23 +171,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = new AliasFilter(in);
-        storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        nowInMillis = in.readVLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

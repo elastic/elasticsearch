@@ -21,14 +21,13 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
-import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -46,20 +45,18 @@ final class SoftDeletesPolicy {
     private long retentionOperations;
     // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
     private long minRetainedSeqNo;
-    private Collection<RetentionLease> retentionLeases;
     // provides the retention leases used to calculate the minimum sequence number to retain
-    private final Supplier<Collection<RetentionLease>> retentionLeasesSupplier;
+    private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
     SoftDeletesPolicy(
             final LongSupplier globalCheckpointSupplier,
             final long minRetainedSeqNo,
             final long retentionOperations,
-            final Supplier<Collection<RetentionLease>> retentionLeasesSupplier) {
+            final Supplier<RetentionLeases> retentionLeasesSupplier) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
         this.minRetainedSeqNo = minRetainedSeqNo;
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
-        retentionLeases = retentionLeasesSupplier.get();
         this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
     }
@@ -109,10 +106,11 @@ final class SoftDeletesPolicy {
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
     synchronized long getMinRetainedSeqNo() {
-        return getRetentionPolicy().v1();
-    }
-
-    public synchronized Tuple<Long, Collection<RetentionLease>> getRetentionPolicy() {
+        /*
+         * When an engine is flushed, we need to provide it the latest collection of retention leases even when the soft deletes policy is
+         * locked for peer recovery.
+         */
+        final RetentionLeases retentionLeases = retentionLeasesSupplier.get();
         // do not advance if the retention lock is held
         if (retentionLockCount == 0) {
             /*
@@ -122,23 +120,25 @@ final class SoftDeletesPolicy {
              *    localCheckpointOfSafeCommit.
              *  - Changes APIs are driven by a combination of the global checkpoint, retention operations, and retention leases. Here we
              *    prefer using the global checkpoint instead of the maximum sequence number because only operations up to the global
-             *    checkpoint are exposed in the the changes APIs.
+             *    checkpoint are exposed in the changes APIs.
              */
 
             // calculate the minimum sequence number to retain based on retention leases
-            retentionLeases = retentionLeasesSupplier.get();
             final long minimumRetainingSequenceNumber = retentionLeases
+                    .leases()
                     .stream()
                     .mapToLong(RetentionLease::retainingSequenceNumber)
                     .min()
                     .orElse(Long.MAX_VALUE);
             /*
              * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of operations
-             * below the global checkpoint to retain (index.soft_deletes.retention.operations).
+             * below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments on the global
+             * checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all operations above
+             * those checkpoints.
              */
             final long minSeqNoForQueryingChanges =
-                    Math.min(globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);
-            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, localCheckpointOfSafeCommit) + 1;
+                    Math.min(1 + globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);
+            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
 
             /*
              * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
@@ -146,7 +146,7 @@ final class SoftDeletesPolicy {
              */
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
         }
-        return Tuple.tuple(minRetainedSeqNo, retentionLeases);
+        return minRetainedSeqNo;
     }
 
     /**

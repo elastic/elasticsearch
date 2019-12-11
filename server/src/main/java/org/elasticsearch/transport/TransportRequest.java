@@ -29,6 +29,12 @@ import java.io.IOException;
 public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();
+
+        public Empty() {}
+
+        public Empty(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     /**
@@ -60,14 +66,7 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        parentTaskId = TaskId.readFromStream(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         parentTaskId.writeTo(out);
     }
 }

@@ -1,0 +1,62 @@
+--
+:api: delegate-pki
+:request: DelegatePkiAuthenticationRequest
+:response: DelegatePkiAuthenticationResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delegate PKI Authentication API
+
+This API is called by *smart* proxies to Elasticsearch, such as Kibana, that
+terminate the user's TLS session but that still wish to authenticate the user
+on the Elasticsearch side using a PKI realm, which normally requires users to
+authenticate over TLS directly to Elasticsearch. It implements the exchange of
+the client's {@code X509Certificate} chain from the TLS authentication into an
+Elasticsearch access token.
+
+IMPORTANT: The association between the subject public key in the target
+certificate and the corresponding private key is *not* validated. This is part
+of the TLS authentication process and it is delegated to the proxy calling this
+API. The proxy is *trusted* to have performed the TLS authentication, and this
+API translates that authentication into an Elasticsearch access token.
+
+[id="{upid}-{api}-request"]
+==== Delegate PKI Authentication Request
+
+The request contains the client's {@code X509Certificate} chain. The
+certificate chain is represented as a list where the first element is the
+target certificate containing the subject distinguished name that is requesting
+access. This may be followed by additional certificates, with each subsequent
+certificate being the one used to certify the previous one. The certificate
+chain is validated according to RFC 5280, by sequentially considering the trust
+configuration of every installed {@code PkiRealm} that has {@code
+PkiRealmSettings#DELEGATION_ENABLED_SETTING} set to {@code true} (default is
+{@code false}). A successfully trusted target certificate is also subject to
+the validation of the subject distinguished name according to that respective's
+realm {@code PkiRealmSettings#USERNAME_PATTERN_SETTING}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[delegate-pki-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Delegate PKI Authentication Response
+
+The returned +{response}+ contains the following properties:
+
+`accessToken`:: This is the newly created access token.
+   It can be used to authenticate to the Elasticsearch cluster.
+`type`:: The type of the token, this is always `"Bearer"`.
+`expiresIn`:: The length of time (in seconds) until the token will expire.
+   The token will be considered invalid after that time.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[delegate-pki-response]
+--------------------------------------------------
+<1> The `accessToken` can be used to authentication to Elasticsearch.
+
+

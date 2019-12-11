@@ -12,11 +12,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -38,15 +39,15 @@ abstract class TrustConfig {
 
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the provided configuration
-     * @param environment the environment to resolve files against or null in the case of running in a transport client
+     * @param environment the environment to resolve files against
      */
-    abstract X509ExtendedTrustManager createTrustManager(@Nullable Environment environment);
+    abstract X509ExtendedTrustManager createTrustManager(Environment environment);
 
-    abstract Collection<CertificateInfo> certificates(@Nullable Environment environment) throws GeneralSecurityException, IOException;
+    abstract Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException;
 
     /**
      * Returns a list of files that should be monitored for changes
-     * @param environment the environment to resolve files against or null in the case of running in a transport client
+     * @param environment the environment to resolve files against
      */
     abstract List<Path> filesToMonitor(@Nullable Environment environment);
 
@@ -66,11 +67,19 @@ abstract class TrustConfig {
     public abstract int hashCode();
 
     /**
+     * @deprecated Use {@link #getStore(Path, String, SecureString)} instead
+     */
+    @Deprecated
+    KeyStore getStore(Environment environment, @Nullable String storePath, String storeType, SecureString storePassword)
+        throws GeneralSecurityException, IOException {
+        return getStore(CertParsingUtils.resolvePath(storePath, environment), storeType, storePassword);
+    }
+
+    /**
      * Loads and returns the appropriate {@link KeyStore} for the given configuration. The KeyStore can be backed by a file
      * in any format that the Security Provider might support, or a cryptographic software or hardware token in the case
      * of a PKCS#11 Provider.
      *
-     * @param environment   the environment to resolve files against or null in the case of running in a transport client
      * @param storePath     the path to the {@link KeyStore} to load, or null if a PKCS11 token is configured as the keystore/truststore
      *                      of the JVM
      * @param storeType     the type of the {@link KeyStore}
@@ -81,10 +90,9 @@ abstract class TrustConfig {
      * @throws NoSuchAlgorithmException if the algorithm used to check the integrity of the keystore cannot be found
      * @throws IOException              if there is an I/O issue with the KeyStore data or the password is incorrect
      */
-    KeyStore getStore(@Nullable Environment environment, @Nullable String storePath, String storeType, SecureString storePassword)
-        throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
+    KeyStore getStore(Path storePath, String storeType, SecureString storePassword) throws IOException, GeneralSecurityException {
         if (null != storePath) {
-            try (InputStream in = Files.newInputStream(CertParsingUtils.resolvePath(storePath, environment))) {
+            try (InputStream in = Files.newInputStream(storePath)) {
                 KeyStore ks = KeyStore.getInstance(storeType);
                 ks.load(in, storePassword.getChars());
                 return ks;
@@ -96,6 +104,44 @@ abstract class TrustConfig {
         }
         throw new IllegalArgumentException("keystore.path or truststore.path can only be empty when using a PKCS#11 token");
     }
+
+    /**
+     * generate a new exception caused by a missing file, that is required for this trust config
+     */
+    protected ElasticsearchException missingTrustConfigFile(IOException cause, String fileType, Path path) {
+        return new ElasticsearchException(
+            "failed to initialize SSL TrustManager - " + fileType + " file [{}] does not exist", cause, path.toAbsolutePath());
+    }
+
+    /**
+     * generate a new exception caused by an unreadable file (i.e. file-system access denied), that is required for this trust config
+     */
+    protected ElasticsearchException unreadableTrustConfigFile(AccessDeniedException cause, String fileType, Path path) {
+        return new ElasticsearchException(
+            "failed to initialize SSL TrustManager - not permitted to read " + fileType + " file [{}]", cause, path.toAbsolutePath());
+    }
+
+    /**
+     * generate a new exception caused by a blocked file (i.e. security-manager access denied), that is required for this trust config
+     * @param paths A list of possible files. Depending on the context, it may not be possible to know exactly which file caused the
+     *              exception, so this method accepts multiple paths.
+     */
+    protected ElasticsearchException blockedTrustConfigFile(AccessControlException cause, Environment environment,
+                                                            String fileType, List<Path> paths) {
+        if (paths.size() == 1) {
+            return new ElasticsearchException(
+                "failed to initialize SSL TrustManager - access to read {} file [{}] is blocked;" +
+                    " SSL resources should be placed in the [{}] directory",
+                cause, fileType, paths.get(0).toAbsolutePath(), environment.configFile());
+        } else {
+            final String pathString = paths.stream().map(Path::toAbsolutePath).map(Path::toString).collect(Collectors.joining(", "));
+            return new ElasticsearchException(
+                "failed to initialize SSL TrustManager - access to read one or more of the {} files [{}] is blocked;" +
+                    " SSL resources should be placed in the [{}] directory",
+                cause, fileType, pathString, environment.configFile());
+        }
+    }
+
 
     /**
      * A trust configuration that is a combination of a trust configuration with the default JDK trust configuration. This trust
@@ -119,9 +165,8 @@ abstract class TrustConfig {
 
             try {
                 return CertParsingUtils.trustManager(trustConfigs.stream()
-                        .flatMap((tc) -> Arrays.stream(tc.createTrustManager(environment).getAcceptedIssuers()))
-                        .collect(Collectors.toList())
-                        .toArray(new X509Certificate[0]));
+                    .flatMap((tc) -> Arrays.stream(tc.createTrustManager(environment).getAcceptedIssuers()))
+                    .toArray(X509Certificate[]::new));
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to create trust manager", e);
             }
@@ -137,7 +182,7 @@ abstract class TrustConfig {
         }
 
         @Override
-        List<Path> filesToMonitor(@Nullable Environment environment) {
+        List<Path> filesToMonitor(Environment environment) {
             return trustConfigs.stream().flatMap((tc) -> tc.filesToMonitor(environment).stream()).collect(Collectors.toList());
         }
 

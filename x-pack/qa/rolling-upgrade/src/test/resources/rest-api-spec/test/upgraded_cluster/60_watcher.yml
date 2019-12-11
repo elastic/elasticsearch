@@ -1,9 +1,13 @@
 ---
 "CRUD watch APIs":
 
+  - skip:
+      reason: https://github.com/elastic/elasticsearch/issues/33185
+      version: "6.7.0 - "
+
   # no need to put watch, exists already
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }
@@ -11,7 +15,7 @@
 
   # execute watch
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
         body:  >
           {
@@ -41,12 +45,12 @@
 
   # deactivate watch, check with GET API as well
   - do:
-      xpack.watcher.deactivate_watch:
+      watcher.deactivate_watch:
         watch_id: "my_watch"
   - match: { status.state.active : false }
   
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }
@@ -55,12 +59,12 @@
 
   # activate watch again, check with GET API as well
   - do:
-      xpack.watcher.activate_watch:
+      watcher.activate_watch:
         watch_id: "my_watch"
   - match: { status.state.active : true }
   
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }
@@ -68,7 +72,12 @@
 
 ---
 "Test watcher stats output":
+
+  - skip:
+      reason: https://github.com/elastic/elasticsearch/issues/33185
+      version: "6.7.0 - "
+
   - do:
-      xpack.watcher.stats: {}
+      watcher.stats: {}
   - match: { "manually_stopped": false }
   - match: { "stats.0.watcher_state": "started" }

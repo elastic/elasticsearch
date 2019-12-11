@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 //
 // Basic SELECT
 //
@@ -33,6 +35,12 @@ multipleColumnsNoAliasWithLimit
 SELECT first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 multipleColumnWithAliasWithAndWithoutAsWithLimit
 SELECT first_name f, last_name AS l FROM "test_emp" ORDER BY emp_no LIMIT 5;
+multipleColumnNoAliasWithColumnRepeatedWithLimit
+SELECT salary, first_name, salary FROM test_emp ORDER BY salary LIMIT 3;
+multipleColumnWithAliasWithAsWithColumnRepeatedWithLimit
+SELECT salary, first_name, salary AS x FROM test_emp ORDER BY x LIMIT 3;
+multipleColumnWithAliasWithAndWithoutAsWithColumnRepeatedWithLimit
+SELECT salary, first_name, salary AS x, salary y FROM test_emp ORDER BY y LIMIT 3;
 
 //
 // SELECT constant literals with FROM
@@ -108,9 +116,7 @@ selectMathPIFromIndexWithWhereEvaluatingToTrue
 SELECT PI() AS pi FROM test_emp WHERE ROUND(PI(),2)=3.14;
 selectMathPIFromIndexWithWhereEvaluatingToTrueAndWithLimit
 SELECT PI() AS pi FROM test_emp WHERE ROUND(PI(),2)=3.14 LIMIT 3;
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/35980
-selectMathPIFromIndexWithWhereEvaluatingToFalse-Ignore
+selectMathPIFromIndexWithWhereEvaluatingToFalse
 SELECT PI() AS pi FROM test_emp WHERE PI()=5;
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/35980
-selectMathPIFromIndexWithWhereEvaluatingToFalseAndWithLimit-Ignore
+selectMathPIFromIndexWithWhereEvaluatingToFalseAndWithLimit
 SELECT PI() AS pi FROM test_emp WHERE PI()=5 LIMIT 3;

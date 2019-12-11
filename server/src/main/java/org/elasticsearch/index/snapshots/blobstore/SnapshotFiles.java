@@ -35,10 +35,19 @@ public class SnapshotFiles {
 
     private Map<String, FileInfo> physicalFiles = null;
 
+    /**
+     * Returns snapshot name
+     *
+     * @return snapshot name
+     */
     public String snapshot() {
         return snapshot;
     }
 
+    /**
+     * @param snapshot   snapshot name
+     * @param indexFiles index files
+     */
     public SnapshotFiles(String snapshot, List<FileInfo> indexFiles ) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
@@ -66,7 +75,7 @@ public class SnapshotFiles {
      * @param physicalName the original file name
      * @return information about this file
      */
-    public FileInfo findPhysicalIndexFile(String physicalName) {
+    private FileInfo findPhysicalIndexFile(String physicalName) {
         if (physicalFiles == null) {
             Map<String, FileInfo> files = new HashMap<>();
             for(FileInfo fileInfo : indexFiles) {

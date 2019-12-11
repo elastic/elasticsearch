@@ -57,7 +57,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, aggregationContext, parent,
-                SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
+                SubAggCollectionMode.BREADTH_FIRST, false, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
@@ -91,7 +91,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             }
 
             if (spare == null) {
-                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
+                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
             }
 
             bucketOrds.get(i, spare.termBytes);
@@ -113,12 +113,20 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         }
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
+        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             final SignificantStringTerms.Bucket bucket = ordered.pop();
-            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
+            survivingBucketOrds[i] = bucket.bucketOrd;
+            list[i] = bucket;
+        }
+
+        runDeferredCollections(survivingBucketOrds);
+
+        for (SignificantStringTerms.Bucket bucket : list) {
+            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be
+            // recycled at some point
             bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            list[i] = bucket;
         }
 
         return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),

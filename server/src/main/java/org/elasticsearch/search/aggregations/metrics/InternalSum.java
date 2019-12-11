@@ -71,23 +71,15 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        double sum = 0;
-        double compensation = 0;
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         for (InternalAggregation aggregation : aggregations) {
             double value = ((InternalSum) aggregation).sum;
-            if (Double.isFinite(value) == false) {
-                sum += value;
-            } else if (Double.isFinite(sum)) {
-                double corrected = value - compensation;
-                double newSum = sum + corrected;
-                compensation = (newSum - sum) - corrected;
-                sum = newSum;
-            }
+            kahanSummation.add(value);
         }
-        return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
+        return new InternalSum(name, kahanSummation.value(), format, pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -100,12 +92,16 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hashCode(sum);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sum);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalSum that = (InternalSum) obj;
         return Objects.equals(sum, that.sum);
     }

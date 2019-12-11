@@ -21,25 +21,31 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
  * A single multi get response.
  */
-public class MultiGetItemResponse implements Streamable {
+public class MultiGetItemResponse implements Writeable {
 
-    private GetResponse response;
-    private MultiGetResponse.Failure failure;
-
-    MultiGetItemResponse() {
-
-    }
+    private final GetResponse response;
+    private final MultiGetResponse.Failure failure;
 
     public MultiGetItemResponse(GetResponse response, MultiGetResponse.Failure failure) {
         this.response = response;
         this.failure = failure;
+    }
+
+    MultiGetItemResponse(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            failure = new MultiGetResponse.Failure(in);
+            response = null;
+        } else {
+            response = new GetResponse(in);
+            failure = null;
+        }
     }
 
     /**
@@ -50,16 +56,6 @@ public class MultiGetItemResponse implements Streamable {
             return failure.getIndex();
         }
         return response.getIndex();
-    }
-
-    /**
-     * The type of the document.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
     }
 
     /**
@@ -91,22 +87,6 @@ public class MultiGetItemResponse implements Streamable {
      */
     public MultiGetResponse.Failure getFailure() {
         return this.failure;
-    }
-
-    public static MultiGetItemResponse readItemResponse(StreamInput in) throws IOException {
-        MultiGetItemResponse response = new MultiGetItemResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            failure = MultiGetResponse.Failure.readFailure(in);
-        } else {
-            response = new GetResponse();
-            response.readFrom(in);
-        }
     }
 
     @Override

@@ -3,7 +3,7 @@
 :request: PutAutoFollowPatternRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Auto Follow Pattern API
 

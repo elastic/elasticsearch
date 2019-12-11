@@ -49,7 +49,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject()).execute().get();
 
-        index("test-idx", "type", "1", XContentFactory.jsonBuilder()
+        index("test-idx", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "Every day is exactly the same")
             .endObject());
@@ -98,7 +98,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .endObject()
             .endObject().endObject()).execute().get();
 
-        index("test-idx", "type", "1", XContentFactory.jsonBuilder()
+        index("test-idx", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field", "1234")
                 .endObject());
@@ -139,24 +139,18 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                     .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
                         .startObject("g")
-                            .field("type", "text")
+                            .field("type", "keyword")
                             .field("store", true)
-                            .startObject("fields")
-                                .startObject("raw")
-                                    .field("type", "keyword")
-                                    .field("store", true)
-                                .endObject()
-                            .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()).execute().get();
 
-        index("test-idx", "_doc", "1", "f", "This is my text");
+        indexDoc("test-idx", "1", "f", "This is my text");
         refresh();
 
         SearchResponse response = client().prepareSearch("test-idx")
-                .setQuery(QueryBuilders.termQuery("f.g.raw", "FOO BAR"))
+                .setQuery(QueryBuilders.termQuery("f.g", "FOO BAR"))
                 .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));

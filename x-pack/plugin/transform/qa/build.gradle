@@ -1,0 +1,14 @@
+/* Remove assemble on all qa projects because we don't need to publish
+ * artifacts for them. */
+gradle.projectsEvaluated {
+  subprojects {
+    Task assemble = project.tasks.findByName('assemble')
+    if (assemble) {
+      assemble.enabled = false
+    }
+    Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+    if (dependenciesInfo) {
+      dependenciesInfo.enabled = false
+    }
+  }
+}

@@ -1,0 +1,57 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-valid-detector]]
+=== Validate detectors API
+++++
+<titleabbrev>Validate detectors</titleabbrev>
+++++
+
+Validates detector configuration information.
+
+[[ml-valid-detector-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/_validate/detector`
+
+[[ml-valid-detector-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-valid-detector-desc]]
+==== {api-description-title}
+
+This API enables you validate the detector configuration
+before you create an {anomaly-job}.
+
+[[ml-valid-detector-request-body]]
+==== {api-request-body-title}
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector]
+
+[[ml-valid-detector-example]]
+==== {api-examples-title}
+
+The following example validates detector configuration information:
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/_validate/detector
+{
+  "function": "metric",
+  "field_name": "responsetime",
+  "by_field_name": "airline"
+}
+--------------------------------------------------
+// TEST[skip:needs-licence]
+
+When the validation completes, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

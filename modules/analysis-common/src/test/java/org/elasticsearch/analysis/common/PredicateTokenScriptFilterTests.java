@@ -30,6 +30,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -46,7 +47,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.f.type", "predicate_token_filter")
-            .put("index.analysis.filter.f.script.source", "token.getTerm().length() > 5")
+            .put("index.analysis.filter.f.script.source", "my_script")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
             .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.myAnalyzer.filter", "f")
@@ -56,16 +57,16 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
         AnalysisPredicateScript.Factory factory = () -> new AnalysisPredicateScript() {
             @Override
             public boolean execute(Token token) {
-                return token.getTerm().length() > 5;
+                return token.getPosition() < 2 || token.getPosition() > 4;
             }
         };
 
         @SuppressWarnings("unchecked")
         ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap()){
             @Override
-            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+            public <FactoryType extends ScriptFactory> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);
-                assertEquals(new Script("token.getTerm().length() > 5"), script);
+                assertEquals(new Script("my_script"), script);
                 return (FactoryType) factory;
             }
         };
@@ -79,8 +80,8 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
         try (NamedAnalyzer analyzer = analyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "Vorsprung Durch Technik", new String[]{
-                "Vorsprung", "Technik"
+            assertAnalyzesTo(analyzer, "Oh what a wonderful thing to be", new String[]{
+                "Oh", "what", "to", "be"
             });
         }
 

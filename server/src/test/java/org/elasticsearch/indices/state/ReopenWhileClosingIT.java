@@ -20,14 +20,15 @@
 package org.elasticsearch.indices.state;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Glob;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 2)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ReopenWhileClosingIT extends ESIntegTestCase {
 
     @Override
@@ -64,15 +65,16 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
     }
 
     public void testReopenDuringClose() throws Exception {
+        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(randomIntBetween(2, 3));
         final String indexName = "test";
-        createIndexWithDocs(indexName);
+        createIndexWithDocs(indexName, dataOnlyNodes);
 
         ensureYellowAndNoInitializingShards(indexName);
 
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(indexName, block::countDown);
 
-        ActionFuture<AcknowledgedResponse> closeIndexResponse = client().admin().indices().prepareClose(indexName).execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose(indexName).execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertIndexIsBlocked(indexName);
         assertFalse(closeIndexResponse.isDone());
@@ -85,10 +87,11 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
     }
 
     public void testReopenDuringCloseOnMultipleIndices() throws Exception {
+        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(randomIntBetween(2, 3));
         final List<String> indices = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             indices.add("index-" + i);
-            createIndexWithDocs(indices.get(i));
+            createIndexWithDocs(indices.get(i), dataOnlyNodes);
         }
 
         ensureYellowAndNoInitializingShards(indices.toArray(Strings.EMPTY_ARRAY));
@@ -96,7 +99,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(randomFrom(indices), block::countDown);
 
-        ActionFuture<AcknowledgedResponse> closeIndexResponse = client().admin().indices().prepareClose("index-*").execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose("index-*").execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertFalse(closeIndexResponse.isDone());
         indices.forEach(ReopenWhileClosingIT::assertIndexIsBlocked);
@@ -116,11 +119,12 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         });
     }
 
-    private void createIndexWithDocs(final String indexName) {
-        createIndex(indexName);
+    private void createIndexWithDocs(final String indexName, final Collection<String> dataOnlyNodes) {
+        createIndex(indexName,
+            Settings.builder().put(indexSettings()).put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)).build());
         final int nbDocs =  scaledRandomIntBetween(1, 100);
         for (int i = 0; i < nbDocs; i++) {
-            index(indexName, "_doc", String.valueOf(i), "num", i);
+            indexDoc(indexName, String.valueOf(i), "num", i);
         }
         assertIndexIsOpened(indexName);
     }

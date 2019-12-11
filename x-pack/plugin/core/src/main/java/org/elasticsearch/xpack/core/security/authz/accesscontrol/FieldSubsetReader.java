@@ -19,6 +19,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -439,6 +440,14 @@ public final class FieldSubsetReader extends FilterLeafReader {
         @Override
         public boolean seekExact(BytesRef term) throws IOException {
             return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public void seekExact(BytesRef term, TermState state) throws IOException {
+            if (accept(term) == false) {
+                throw new IllegalStateException("Tried to seek using a TermState from a different reader!");
+            }
+            in.seekExact(term, state);
         }
 
         @Override

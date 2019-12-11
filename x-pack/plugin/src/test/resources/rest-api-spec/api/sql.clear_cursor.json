@@ -1,0 +1,22 @@
+{
+  "sql.clear_cursor":{
+    "documentation":{
+      "url":"Clear SQL cursor"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_sql/close",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"Specify the cursor value in the `cursor` element to clean the cursor.",
+      "required":true
+    }
+  }
+}

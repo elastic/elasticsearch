@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -81,8 +82,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         // first wait for 2 nodes in the cluster
         logger.info("Waiting for replicas to be assigned");
-        ClusterHealthResponse clusterHealth =
-            client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus().setWaitForNodes("2").setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -118,7 +119,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         // first wait for 3 nodes in the cluster
         logger.info("Waiting for replicas to be assigned");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus().setWaitForNodes("3").setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -129,8 +131,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client().admin().cluster().health(
-            clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForNoRelocatingShards(true)).actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus().setWaitForNodes("3").setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(3));
@@ -166,15 +168,16 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(server_1));
         // verify health
         logger.info("Running Cluster Health");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus().setWaitForNodes("2").setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         client().admin().cluster().prepareReroute().get();
 
-        clusterHealth = client().admin().cluster().health(
-            clusterHealthRequest().waitForGreenStatus().waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus().setWaitForNodes("2").setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(0));

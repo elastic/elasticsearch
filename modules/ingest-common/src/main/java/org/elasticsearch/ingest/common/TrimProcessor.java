@@ -25,7 +25,7 @@ import java.util.Map;
  * Processor that trims the content of string fields.
  * Throws exception is the field is not of type string.
  */
-public final class TrimProcessor extends AbstractStringProcessor {
+public final class TrimProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "trim";
 

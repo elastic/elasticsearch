@@ -35,8 +35,8 @@ import static java.util.Collections.emptySet;
  * default distribution of Elasticsearch. All of these APIs will 404 if run
  * against the OSS distribution of Elasticsearch.
  * <p>
- * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
- * X-Pack APIs on elastic.co</a> for more information.
+ * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html">
+ * REST APIs on elastic.co</a> for more information.
  */
 public final class XPackClient {
 
@@ -67,10 +67,11 @@ public final class XPackClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void infoAsync(XPackInfoRequest request, RequestOptions options,
-                                  ActionListener<XPackInfoResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::info, options,
+    public Cancellable infoAsync(XPackInfoRequest request, RequestOptions options,
+                                 ActionListener<XPackInfoResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::info, options,
             XPackInfoResponse::fromXContent, listener, emptySet());
     }
 
@@ -89,9 +90,10 @@ public final class XPackClient {
      * Asynchronously fetch usage information about X-Pack features from the cluster.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::usage, options,
+    public Cancellable usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::usage, options,
             XPackUsageResponse::fromXContent, listener, emptySet());
     }
 }

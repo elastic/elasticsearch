@@ -14,7 +14,7 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestHelper.ML_POST_V660_TEMPLATES.stream(),
+        return Stream.concat(XPackRestTestConstants.ML_POST_V660_TEMPLATES.stream(),
             super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 
@@ -38,6 +38,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46262")
     public void testMappingsUpgrade() throws Exception {
 
         switch (CLUSTER_TYPE) {
@@ -81,7 +82,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
     private void assertUpgradedMappings() throws Exception {
 
         assertBusy(() -> {
-            Request getMappings = new Request("GET", AnomalyDetectorsIndex.resultsWriteAlias(JOB_ID) + "/_mappings");
+            Request getMappings = new Request("GET", XPackRestTestHelper.resultsWriteAlias(JOB_ID) + "/_mappings");
             Response response = client().performRequest(getMappings);
 
             Map<String, Object> responseLevel = entityAsMap(response);

@@ -64,8 +64,13 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
-        return new SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
-            pageTimeout(), filter(), null, requestInfo()).toXContent(builder, params);
-
+        return new SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(), pageTimeout(), 
+            filter(), 
+            null, 
+            null, 
+            requestInfo(),
+            false, 
+            false,
+            null).toXContent(builder, params);
     }
 }

@@ -14,10 +14,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.IndexFollowingIT;
@@ -76,16 +74,6 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             // should fail because leader index does not have soft deletes enabled
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false").build(), null);
-            IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
-        }
-        {
-            // should fail because leader index does not have soft deletes enabled (by default).
-            Version prevVersion = VersionUtils.randomVersionBetween(
-                random(), Version.V_6_5_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-            IndexMetaData leaderIMD = IndexMetaData.builder("index1").settings(settings(prevVersion)).numberOfShards(1)
-                .numberOfReplicas(0).setRoutingNumShards(1).putMapping("_doc", "{\"properties\": {}}").build();
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
@@ -150,7 +138,10 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("the leader and follower index settings must be identical"));
+            assertThat(e.getMessage(), equalTo("the leader index setting[{\"index.analysis.analyzer.my_analyzer.tokenizer\"" +
+                ":\"whitespace\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] " +
+                "and follower index settings [{\"index.analysis.analyzer.my_analyzer.tokenizer\":\"standard\"," +
+                "\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] must be identical"));
         }
         {
             // should fail because the following index does not have the following_index settings
@@ -215,7 +206,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
     }
-    
+
     public void testDynamicIndexSettingsAreClassified() {
         // We should be conscious which dynamic settings are replicated from leader to follower index.
         // This is the list of settings that should be replicated:
@@ -227,19 +218,34 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPER_DYNAMIC_SETTING);
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
-        replicatedSettings.add(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             if (setting.isDynamic()) {
                 boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
                 boolean replicated = replicatedSettings.contains(setting);
-                assertThat("setting [" + setting.getKey() + "] is not classified as replicated xor not replicated",
+                assertThat("setting [" + setting.getKey() + "] is not classified as replicated or not replicated",
                     notReplicated ^ replicated, is(true));
             }
         }
+    }
+
+    public void testFilter() {
+        Settings.Builder settings = Settings.builder();
+        settings.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "");
+        settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "");
+        settings.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), "");
+        settings.put(IndexMetaData.SETTING_INDEX_UUID, "");
+        settings.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, "");
+        settings.put(IndexMetaData.SETTING_CREATION_DATE, "");
+        settings.put(IndexMetaData.SETTING_VERSION_UPGRADED, "");
+        settings.put(IndexMetaData.SETTING_VERSION_UPGRADED_STRING, "");
+
+        Settings result = TransportResumeFollowAction.filter(settings.build());
+        assertThat(result.size(), equalTo(0));
     }
 
     private static IndexMetaData createIMD(String index,
@@ -261,7 +267,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             .state(state)
             .numberOfReplicas(0)
             .setRoutingNumShards(numberOfShards)
-            .putMapping("_doc", mapping);
+            .putMapping(mapping);
 
         if (custom != null) {
             builder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, custom);

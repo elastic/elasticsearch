@@ -25,6 +25,7 @@ import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
 import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
@@ -55,15 +57,23 @@ abstract class RollupCapsResponseTestCase<T> extends ESTestCase {
 
     protected abstract T fromXContent(XContentParser parser) throws IOException;
 
+    protected Predicate<String> randomFieldsExcludeFilter() {
+        return field -> false;
+    }
+
+    protected String[] shuffleFieldsExceptions() {
+        return Strings.EMPTY_ARRAY;
+    }
+
     public void testFromXContent() throws IOException {
         xContentTester(
             this::createParser,
             this::createTestInstance,
             this::toXContent,
             this::fromXContent)
-            .supportsUnknownFields(false)
-            .randomFieldsExcludeFilter(field ->
-                field.endsWith("job_id"))
+            .supportsUnknownFields(true)
+            .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
+            .shuffleFieldsExceptions(shuffleFieldsExceptions())
             .test();
     }
 

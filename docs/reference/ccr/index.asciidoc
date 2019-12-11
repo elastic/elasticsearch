@@ -1,14 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[xpack-ccr]]
-= Cross-cluster replication
+== {ccr-cap}
 
-[partintro]
---
-
-beta[]
-
-The {ccr} (CCR) feature enables replication of indices in remote clusters to a 
+The {ccr} (CCR) feature enables replication of indices in remote clusters to a
 local cluster. This functionality can be used in some common production use
 cases:
 
@@ -22,10 +17,12 @@ This guide provides an overview of {ccr}:
 * <<ccr-requirements>>
 * <<ccr-auto-follow>>
 * <<ccr-getting-started>>
+* <<ccr-upgrading>>
 
---
 
 include::overview.asciidoc[]
 include::requirements.asciidoc[]
 include::auto-follow.asciidoc[]
 include::getting-started.asciidoc[]
+include::remote-recovery.asciidoc[]
+include::upgrading.asciidoc[]

@@ -1,11 +1,8 @@
 ---
 setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
   - do:
       indices.create:
-          include_type_name: false
           index: test_1
           body:
               settings:
@@ -17,9 +14,7 @@ setup:
 
 ---
 "Indexing a doc with No. nested objects less or equal to index.mapping.nested_objects.limit should succeed":
-  - skip:
-      version: " - 6.99.99"
-      reason:  index.mapping.nested_objects setting has been added in 7.0.0
+
   - do:
       create:
           index:  test_1
@@ -30,9 +25,7 @@ setup:
 
 ---
 "Indexing a doc with No. nested objects more than index.mapping.nested_objects.limit should fail":
-  - skip:
-      version: " - 6.99.99"
-      reason:  index.mapping.nested_objects setting has been added in 7.0.0
+
   - do:
       catch: /The number of nested documents has exceeded the allowed limit of \[2\]. This limit can be set by changing the \[index.mapping.nested_objects.limit\] index level setting\./
       create:

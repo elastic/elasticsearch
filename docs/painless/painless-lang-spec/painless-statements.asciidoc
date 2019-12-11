@@ -1,0 +1,31 @@
+[[painless-statements]]
+=== Statements
+
+Painless supports all of Java's https://docs.oracle.com/javase/tutorial/java/nutsandbolts/flow.html[
+control flow statements] except the `switch` statement.
+
+==== Conditional statements
+
+===== If / Else
+
+[source,painless]
+---------------------------------------------------------
+if (doc[item].size() == 0) {
+  // do something if "item" is missing
+} else {
+  // do something else
+}
+---------------------------------------------------------
+
+==== Loop statements
+
+===== For
+
+Painless also supports the `for in` syntax from Groovy:
+
+[source,painless]
+---------------------------------------------------------
+for (def item : list) {
+  ...
+}
+---------------------------------------------------------

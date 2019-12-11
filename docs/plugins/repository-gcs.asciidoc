@@ -11,8 +11,8 @@ include::install_remove.asciidoc[]
 ==== Getting started
 
 The plugin uses the https://github.com/GoogleCloudPlatform/google-cloud-java/tree/master/google-cloud-clients/google-cloud-storage[Google Cloud Java Client for Storage]
-to connect to the Storage service. If you are using  
-https://cloud.google.com/storage/[Google Cloud Storage] for the first time, you 
+to connect to the Storage service. If you are using
+https://cloud.google.com/storage/[Google Cloud Storage] for the first time, you
 must connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
 and create a new project. After your project is created, you must enable the
 Cloud Storage Service for your project.
@@ -20,10 +20,10 @@ Cloud Storage Service for your project.
 [[repository-gcs-creating-bucket]]
 ===== Creating a Bucket
 
-The Google Cloud Storage service uses the concept of a 
-https://cloud.google.com/storage/docs/key-terms[bucket] as a container for all 
-the data. Buckets are usually created using the 
-https://console.cloud.google.com/[Google Cloud Platform Console]. The plugin 
+The Google Cloud Storage service uses the concept of a
+https://cloud.google.com/storage/docs/key-terms[bucket] as a container for all
+the data. Buckets are usually created using the
+https://console.cloud.google.com/[Google Cloud Platform Console]. The plugin
 does not automatically create buckets.
 
 To create a new bucket:
@@ -43,12 +43,12 @@ https://cloud.google.com/storage/docs/quickstart-console#create_a_bucket[Google 
 [[repository-gcs-service-authentication]]
 ===== Service Authentication
 
-The plugin must authenticate the requests it makes to the Google Cloud Storage 
+The plugin must authenticate the requests it makes to the Google Cloud Storage
 service. It is common for Google client libraries to employ a strategy named https://cloud.google.com/docs/authentication/production#providing_credentials_to_your_application[application default credentials].
-However, that strategy is **not** supported for use with Elasticsearch. The 
-plugin operates under the Elasticsearch process, which runs with the security 
+However, that strategy is **not** supported for use with Elasticsearch. The
+plugin operates under the Elasticsearch process, which runs with the security
 manager enabled. The security manager obstructs the "automatic" credential discovery.
-Therefore, you must configure <<repository-gcs-using-service-account,service account>> 
+Therefore, you must configure <<repository-gcs-using-service-account,service account>>
 credentials even if you are using an environment that does not normally require
 this configuration (such as Compute Engine, Kubernetes Engine or App Engine).
 
@@ -64,10 +64,10 @@ Here is a summary of the steps:
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
 2. Select your project.
-3. Got to the https://console.cloud.google.com/permissions[Permission] tab.
+3. Go to the https://console.cloud.google.com/permissions[Permission] tab.
 4. Select the https://console.cloud.google.com/permissions/serviceaccounts[Service Accounts] tab.
 5. Click *Create service account*.
-6. After the account is created, select it and download a JSON key file. 
+6. After the account is created, select it and download a JSON key file.
 
 A JSON service account file looks like this:
 
@@ -88,19 +88,20 @@ A JSON service account file looks like this:
 ----
 // NOTCONSOLE
 
-To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must add a setting name of the form `gcs.client.NAME.credentials_file`, where `NAME`
-is the name of the client configuration for the repository. The implicit client
+To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must
+add a `file` setting with the name `gcs.client.NAME.credentials_file` using the `add-file` subcommand.
+ `NAME` is the name of the client configuration for the repository. The implicit client
 name is `default`, but a different client name can be specified in the
-repository settings with the `client` key. 
+repository settings with the `client` key.
 
-NOTE: Passing the file path via the GOOGLE_APPLICATION_CREDENTIALS environment 
+NOTE: Passing the file path via the GOOGLE_APPLICATION_CREDENTIALS environment
 variable is **not** supported.
 
-For example, if you added a `gcs.client.my_alternate_client.credentials_file` 
-setting in the keystore, you can configure a repository to use those credentials 
+For example, if you added a `gcs.client.my_alternate_client.credentials_file`
+setting in the keystore, you can configure a repository to use those credentials
 like this:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -111,15 +112,14 @@ PUT _snapshot/my_gcs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
 
 The `credentials_file` settings are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
-After you reload the settings, the internal `gcs` clients, which are used to 
+After you reload the settings, the internal `gcs` clients, which are used to
 transfer the snapshot contents, utilize the latest settings from the keystore.
 
 NOTE: Snapshot or restore jobs that are in progress are not preempted by a *reload*
-of the client's `credentials_file` settings. They complete using the client as 
+of the client's `credentials_file` settings. They complete using the client as
 it was built when the operation started.
 
 [[repository-gcs-client]]
@@ -132,7 +132,7 @@ called `default`, but can be customized with the repository setting `client`.
 
 For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -143,7 +143,6 @@ PUT _snapshot/my_gcs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
 
 Some settings are sensitive and must be stored in the
@@ -151,15 +150,15 @@ Some settings are sensitive and must be stored in the
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add-file gcs.client.default.credentials_file
+bin/elasticsearch-keystore add-file gcs.client.default.credentials_file /path/service-account.json
 ----
 
 The following are the available client settings. Those that must be stored in the keystore
 are marked as `Secure`.
 
-`credentials_file`::
+`credentials_file` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
-    The service account file that is used to authenticate to the Google Cloud Storage service. (Secure)
+    The service account file that is used to authenticate to the Google Cloud Storage service.
 
 `endpoint`::
 
@@ -198,7 +197,7 @@ is stored in Google Cloud Storage.
 
 These can be specified when creating the repository. For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -209,7 +208,6 @@ PUT _snapshot/my_gcs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have gcs set up while testing this]
 
 The following settings are supported:
@@ -231,18 +229,21 @@ The following settings are supported:
 `chunk_size`::
 
     Big files can be broken down into chunks during snapshotting if needed.
-    The chunk size can be specified in bytes or by using size value notation,
-    i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+    Specify the chunk size as a value and unit, for example:
+    `10MB` or `5KB`. Defaults to `100MB`, which is the maximum permitted.
 
 `compress`::
 
     When set to `true` metadata files are stored in compressed format. This
     setting doesn't affect index files that are already compressed by default.
-    Defaults to `false`.
+    Defaults to `true`.
+
+include::repository-shared-settings.asciidoc[]
 
 `application_name`::
 
-    deprecated[7.0.0, This setting is now defined in the <<repository-gcs-client, client settings>>]
+    deprecated:[6.3.0, "This setting is now defined in the <<repository-gcs-client, client settings>>."]
+    Name used by the client when it uses the Google Cloud Storage service.
 
 [[repository-gcs-bucket-permission]]
 ===== Recommended Bucket Permission

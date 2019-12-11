@@ -37,7 +37,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 import org.junit.rules.TestWatcher;
@@ -89,8 +88,8 @@ public abstract class PackagingTestCase extends Assert {
 
     private static boolean failed;
 
-    @ClassRule
-    public static final TestWatcher testFailureRule = new TestWatcher() {
+    @Rule
+    public final TestWatcher testFailureRule = new TestWatcher() {
         @Override
         protected void failed(Throwable e, Description description) {
             failed = true;
@@ -124,6 +123,8 @@ public abstract class PackagingTestCase extends Assert {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh.reset();
+        logger.info("Testing distribution: " + distribution().path);
+        logger.info("  hasJdk: " + distribution().hasJdk);
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> {
                 sh.getEnv().put("JAVA_HOME", systemJavaHome);

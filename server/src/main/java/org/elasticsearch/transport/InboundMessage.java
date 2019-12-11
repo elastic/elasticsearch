@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -37,10 +38,13 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class InboundMessage extends NetworkMessage implements Closeable {
 
     private final StreamInput streamInput;
+    private final List<Releasable> managedResources = new ArrayList<>(4);
 
     InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
         super(threadContext, version, status, requestId);
@@ -99,8 +103,11 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                     if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                         streamInput = decompressingStream(status, remoteVersion, streamInput);
                     }
+                    ArrayList<Releasable> managedResources = new ArrayList<>(2);
+                    streamInput = new ReleasableArraysStreamInput(streamInput, bigArrays, managedResources);
+                    streamInput.setVersion(remoteVersion);
                     streamInput = namedWriteableStream(streamInput, remoteVersion);
-                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInput);
+                    message = new Request(threadContext, remoteVersion, status, requestId, action, managedResources, streamInput);
                 } else {
                     if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                         streamInput = decompressingStream(status, remoteVersion, streamInput);
@@ -132,9 +139,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         }
 
         private StreamInput namedWriteableStream(StreamInput delegate, Version remoteVersion) {
-            ReleasableArraysStreamInput releasableArrayStream = new ReleasableArraysStreamInput(delegate, bigArrays);
-            releasableArrayStream.setVersion(remoteVersion);
-            NamedWriteableAwareStreamInput streamInput = new NamedWriteableAwareStreamInput(releasableArrayStream, namedWriteableRegistry);
+            NamedWriteableAwareStreamInput streamInput = new NamedWriteableAwareStreamInput(delegate, namedWriteableRegistry);
             streamInput.setVersion(remoteVersion);
             return streamInput;
         }
@@ -161,17 +166,22 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
     public static class Request extends InboundMessage {
 
         private final String actionName;
+        private final List<Releasable> managedResources;
 
         Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName,
-                StreamInput streamInput) {
+                List<Releasable> managedResources, StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
             this.actionName = actionName;
+            this.managedResources = managedResources;
         }
 
         String getActionName() {
             return actionName;
         }
 
+        public List<Releasable> getManagedResources() {
+            return managedResources;
+        }
     }
 
     public static class Response extends InboundMessage {
@@ -184,10 +194,12 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
     private static class ReleasableArraysStreamInput extends FilterStreamInput {
 
         private final BigArrays bigArrays;
+        private final List<Releasable> managedResources;
 
-        protected ReleasableArraysStreamInput(StreamInput delegate, BigArrays bigArrays) {
+        protected ReleasableArraysStreamInput(StreamInput delegate, BigArrays bigArrays, List<Releasable> managedResources) {
             super(delegate);
             this.bigArrays = bigArrays;
+            this.managedResources = managedResources;
         }
 
         @Override
@@ -207,7 +219,9 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
             assert bytesRead == length;
 
-            return new ReleasableBytesReference(reference, array);
+            ReleasableBytesReference resource = new ReleasableBytesReference(reference, array);
+            managedResources.add(resource);
+            return resource;
         }
     }
 }

@@ -171,7 +171,7 @@ public class InboundHandler {
                     breaker.addWithoutBreaking(messageLengthBytes);
                 }
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, messageLengthBytes, message.isCompress());
+                    circuitBreakerService, messageLengthBytes, message.isCompress(), message.getManagedResources());
                 final T request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
@@ -187,7 +187,7 @@ public class InboundHandler {
             // the circuit breaker tripped
             if (transportChannel == null) {
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, 0, message.isCompress());
+                    circuitBreakerService, 0, message.isCompress(), message.getManagedResources());
             }
             try {
                 transportChannel.sendResponse(e);

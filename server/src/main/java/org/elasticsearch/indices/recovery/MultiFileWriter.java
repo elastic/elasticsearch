@@ -72,7 +72,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         throws IOException {
         assert Transports.assertNotTransportThread("multi_file_writer");
         final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
-        writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+        writer.writeChunk(new FileChunk(fileMetaData, content.retain(), position, lastChunk));
     }
 
     /** Get a temporary name for the provided file name. */

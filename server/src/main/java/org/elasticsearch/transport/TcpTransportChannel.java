@@ -21,9 +21,12 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel implements TransportChannel {
@@ -37,9 +40,10 @@ public final class TcpTransportChannel implements TransportChannel {
     private final CircuitBreakerService breakerService;
     private final long reservedBytes;
     private final boolean compressResponse;
+    private final List<Releasable> toRelease;
 
     TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse) {
+                        CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse, List<Releasable> toRelease) {
         this.version = version;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
@@ -48,6 +52,7 @@ public final class TcpTransportChannel implements TransportChannel {
         this.breakerService = breakerService;
         this.reservedBytes = reservedBytes;
         this.compressResponse = compressResponse;
+        this.toRelease = toRelease;
     }
 
     @Override
@@ -60,6 +65,7 @@ public final class TcpTransportChannel implements TransportChannel {
         try {
             outboundHandler.sendResponse(version, channel, requestId, action, response, compressResponse, false);
         } finally {
+            Releasables.close(toRelease);
             release(false);
         }
     }
@@ -69,6 +75,7 @@ public final class TcpTransportChannel implements TransportChannel {
         try {
             outboundHandler.sendErrorResponse(version, channel, requestId, action, exception);
         } finally {
+            Releasables.close(toRelease);
             release(true);
         }
     }

@@ -37,10 +37,10 @@ and upload each one separately in sequential time order. When running in
 real time, it is generally recommended that you perform many small uploads,
 rather than queueing data to upload larger files.
 
-When uploading data, check the <<ml-datacounts,job data counts>> for progress.
-The following records will not be processed:
+When uploading data, check the job data counts for progress.
+The following documents will not be processed:
 
-* Records not in chronological order and outside the latency window
+* Documents not in chronological order and outside the latency window
 * Records with an invalid timestamp
 
 //TBD link to Working with Out of Order timeseries concept doc
@@ -109,4 +109,4 @@ the job. For example:
 }
 ----
 
-For more information about these properties, see <<ml-jobstats,Job Stats>>.
+For more information about these properties, see <<ml-get-job-stats-results>>.

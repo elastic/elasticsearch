@@ -108,7 +108,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 (date) The timestamp of the last bucket that was considered sparse.
 
 `missing_field_count`:::
-(long) The number of records that are missing a field that the job is configured
+(long) The number of input documents that are missing a field that the job is configured
 to analyze. Records with missing fields are still processed because it is
 possible that not all fields are missing. The value of `processed_record_count`
 includes this count.

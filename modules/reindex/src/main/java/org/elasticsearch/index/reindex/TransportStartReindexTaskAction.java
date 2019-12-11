@@ -88,7 +88,8 @@ public class TransportStartReindexTaskAction
         }
 
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (tasks != null) {
+
+        if (tasks != null && tasks.count() >= maxConcurrentTasks) {
             Collection<PersistentTasksCustomMetaData.PersistentTask<?>> reindexTasks = tasks.findTasks(ReindexTask.NAME, (t) -> true);
             if (reindexTasks != null && reindexTasks.size() >= maxConcurrentTasks) {
                 listener.onFailure(new IllegalStateException("Maximum concurrent reindex operations exceeded [max=" +

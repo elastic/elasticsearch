@@ -22,12 +22,15 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ReindexMaxConcurrentTasksTests extends ReindexTestCase {
 
     public void testMaxConcurrentTasks() throws Exception {
@@ -40,31 +43,30 @@ public class ReindexMaxConcurrentTasksTests extends ReindexTestCase {
         indexRandom(true, docs);
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
-        try {
-            ClusterUpdateSettingsRequest settingsUpdate = new ClusterUpdateSettingsRequest();
-            Settings settings = Settings.builder().put(TransportStartReindexTaskAction.MAX_CONCURRENT_REINDEX_TASKS.getKey(), 3).build();
-            settingsUpdate.persistentSettings(settings);
-            client().admin().cluster().updateSettings(settingsUpdate).get();
+        ClusterUpdateSettingsRequest settingsUpdate = new ClusterUpdateSettingsRequest();
+        Settings settings = Settings.builder().put(TransportStartReindexTaskAction.MAX_CONCURRENT_REINDEX_TASKS.getKey(), 3).build();
+        settingsUpdate.persistentSettings(settings);
+        client().admin().cluster().updateSettings(settingsUpdate).get();
 
-            // Since we are only using validation on the data nodes and this test is inherently racy, we
-            // submit an excess of requests to ensure that the max concurrent exception triggers
-            expectThrows(IllegalStateException.class, () -> {
-                for (int i = 0; i < 10; ++i) {
-                    // Copy all the docs
-                    ReindexRequestBuilder copy = reindex().source("source").destination("dest_" + i).refresh(true);
-                    StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(copy.request(), false);
-                    // Use a small batch size so we have to use more than one batch
-                    copy.source().setSize(5);
-                    client().execute(StartReindexTaskAction.INSTANCE, request).actionGet();
-                }
-            });
-        } finally {
-            ClusterUpdateSettingsRequest settingsUpdate = new ClusterUpdateSettingsRequest();
-            Settings settings = Settings.builder()
-                .put(TransportStartReindexTaskAction.MAX_CONCURRENT_REINDEX_TASKS.getKey(), (String) null)
-                .build();
-            settingsUpdate.persistentSettings(settings);
-            client().admin().cluster().updateSettings(settingsUpdate).get();
+        ArrayList<String> taskIds = new ArrayList<>();
+        for (int i = 0; i < 3; ++i) {
+            // Copy all the docs
+            ReindexRequestBuilder copy = reindex().source("source").destination("dest_" + i).refresh(true);
+            // Use a small batch size so we have to use more than one batch
+            copy.source().setSize(5);
+            copy.setRequestsPerSecond(0.000001f);
+            StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(copy.request(), false);
+            taskIds.add(client().execute(StartReindexTaskAction.INSTANCE, request).actionGet().getTaskId());
+        }
+
+        expectThrows(IllegalStateException.class, () -> {
+            ReindexRequestBuilder copy = reindex().source("source").destination("dest_" + 4).refresh(true);
+            StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(copy.request(), true);
+            client().execute(StartReindexTaskAction.INSTANCE, request).actionGet();
+        });
+
+        for (String taskId : taskIds) {
+            rethrottle().setTaskId(new TaskId(taskId)).setRequestsPerSecond(Float.POSITIVE_INFINITY).execute().get();
         }
     }
 }

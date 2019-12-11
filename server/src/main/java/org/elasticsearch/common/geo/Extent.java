@@ -29,8 +29,6 @@ import java.util.Objects;
  * Object representing the extent of a geometry object within a {@link ShapeTreeWriter}.
  */
 public class Extent implements Writeable {
-    static final int WRITEABLE_SIZE_IN_BYTES = 24;
-
     public int top;
     public int bottom;
     public int negLeft;
@@ -79,8 +77,6 @@ public class Extent implements Writeable {
      * @param topRightY   the top-right y-coordinate
      */
     public void addRectangle(int bottomLeftX, int bottomLeftY, int topRightX, int topRightY) {
-        assert bottomLeftX <= topRightX;
-        assert bottomLeftY <= topRightY;
         this.bottom = Math.min(this.bottom, bottomLeftY);
         this.top = Math.max(this.top, topRightY);
         if (bottomLeftX < 0 && topRightX < 0) {

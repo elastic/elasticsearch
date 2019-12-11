@@ -25,9 +25,26 @@ import java.math.BigDecimal;
 
 public class AbstractXContentParserTests extends ESTestCase {
 
+    // Simple yet super slow implementation
+    private static boolean slowIsDouble(char[] chars, int charsOff, int charsLen) {
+        try {
+            BigDecimal bigDec = new BigDecimal(chars, charsOff, charsLen);
+            double asDouble = bigDec.doubleValue();
+            if (Double.isFinite(asDouble) == false) {
+                return false;
+            }
+            // Don't use equals since it returns false for decimals that have the
+            // same value but different scales.
+            return bigDec.compareTo(new BigDecimal(Double.toString(asDouble))) == 0;
+        } catch (NumberFormatException e) {
+            return true;
+        }
+    }
+
     private static boolean isDouble(String s) {
         char[] chars = s.toCharArray();
-        boolean isDouble = AbstractXContentParser.isDouble(chars, 0, chars.length);
+        final boolean isDouble = slowIsDouble(chars, 0, chars.length);
+        assertEquals(isDouble, AbstractXContentParser.isDouble(chars, 0, chars.length));
         assertEquals(isDouble, AbstractXContentParser.slowIsDouble(chars, 0, chars.length));
         return isDouble;
     }
@@ -39,7 +56,10 @@ public class AbstractXContentParserTests extends ESTestCase {
         assertTrue(isDouble("1.0"));
         assertTrue(isDouble("-0.0"));
         assertTrue(isDouble("-1.0"));
-        assertFalse(isDouble("9E999"));
+        assertTrue(isDouble("1E308"));
+        assertFalse(isDouble("2E308"));
+        assertTrue(isDouble("-1E308"));
+        assertFalse(isDouble("-2E308"));
         assertTrue(isDouble("0.00000000000000002"));
         assertFalse(isDouble("4.00000000000000002"));
         assertTrue(isDouble("234567891234567"));
@@ -55,10 +75,23 @@ public class AbstractXContentParserTests extends ESTestCase {
         assertTrue(isDouble(Double.toString(Double.POSITIVE_INFINITY)));
         assertTrue(isDouble(Double.toString(Double.NaN)));
         assertTrue(isDouble(Double.toString(Double.NEGATIVE_INFINITY)));
-        for (int i = 0; i < 10000; ++i) {
-            double d = randomDouble();
-            assertTrue(isDouble(Double.toString(d)));
+        for (int i = 0; i < 1000000; ++i) {
+            double d = Double.longBitsToDouble(randomLong());
+            if (Double.isFinite(d)) {
+                assertTrue(isDouble(Double.toString(d)));
+                isDouble(Double.toString(d) + randomInt(9));
+            }
         }
     }
 
+    public void testGetBase10Exponent() {
+        assertEquals(0, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(0)));
+        assertEquals(0, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(1)));
+        assertEquals(0, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(5)));
+        assertEquals(0, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(50, 1))); // 50*10^-1
+        assertEquals(2, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(500.)));
+        assertEquals(-2, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(.05)));
+        assertEquals(308, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(Double.MAX_VALUE)));
+        assertEquals(-308, AbstractXContentParser.getBase10Exponent(BigDecimal.valueOf(Double.MIN_NORMAL)));
+    }
 }

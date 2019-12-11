@@ -57,10 +57,11 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     /**
-     * Return true if, and only if the given char buffer represents a non-finite
-     * double, or there exists a double whose string representation is
-     * mathematically equal to the number represented in the provided char
-     * buffer. The behavior is undefined if the given char buffer doesn't
+     * If the provided char sequence represents a number, then this method
+     * returns true if, and only if the given char buffer represents a
+     * non-finite double, or there exists a double whose string representation
+     * is mathematically equal to the number represented in the provided char
+     * sequence. The behavior is undefined if the given char buffer doesn't
      * actually represent a number.
      */
     protected static boolean isDouble(char[] chars, int charsOff, int charsLen) {
@@ -92,22 +93,47 @@ public abstract class AbstractXContentParser implements XContentParser {
         return slowIsDouble(chars, charsOff, charsLen);
     }
 
+    private static final int MAX_DOUBLE_BASE10_EXPONENT = getBase10Exponent(BigDecimal.valueOf(Double.MAX_VALUE));
+    private static final int MIN_NORMAL_DOUBLE_BASE10_EXPONENT = getBase10Exponent(BigDecimal.valueOf(Double.MIN_NORMAL));
+
     // pkg-private for testing
     static boolean slowIsDouble(char[] chars, int charsOff, int charsLen) {
         try {
             BigDecimal bigDec = new BigDecimal(chars, charsOff, charsLen);
-            double asDouble = bigDec.doubleValue();
-            if (Double.isFinite(asDouble) == false) {
-                return false;
+            if (bigDec.precision() <= 15) { // See comment in #isDouble
+                final int base10Exponent = getBase10Exponent(bigDec);
+                if (base10Exponent < MAX_DOUBLE_BASE10_EXPONENT &&
+                        base10Exponent > MIN_NORMAL_DOUBLE_BASE10_EXPONENT) {
+                    return true;
+                }
             }
-            // Don't use equals since it returns false for decimals that have the
-            // same value but different scales.
-            return bigDec.compareTo(new BigDecimal(Double.toString(asDouble))) == 0;
+            return slowIsDouble(bigDec);
         } catch (NumberFormatException e) {
             // We need to return true for NaN and +/-Infinity
             // For malformed strings, the return value is undefined, so true is fine too.
             return true;
         }
+    }
+
+    /**
+     * Return the exponent of {@code bigDec} in its scientific base 10 representation.
+     */
+    static int getBase10Exponent(BigDecimal bigDec) {
+        // A bigdecimal is equal to unscaledValue*10^-scale and the
+        // unscaled value can be written as C * 10 ^(precision-1) where
+        // C is in [1,10). So the bigdecimal is equal to
+        // C * 10^(precision-scale-1)
+        return bigDec.precision() - bigDec.scale() - 1;
+    }
+
+    private static boolean slowIsDouble(BigDecimal bigDec) {
+        double asDouble = bigDec.doubleValue();
+        if (Double.isFinite(asDouble) == false) {
+            return false;
+        }
+        // Don't use equals since it returns false for decimals that have the
+        // same value but different scales.
+        return bigDec.compareTo(new BigDecimal(Double.toString(asDouble))) == 0;
     }
 
     private final NamedXContentRegistry xContentRegistry;

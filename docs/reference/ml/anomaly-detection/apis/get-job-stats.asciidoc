@@ -109,7 +109,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `missing_field_count`:::
 (long) The number of input documents that are missing a field that the job is configured
-to analyze. Records with missing fields are still processed because it is
+to analyze. Input documents with missing fields are still processed because it is
 possible that not all fields are missing. The value of `processed_record_count`
 includes this count.
 +

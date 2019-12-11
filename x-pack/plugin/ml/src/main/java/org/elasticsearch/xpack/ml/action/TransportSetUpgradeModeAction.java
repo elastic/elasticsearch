@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -52,6 +55,8 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
 
 public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<SetUpgradeModeAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportSetUpgradeModeAction.class);
 
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PersistentTasksClusterService persistentTasksClusterService;

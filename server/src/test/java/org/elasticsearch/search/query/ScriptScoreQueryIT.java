@@ -22,6 +22,7 @@ package org.elasticsearch.search.query;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -35,6 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptScoreQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -103,6 +105,33 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6");
     }
+
+    public void testScriptScoreBoolQuery() {
+        assertAcked(
+            prepareCreate("test-index").addMapping("_doc", "field1", "type=text", "field2", "type=double")
+        );
+        int docCount = 10;
+        for (int i = 1; i <= docCount; i++) {
+            client().prepareIndex("test-index").setId("" + i)
+                .setSource("field1", "text" + i, "field2", i)
+                .get();
+        }
+        refresh();
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("param1", 0.1);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
+        QueryBuilder boolQuery = boolQuery().should(matchQuery("field1", "text1")).should(matchQuery("field1", "text10"));
+        SearchResponse resp = client()
+            .prepareSearch("test-index")
+            .setQuery(scriptScoreQuery(boolQuery, script))
+            .get();
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "10", "1");
+        assertFirstHit(resp, hasScore(1.0f));
+        assertSecondHit(resp, hasScore(0.1f));
+    }
+
 
     // test that when the internal query is rewritten script_score works well
     public void testRewrittenQuery() {

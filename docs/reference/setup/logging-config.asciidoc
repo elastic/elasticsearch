@@ -45,7 +45,7 @@ appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
 --------------------------------------------------
 
 <1> Configure the `RollingFile` appender
-<2> Log to `/var/log/elasticsearch/production.json`
+<2> Log to `/var/log/elasticsearch/production_server.json`
 <3> Use JSON layout.
 <4> `type_name` is a flag populating the `type` field in a `ESJsonLayout`.
  It can be used to distinguish different types of logs more easily when parsing them.

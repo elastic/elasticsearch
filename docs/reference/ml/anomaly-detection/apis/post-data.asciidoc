@@ -40,7 +40,7 @@ rather than queueing data to upload larger files.
 When uploading data, check the job data counts for progress.
 The following documents will not be processed:
 
-* Records not in chronological order and outside the latency window
+* Documents not in chronological order and outside the latency window
 * Records with an invalid timestamp
 
 //TBD link to Working with Out of Order timeseries concept doc

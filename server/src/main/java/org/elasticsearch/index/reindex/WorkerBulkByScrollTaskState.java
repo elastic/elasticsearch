@@ -89,7 +89,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
         if (checkpointStatus != null) {
-            resetStatus(checkpointStatus);
+            initStatus(checkpointStatus);
         }
     }
 
@@ -248,7 +248,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         }
     }
 
-    public void resetStatus(BulkByScrollTask.Status checkpointStatus) {
+    private void initStatus(BulkByScrollTask.Status checkpointStatus) {
         assert sliceId == null;
         // todo: need two totals, one for the original and one for the readjusted total.
         assert total.get() == 0;

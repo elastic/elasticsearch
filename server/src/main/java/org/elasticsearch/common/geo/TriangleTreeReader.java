@@ -54,13 +54,34 @@ public class TriangleTreeReader {
         treeOffset = 0;
     }
 
+    public int getHighestDimension() throws IOException {
+        ShapeType shapeType = getShapeType();
+        switch (shapeType) {
+            case POINT:
+            case MULTIPOINT:
+                return 1;
+            case LINESTRING:
+            case LINEARRING:
+            case MULTILINESTRING:
+                return 2;
+            case POLYGON:
+            case MULTIPOLYGON:
+            case ENVELOPE:
+            case CIRCLE:
+                return 3;
+            case GEOMETRYCOLLECTION:
+                return input.readVInt();
+            default:
+                throw new IllegalStateException("unexpected shape-type [" + shapeType + "]");
+        }
+    }
+
     /**
      * returns the bounding box of the geometry in the format [minX, maxX, minY, maxY].
      */
     public Extent getExtent() throws IOException {
         if (treeOffset == 0) {
-            input.position(SKIP_CENTROID);
-            input.readVInt(); // skip ShapeType
+            getHighestDimension(); // skip ShapeType / highestDimension metadata
 
             int top = input.readInt();
             int bottom = Math.toIntExact(top - input.readVLong());

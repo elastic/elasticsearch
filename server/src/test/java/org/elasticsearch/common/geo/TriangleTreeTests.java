@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -29,6 +28,7 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,25 +42,86 @@ import java.util.function.Function;
 import static org.elasticsearch.common.geo.GeoTestUtils.assertRelation;
 import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 import static org.elasticsearch.geo.GeometryTestUtils.fold;
+import static org.elasticsearch.geo.GeometryTestUtils.randomLine;
+import static org.elasticsearch.geo.GeometryTestUtils.randomMultiLine;
+import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPoint;
+import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPolygon;
 import static org.elasticsearch.geo.GeometryTestUtils.randomPoint;
+import static org.elasticsearch.geo.GeometryTestUtils.randomPolygon;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TriangleTreeTests extends ESTestCase {
 
     public void testShapeType() throws IOException {
-        Geometry geometry = randomGeometryTreeGeometry();
-        TriangleTreeWriter writer = new TriangleTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-        assertThat(writer.getShapeType(), equalTo(geometry.type()));
+        {
+            Geometry geometry = randomValueOtherThanMany(g -> g.type() != ShapeType.GEOMETRYCOLLECTION,
+                TriangleTreeTests::randomGeometryTreeGeometry);
+            TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+            assertThat(reader.getShapeType(), equalTo(geometry.type()));
+        }
 
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
+        {
+            Geometry geometry = randomGeometryTreeCollection(8);
 
-        TriangleTreeReader reader = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
-        reader.reset(output.bytes().toBytesRef());
-
-        assertThat(reader.getShapeType(), equalTo(geometry.type()));
+            TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+            assertThat(reader.getShapeType(), equalTo(geometry.type()));
+        }
     }
+
+    @SuppressWarnings("unchecked")
+    public void testHighestDimension() throws IOException {
+        // 1D
+        {
+            Function<Boolean, Geometry> geometryFunction = ESTestCase.randomFrom(
+                GeometryTestUtils::randomPoint,
+                GeometryTestUtils::randomMultiPoint,
+                (alt) ->
+                    randomFrom(
+                        new GeometryCollection<>(List.of(randomPoint(false))),
+                        new GeometryCollection<>(List.of(randomMultiPoint(false))),
+                        new GeometryCollection<>(Collections.singletonList(
+                            new GeometryCollection<>(List.of(randomPoint(false), randomMultiPoint(false))))))
+            );
+            Geometry geometry = geometryFunction.apply(false);
+            TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+            assertThat(reader.getHighestDimension(), equalTo(1));
+        }
+
+        // 2D
+        {
+            Function<Boolean, Geometry> geometryFunction = ESTestCase.randomFrom(
+                GeometryTestUtils::randomLine,
+                GeometryTestUtils::randomMultiLine,
+                (alt) ->
+                    randomFrom(
+                        new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))),
+                        new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiLine(false))),
+                        new GeometryCollection<>(Collections.singletonList(
+                            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
+            );
+            Geometry geometry = geometryFunction.apply(false);
+            TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+            assertThat(reader.getHighestDimension(), equalTo(2));
+        }
+
+        // 3D
+        {
+            Function<Boolean, Geometry> geometryFunction = ESTestCase.randomFrom(
+                GeometryTestUtils::randomPolygon,
+                GeometryTestUtils::randomMultiPolygon,
+                (alt) ->
+                    randomFrom(
+                        new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), randomPolygon(false))),
+                        new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiPolygon(false))),
+                        new GeometryCollection<>(Collections.singletonList(
+                            new GeometryCollection<>(List.of(randomLine(false), randomPolygon(false))))))
+            );
+            Geometry geometry = geometryFunction.apply(false);
+            TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+            assertThat(reader.getHighestDimension(), equalTo(3));
+        }
+    }
+
 
     public void testRectangleShape() throws IOException {
         for (int i = 0; i < 1000; i++) {
@@ -225,7 +286,7 @@ public class TriangleTreeTests extends ESTestCase {
     public void testRandomMultiLineIntersections() throws IOException {
         double extentSize = randomDoubleBetween(0.01, 10, true);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        MultiLine geometry = GeometryTestUtils.randomMultiLine(false);
+        MultiLine geometry = randomMultiLine(false);
         geometry = (MultiLine) indexer.prepareForIndexing(geometry);
 
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);

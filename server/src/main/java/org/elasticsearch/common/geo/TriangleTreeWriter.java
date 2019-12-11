@@ -55,6 +55,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
     private final CoordinateEncoder coordinateEncoder;
     private final CentroidCalculator centroidCalculator;
     private final ShapeType type;
+    private final int highestDimension;
     private Extent extent;
 
     public TriangleTreeWriter(Geometry geometry, CoordinateEncoder coordinateEncoder) {
@@ -65,6 +66,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
         TriangleTreeBuilder builder = new TriangleTreeBuilder(coordinateEncoder);
         geometry.visit(builder);
         this.node = builder.build();
+        this.highestDimension = builder.highestDimension();
     }
 
     @Override
@@ -72,6 +74,12 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
         out.writeEnum(type);
+        if (ShapeType.GEOMETRYCOLLECTION.equals(type)) {
+            // if the shape is a geometry-collection, there
+            // needs to be extra information about what the highest
+            // dimensional sub-shape is present for centroid calculations
+            out.writeVInt(highestDimension);
+        }
         out.writeInt(extent.top);
         out.writeVLong((long) extent.top - extent.bottom);
         out.writeInt(extent.posRight);
@@ -103,11 +111,19 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
 
         private final List<TriangleTreeLeaf> triangles;
         private final CoordinateEncoder coordinateEncoder;
+        // the the dimension of the highest-dimensional shape present in the tree.
+        // the empty builder is initialized to zero and updated when the geometry
+        // is visited
+        private int highestDimension = 0;
 
 
         TriangleTreeBuilder(CoordinateEncoder coordinateEncoder) {
             this.coordinateEncoder = coordinateEncoder;
             this.triangles = new ArrayList<>();
+        }
+
+        int highestDimension() {
+            return highestDimension;
         }
 
         private void addTriangles(List<TriangleTreeLeaf> triangles) {
@@ -130,6 +146,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             org.apache.lucene.geo.Line luceneLine = GeoShapeIndexer.toLuceneLine(line);
             addToExtent(luceneLine.minLon, luceneLine.maxLon, luceneLine.minLat, luceneLine.maxLat);
             addTriangles(TriangleTreeLeaf.fromLine(coordinateEncoder, luceneLine));
+            highestDimension = Math.max(highestDimension, 2);
             return null;
         }
 
@@ -150,6 +167,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             org.apache.lucene.geo.Polygon lucenePolygon = GeoShapeIndexer.toLucenePolygon(polygon);
             addToExtent(lucenePolygon.minLon, lucenePolygon.maxLon, lucenePolygon.minLat, lucenePolygon.maxLat);
             addTriangles(TriangleTreeLeaf.fromPolygon(coordinateEncoder, lucenePolygon));
+            highestDimension = Math.max(highestDimension, 3);
             return null;
         }
 
@@ -167,6 +185,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             centroidCalculator.addCoordinate(r.getMaxX(), r.getMaxY());
             addToExtent(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
             addTriangles(TriangleTreeLeaf.fromRectangle(coordinateEncoder, r));
+            highestDimension = Math.max(highestDimension, 2);
             return null;
         }
 
@@ -175,6 +194,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             centroidCalculator.addCoordinate(point.getX(), point.getY());
             addToExtent(point.getLon(), point.getLon(), point.getLat(), point.getLat());
             addTriangles(TriangleTreeLeaf.fromPoints(coordinateEncoder, point));
+            highestDimension = Math.max(highestDimension, 1);
             return null;
         }
 

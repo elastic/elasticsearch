@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
@@ -29,6 +30,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -116,7 +118,6 @@ public class UUIDTests extends ESTestCase {
         assertEquals(count*uuids, globalSet.size());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/50048")
     public void testCompression() throws Exception {
         Logger logger = LogManager.getLogger(UUIDTests.class);
         // Low number so that the test runs quickly, but the results are more interesting with larger numbers
@@ -135,7 +136,7 @@ public class UUIDTests extends ESTestCase {
             random().nextBytes(macAddresses[i]);
         }
         UUIDGenerator generator = new TimeBasedUUIDGenerator() {
-            double currentTimeMillis = System.currentTimeMillis();
+            double currentTimeMillis = TestUtil.nextLong(random(), 0L, 10000000000L);
 
             @Override
             protected long currentTimeMillis() {
@@ -152,6 +153,7 @@ public class UUIDTests extends ESTestCase {
         // the quality of this test
         Directory dir = newFSDirectory(createTempDir());
         IndexWriterConfig config = new IndexWriterConfig()
+                .setCodec(Codec.forName("Lucene84"))
                 .setMergeScheduler(new SerialMergeScheduler()); // for reproducibility
         IndexWriter w = new IndexWriter(dir, config);
         Document doc = new Document();

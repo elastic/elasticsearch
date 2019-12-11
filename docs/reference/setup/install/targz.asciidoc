@@ -29,9 +29,8 @@ The Linux archive for Elasticsearch v{version} can be downloaded and installed a
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz.sha512
-shasum -a 512 -c elasticsearch-{version}-linux-x86_64.tar.gz.sha512 <1>
+curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
+curl https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz.sha512 | shasum -a 512 -c - <1>
 tar -xzf elasticsearch-{version}-linux-x86_64.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
@@ -60,9 +59,8 @@ The MacOS archive for Elasticsearch v{version} can be downloaded and installed a
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512
-shasum -a 512 -c elasticsearch-{version}-darwin-x86_64.tar.gz.sha512 <1>
+curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+curl https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512 | shasum -a 512 -c - <1>
 tar -xzf elasticsearch-{version}-darwin-x86_64.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------

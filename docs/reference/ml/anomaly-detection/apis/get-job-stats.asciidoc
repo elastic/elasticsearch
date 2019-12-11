@@ -81,7 +81,7 @@ functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or `n
 (long) The number of raw bytes read by the job.
 
 `input_field_count`:::
-(long) The total number of record fields read by the job. This count includes
+(long) The total number of fields in input documents posted to the job. This count includes
 fields that are not used in the analysis.
 
 `input_record_count`:::

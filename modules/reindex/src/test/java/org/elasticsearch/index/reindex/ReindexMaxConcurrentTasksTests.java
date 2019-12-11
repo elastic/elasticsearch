@@ -46,8 +46,6 @@ public class ReindexMaxConcurrentTasksTests extends ReindexTestCase {
             settingsUpdate.persistentSettings(settings);
             client().admin().cluster().updateSettings(settingsUpdate).get();
 
-            List<String> tasksToWaitOn = new ArrayList<>();
-
             // Since we are only using validation on the data nodes and this test is inherently racy, we
             // submit an excess of requests to ensure that the max concurrent exception triggers
             expectThrows(IllegalStateException.class, () -> {
@@ -57,7 +55,7 @@ public class ReindexMaxConcurrentTasksTests extends ReindexTestCase {
                     StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(copy.request(), false);
                     // Use a small batch size so we have to use more than one batch
                     copy.source().setSize(5);
-                    tasksToWaitOn.add(client().execute(StartReindexTaskAction.INSTANCE, request).actionGet().getTaskId());
+                    client().execute(StartReindexTaskAction.INSTANCE, request).actionGet();
                 }
             });
         } finally {

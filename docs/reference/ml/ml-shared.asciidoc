@@ -1,3 +1,10 @@
+tag::aggregations[]
+If set, the {dfeed} performs aggregation searches. Support for aggregations is
+limited and should only be used with low cardinality data. For more information,
+see
+{stack-ov}/ml-configuring-aggregation.html[Aggregating data for faster performance].
+end::aggregations[]
+
 tag::allow-lazy-open[]
 Advanced configuration option. Specifies whether this job can open when there is 
 insufficient {ml} node capacity for it to be immediately assigned to a node. The
@@ -8,6 +15,21 @@ option is set to `true`, the <<ml-open-job,open {anomaly-jobs} API>> does not
 return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
+
+tag::allow-no-datafeeds[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {dfeeds} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `datafeeds` array when
+there are no matches and the subset of results when there are partial matches.
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+end::allow-no-datafeeds[]
 
 tag::allow-no-jobs[]
 Specifies what to do when the request:
@@ -207,6 +229,22 @@ add them here as
 <<analysis-pattern-replace-charfilter,pattern replace character filters>>.
 end::char-filter[]
 
+tag::chunking-config[]
+{dfeeds-cap} might be required to search over long time periods, for several months
+or years. This search is split into time chunks in order to ensure the load
+on {es} is managed. Chunking configuration controls how the size of these time
+chunks are calculated and is an advanced configuration option.
+A chunking configuration object has the following properties:
+
+`mode`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
+end::chunking-config[]
+
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
@@ -300,6 +338,47 @@ A data description object has the following properties:
 include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
 --
 end::data-description[]
+
+tag::datafeed-id[]
+A numerical character string that uniquely identifies the
+{dfeed}. This identifier can contain lowercase alphanumeric characters (a-z
+and 0-9), hyphens, and underscores. It must start and end with alphanumeric
+characters.
+end::datafeed-id[]
+
+tag::datafeed-id-wildcard[]
+Identifier for the {dfeed}. It can be a {dfeed} identifier or a wildcard
+expression.
+end::datafeed-id-wildcard[]
+
+tag::delayed-data-check-config[]
+Specifies whether the {dfeed} checks for missing data and the size of the
+window. For example: `{"enabled": true, "check_window": "1h"}`.
++
+--
+The {dfeed} can optionally search over indices that have already been read in
+an effort to determine whether any data has subsequently been added to the index.
+If missing data is found, it is a good indication that the `query_delay` option
+is set too low and the data is being indexed after the {dfeed} has passed that
+moment in time. See 
+{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
+
+This check runs only on real-time {dfeeds}.
+
+The configuration object has the following properties:
+
+`enabled`::
+(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+Defaults to `true`.
+
+`check_window`::
+(<<time-units,time units>>) The window of time that is searched for late data.
+This window of time ends with the latest finalized bucket. It defaults to
+`null`, which causes an appropriate `check_window` to be calculated when the
+real-time {dfeed} runs. In particular, the default `check_window` span
+calculation is based on the maximum of `2h` or `8 * bucket_span`.
+--
+end::delayed-data-check-config[]
 
 tag::dependent_variable[]
 `dependent_variable`::
@@ -405,6 +484,13 @@ optional. If it is not specified, no token filters are applied prior to
 categorization.
 end::filter[]
 
+tag::frequency[]
+The interval at which scheduled queries are made while the {dfeed} runs in real
+time. The default value is either the bucket span for short bucket spans, or,
+for longer bucket spans, a sensible fraction of the bucket span. For example:
+`150s`.
+end::frequency[]
+
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`, 
 `max`, and `sum`. For more information, see
@@ -423,6 +509,17 @@ end::gamma[]
 tag::groups[]
 A list of job groups. A job can belong to no groups or many.
 end::groups[]
+
+tag::indices[]
+An array of index names. Wildcards are supported. For example:
+`["it_ops_metrics", "server*"]`.
++
+--
+NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
+not be set to `false` on any {ml} nodes.
+
+--
+end::indices[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
@@ -475,6 +572,10 @@ alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
 and end with alphanumeric characters.
 end::job-id-data-frame-analytics-define[]
 
+tag::job-id-datafeed[]
+The unique identifier for the job to which the {dfeed} sends data.
+end::job-id-datafeed[]
+
 tag::jobs-stats-anomaly-detection[]
 An array of {anomaly-job} statistics objects.
 For more information, see <<ml-jobstats>>.
@@ -502,11 +603,31 @@ the <<ml-post-data,post data>> API.
 --
 end::latency[]
 
+tag::max-empty-searches[]
+If a real-time {dfeed} has never seen any data (including during any initial
+training period) then it will automatically stop itself and close its associated
+job after this many real-time searches that return no documents. In other words,
+it will stop after `frequency` times `max_empty_searches` of real-time operation.
+If not set then a {dfeed} with no end time that sees no data will remain started
+until it is explicitly stopped. By default this setting is not set.
+end::max-empty-searches[]
+
 tag::maximum_number_trees[]
 `maximum_number_trees`::
 (Optional, integer) Defines the maximum number of trees the forest is allowed 
 to contain. The maximum value is 2000.
 end::maximum_number_trees[]
+
+tag::mode[]
+There are three available modes: 
++
+--
+* `auto`: The chunk size is dynamically calculated. This is the default and
+recommended value.
+* `manual`: Chunking is applied according to the specified `time_span`.
+* `off`: No chunking is applied.
+--
+end::mode[]
 
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for 
@@ -615,6 +736,21 @@ tag::prediction_field_name[]
 Defaults to `<dependent_variable>_prediction`.
 end::prediction_field_name[]
 
+tag::query[]
+The {es} query domain-specific language (DSL). This value corresponds to the
+query object in an {es} search POST body. All the options that are supported by
+{es} can be used, as this object is passed verbatim to {es}. By default, this
+property has the following value: `{"match_all": {"boost": 1}}`.
+end::query[]
+
+tag::query-delay[]
+The number of seconds behind real time that data is queried. For example, if
+data from 10:04 a.m. might not be searchable in {es} until 10:06 a.m., set this
+property to 120 seconds. The default value is randomly selected between `60s`
+and `120s`. This randomness improves the query performance when there are
+multiple jobs running on the same node.
+end::query-delay[]
+
 tag::renormalization-window-days[]
 Advanced configuration option. The period over which adjustments to the score
 are applied, as new data is seen. The default value is the longer of 30 days or
@@ -632,6 +768,18 @@ retained. Once per day at 00:30 (server time), results older than this period
 are deleted from {es}. The default value is null, which means results are
 retained.
 end::results-retention-days[]
+
+tag::script-fields[]
+Specifies scripts that evaluate custom expressions and returns script fields to
+the {dfeed}. The detector configuration objects in a job can contain functions
+that use these script fields. For more information, see
+{stack-ov}/ml-configuring-transform.html[Transforming data with script fields]
+and <<request-body-search-script-fields,Script fields>>.
+end::script-fields[]
+
+tag::scroll-size[]
+The `size` parameter that is used in {es} searches. The default value is `1000`.
+end::scroll-size[]
 
 tag::summary-count-field-name[]
 If this property is specified, the data that is fed to the job is expected to be
@@ -663,6 +811,11 @@ job creation fails.
 --
 end::time-format[]
 
+tag::time-span[]
+The time span that each search will be querying. This setting is only applicable
+when the mode is set to `manual`. For example: `3h`.
+end::time-span[]
+
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after 
 character filters are applied. This property is compulsory if 
@@ -680,6 +833,15 @@ be used for training. Documents that are ignored by the analysis (for example
 those that contain arrays) won’t be included in the calculation for used 
 percentage. Defaults to `100`.
 end::training_percent[]
+
+tag::randomize_seed[]
+`randomize_seed`::
+(Optional, long) Defines the seed to the random generator that is used to pick
+which documents will be used for training. By default it is randomly generated.
+Set it to a specific value to ensure the same documents are used for training
+assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are the same.
+end::randomize_seed[]
+
 
 tag::use-null[]
 Defines whether a new series is used as the null series when there is no value 

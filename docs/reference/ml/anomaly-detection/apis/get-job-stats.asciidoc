@@ -303,7 +303,7 @@ milliseconds.
 --
 ////
 `exponential_average_bucket_processing_time_per_hour_ms`:::
-TBD
+(double) Exponentially-weighted moving average of bucket processing times calculated in a 1 hour time window.
 ////
 --
 `job_id`:::

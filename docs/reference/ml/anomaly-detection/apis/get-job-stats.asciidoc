@@ -78,7 +78,7 @@ contains many empty buckets, consider increasing your `bucket_span` or using
 functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or `non_zero_count`.
 
 `input_bytes`:::
-(long) The number of raw bytes read by the job.
+(long) The number of bytes of input data posted to the job.
 
 `input_field_count`:::
 (long) The total number of fields in input documents posted to the job. This count includes

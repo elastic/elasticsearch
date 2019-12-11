@@ -28,14 +28,15 @@ can delete it.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-delete-datafeed-query-parms]]
 ==== {api-query-parms-title}
 
 `force`::
-  (Optional, boolean) Use to forcefully delete a started {dfeed}; this method is
-  quicker than stopping and deleting the {dfeed}.
+(Optional, boolean) Use to forcefully delete a started {dfeed}; this method is
+quicker than stopping and deleting the {dfeed}.
 
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}

@@ -73,6 +73,7 @@ class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
+        // TODO: This is the wrong place for type checking.
         if (valuesSource instanceof Numeric == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());

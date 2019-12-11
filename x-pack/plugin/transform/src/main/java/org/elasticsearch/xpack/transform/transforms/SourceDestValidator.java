@@ -24,7 +24,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -176,6 +175,11 @@ public final class SourceDestValidator {
             return validationException;
         }
 
+        // convenience method to make testing easier
+        public Set<String> getRegisteredRemoteClusterNames() {
+            return remoteClusterService.getRegisteredRemoteClusterNames();
+        }
+
         private void resolveLocalAndRemoteSource() {
             resolvedSource = new HashSet<>(Arrays.asList(source));
             resolvedRemoteSource = new HashSet<>(RemoteClusterLicenseChecker.remoteIndices(resolvedSource));
@@ -207,11 +211,16 @@ public final class SourceDestValidator {
         .strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private static final SourceDestValidation SOURCE_MISSING_VALIDATION = new SourceMissingValidation();
+    private static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new RemoteSourceEnabledAndRemoteLicenseValidation();
 
-    private static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Collections.singletonList(SOURCE_MISSING_VALIDATION);
+    private static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Arrays.asList(
+        SOURCE_MISSING_VALIDATION,
+        REMOTE_SOURCE_VALIDATION
+    );
 
     private static final List<SourceDestValidation> START_AND_PUT_VALIDATIONS = Arrays.asList(
         SOURCE_MISSING_VALIDATION,
+        REMOTE_SOURCE_VALIDATION,
         new DestinationInSourceValidation(),
         new DestinationSingleIndexValidation()
     );
@@ -340,7 +349,7 @@ public final class SourceDestValidator {
         }
     }
 
-    static class RemoteSourceEnabledAndLicenseValidation implements SourceDestValidation {
+    static class RemoteSourceEnabledAndRemoteLicenseValidation implements SourceDestValidation {
         @Override
         public boolean isDeferrable() {
             return true;
@@ -360,7 +369,7 @@ public final class SourceDestValidator {
             }
 
             List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                context.getRemoteClusterService().getRegisteredRemoteClusterNames(),
+                context.getRegisteredRemoteClusterNames(),
                 remoteIndices
             );
 
@@ -375,25 +384,26 @@ public final class SourceDestValidator {
                             context.addValidationError(
                                 FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE,
                                 true,
-                                response.remoteClusterLicenseInfo().clusterAlias()
+                                response.remoteClusterLicenseInfo().clusterAlias(),
+                                context.getLicense()
                             );
                         }
                     }, e -> {
 
-                        context.addValidationError(UNKNOWN_REMOTE_CLUSTER_LICENSE, true, "", remoteAliases, e.getMessage());
-
-                        /*    createUnknownLicenseError(
-                                transformConfig.getId(),
-                                RemoteClusterLicenseChecker.remoteIndices(indicesList),
-                                e,
-                                numberOfRemoteClusters));*/
+                        context.addValidationError(
+                            UNKNOWN_REMOTE_CLUSTER_LICENSE,
+                            true,
+                            context.getLicense(),
+                            remoteAliases,
+                            e.getMessage()
+                        );
                     }), latch)
                 );
 
             try {
                 latch.await();
             } catch (InterruptedException e) {
-                context.addValidationError(TIMEOUT_CHECK_REMOTE_CLUSTER_LICENSE, true, "", remoteAliases);
+                context.addValidationError(TIMEOUT_CHECK_REMOTE_CLUSTER_LICENSE, true, context.getLicense(), remoteAliases);
             }
         }
     }
@@ -426,7 +436,7 @@ public final class SourceDestValidator {
                     DEST_IN_SOURCE,
                     true,
                     context.resolveDest(),
-                    Strings.arrayToCommaDelimitedString(context.getSource())
+                    Strings.collectionToCommaDelimitedString(context.resolveSource())
                 );
                 return;
             }

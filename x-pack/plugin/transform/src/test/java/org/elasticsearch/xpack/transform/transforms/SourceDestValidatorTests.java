@@ -6,6 +6,10 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,12 +21,22 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -30,7 +44,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class SourceDestValidatorTests extends ESTestCase {
 
@@ -40,12 +53,15 @@ public class SourceDestValidatorTests extends ESTestCase {
     private static final String DEST_ALIAS = "dest-alias";
     private static final String ALIASED_DEST = "aliased-dest";
     private static final String ALIAS_READ_WRITE_DEST = "alias-read-write-dest";
+    private static final List<String> REMOTE_CLUSTERS = Arrays.asList("remote-1", "remote=2");
 
     private static final ClusterState CLUSTER_STATE;
-    private static final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
+    private RemoteClusterLicenseChecker remoteClusterLicenseChecker;
+    private Client client;
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+    private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
 
     static {
         IndexMetaData source1 = IndexMetaData.builder(SOURCE_1)
@@ -91,16 +107,49 @@ public class SourceDestValidatorTests extends ESTestCase {
         CLUSTER_STATE = state.build();
     }
 
-    static {
+    private class MockClientLicenseCheck extends NoOpClient {
+        MockClientLicenseCheck(String testName) {
+            super(testName);
+        }
+
+        @Override
+        public Client getRemoteClusterClient(String clusterAlias) {
+            return this;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            if (request instanceof XPackInfoRequest) {
+
+                XPackInfoResponse response = new XPackInfoResponse(
+                    null,
+                    new LicenseInfo("uid", "BASIC", "BASIC", LicenseStatus.ACTIVE, randomNonNegativeLong()),
+                    null
+                );
+                listener.onResponse((Response) response);
+                return;
+            }
+            super.doExecute(action, request, listener);
+        }
+    }
+
+    @Before
+    public void setupComponents() {
+        client = new MockClientLicenseCheck(getTestName());
         remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
-            mock(Client.class),
+            client,
             (operationMode -> operationMode != License.OperationMode.MISSING)
         );
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeComponents() throws Exception {
+        client.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -108,36 +157,9 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenSimpleCCSSourceIndexAndValidDestIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
-            remoteClusterLicenseChecker,
-            new String[] { "ccs:" + SOURCE_1 },
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-        assertNull(e);
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
-            null,
-            new String[] { "ccs:" + SOURCE_1 },
             "dest",
             "node_id",
             "license",
@@ -150,7 +172,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] {},
             "dest",
@@ -168,7 +190,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { "missing" },
             "dest",
@@ -183,7 +205,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { "missing" },
             "dest",
@@ -198,7 +220,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1, "missing" },
             "dest",
@@ -213,7 +235,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1, "missing" },
             "dest",
@@ -228,7 +250,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1, "wildcard*", "missing" },
             "dest",
@@ -243,7 +265,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1, "wildcard*", "missing" },
             "dest",
@@ -258,7 +280,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { "wildcard*" },
             "dest",
@@ -273,7 +295,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
             "source-1",
@@ -288,7 +310,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
             "source-1",
@@ -303,7 +325,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { "source-*" },
             SOURCE_2,
@@ -317,7 +339,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { "source-*" },
             SOURCE_2,
@@ -332,7 +354,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { "source-1", "source-*" },
             SOURCE_2,
@@ -346,7 +368,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { "source-1", "source-*" },
             SOURCE_2,
@@ -361,7 +383,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
             DEST_ALIAS,
@@ -381,7 +403,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
             DEST_ALIAS,
@@ -403,7 +425,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
             ALIAS_READ_WRITE_DEST,
@@ -418,7 +440,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         ValidationException e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
             SOURCE_1_ALIAS,
@@ -433,7 +455,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
-            transportService.getRemoteClusterService(),
+            remoteClusterService,
             null,
             new String[] { SOURCE_1 },
             SOURCE_1_ALIAS,
@@ -442,5 +464,9 @@ public class SourceDestValidatorTests extends ESTestCase {
             true
         );
         assertNull(e);
+    }
+
+    public void testCheck_GivenSimpleCCSSourceIndexAndValidDestIndex() {
+        // TBD
     }
 }

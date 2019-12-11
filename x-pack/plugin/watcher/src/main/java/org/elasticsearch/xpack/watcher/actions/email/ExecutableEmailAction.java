@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.actions.email;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
 

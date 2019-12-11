@@ -123,8 +123,6 @@ public abstract class PackagingTestCase extends Assert {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh.reset();
-        logger.info("Testing distribution: " + distribution().path);
-        logger.info("  hasJdk: " + distribution().hasJdk);
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> {
                 sh.getEnv().put("JAVA_HOME", systemJavaHome);

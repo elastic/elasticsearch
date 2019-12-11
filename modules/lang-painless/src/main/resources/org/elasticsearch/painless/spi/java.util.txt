@@ -145,13 +145,13 @@ class java.util.Map {
   def computeIfPresent(def,BiFunction)
   boolean containsKey(def)
   boolean containsValue(def)
-  Set entrySet() @nondeterministic
+  Set entrySet()
   boolean equals(Object)
-  void forEach(BiConsumer) @nondeterministic
+  void forEach(BiConsumer)
   def get(def)
   def getOrDefault(def,def)
   boolean isEmpty()
-  Set keySet() @nondeterministic
+  Set keySet()
   def merge(def,def,BiFunction)
   def put(def,def)
   void putAll(Map)
@@ -162,7 +162,7 @@ class java.util.Map {
   boolean replace(def,def,def)
   void replaceAll(BiFunction)
   int size()
-  Collection values() @nondeterministic
+  Collection values()
   Object org.elasticsearch.painless.api.Augmentation getByPath(String)
   Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 
@@ -574,8 +574,8 @@ class java.util.Collections {
   Comparator reverseOrder()
   Comparator reverseOrder(Comparator)
   void rotate(List,int)
-  void shuffle(List)
-  void shuffle(List,Random)
+  void shuffle(List) @nondeterministic
+  void shuffle(List,Random) @nondeterministic
   Set singleton(def)
   List singletonList(def)
   Map singletonMap(def,def)
@@ -605,7 +605,7 @@ class java.util.Currency {
 }
 
 class java.util.Date {
-  ()
+  () @nondeterministic
   (long)
   boolean after(Date)
   boolean before(Date)
@@ -678,26 +678,26 @@ class java.util.GregorianCalendar {
 }
 
 class java.util.HashMap {
-  () @nondeterministic
-  (Map) @nondeterministic
+  ()
+  (Map)
   def clone()
 }
 
 class java.util.HashSet {
-  () @nondeterministic
-  (Collection) @nondeterministic
+  ()
+  (Collection)
   def clone()
 }
 
 class java.util.Hashtable {
-  () @nondeterministic
-  (Map) @nondeterministic
+  ()
+  (Map)
   def clone()
 }
 
 class java.util.IdentityHashMap {
-  () @nondeterministic
-  (Map) @nondeterministic
+  ()
+  (Map)
   def clone()
 }
 
@@ -910,22 +910,22 @@ class java.util.PriorityQueue {
 }
 
 class java.util.Random {
-  ()
-  (long)
-  DoubleStream doubles(long)
-  DoubleStream doubles(long,double,double)
-  IntStream ints(long)
-  IntStream ints(long,int,int)
-  LongStream longs(long)
-  LongStream longs(long,long,long)
-  boolean nextBoolean()
-  void nextBytes(byte[])
-  double nextDouble()
-  float nextFloat()
-  double nextGaussian()
-  int nextInt()
-  int nextInt(int)
-  long nextLong()
+  () @nondeterministic
+  (long) @nondeterministic
+  DoubleStream doubles(long) @nondeterministic
+  DoubleStream doubles(long,double,double) @nondeterministic
+  IntStream ints(long) @nondeterministic
+  IntStream ints(long,int,int) @nondeterministic
+  LongStream longs(long) @nondeterministic
+  LongStream longs(long,long,long) @nondeterministic
+  boolean nextBoolean() @nondeterministic
+  void nextBytes(byte[]) @nondeterministic
+  double nextDouble() @nondeterministic
+  float nextFloat() @nondeterministic
+  double nextGaussian() @nondeterministic
+  int nextInt() @nondeterministic
+  int nextInt(int) @nondeterministic
+  long nextLong() @nondeterministic
   void setSeed(long)
 }
 

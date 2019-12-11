@@ -490,9 +490,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
         if (randomBoolean()) {
             ensureGreen(index);
         }
-        Request update = new Request("POST", index + "/_delete_by_query");
-        update.setJsonEntity("{\"query\": {\"term\": { \"test\": \"test_" + CLUSTER_TYPE.ordinal() + "\" }}}");
-        Map<String, Object> doc = entityAsMap(client().performRequest(update));
+        Request deleteByQuery = new Request("POST", index + "/_delete_by_query");
+        deleteByQuery.setJsonEntity("{\"query\": {\"term\": { \"test\": \"test_" + CLUSTER_TYPE.ordinal() + "\" }}}");
+        Map<String, Object> doc = entityAsMap(client().performRequest(deleteByQuery));
         logger.info(doc);
 
         if (randomBoolean()) {
@@ -518,9 +518,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
         if (randomBoolean()) {
             ensureGreen(index);
         }
-        Request update = new Request("POST", index + "/_update_by_query");
-        update.setJsonEntity("{\"query\": {\"term\": { \"test\": \"test_" + CLUSTER_TYPE.ordinal() + "\" }}}");
-        Map<String, Object> doc = entityAsMap(client().performRequest(update));
+        Request updateByQuery = new Request("POST", index + "/_update_by_query");
+        updateByQuery.setJsonEntity("{\"query\": {\"term\": { \"test\": \"test_" + CLUSTER_TYPE.ordinal() + "\" }}}");
+        Map<String, Object> doc = entityAsMap(client().performRequest(updateByQuery));
         logger.info(doc);
 
         if (randomBoolean()) {

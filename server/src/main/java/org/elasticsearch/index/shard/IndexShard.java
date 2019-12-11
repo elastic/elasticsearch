@@ -606,10 +606,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             if (getPeerRecoveryRetentionLeases().size() >= routingTable.size()) {
-                logger.debug("turn off the translog retention for the replication group {} " +
-                    "as it starts using retention leases exclusively in peer recoveries", shardId);
                 useRetentionLeasesInPeerRecovery = true;
-                onSettingsChanged();
+                turnOffTranslogRetention();
             }
         }
     }
@@ -1896,6 +1894,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexSettings.getSoftDeleteRetentionOperations()
             );
         }
+    }
+
+    private void turnOffTranslogRetention() {
+        logger.debug("turn off the translog retention for the replication group {} " +
+            "as it starts using retention leases exclusively in peer recoveries", shardId);
+        // Off to the generic threadPool as pruning the delete tombstones can be expensive.
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                if (state != IndexShardState.CLOSED) {
+                    logger.warn("failed to turn off translog retention", e);
+                }
+            }
+
+            @Override
+            protected void doRun() {
+                onSettingsChanged();
+                trimTranslog();
+            }
+        });
     }
 
     /**

@@ -106,12 +106,12 @@ The API returns the following response:
    "_id":"0",
    "matched":true,
    "explanation":{
-      "value":1.6943597,
+      "value":1.6943598,
       "description":"weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
       "details":[
          {
-            "value":1.6943597,
-            "description":"score(freq=1.0), product of:",
+            "value":1.6943598,
+            "description":"score(freq=1.0), computed as boost * idf * tf from:",
             "details":[
                {
                   "value":2.2,
@@ -135,7 +135,7 @@ The API returns the following response:
                   ]
                },
                {
-                  "value":0.5555555,
+                  "value":0.5555556,
                   "description":"tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
                   "details":[
                      {

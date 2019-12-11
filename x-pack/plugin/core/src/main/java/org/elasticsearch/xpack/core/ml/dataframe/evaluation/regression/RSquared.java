@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -29,6 +30,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+
 /**
  * Calculates R-Squared between two known numerical fields.
  *
@@ -37,7 +40,7 @@ import java.util.Optional;
  * SSres = Σ(y - y´)^2, The residual sum of squares
  * SStot =  Σ(y - y_mean)^2, The total sum of squares
  */
-public class RSquared implements RegressionMetric {
+public class RSquared implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("r_squared");
 
@@ -99,7 +102,7 @@ public class RSquared implements RegressionMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Regression.NAME, NAME);
     }
 
     @Override
@@ -142,7 +145,7 @@ public class RSquared implements RegressionMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Regression.NAME, NAME);
         }
 
         @Override

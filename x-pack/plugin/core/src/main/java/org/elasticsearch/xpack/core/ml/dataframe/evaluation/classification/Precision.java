@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -41,6 +42,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * {@link Precision} is a metric that answers the question:
@@ -49,7 +51,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  *
  * equation: precision = 1/#{docs predicted as X} * Σ(y == y´)
  */
-public class Precision implements ClassificationMetric {
+public class Precision implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("precision");
 
@@ -79,7 +81,7 @@ public class Precision implements ClassificationMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Classification.NAME, NAME);
     }
 
     @Override
@@ -202,7 +204,7 @@ public class Precision implements ClassificationMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Classification.NAME, NAME);
         }
 
         @Override

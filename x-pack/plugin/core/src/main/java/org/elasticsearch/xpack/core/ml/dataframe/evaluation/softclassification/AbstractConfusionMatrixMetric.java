@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -26,7 +27,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification.actualIsTrueQuery;
 
-abstract class AbstractConfusionMatrixMetric implements SoftClassificationMetric {
+abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
 
     public static final ParseField AT = new ParseField("at");
 

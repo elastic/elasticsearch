@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -35,6 +36,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification.actualIsTrueQuery;
 
 /**
@@ -55,7 +57,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassific
  * When this is used for multi-class classification, it will calculate the ROC
  * curve of each class versus the rest.
  */
-public class AucRoc implements SoftClassificationMetric {
+public class AucRoc implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("auc_roc");
 
@@ -90,7 +92,7 @@ public class AucRoc implements SoftClassificationMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(BinarySoftClassification.NAME, NAME);
     }
 
     @Override
@@ -334,7 +336,7 @@ public class AucRoc implements SoftClassificationMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(BinarySoftClassification.NAME, NAME);
         }
 
         @Override

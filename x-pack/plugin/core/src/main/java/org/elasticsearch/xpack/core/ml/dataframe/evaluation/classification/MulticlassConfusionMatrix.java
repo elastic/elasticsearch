@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -39,13 +40,14 @@ import java.util.stream.Collectors;
 import static java.util.Comparator.comparing;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * {@link MulticlassConfusionMatrix} is a metric that answers the question:
  *   "How many documents belonging to class X were classified as Y by the classifier?"
  * for all the possible class pairs {X, Y}.
  */
-public class MulticlassConfusionMatrix implements ClassificationMetric {
+public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("multiclass_confusion_matrix");
 
@@ -93,7 +95,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Classification.NAME, NAME);
     }
 
     @Override
@@ -237,7 +239,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Classification.NAME, NAME);
         }
 
         @Override

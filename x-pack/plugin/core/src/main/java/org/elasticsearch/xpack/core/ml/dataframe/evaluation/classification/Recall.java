@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -36,6 +37,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * {@link Recall} is a metric that answers the question:
@@ -44,7 +46,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  *
  * equation: recall = 1/#{docs belonging to X} * Σ(y == y´)
  */
-public class Recall implements ClassificationMetric {
+public class Recall implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("recall");
 
@@ -72,7 +74,7 @@ public class Recall implements ClassificationMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Classification.NAME, NAME);
     }
 
     @Override
@@ -177,7 +179,7 @@ public class Recall implements ClassificationMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Classification.NAME, NAME);
         }
 
         @Override

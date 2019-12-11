@@ -19,13 +19,7 @@ import java.util.stream.Stream;
 
 public class RecallResultTests extends AbstractWireSerializingTestCase<Result> {
 
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlEvaluationNamedXContentProvider().getNamedWriteables());
-    }
-
-    @Override
-    protected Result createTestInstance() {
+    public static Result createRandom() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
         List<PerClassResult> classes = new ArrayList<>(numClasses);
@@ -35,6 +29,16 @@ public class RecallResultTests extends AbstractWireSerializingTestCase<Result> {
         }
         double avgRecall = randomDoubleBetween(0.0, 1.0, true);
         return new Result(classes, avgRecall);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
+    }
+
+    @Override
+    protected Result createTestInstance() {
+        return createRandom();
     }
 
     @Override

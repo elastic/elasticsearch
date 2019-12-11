@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
@@ -44,7 +45,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlEvaluationNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
     }
 
     @Override
@@ -53,7 +54,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public static Classification createRandom() {
-        List<ClassificationMetric> metrics =
+        List<EvaluationMetric> metrics =
             randomSubsetOf(
                 Arrays.asList(
                     AccuracyTests.createRandom(),
@@ -105,10 +106,10 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testProcess_MultipleMetricsWithDifferentNumberOfSteps() {
-        ClassificationMetric metric1 = new FakeClassificationMetric("fake_metric_1", 2);
-        ClassificationMetric metric2 = new FakeClassificationMetric("fake_metric_2", 3);
-        ClassificationMetric metric3 = new FakeClassificationMetric("fake_metric_3", 4);
-        ClassificationMetric metric4 = new FakeClassificationMetric("fake_metric_4", 5);
+        EvaluationMetric metric1 = new FakeClassificationMetric("fake_metric_1", 2);
+        EvaluationMetric metric2 = new FakeClassificationMetric("fake_metric_2", 3);
+        EvaluationMetric metric3 = new FakeClassificationMetric("fake_metric_3", 4);
+        EvaluationMetric metric4 = new FakeClassificationMetric("fake_metric_4", 5);
 
         Classification evaluation = new Classification("act", "pred", Arrays.asList(metric1, metric2, metric3, metric4));
         assertThat(metric1.getResult(), isEmpty());
@@ -172,7 +173,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
      * Number of steps is configurable.
      * Upon reaching the last step, the result is produced.
      */
-    private static class FakeClassificationMetric implements ClassificationMetric {
+    private static class FakeClassificationMetric implements EvaluationMetric {
 
         private final String name;
         private final int numSteps;

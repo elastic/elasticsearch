@@ -7,46 +7,61 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class SearchableSnapshotIndexInputTests extends ESTestCase {
 
-    private SearchableSnapshotIndexInput createIndexInput(final byte[] input) {
-        StoreFileMetaData metadata = new StoreFileMetaData("test", (long) input.length, "_checksum", Version.LATEST);
-        long partSize = (long) (randomBoolean() ? input.length : randomIntBetween(1, input.length));
-        FileInfo fileInfo = new FileInfo(randomAlphaOfLength(5), metadata, new ByteSizeValue(partSize, ByteSizeUnit.BYTES));
+    private SearchableSnapshotIndexInput createIndexInput(final byte[] input) throws IOException {
+        final long partSize = (long) (randomBoolean() ? input.length : randomIntBetween(1, input.length));
+        final FileInfo fileInfo = new FileInfo(randomAlphaOfLength(5),
+            new StoreFileMetaData("test", (long) input.length, "_checksum", Version.LATEST),
+            new ByteSizeValue(partSize, ByteSizeUnit.BYTES));
 
-        BlobBytesReader reader = (name, from, len, buffer, offset) -> {
-            if (fileInfo.numberOfParts() == 1L) {
-                if (name.equals(fileInfo.name()) == false || name.contains(".part")) {
-                    throw new IOException("Unexpected part name " + name);
+        final BlobContainer blobContainer = mock(BlobContainer.class);
+        when(blobContainer.readBlob(anyString(), anyLong(), anyInt()))
+            .thenAnswer(invocationOnMock -> {
+                String name = (String) invocationOnMock.getArguments()[0];
+                long position = (long) invocationOnMock.getArguments()[1];
+                int length = (int) invocationOnMock.getArguments()[2];
+
+                if (fileInfo.numberOfParts() == 1L) {
+                    if (name.equals(fileInfo.name()) == false || name.contains(".part")) {
+                        throw new IOException("Unexpected part name " + name);
+                    }
+                    return new ByteArrayInputStream(input, Math.toIntExact(position), length);
+                } else {
+                    if (name.startsWith(fileInfo.name()) == false || name.contains(".part") == false) {
+                        throw new IOException("Unexpected part name " + name);
+                    }
+                    long partNumber = Long.parseLong(name.substring(name.indexOf(".part") + ".part".length()));
+                    if (partNumber < 0 || partNumber >= fileInfo.numberOfParts()) {
+                        throw new IOException("Unexpected part number " + name);
+                    }
+                    return new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), length);
                 }
-                System.arraycopy(input, Math.toIntExact(from), buffer, offset, len);
-            } else {
-                if (name.startsWith(fileInfo.name()) == false || name.contains(".part") == false) {
-                    throw new IOException("Unexpected part name " + name);
-                }
-                long partNumber = Long.parseLong(name.substring(name.indexOf(".part") + ".part".length()));
-                if (partNumber < 0 || partNumber >= fileInfo.numberOfParts()) {
-                    throw new IOException("Unexpected part number " + name);
-                }
-                System.arraycopy(input, Math.toIntExact(partNumber * partSize + from), buffer, offset, len);
-            }
-        };
-        return new SearchableSnapshotIndexInput(reader, fileInfo);
+            });
+        return new SearchableSnapshotIndexInput(blobContainer, fileInfo);
     }
 
     public void testRandomReads() throws IOException {
         for (int i = 0; i < 100; i++) {
             byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
-            SearchableSnapshotIndexInput indexInput = createIndexInput(input);
+            IndexInput indexInput = createIndexInput(input);
             assertEquals(input.length, indexInput.length());
             assertEquals(0, indexInput.getFilePointer());
             byte[] output = randomReadAndSlice(indexInput, input.length);
@@ -57,7 +72,7 @@ public class SearchableSnapshotIndexInputTests extends ESTestCase {
     public void testRandomOverflow() throws IOException {
         for (int i = 0; i < 100; i++) {
             byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
-            SearchableSnapshotIndexInput indexInput = createIndexInput(input);
+            IndexInput indexInput = createIndexInput(input);
             int firstReadLen = randomIntBetween(0, input.length - 1);
             randomReadAndSlice(indexInput, firstReadLen);
             int bytesLeft = input.length - firstReadLen;
@@ -69,7 +84,7 @@ public class SearchableSnapshotIndexInputTests extends ESTestCase {
     public void testSeekOverflow() throws IOException {
         for (int i = 0; i < 100; i++) {
             byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
-            SearchableSnapshotIndexInput indexInput = createIndexInput(input);
+            IndexInput indexInput = createIndexInput(input);
             int firstReadLen = randomIntBetween(0, input.length - 1);
             randomReadAndSlice(indexInput, firstReadLen);
             expectThrows(IOException.class, () -> {

@@ -910,7 +910,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return shardContainer(indexId, shardId.getId());
     }
 
-    private BlobContainer shardContainer(IndexId indexId, int shardId) {
+    public BlobContainer shardContainer(IndexId indexId, int shardId) {
         return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(shardId)));
     }
 
@@ -942,9 +942,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void assertSnapshotOrGenericThread() {
+        // NORELEASE
+        /*
         assert Thread.currentThread().getName().contains(ThreadPool.Names.SNAPSHOT)
             || Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC) :
-            "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";
+            "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";*/
     }
 
     @Override
@@ -1663,7 +1665,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Loads information about shard snapshot
      */
-    private BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
+    public BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
         try {
             return indexShardSnapshotFormat.read(shardContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {

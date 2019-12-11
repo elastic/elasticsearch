@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -44,13 +43,16 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
@@ -58,22 +60,21 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_CODEC;
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
@@ -287,49 +288,48 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 if (randomBoolean()) {
                     repositorySettings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
                 }
+
+                final String repositoryName = randomAlphaOfLength(10);
+                final RepositoryMetaData repositoryMetaData =
+                    new RepositoryMetaData(repositoryName, FsRepository.TYPE, repositorySettings.build());
+
                 final BlobStoreRepository repository = new FsRepository(
-                    new RepositoryMetaData("_fs", FsRepository.TYPE, repositorySettings.build()),
+                    repositoryMetaData,
                     new Environment(Settings.builder()
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                         .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
                         .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build(), null),
-                    NamedXContentRegistry.EMPTY, threadPool);
+                    NamedXContentRegistry.EMPTY, BlobStoreTestUtil.mockClusterService(repositoryMetaData));
                 repository.start();
                 releasables.add(repository::stop);
 
-                final CountDownLatch latch = new CountDownLatch(1);
+                final SnapshotId snapshotId = new SnapshotId("_snapshot", UUIDs.randomBase64UUID(random()));
+                final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), UUIDs.randomBase64UUID(random()));
+
+                final PlainActionFuture<String> future = PlainActionFuture.newFuture();
                 threadPool.generic().submit(() -> {
-                    final PlainActionFuture<String> future = PlainActionFuture.newFuture();
-                    SnapshotId snapshotId = new SnapshotId("_snapshot", UUIDs.randomBase64UUID(random()));
-                    IndexId indexId = new IndexId(indexSettings.getIndex().getName(), UUIDs.randomBase64UUID(random()));
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                     repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, true, future);
                     future.actionGet();
-
-                    // TODO: fix this
-                    try {
-                        BlobContainer shardContainer = repository.blobStore().blobContainer(repository.basePath()
-                            .add("indices").add(indexId.getId()).add(Integer.toString(shardId.id())));
-                        BlobStoreIndexShardSnapshot blobs = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-                            BlobStoreIndexShardSnapshot::fromXContent, NamedXContentRegistry.EMPTY, true)
-                            .read(shardContainer, snapshotId.getUUID());
-                        searchableSnapshotDirectory.set(new SearchableSnapshotDirectory(blobs,
-                            (name, from, length, buffer, offset) -> {
-                                try (InputStream stream = shardContainer.readBlob(name)) {
-                                    stream.skip(from);
-                                    int read = stream.read(buffer, offset, length);
-                                    assert read == length;
-                                }
-                            }));
-                    } catch (IOException e) {
-                        logger.error("failed to build searchable snapshot directory instance", e);
-                    } finally {
-                        latch.countDown();
-                    }
                 });
-                latch.await(30L, TimeUnit.SECONDS);
+                future.actionGet();
 
-                try (Directory searchableDirectory = searchableSnapshotDirectory.get()) {
+                final RepositoriesService repositories = mock(RepositoriesService.class);
+                when(repositories.repository(eq(repositoryName))).thenReturn(repository);
+
+                final IndexSettings ephemeralIndexSettings = IndexSettingsModule.newIndexSettings("_searchable_snapshot_index",
+                    Settings.builder()
+                        .put(indexSettings.getSettings())
+                        .put(SearchableSnapshots.EPHEMERAL_INDEX_REPOSITORY_SETTING.getKey(), repositoryName)
+                        .put(SearchableSnapshots.EPHEMERAL_INDEX_SNAPSHOT_SETTING.getKey(), snapshotId.getUUID())
+                        .build());
+
+                Path tmpDir = createTempDir().resolve(indexId.getId()).resolve(Integer.toString(shardId.id()));
+                ShardId ephemeralShardId = new ShardId(new Index(indexId.getName(), indexId.getId()), shardId.id());
+                ShardPath ephemeralShardPath = new ShardPath(false, tmpDir, tmpDir, ephemeralShardId);
+
+                final DirectoryFactory factory = SearchableSnapshots.newDirectoryFactory(() -> repositories);
+                try (Directory searchableDirectory = factory.newDirectory(ephemeralIndexSettings, ephemeralShardPath)) {
                     consumer.accept(directory, searchableDirectory);
                 }
             } finally {

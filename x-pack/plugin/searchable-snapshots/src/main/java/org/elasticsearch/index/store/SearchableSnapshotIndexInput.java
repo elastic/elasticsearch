@@ -7,10 +7,12 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 
 /**
@@ -33,28 +35,32 @@ import java.util.Objects;
  */
 public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
-    private final BlobBytesReader reader;
+    private final BlobContainer blobContainer;
     private final FileInfo fileInfo;
+    private final long offset;
+    private final long length;
 
     private long position;
     private boolean closed;
 
-    public SearchableSnapshotIndexInput(final BlobBytesReader reader, final FileInfo fileInfo) {
-        this("SearchableSnapshotIndexInput(" + fileInfo + ")", reader, fileInfo, 0L);
+    public SearchableSnapshotIndexInput(final BlobContainer blobContainer, final FileInfo fileInfo) {
+        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, 0L, 0L, fileInfo.length());
     }
 
-    private SearchableSnapshotIndexInput(final String resourceDesc, final BlobBytesReader reader,
-                                         final FileInfo fileInfo, final long position) {
+    private SearchableSnapshotIndexInput(final String resourceDesc, final BlobContainer blobContainer,
+                                         final FileInfo fileInfo, final long position, final long offset, final long length) {
         super(resourceDesc);
-        this.reader = Objects.requireNonNull(reader);
+        this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
+        this.offset = offset;
+        this.length = length;
         this.position = position;
         this.closed = false;
     }
 
     @Override
     public long length() {
-        return fileInfo.length();
+        return length;
     }
 
     private void ensureOpen() throws IOException {
@@ -88,29 +94,33 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     }
 
     private void readInternalBytes(final long part, final long pos, byte[] b, int offset, int length) throws IOException {
-        reader.readBlobBytes(fileInfo.partName(part), pos, length, b, offset);
-        position += length;
+        try (InputStream inputStream = blobContainer.readBlob(fileInfo.partName(part), pos, length)) {
+            int read = inputStream.read(b, offset, length);
+            assert read == length;
+            position += read;
+        }
     }
 
     @Override
     protected void seekInternal(long pos) throws IOException {
-        if (pos > fileInfo.length()) {
-            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + fileInfo.length() + "] for " + toString());
+        if (pos > length) {
+            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length + "] for " + toString());
         } else if (pos < 0L) {
             throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
         }
-        this.position = pos;
+        this.position = offset + pos;
     }
 
     @Override
     public BufferedIndexInput clone() {
-        return new SearchableSnapshotIndexInput("clone(" + this + ")", reader, fileInfo, position);
+        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length);
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
-            final Slice slice = new Slice(sliceDescription, offset, length, this);
+            final SearchableSnapshotIndexInput slice =
+                new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, position, this.offset + offset, length);
             slice.seek(0L);
             return slice;
         } else {
@@ -126,57 +136,12 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName()
-            + "(resourceDesc=" + super.toString()
-            + ", name=" + fileInfo.physicalName()
-            + ", length=" + fileInfo.length()
-            + ", sizeOfParts=" + fileInfo.partSize()
-            + ", numberOfParts=" + fileInfo.numberOfParts() + ")";
-    }
-
-    /**
-     * A slice created from a {@link SearchableSnapshotIndexInput}.
-     *
-     * The slice overrides the {@link #length()} and {@link #seekInternal(long)}
-     * methods so that it adjust the values according to initial offset position
-     * from which the slice was created.
-     */
-    private static class Slice extends SearchableSnapshotIndexInput {
-
-        private final long offset;
-        private final long length;
-
-        Slice(String sliceDescription, long offset, long length, SearchableSnapshotIndexInput base) {
-            super(base.toString() + " [slice=" + sliceDescription + "]", base.reader, base.fileInfo, base.position);
-            this.offset = offset;
-            this.length = length;
-        }
-
-        @Override
-        public long length() {
-            return length;
-        }
-
-        @Override
-        protected void seekInternal(long pos) throws IOException {
-            super.seekInternal(offset + pos);
-        }
-
-        @Override
-        public BufferedIndexInput clone() {
-            return new Slice("clone(" + this + ")", offset, length, this);
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
-                final Slice slice = new Slice(sliceDescription, offset + this.offset, length, this);
-                slice.seek(0L);
-                return slice;
-            } else {
-                throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
-                    + ",length=" + length + ",fileLength=" + length() + ": " + this);
-            }
-        }
+        return "SearchableSnapshotIndexInput{" +
+            "resourceDesc=" + super.toString() +
+            ", fileInfo=" + fileInfo +
+            ", offset=" + offset +
+            ", length=" + length +
+            ", position=" + position +
+            '}';
     }
 }

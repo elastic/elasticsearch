@@ -11,6 +11,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
@@ -25,21 +26,21 @@ import java.util.Set;
  * implementation does not allow modification of the directory files and only supports {@link #listAll()}, {@link #fileLength(String)} and
  * {@link #openInput(String, IOContext)} methods.
  *
- * To create a {@link SearchableSnapshotDirectory} both the list of the snapshot files and a way to read these files must be provided. The
- * definition of the snapshot files are provided using a {@link BlobStoreIndexShardSnapshot} object which contains the name of the snapshot
- * and all the files it contains along with their metadata. Because there is no one-to-one relationship between the original shard files
- * and what it stored in the snapshot the {@link BlobStoreIndexShardSnapshot} is used to map a physical file name as expected by Lucene with
- * the one (or the ones) corresponding blob(s) in the snapshot.
+ * To create a {@link SearchableSnapshotDirectory} both the list of the snapshot files and a {@link BlobContainer} to read these files must
+ * be provided. The definition of the snapshot files are provided using a {@link BlobStoreIndexShardSnapshot} object which contains the name
+ * of the snapshot and all the files it contains along with their metadata. Because there is no one-to-one relationship between the original
+ * shard files and what it stored in the snapshot the {@link BlobStoreIndexShardSnapshot} is used to map a physical file name as expected by
+ * Lucene with the one (or the ones) corresponding blob(s) in the snapshot.
  */
 public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private final BlobStoreIndexShardSnapshot snapshot;
-    private final BlobBytesReader reader;
+    private final BlobContainer blobContainer;
 
-    protected SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobBytesReader reader) {
+    public SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
         super(new SingleInstanceLockFactory());
         this.snapshot = Objects.requireNonNull(snapshot);
-        this.reader = Objects.requireNonNull(reader);
+        this.blobContainer = Objects.requireNonNull(blobContainer);
     }
 
     private FileInfo fileInfo(final String name) throws FileNotFoundException {
@@ -67,7 +68,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        return new SearchableSnapshotIndexInput(reader, fileInfo(name));
+        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name));
     }
 
     @Override

@@ -164,6 +164,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public InputStream readBlob(String blobName, long position, int length) throws IOException {
+        final InputStream inputStream = readBlob(blobName);
+        long skipped = inputStream.skip(position); // NORELEASE
+        assert skipped == position;
+        return inputStream;
+    }
+
+    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         if (failIfAlreadyExists == false) {
             deleteBlobIgnoringIfNotExists(blobName);

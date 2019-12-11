@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -109,7 +110,8 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
                                     UpdateFilterAction.Request request,
                                     ActionListener<PutFilterAction.Response> listener) {
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) &&
+            seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             indexRequest.setIfSeqNo(seqNo);
             indexRequest.setIfPrimaryTerm(primaryTerm);
         } else {

@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,18 +34,18 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
-    private final boolean useSeqNoForCAS;
+    private final boolean allowSeqNoForCAS;
 
     public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, TransportDeleteByQueryAction action, DeleteByQueryRequest request,
                                     ScriptService scriptService, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
         super(task,
-            // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
-            clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
+            // always return version information, as sequence number information might not be available on an older index
+            true,
             // all nodes support sequence number powered optimistic concurrency control and we can use it
             clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
             logger, client, threadPool, action, request, listener);
-        useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
+        allowSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
     }
 
     @Override
@@ -60,10 +61,11 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         delete.index(doc.getIndex());
         delete.type(doc.getType());
         delete.id(doc.getId());
-        if (useSeqNoForCAS) {
+        if (allowSeqNoForCAS && doc.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             delete.setIfSeqNo(doc.getSeqNo());
             delete.setIfPrimaryTerm(doc.getPrimaryTerm());
         } else {
+            assert doc.getVersion() != -1 : "no version retrieved";
             delete.version(doc.getVersion());
         }
         return wrap(delete);

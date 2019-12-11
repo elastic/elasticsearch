@@ -472,6 +472,62 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
+    /** Ensure that we can always execute delete-by-query regardless of the version of cluster */
+    public void testDeleteByQuery() throws Exception {
+        final String index = "test_delete_by_query";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            createIndex(index, settings.build());
+        }
+        for (int i = 0; i < 100; i++) {
+            Request indexDoc = new Request("POST", index + "/test");
+            indexDoc.setJsonEntity("{\"test\": \"test_" + randomInt(5) + "\"}");
+            client().performRequest(indexDoc);
+        }
+        client().performRequest(new Request("POST", index + "/_refresh"));
+        if (randomBoolean()) {
+            ensureGreen(index);
+        }
+        Request deleteByQuery = new Request("POST", index + "/_delete_by_query");
+        deleteByQuery.setJsonEntity("{\"query\": {\"term\": { \"test\": \"test_" + CLUSTER_TYPE.ordinal() + "\" }}}");
+        Map<String, Object> doc = entityAsMap(client().performRequest(deleteByQuery));
+        logger.info(doc);
+
+        if (randomBoolean()) {
+            syncedFlush(index);
+        }
+    }
+
+    /** Ensure that we can always execute delete-by-query regardless of the version of cluster */
+    public void testUpdateByQuery() throws Exception {
+        final String index = "test_update_by_query";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            createIndex(index, settings.build());
+        }
+        for (int i = 0; i < 100; i++) {
+            Request indexDoc = new Request("POST", index + "/test");
+            indexDoc.setJsonEntity("{\"test\": \"test_" + randomInt(5) + "\"}");
+            client().performRequest(indexDoc);
+        }
+        client().performRequest(new Request("POST", index + "/_refresh"));
+        if (randomBoolean()) {
+            ensureGreen(index);
+        }
+        Request updateByQuery = new Request("POST", index + "/_update_by_query");
+        updateByQuery.setJsonEntity("{\"query\": {\"term\": { \"test\": \"test_" + CLUSTER_TYPE.ordinal() + "\" }}}");
+        Map<String, Object> doc = entityAsMap(client().performRequest(updateByQuery));
+        logger.info(doc);
+
+        if (randomBoolean()) {
+            syncedFlush(index);
+        }
+    }
+
     private void syncedFlush(String index) throws Exception {
         // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.

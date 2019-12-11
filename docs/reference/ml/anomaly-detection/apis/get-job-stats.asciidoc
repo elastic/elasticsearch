@@ -85,7 +85,7 @@ functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or `n
 fields that are not used in the analysis.
 
 `input_record_count`:::
-(long) The number of data records read by the job.
+(long) The number of input documents posted to the job.
 
 `invalid_date_count`:::
 (long) The number of records with either a missing date field or a date that

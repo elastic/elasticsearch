@@ -884,7 +884,8 @@ public final class TokenService extends AbstractComponent {
                                     client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
                                         .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
                                         .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-                                if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
+                                if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) &&
+                                    response.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                                     assert response.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                                         : "reading a token [" + tokenDocId + "] with no sequence number";
                                     assert response.getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM :

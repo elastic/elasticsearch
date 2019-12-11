@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.AttributeSource;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 
 /**
  * A predicate based on the current token in a TokenStream
@@ -107,7 +108,7 @@ public abstract class AnalysisPredicateScript {
      */
     public abstract boolean execute(Token token);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         AnalysisPredicateScript newInstance();
     }
 

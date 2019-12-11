@@ -164,9 +164,21 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                 if ("http".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
                         if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.getCurrentName())) {
-                            URI publishAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
-                            publishedHost = new HttpHost(publishAddressAsURI.getHost(), publishAddressAsURI.getPort(),
-                                    publishAddressAsURI.getScheme());
+                            String address = parser.getValueAsString();
+                            String host;
+                            URI publishAddressAsURI;
+
+                            // ES7 cname/ip:port format
+                            if(address.contains("/")) {
+                                String[] cnameAndURI = address.split("/", 2);
+                                publishAddressAsURI = URI.create(scheme + "://" + cnameAndURI[1]);
+                                host = cnameAndURI[0];
+                            }
+                            else {
+                                publishAddressAsURI = URI.create(scheme + "://" + address);
+                                host = publishAddressAsURI.getHost();
+                            }
+                            publishedHost = new HttpHost(host, publishAddressAsURI.getPort(), publishAddressAsURI.getScheme());
                         } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
                             while (parser.nextToken() != JsonToken.END_ARRAY) {
                                 URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());

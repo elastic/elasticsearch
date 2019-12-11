@@ -188,7 +188,7 @@ namespace in `elasticsearch.yml`. For example:
 ----------------------------------------
 xpack.security.authc.realms:
 
-    native.realm1:
+    native.realm1: <1>
         order: 0
         ...
 
@@ -201,6 +201,9 @@ xpack.security.authc.realms:
         ...
     ...
 ----------------------------------------
+<1> Specifies the type of realm (for example, `native`, `ldap`,
+`active_directory`, `pki`, `file`, `kerberos`, `saml`) and the realm name. This
+information is required.
 
 The valid settings vary depending on the realm type. For more
 information, see <<setting-up-authentication>>.
@@ -208,9 +211,6 @@ information, see <<setting-up-authentication>>.
 [float]
 [[ref-realm-settings]]
 ===== Settings valid for all realms
-
-`type`::
-The type of the realm: `native`, `ldap`, `active_directory`, `pki`, or `file`. Required.
 
 `order`::
 The priority of the realm within the realm chain. Realms with a lower order are
@@ -1492,6 +1492,16 @@ through the list of URLs will continue until a successful connection is made.
 
 [float]
 [[ssl-tls-settings]]
+==== General TLS settings
+`xpack.security.ssl.diagnose.trust`::
+Controls whether to output diagnostic messages for SSL/TLS trust failures.
+If this is `true` (the default), a message will be printed to the Elasticsearch
+log whenever an SSL connection (incoming or outgoing) is rejected due to a failure
+to establish trust.
+This diagnostic message contains information that can be used to determine the
+cause of the failure and assist with resolving the problem.
+Set to `false` to disable these messages.
+
 ==== Default values for TLS/SSL settings
 In general, the values below represent the default values for the various TLS
 settings.

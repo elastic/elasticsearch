@@ -66,12 +66,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
-
-                        boolean isPossibleSingleFieldRequest = indices.length == 1 && fields.length == 1;
-                        if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                            return new BytesRestResponse(OK, builder.startObject().endObject());
-                        }
+                        Map<String, Map<String, FieldMappingMetaData>> mappingsByIndex = response.mappings();
 
                         RestStatus status = OK;
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {
@@ -83,24 +78,4 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 });
     }
 
-    /**
-     * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
-     * that type and index exist, but the field did not
-     */
-    private boolean isFieldMappingMissingField(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex) {
-        if (mappingsByIndex.size() != 1) {
-            return false;
-        }
-
-        for (Map<String, Map<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
-            for (Map<String, FieldMappingMetaData> fieldValue : value.values()) {
-                for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
-                    if (fieldMappingMetaDataEntry.getValue().isNull()) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
 }

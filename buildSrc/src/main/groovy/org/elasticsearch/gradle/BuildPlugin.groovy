@@ -26,6 +26,7 @@ import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
@@ -233,41 +234,54 @@ class BuildPlugin implements Plugin<Project> {
     static void requireJavaHome(Task task, int version) {
         // use root project for global accounting
         Project rootProject = task.project.rootProject
-        ExtraPropertiesExtension ext = rootProject.extensions.getByType(ExtraPropertiesExtension)
+        ExtraPropertiesExtension extraProperties = rootProject.extensions.extraProperties
 
-        if (rootProject.hasProperty('requiredJavaVersions') == false) {
-            ext.set('requiredJavaVersions', [:])
-            rootProject.gradle.taskGraph.whenReady({ TaskExecutionGraph taskGraph ->
-                List<String> messages = []
-                Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) ext.get('requiredJavaVersions')
-                for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
-                    if (BuildParams.javaVersions.find { it.version == entry.key } != null) {
-                        continue
-                    }
-                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
-                    if (tasks.isEmpty() == false) {
-                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
-                    }
-                }
-                if (messages.isEmpty() == false) {
-                    throw new GradleException(messages.join('\n'))
-                }
-                ext.set('requiredJavaVersions', null) // reset to null to indicate the pre-execution checks have executed
-            })
-        } else if (ext.has('requiredJavaVersions') == false || ext.get('requiredJavaVersions') == null) {
+        // hacky way (but the only way) to find if the task graph has already been populated
+        boolean taskGraphReady
+        try {
+            rootProject.gradle.taskGraph.getAllTasks()
+            taskGraphReady = true
+        } catch (IllegalStateException) {
+            taskGraphReady = false
+        }
+
+        if (taskGraphReady) {
             // check directly if the version is present since we are already executing
             if (BuildParams.javaVersions.find { it.version == version } == null) {
                 throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
             }
         } else {
-            (ext.get('requiredJavaVersions') as Map<Integer, List<Task>>).getOrDefault(version, []).add(task)
+            // setup list of java versions we will check at the end of configuration time
+            if (extraProperties.has('requiredJavaVersions') == false) {
+                extraProperties.set('requiredJavaVersions', [:])
+                rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                    List<String> messages = []
+                    Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
+                    for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
+                        if (BuildParams.javaVersions.any { it.version == entry.key }) {
+                            continue
+                        }
+                        List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
+                        if (tasks.isEmpty() == false) {
+                            messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
+                        }
+                    }
+                    if (messages.isEmpty() == false) {
+                        throw new GradleException(messages.join('\n'))
+                    }
+                }
+            }
+            Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
+            requiredJavaVersions.putIfAbsent(version, [])
+            requiredJavaVersions.get(version).add(task)
         }
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
-        return BuildParams.javaVersions.find { it.version == version }.javaHome.absolutePath
+        JavaHome java = BuildParams.javaVersions.find { it.version == version }
+        return java == null ? null : java.javaHome.absolutePath
     }
 
     /**
@@ -651,7 +665,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.add('nonInputProperties', nonInputProperties)
 
-                test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
                 test.maxParallelForks = System.getProperty('tests.jvms', BuildParams.defaultParallel.toString()) as Integer
 
@@ -705,6 +718,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+                // TODO: remove this property in 8.0
+                test.systemProperty 'es.search.rewrite_sort', 'true'
 
                 // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
                 test.systemProperty 'es.transport.cname_in_publish_address', 'true'

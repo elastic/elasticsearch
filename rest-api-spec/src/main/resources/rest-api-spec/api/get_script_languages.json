@@ -1,0 +1,19 @@
+{
+  "get_script_languages":{
+    "documentation":{
+      "description":"Returns available script types, languages and contexts"
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_script_language",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation;
 
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
@@ -52,6 +53,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class, new ParseField(ConfusionMatrixMetric.NAME), ConfusionMatrixMetric::fromXContent),
             new NamedXContentRegistry.Entry(
+                EvaluationMetric.class, new ParseField(AccuracyMetric.NAME), AccuracyMetric::fromXContent),
+            new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(MulticlassConfusionMatrixMetric.NAME),
                 MulticlassConfusionMatrixMetric::fromXContent),
@@ -68,6 +71,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 EvaluationMetric.Result.class, new ParseField(RecallMetric.NAME), RecallMetric.Result::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class, new ParseField(ConfusionMatrixMetric.NAME), ConfusionMatrixMetric.Result::fromXContent),
+            new NamedXContentRegistry.Entry(
+                EvaluationMetric.Result.class, new ParseField(AccuracyMetric.NAME), AccuracyMetric.Result::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(MulticlassConfusionMatrixMetric.NAME),

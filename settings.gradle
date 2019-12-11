@@ -1,3 +1,7 @@
+plugins {
+  id "com.gradle.enterprise" version "3.0"
+}
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 
@@ -59,6 +63,7 @@ List projects = [
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
+  'test:fixtures:s3-fixture',
   'test:logger-usage'
 ]
 

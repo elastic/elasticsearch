@@ -40,7 +40,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final String TYPE = "data_frame_analytics_config";
 
     public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
-    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.KB);
     /**
      * This includes the overhead of thread stacks and data structures that the program might use that
      * are not instrumented.  But it does NOT include the memory used by loading the executable code.
@@ -127,7 +127,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Version version;
     private final boolean allowLazyStart;
 
-    public DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
+    private DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
                                     FetchSourceContext analyzedFields, Instant createTime, Version version, boolean allowLazyStart) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
@@ -225,7 +225,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(DEST.getPreferredName(), dest);
 
         builder.startObject(ANALYSIS.getPreferredName());
-        builder.field(analysis.getWriteableName(), analysis);
+        builder.field(analysis.getWriteableName(), analysis,
+            new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString())));
         builder.endObject();
 
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
@@ -416,11 +417,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
 
         /**
-         * Builds {@link DataFrameAnalyticsConfig} object for the purpose of performing memory estimation.
+         * Builds {@link DataFrameAnalyticsConfig} object for the purpose of explaining a job that has not been created yet.
          * Some fields (i.e. "id", "dest") may not be present, therefore we overwrite them here to make {@link DataFrameAnalyticsConfig}'s
          * constructor validations happy.
          */
-        public DataFrameAnalyticsConfig buildForMemoryEstimation() {
+        public DataFrameAnalyticsConfig buildForExplain() {
             return new DataFrameAnalyticsConfig(
                 id != null ? id : "dummy",
                 description,
@@ -442,7 +443,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 if (modelMemoryLimit.compareTo(MIN_MODEL_MEMORY_LIMIT) < 0) {
                     // Explicit setting lower than minimum is an error
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit));
+                        Messages.getMessage(
+                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit, MIN_MODEL_MEMORY_LIMIT.getStringRep()));
                 }
                 if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
                     // Explicit setting higher than limit is an error

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -585,12 +586,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
                 // TODO Intervals.wildcard() should take BytesRef
-                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
+                source = Intervals.fixField(useField, XIntervals.wildcard(normalizedTerm));
             }
             else {
                 checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
-                source = Intervals.wildcard(normalizedTerm);
+                source = XIntervals.wildcard(normalizedTerm);
             }
             return source;
         }
@@ -716,7 +717,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public IntervalsSource filter(IntervalsSource input, QueryShardContext context, MappedFieldType fieldType) throws IOException {
             if (script != null) {
-                IntervalFilterScript ifs = context.getScriptService().compile(script, IntervalFilterScript.CONTEXT).newInstance();
+                IntervalFilterScript ifs = context.compile(script, IntervalFilterScript.CONTEXT).newInstance();
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
             IntervalsSource filterSource = filter.getSource(context, fieldType);
@@ -748,12 +749,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             IntervalFilter that = (IntervalFilter) o;
             return Objects.equals(type, that.type) &&
+                Objects.equals(script, that.script) &&
                 Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, filter);
+            return Objects.hash(type, filter, script);
         }
 
         @Override
@@ -772,10 +774,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(type);
-            builder.startObject();
-            filter.toXContent(builder, params);
-            builder.endObject();
+            if (filter != null) {
+                builder.startObject(type);
+                filter.toXContent(builder, params);
+                builder.endObject();
+            } else {
+                builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
+            }
             builder.endObject();
             return builder;
         }

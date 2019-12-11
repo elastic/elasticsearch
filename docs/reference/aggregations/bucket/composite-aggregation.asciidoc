@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-composite-aggregation]]
-=== Composite Aggregation
+=== Composite aggregation
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 
@@ -105,6 +105,7 @@ The name given to each sources must be unique.
 
 There are three different types of values source:
 
+[[_terms]]
 ===== Terms
 
 The `terms` value source is equivalent to a simple `terms` aggregation.
@@ -155,6 +156,7 @@ GET /_search
 }
 --------------------------------------------------
 
+[[_histogram]]
 ===== Histogram
 
 The `histogram` value source can be applied on numeric values to build fixed size
@@ -208,8 +210,8 @@ GET /_search
 }
 --------------------------------------------------
 
-
-===== Date Histogram
+[[_date_histogram]]
+===== Date histogram
 
 The `date_histogram` is similar to the `histogram` value source except that the interval
 is specified by date/time expression:

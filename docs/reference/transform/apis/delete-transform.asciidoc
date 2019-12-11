@@ -31,7 +31,8 @@ these privileges. For more information, see <<security-privileges>> and
 ==== {api-path-parms-title}
 
 `<transform_id>`::
-  (Required, string) Identifier for the {transform}.
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[delete-transform-query-parms]]
 ==== {api-query-parms-title}

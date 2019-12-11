@@ -26,6 +26,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
@@ -37,7 +39,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.threeten.bp.Duration;
 
@@ -100,6 +104,15 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(), serviceAccount);
         settings.setSecureSettings(secureSettings);
         return settings.build();
+    }
+
+    public void testDeleteSingleItem() {
+        final String repoName = createRepository(randomName());
+        final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->
+            repository.blobStore().blobContainer(repository.basePath()).deleteBlobsIgnoringIfNotExists(Collections.singletonList("foo"))
+        )));
     }
 
     public void testChunkSize() {

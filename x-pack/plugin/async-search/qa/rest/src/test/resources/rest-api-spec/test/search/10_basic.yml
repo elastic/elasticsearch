@@ -34,6 +34,7 @@
       async_search.submit:
         index: test-*
         batched_reduce_size: 2
+        wait_for_completion: 10s
         body:
           query:
             match_all: {}
@@ -44,35 +45,14 @@
           sort: max
 
   - set: { id: id }
-
-  - do:
-      async_search.get:
-        id: "$id"
-        wait_for_completion: 10s
-
   - set: { version: version }
   - match: { version:   4 }
-  - is_false: partial_response
+  - match: { response.is_partial: false }
   - length: { response.hits.hits:        3 }
   - match: { response.hits.hits.0._source.max: 1 }
   - match: { response.aggregations.1.value:  3.0 }
 
   - do:
-      catch: not_modified
-      async_search.get:
-        id: "$id"
-        last_version: "$version"
-
-  - is_false: partial_response
-  - is_false: response
-
-  - do:
-      async_search.delete:
-        id: "$id"
-
-  - match: { acknowledged: true }
-
-  - do:
       catch: missing
-      async_search.delete:
+      async_search.get:
         id: "$id"

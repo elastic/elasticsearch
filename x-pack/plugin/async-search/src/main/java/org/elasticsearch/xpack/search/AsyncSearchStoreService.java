@@ -74,23 +74,23 @@ class AsyncSearchStoreService {
      * Get the final response from the async search history index if present, or delegate a {@link ResourceNotFoundException}
      * failure to the provided listener if not.
      */
-    void getResponse(GetAsyncSearchAction.Request orig, AsyncSearchId searchId, ActionListener<AsyncSearchResponse> next) {
-        GetRequest request = new GetRequest(searchId.getIndexName())
+    void getResponse(GetAsyncSearchAction.Request request, AsyncSearchId searchId, ActionListener<AsyncSearchResponse> next) {
+        GetRequest internalGet = new GetRequest(searchId.getIndexName())
             .id(searchId.getDocId())
             .storedFields(RESPONSE_FIELD);
-        client.get(request, ActionListener.wrap(
+        client.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {
-                    next.onFailure(new ResourceNotFoundException(request.id() + " not found"));
+                    next.onFailure(new ResourceNotFoundException(request.getId() + " not found"));
                 } else if (get.getFields().containsKey(RESPONSE_FIELD) == false) {
-                    next.onResponse(new AsyncSearchResponse(orig.getId(), new PartialSearchResponse(-1), 0, false));
+                    next.onResponse(new AsyncSearchResponse(request.getId(), new PartialSearchResponse(-1), 0, false));
                 } else {
 
                     BytesArray bytesArray = get.getFields().get(RESPONSE_FIELD).getValue();
                     next.onResponse(decodeResponse(bytesArray.array(), registry));
                 }
             },
-            exc -> next.onFailure(new ResourceNotFoundException(request.id() + " not found"))
+            exc -> next.onFailure(new ResourceNotFoundException(request.getId() + " not found"))
         ));
     }
 

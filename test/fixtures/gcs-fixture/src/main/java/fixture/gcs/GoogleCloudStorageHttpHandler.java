@@ -190,7 +190,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                 } else {
-                    throw new AssertionError("Count not read multi-part request to [" + request + "] with headers ["
+                    throw new AssertionError("Could not read multi-part request to [" + request + "] with headers ["
                         + new HashMap<>(exchange.getRequestHeaders()) + "]");
                 }
 

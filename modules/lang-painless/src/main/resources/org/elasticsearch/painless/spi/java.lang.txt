@@ -48,7 +48,6 @@ class java.lang.Comparable {
   int compareTo(def)
 }
 
-# TODO(stu): evaluate in the case of hashset/hashmap
 class java.lang.Iterable {
   void forEach(Consumer)
   Iterator iterator()

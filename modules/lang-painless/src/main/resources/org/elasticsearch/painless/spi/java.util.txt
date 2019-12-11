@@ -1016,11 +1016,6 @@ class java.util.TreeMap {
   ()
   (Comparator)
   def clone()
-  # TODO(stu): add methods from map declared non-determ in map
-  Set entrySet()
-  void forEach(BiConsumer)
-  Set keySet()
-  Collection values()
 }
 
 class java.util.TreeSet {

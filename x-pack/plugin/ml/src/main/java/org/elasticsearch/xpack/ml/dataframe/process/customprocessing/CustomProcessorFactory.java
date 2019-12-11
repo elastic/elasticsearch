@@ -24,12 +24,12 @@ public class CustomProcessorFactory {
         if (analysis instanceof Regression) {
             Regression regression = (Regression) analysis;
             return new DatasetSplittingCustomProcessor(
-                fieldNames, regression.getDependentVariable(), regression.getTrainingPercent());
+                fieldNames, regression.getDependentVariable(), regression.getTrainingPercent(), regression.getRandomizeSeed());
         }
         if (analysis instanceof Classification) {
             Classification classification = (Classification) analysis;
             return new DatasetSplittingCustomProcessor(
-                fieldNames, classification.getDependentVariable(), classification.getTrainingPercent());
+                fieldNames, classification.getDependentVariable(), classification.getTrainingPercent(), classification.getRandomizeSeed());
         }
         return row -> {};
     }

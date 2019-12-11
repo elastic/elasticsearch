@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,7 +141,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParamsTests.createRandom(), null, 50.0));
+                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParamsTests.createRandom(), null, 50.0, null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -233,6 +235,43 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
         assertInferenceModelPersisted(jobId);
+    }
+
+    public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
+        String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
+        indexData(sourceIndex, 10, 0);
+
+        String firstJobId = "regression_two_jobs_with_same_randomize_seed_1";
+        String firstJobDestIndex = firstJobId + "_dest";
+
+        BoostedTreeParams boostedTreeParams = new BoostedTreeParams(1.0, 1.0, 1.0, 1, 1.0);
+
+        DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null));
+        registerAnalytics(firstJob);
+        putAnalytics(firstJob);
+
+        String secondJobId = "regression_two_jobs_with_same_randomize_seed_2";
+        String secondJobDestIndex = secondJobId + "_dest";
+
+        long randomizeSeed = ((Regression) firstJob.getAnalysis()).getRandomizeSeed();
+        DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed));
+
+        registerAnalytics(secondJob);
+        putAnalytics(secondJob);
+
+        // Let's run both jobs in parallel and wait until they are finished
+        startAnalytics(firstJobId);
+        startAnalytics(secondJobId);
+        waitUntilAnalyticsIsStopped(firstJobId);
+        waitUntilAnalyticsIsStopped(secondJobId);
+
+        // Now we compare they both used the same training rows
+        Set<String> firstRunTrainingRowsIds = getTrainingRowsIds(firstJobDestIndex);
+        Set<String> secondRunTrainingRowsIds = getTrainingRowsIds(secondJobDestIndex);
+
+        assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
     }
 
     private void initialize(String jobId) {

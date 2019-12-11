@@ -167,11 +167,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     } else if (line.startsWith("DELETE")) {
                         final String name = line.substring(line.indexOf(uri) + uri.length(), line.lastIndexOf(" HTTP"));
                         if (Strings.hasText(name)) {
-                            String blobName = URLDecoder.decode(name, UTF_8.name());
-                            if (blobs.entrySet().removeIf(blob -> blob.getKey().equals(blobName))) {
-                                batch.append("HTTP/1.1 204 NO_CONTENT").append('\n');
-                                batch.append('\n');
-                            }
+                            blobs.remove(URLDecoder.decode(name, UTF_8.name()));
+                            batch.append("HTTP/1.1 204 NO_CONTENT").append('\n');
+                            batch.append('\n');
                         }
                     }
                 }

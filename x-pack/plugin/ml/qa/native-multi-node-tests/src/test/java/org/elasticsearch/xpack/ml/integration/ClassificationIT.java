@@ -392,7 +392,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         for (Map<String, Object> topClass : topClasses) {
             assertThat(topClass, allOf(hasKey("class_name"), hasKey("class_probability")));
             classNames.add((T) topClass.get("class_name"));
-            classProbabilities.add((Double) topClass.get("class_probability"));
+            classProbabilities.add(((Number) topClass.get("class_probability")).doubleValue());
         }
         // Assert that all the predicted class names come from the set of dependent variable values.
         classNames.forEach(className -> assertThat(className, is(in(dependentVariableValues))));

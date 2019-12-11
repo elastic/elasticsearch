@@ -137,7 +137,7 @@ public class BuildParams {
     }
 
     private static String propertyName(String methodName) {
-        String propertyName = methodName.substring("get".length());
+        String propertyName = methodName.startsWith("is") ? methodName.substring("is".length()) : methodName.substring("get".length());
         return propertyName.substring(0, 1).toLowerCase() + propertyName.substring(1);
     }
 

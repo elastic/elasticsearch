@@ -1,5 +1,8 @@
 [[cluster-reroute]]
-=== Cluster Reroute
+=== Cluster reroute API
+++++
+<titleabbrev>Cluster reroute</titleabbrev>
+++++
 
 Changes the allocation of shards in a cluster.
 

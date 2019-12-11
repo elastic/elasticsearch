@@ -1,7 +1,120 @@
+[[release-notes-7.4.2]]
+== {es} version 7.4.2
+
+[float]
+[[bug-7.4.2]]
+=== Bug fixes
+
+Transform::
+* Prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
+
+[[release-notes-7.4.1]]
+== {es} version 7.4.1
+
+Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
+
+[[enhancement-7.4.1]]
+[float]
+=== Enhancements
+
+Engine::
+* Avoid unneeded refresh with concurrent realtime gets {pull}47895[#47895]
+* sync before trimUnreferencedReaders to improve index preformance {pull}47790[#47790] (issues: {issue}46201[#46201], {issue}46203[#46203])
+* Limit number of retaining translog files for peer recovery {pull}47414[#47414]
+
+Infra/Circuit Breakers::
+* Emit log message when parent circuit breaker trips {pull}47000[#47000]
+
+Machine Learning::
+* Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003])
+* The {ml} native processes are now arranged in a `.app` directory structure on
+  macOS, to allow for notarization on macOS Catalina. {ml-pull}593[#593]
+
+
+
+[[bug-7.4.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* DocValueFormat implementation for date range fields {pull}47472[#47472] (issues: {issue}47323[#47323], {issue}47469[#47469])
+
+Allocation::
+* Dangling indices strip aliases {pull}47581[#47581]
+
+Analysis::
+* Reset Token position on reuse in `predicate_token_filter` {pull}47424[#47424] (issue: {issue}47197[#47197])
+
+Authentication::
+* Fix AD realm additional metadata {pull}47179[#47179] (issue: {issue}45848[#45848])
+
+Authorization::
+* Use 'should' clause instead of 'filter' when querying native privileges {pull}47019[#47019]
+
+CCR::
+* Do not auto-follow closed indices {pull}47721[#47721] (issue: {issue}47582[#47582])
+* Relax maxSeqNoOfUpdates assertion in FollowingEngine {pull}47188[#47188] (issue: {issue}47137[#47137])
+
+Cluster Coordination::
+* Omit writing index metadata for non-replicated closed indices on data-only node {pull}47285[#47285] (issue: {issue}47276[#47276])
+
+Features/ILM+SLM::
+* Throw error retrieving non-existent SLM policy {pull}47679[#47679] (issue: {issue}47664[#47664])
+
+Features/Indices APIs::
+* Fix Rollover error when alias has closed indices {pull}47148[#47148] (issue: {issue}47146[#47146])
+
+Features/Java High Level REST Client::
+* Fix ILM HLRC Javadoc->Documentation links {pull}48083[#48083]
+
+Features/Monitoring::
+* [Monitoring] Add new cluster privilege now necessary for the stack monitoring ui {pull}47871[#47871]
+
+Infra/Scripting::
+* Drop stored scripts with the old style-id {pull}48078[#48078] (issue: {issue}47593[#47593])
+
+Machine Learning::
+* Fix detection of syslog-like timestamp in find_file_structure {pull}47970[#47970]
+* Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
+* Fix possibility of crash when calculating forecasts that overflow to disk {ml-pull}688[#688]
+
+Network::
+* Fix es.http.cname_in_publish_address Deprecation Logging {pull}47451[#47451] (issue: {issue}47436[#47436])
+
+SQL::
+* SQL: Fix issue with negative literels and parentheses {pull}48113[#48113] (issue: {issue}48009[#48009])
+* SQL: add "format" for "full" date range queries {pull}48073[#48073] (issue: {issue}48033[#48033])
+* SQL: Allow whitespaces in escape patterns {pull}47577[#47577] (issue: {issue}47401[#47401])
+* SQL: fix multi full-text functions usage with aggregate functions {pull}47444[#47444] (issue: {issue}47365[#47365])
+* SQL: wrong number of values for columns {pull}42122[#42122]
+
+Search::
+* Fix alias field resolution in match query {pull}47369[#47369]
+
+Snapshot/Restore::
+* Fix Bug in Azure Repo Exception Handling {pull}47968[#47968]
+* Fix Snapshot Corruption in Edge Case {pull}47552[#47552] (issues: {issue}46250[#46250], {issue}47550[#47550])
+
+Store::
+* Allow truncation of clean translog {pull}47866[#47866]
+
+Transform::
+* Fix bwc serialization with 7.3 {pull}48021[#48021]
+
+
+
 [[release-notes-7.4.0]]
 == {es} version 7.4.0
 
 Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
+
+[float]
+=== Known issues
+
+* Activating the <<search-slow-log, search slow log>> should be avoided in this version.
+Any attempt to log a slow search can throw an AIOOBE due to a bug that
+performs concurrent modifications on a shared byte array.
+(issue: {issue}/48358[#48358])
 
 [[breaking-7.4.0]]
 [float]

@@ -198,6 +198,7 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-get-snapshots>>
 * <<java-rest-high-snapshot-snapshots-status>>
 * <<java-rest-high-snapshot-delete-snapshot>>
+* <<java-rest-high-snapshot-restore-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
@@ -207,6 +208,7 @@ include::snapshot/create_snapshot.asciidoc[]
 include::snapshot/get_snapshots.asciidoc[]
 include::snapshot/snapshots_status.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
+include::snapshot/restore_snapshot.asciidoc[]
 
 == Tasks APIs
 
@@ -574,6 +576,26 @@ include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
+
+[role="xpack"]
+== Snapshot Lifecycle Management APIs
+
+:upid: {mainid}-ilm
+:doc-tests-file: {doc-tests}/ILMDocumentationIT.java
+
+The Java High Level REST Client supports the following Snapshot Lifecycle
+Management APIs:
+
+* <<{upid}-slm-put-snapshot-lifecycle-policy>>
+* <<{upid}-slm-delete-snapshot-lifecycle-policy>>
+* <<{upid}-slm-get-snapshot-lifecycle-policy>>
+* <<{upid}-slm-execute-snapshot-lifecycle-policy>>
+
+
+include::ilm/put_snapshot_lifecycle_policy.asciidoc[]
+include::ilm/delete_snapshot_lifecycle_policy.asciidoc[]
+include::ilm/get_snapshot_lifecycle_policy.asciidoc[]
+include::ilm/execute_snapshot_lifecycle_policy.asciidoc[]
 
 [role="xpack"]
 [[transform_apis]]

@@ -108,6 +108,15 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date)
 44             |1961-11-02T00:00:00.000Z
 ;
 
+weekOfYearVsIsoWeekOfYearEdgeCases
+SELECT ISO_WEEK_OF_YEAR('2005-01-01T00:00:00.000Z'::datetime) AS "isow2005", WEEK('2005-01-01T00:00:00.000Z'::datetime) AS "w2005",
+ISO_WEEK_OF_YEAR('2007-12-31T00:00:00.000Z'::datetime) AS "isow2007", WEEK('2007-12-31T00:00:00.000Z'::datetime) AS "w2007";
+
+   isow2005    |     w2005     |   isow2007    |     w2007
+---------------+---------------+---------------+---------------
+53             |1              |1              |53
+;
+
 weekOfYearWithFilter
 SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 50 OR WEEK(birth_date) < 4 ORDER BY WEEK(birth_date) DESC, birth_date DESC;
 

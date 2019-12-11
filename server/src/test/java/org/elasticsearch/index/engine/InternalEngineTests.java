@@ -1710,18 +1710,26 @@ public class InternalEngineTests extends EngineTestCase {
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
             engine.onSettingsChanged();
-            // If the global checkpoint equals to the local checkpoint, the next force-merge will be a noop
-            // because all deleted documents are expunged in the previous force-merge already. We need to flush
-            // a new segment to make merge happen so that we can verify that all _recovery_source are pruned.
-            if (globalCheckpoint.get() == engine.getPersistedLocalCheckpoint() && liveDocs.isEmpty() == false) {
-                String deleteId = randomFrom(liveDocs);
-                engine.delete(new Engine.Delete("test", deleteId, newUid(deleteId), primaryTerm.get()));
-                liveDocsWithSource.remove(deleteId);
-                liveDocs.remove(deleteId);
-                engine.flush();
+            // If we already merged down to 1 segment, then the next force-merge will be a noop. We need to add an extra segment to make
+            // merges happen so we can verify that _recovery_source are pruned. See: https://github.com/elastic/elasticsearch/issues/41628.
+            final int numSegments;
+            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                numSegments = searcher.getDirectoryReader().leaves().size();
             }
-            globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-            engine.syncTranslog();
+            if (numSegments == 1) {
+                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
+                ParsedDocument doc = testParsedDocument("dummy", null, testDocument(), B_1, null, useRecoverySource);
+                engine.index(indexForDoc(doc));
+                if (useRecoverySource == false) {
+                    liveDocsWithSource.add(doc.id());
+                }
+                engine.syncTranslog();
+                globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
+                engine.flush(randomBoolean(), true);
+            } else {
+                globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
+                engine.syncTranslog();
+            }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocsWithSource.size()));
@@ -4955,11 +4963,15 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             engine.flush(false, randomBoolean());
-            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            // Global checkpoint advanced but not enough - all commits are kept.
-            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint() - 1));
+            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
             engine.syncTranslog();
-            assertThat(DirectoryReader.listCommits(store.directory()), equalTo(commits));
+            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            assertThat(Long.parseLong(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                lessThanOrEqualTo(globalCheckpoint.get()));
+            for (int i = 1; i < commits.size(); i++) {
+                assertThat(Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                    greaterThan(globalCheckpoint.get()));
+            }
             // Global checkpoint advanced enough - only the last commit is kept.
             globalCheckpoint.set(randomLongBetween(engine.getPersistedLocalCheckpoint(), Long.MAX_VALUE));
             engine.syncTranslog();

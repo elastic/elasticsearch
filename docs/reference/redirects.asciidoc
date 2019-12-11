@@ -897,3 +897,129 @@ See <<monitoring-overview>>.
 
 See <<monitor-elasticsearch-cluster>>.
 
+[role="exclude",id="docker-cli-run"]
+=== Docker Run
+
+See <<docker-cli-run-dev-mode>>.
+
+[role="exclude",id="auditing"]
+=== Audit logging
+
+See <<enable-audit-logging>>.
+
+[role="exclude",id="analysis-compound-word-tokenfilter"]
+=== Compound word token filters
+
+See <<analysis-dict-decomp-tokenfilter>> and
+<<analysis-hyp-decomp-tokenfilter>>.
+
+[role="exclude",id="configuring-native-realm"]
+=== Configuring a native realm
+
+See <<native-realm-configuration>>.
+
+[role="exclude",id="native-settings"]
+==== Native realm settings
+
+See <<ref-native-settings>>. 
+
+[role="exclude",id="configuring-saml-realm"]
+=== Configuring a SAML realm
+
+See <<saml-guide>>.
+
+[role="exclude",id="saml-settings"]
+==== SAML realm settings
+
+See <<ref-saml-settings>>. 
+
+[role="exclude",id="_saml_realm_signing_settings"]
+==== SAML realm signing settings
+
+See <<ref-saml-signing-settings>>. 
+
+[role="exclude",id="_saml_realm_encryption_settings"]
+==== SAML realm encryption settings
+
+See <<ref-saml-encryption-settings>>. 
+
+[role="exclude",id="_saml_realm_ssl_settings"]
+==== SAML realm SSL settings
+
+See <<ref-saml-ssl-settings>>. 
+
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>. 
+
+[role="exclude",id="ldap-user-search"]
+=== User search mode and user DN templates mode
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="configuring-ldap-realm"]
+=== Configuring an LDAP realm
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="ldap-settings"]
+=== LDAP realm settings
+
+See <<ref-ldap-settings>>.
+
+[role="exclude",id="ldap-ssl"]
+=== Setting up SSL between Elasticsearch and LDAP
+
+See <<tls-ldap>>. 
+
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+
+[role="exclude",id="beats"]
+=== Beats and Security
+
+See:
+* {auditbeat-ref}/securing-beats.html[{auditbeat}]
+* {filebeat-ref}/securing-beats.html[{filebeat}]
+* {heartbeat-ref}/securing-beats.html[{heartbeat}]
+* {metricbeat-ref}/securing-beats.html[{metricbeat}]
+* {packetbeat-ref}/securing-beats.html[{packetbeat}]
+* {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
+
+[role="exclude",id="configuring-pki-realm"]
+=== Configuring a PKI realm
+
+See <<pki-realm>>.
+
+[role="exclude",id="pki-settings"]
+==== PKI realm settings
+
+See <<ref-pki-settings>>.
+
+[role="exclude",id="configuring-ad-realm"]
+=== Configuring an Active Directory realm
+
+See <<ad-realm-configuration>>.
+
+[role="exclude",id="ad-settings"]
+=== Active Directory realm settings
+
+See <<ref-ad-settings>>.
+
+[role="exclude",id="mapping-roles-ad"]
+=== Mapping Active Directory users and groups to roles
+
+See <<ad-realm-configuration>>. 
+
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.
+
+[role="exclude",id="rollup-job-config"]
+=== Rollup job configuration
+
+See <<rollup-put-job-api-request-body>>.

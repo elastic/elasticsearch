@@ -7,7 +7,7 @@
 Returns documents based on the order and proximity of matching terms.
 
 The `intervals` query uses *matching rules*, constructed from a small set of
-definitions. Theses rules are then applied to terms from a specified `field`.
+definitions. These rules are then applied to terms from a specified `field`.
 
 The definitions produce sequences of minimal intervals that span terms in a
 body of text. These intervals can be further combined and filtered by

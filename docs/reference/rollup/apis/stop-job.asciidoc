@@ -19,8 +19,8 @@ experimental[]
 [[rollup-stop-job-prereqs]]
 ==== {api-prereq-title}
 
-* You must have `manage` or `manage_rollup` cluster privileges to use this API.
-For more information, see
+* If the {es} {security-features} are enabled, you must have `manage` or
+`manage_rollup` cluster privileges to use this API. For more information, see
 <<security-privileges>>.
 
 [[rollup-stop-job-desc]]

@@ -1,13 +1,5 @@
-[role="xpack"]
-[[configuring-ldap-realm]]
-=== Configuring an LDAP realm
-
-You can configure {es} to authenticate users by communicating with a Lightweight
-Directory Access Protocol (LDAP) server. To integrate with LDAP, you configure
-an `ldap` realm and map LDAP groups to user roles.
-
-For more information about LDAP realms, see 
-<<ldap-realm>>.
+To integrate with LDAP, you configure an `ldap` realm and map LDAP groups to
+user roles.
 
 . Determine which mode you want to use. The `ldap` realm supports two modes of 
 operation, a user search mode and a mode with specific templates for user DNs. 
@@ -215,3 +207,5 @@ xpack:
             metadata: cn
 --------------------------------------------------
 --
+
+. Set up SSL to encrypt communications between {es} and LDAP. See <<tls-ldap>>. 

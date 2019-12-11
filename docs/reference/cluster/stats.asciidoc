@@ -1,5 +1,8 @@
 [[cluster-stats]]
-=== Cluster Stats
+=== Cluster stats API
+++++
+<titleabbrev>Cluster stats</titleabbrev>
+++++
 
 Returns cluster statistics.
 

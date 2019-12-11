@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
@@ -396,7 +397,24 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             builder.setPingInterval(pingSchedule);
             newProfile = builder.build();
         }
-        updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, noopListener);
+
+        if (remoteClusters.containsKey(clusterAlias) == false) {
+            CountDownLatch latch = new CountDownLatch(1);
+            updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, ActionListener.wrap(latch::countDown));
+
+            try {
+                // Wait 10 seconds for a new cluster. We must use a latch instead of a future because we
+                // are on the cluster state thread and our custom future implementation will throw an
+                // assertion.
+                if (latch.await(10, TimeUnit.SECONDS) == false) {
+                    logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        } else {
+            updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, noopListener);
+        }
     }
 
     void updateRemoteCluster(final String clusterAlias, final List<String> addresses, final String proxyAddress,

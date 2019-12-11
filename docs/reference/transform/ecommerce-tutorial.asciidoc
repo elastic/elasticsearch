@@ -50,7 +50,7 @@ they purchased. Or you might want to take the currencies or geographies into
 consideration. What are the most interesting ways you can transform and
 interpret this data?
 
-Go to *Machine Learning* > *Data Frames* in {kib} and use the
+Go to *Management* > *Transforms* in {kib} and use the
 wizard to create a {transform}:
 
 [role="screenshot"]

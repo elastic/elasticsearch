@@ -20,7 +20,7 @@ tag::allow-no-datafeeds[]
 Specifies what to do when the request:
 +
 --
-* Contains wildcard expressions and there are no {datafeeds} that match.
+* Contains wildcard expressions and there are no {dfeeds} that match.
 * Contains the `_all` string or no identifiers and there are no matches.
 * Contains wildcard expressions and there are only partial matches. 
 

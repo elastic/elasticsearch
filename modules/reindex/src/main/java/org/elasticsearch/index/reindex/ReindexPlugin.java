@@ -123,6 +123,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     public List<Setting<?>> getSettings() {
         final List<Setting<?>> settings = new ArrayList<>();
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
+        settings.add(TransportStartReindexTaskAction.MAX_CONCURRENT_REINDEX_TASKS);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

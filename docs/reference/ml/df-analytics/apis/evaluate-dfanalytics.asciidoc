@@ -78,6 +78,8 @@ Available evaluation types:
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}
 
+
+[[ml-evaluate-binary-soft-class-example]]
 ===== Binary soft classification
 
 [source,console]
@@ -139,6 +141,7 @@ The API returns the following results:
 ----
 
 
+[[ml-evaluate-regression-example]]
 ===== {regression-cap}
 
 [source,console]
@@ -252,6 +255,7 @@ performance. This is required in order to evaluate results.
 calculated by the {reganalysis}.
 
 
+[[ml-evaluate-classification-example]]
 ===== {classification-cap}
 
 
@@ -311,14 +315,14 @@ The API returns the following result:
             "predicted_classes" : [
               {
                 "predicted_class" : "dog",
-                "count" : 11
+                "count" : 7
               },
               {
                 "predicted_class" : "cat",
                 "count" : 4
               }
             ],
-            "other_predicted_class_doc_count" : 4
+            "other_predicted_class_doc_count" : 0
           }
         ],
         "other_actual_class_count" : 0

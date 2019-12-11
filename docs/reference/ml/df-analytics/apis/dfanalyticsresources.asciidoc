@@ -204,6 +204,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction_field_name]
 
 include::{docdir}/ml/ml-shared.asciidoc[tag=training_percent]
 
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize_seed]
+
 
 [float]
 [[regression-resources-advanced]]
@@ -251,6 +253,8 @@ The data type of the field must be numeric or boolean.
 include::{docdir}/ml/ml-shared.asciidoc[tag=prediction_field_name]
 
 include::{docdir}/ml/ml-shared.asciidoc[tag=training_percent]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize_seed]
 
 
 [float]

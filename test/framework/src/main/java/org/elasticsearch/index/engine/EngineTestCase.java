@@ -675,6 +675,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     update -> {},
                     () -> 0L,
                     (leases, listener) -> listener.onResponse(new ReplicationResponse()),
+                    () -> { },
                     () -> SafeCommitInfo.EMPTY);
             globalCheckpointSupplier = replicationTracker;
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;

@@ -136,7 +136,7 @@ contribute to this count. The timestamp is not included in this count.
 (long) The number of input documents that have been processed by the job. This value
 includes documents with missing fields, since they are nonetheless analyzed. If
 you use {dfeeds} and have aggregations in your search query, the
-`processed_record_count` will be the number of aggregated records processed, not
+`processed_record_count` will be the number of aggregation results processed, not
 the number of {es} documents.
 
 `sparse_bucket_count`:::

@@ -19,6 +19,29 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Docker.DockerShell;
+import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
@@ -575,6 +598,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the Java process running inside the container has the expect PID, UID and username.
      */
+    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49469 */
     public void test130JavaHasCorrectPidAndOwnership() {
         final List<String> processes = Arrays.stream(sh.run("ps -o pid,uid,user -C java").stdout.split("\n"))
             .skip(1)

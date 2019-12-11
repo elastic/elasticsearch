@@ -317,7 +317,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 (double) Minimum among all bucket processing times in milliseconds.
 ////
 `total_bucket_processing_time_ms`:::
-TBD
+(double) Sum of all bucket processing times in milliseconds.
 ////
 
 [[ml-get-job-stats-response-codes]]

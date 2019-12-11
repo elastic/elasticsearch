@@ -96,8 +96,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(noDataMasterSettings);
         try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
-            try (CoordinationState.PersistedState persistedState = EnvironmentAwareCommand.createLucenePersistedStateFactory(env.nodeDataPaths(),
-                env.nodeId()).loadPersistedState(EnvironmentAwareCommand.clusterState(environment))) {
+            try (CoordinationState.PersistedState persistedState = EnvironmentAwareCommand.createLucenePersistedStateFactory(
+                env.nodeDataPaths(), env.nodeId()).loadPersistedState(EnvironmentAwareCommand.clusterState(environment))) {
                 persistedState.setLastAcceptedState(ClusterState.builder(persistedState.getLastAcceptedState()).build());
             }
         }
@@ -221,8 +221,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         int shardDataDirNumber = randomInt(10);
         Environment environment = TestEnvironment.newEnvironment(settings);
         try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
-            try (CoordinationState.PersistedState persistedState = EnvironmentAwareCommand.createLucenePersistedStateFactory(env.nodeDataPaths(),
-                env.nodeId()).loadPersistedState(EnvironmentAwareCommand.clusterState(environment))) {
+            try (CoordinationState.PersistedState persistedState = EnvironmentAwareCommand.createLucenePersistedStateFactory(
+                env.nodeDataPaths(), env.nodeId()).loadPersistedState(EnvironmentAwareCommand.clusterState(environment))) {
                 persistedState.setLastAcceptedState(ClusterState.builder(persistedState.getLastAcceptedState())
                     .metaData(MetaData.builder().put(IndexMetaData.builder(INDEX.getName())
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT)

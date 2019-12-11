@@ -10,7 +10,7 @@ object grouped by {dfanalytics} types.
 
 
 [discrete]
-[[outlierdetection-resources]]
+[[oldetection-resources]]
 ==== {oldetection-cap} configuration objects
 
 An `outlier_detection` configuration object has the following properties:
@@ -75,7 +75,7 @@ hyperparameter optimization to give minimum validation errors.
 
 
 [float]
-[[reganalysis-resources-standard]]
+[[regression-resources-standard]]
 ===== Standard parameters
 
 `dependent_variable`::
@@ -100,7 +100,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 
 [float]
-[[reganalysis-resources-advanced]]
+[[regression-resources-advanced]]
 ===== Advanced parameters
 
 Advanced parameters are for fine-tuning {reganalysis}. They are set 
@@ -137,7 +137,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
  
  
 [float]
-[[classanalysis-resources-standard]]
+[[classification-resources-standard]]
 ===== Standard parameters
  
 `dependent_variable`::
@@ -166,7 +166,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 
 [float]
-[[classanalysis-resources-advanced]]
+[[classification-resources-advanced]]
 ===== Advanced parameters
 
 Advanced parameters are for fine-tuning {classanalysis}. They are set 

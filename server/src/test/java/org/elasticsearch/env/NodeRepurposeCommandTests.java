@@ -120,7 +120,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     public void testCleanupAll() throws Exception {
-        int shardCount = randomInt(10);
+        int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
         createIndexDataFiles(dataMasterSettings, shardCount);
 
@@ -131,7 +131,6 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),
-            conditionalNot(containsString("testUUID"), verbose == false),
             conditionalNot(containsString("testIndex"), verbose == false)
         );
 

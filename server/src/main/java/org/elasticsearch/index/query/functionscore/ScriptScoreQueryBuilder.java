@@ -170,7 +170,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        ScoreScript.Factory factory = context.getScriptService().compile(script, ScoreScript.CONTEXT);
+        ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());
         Query query = this.query.toQuery(context);
         return new ScriptScoreQuery(query, script, scoreScriptFactory, minScore,

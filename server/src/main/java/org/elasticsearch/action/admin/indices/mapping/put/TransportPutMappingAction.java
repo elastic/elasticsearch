@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
@@ -47,6 +49,8 @@ import java.util.Optional;
  * Put mapping action.
  */
 public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetaDataMappingService metaDataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;

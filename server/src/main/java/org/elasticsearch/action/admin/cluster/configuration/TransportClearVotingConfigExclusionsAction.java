@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -47,6 +49,8 @@ import java.util.function.Predicate;
 
 public class TransportClearVotingConfigExclusionsAction
     extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ClearVotingConfigExclusionsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
 
     @Inject
     public TransportClearVotingConfigExclusionsAction(TransportService transportService, ClusterService clusterService,

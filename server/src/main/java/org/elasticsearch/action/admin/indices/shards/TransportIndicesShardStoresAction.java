@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.shards;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
@@ -65,6 +66,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class TransportIndicesShardStoresAction
         extends TransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 
     private final TransportNodesListGatewayStartedShards listShardStoresInfo;
 

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -38,8 +36,6 @@ import java.util.stream.Collectors;
 public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAction<GetDatafeedsStatsAction.Request,
         GetDatafeedsStatsAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportGetDatafeedsStatsAction.class);
-
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobResultsProvider jobResultsProvider;
 
@@ -67,7 +63,6 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
     @Override
     protected void masterOperation(Task task, GetDatafeedsStatsAction.Request request, ClusterState state,
                                    ActionListener<GetDatafeedsStatsAction.Response> listener) throws Exception {
-        logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
         datafeedConfigProvider.expandDatafeedConfigs(
             request.getDatafeedId(),

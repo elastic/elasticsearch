@@ -273,7 +273,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
         String dependentVariable = KEYWORD_FIELD;
-        indexData(sourceIndex, 10, 0, dependentVariable);
+
+        // We use 100 rows as we can't set this too low. If too low it is possible
+        // we only train with rows of one of the two classes which leads to a failure.
+        indexData(sourceIndex, 100, 0, dependentVariable);
 
         String firstJobId = "classification_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";

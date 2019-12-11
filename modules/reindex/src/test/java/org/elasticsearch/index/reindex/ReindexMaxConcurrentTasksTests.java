@@ -49,7 +49,7 @@ public class ReindexMaxConcurrentTasksTests extends ReindexTestCase {
             List<String> tasksToWaitOn = new ArrayList<>();
 
             // Since we are only using validation on the data nodes and this test is inherently racy, we
-            //submit an excess of requests to ensure that the max concurrent exception triggers
+            // submit an excess of requests to ensure that the max concurrent exception triggers
             expectThrows(IllegalStateException.class, () -> {
                 for (int i = 0; i < 10; ++i) {
                     // Copy all the docs

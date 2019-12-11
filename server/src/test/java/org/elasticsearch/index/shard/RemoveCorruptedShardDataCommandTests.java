@@ -48,6 +48,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -151,8 +152,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
             final Path[] dataPaths =
                 Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeId, Version.CURRENT), dataPaths);
             try (CoordinationState.PersistedState persistedState =
-                     EnvironmentAwareCommand.createLucenePersistedStateFactory(dataPaths, "test")
+                     EnvironmentAwareCommand.createLucenePersistedStateFactory(dataPaths, nodeId)
                          .loadPersistedState(EnvironmentAwareCommand.clusterState(environment))) {
                 persistedState.setLastAcceptedState(clusterState);
             }

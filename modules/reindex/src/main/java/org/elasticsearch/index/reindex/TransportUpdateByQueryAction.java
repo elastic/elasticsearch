@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -88,18 +89,18 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final boolean useSeqNoForCAS;
+        private final boolean allowSeqNoForCAS;
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request, ClusterState clusterState,
                 ActionListener<BulkByScrollResponse> listener) {
             super(task,
-                // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
-                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
+                // always return version information, as sequence number information might not be available on an older index
+                true,
                 // all nodes support sequence number powered optimistic concurrency control and we can use it
                 clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
                 logger, client, threadPool, action, request, listener);
-            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
+            allowSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
         }
 
         @Override
@@ -118,10 +119,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            if (useSeqNoForCAS) {
+            if (allowSeqNoForCAS && doc.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 index.setIfSeqNo(doc.getSeqNo());
                 index.setIfPrimaryTerm(doc.getPrimaryTerm());
             } else {
+                assert doc.getVersion() != -1 : "no version retrieved";
                 index.versionType(VersionType.INTERNAL);
                 index.version(doc.getVersion());
             }

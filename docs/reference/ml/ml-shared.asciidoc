@@ -576,11 +576,6 @@ tag::job-id-datafeed[]
 The unique identifier for the job to which the {dfeed} sends data.
 end::job-id-datafeed[]
 
-tag::jobs-stats-anomaly-detection[]
-An array of {anomaly-job} statistics objects.
-For more information, see <<ml-jobstats>>.
-end::jobs-stats-anomaly-detection[]
-
 tag::lambda[]
 `lambda`::
 (Optional, double) Regularization parameter to prevent overfitting on the 

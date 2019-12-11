@@ -88,7 +88,7 @@ fields that are not used in the analysis. (However, be aware that if you are usi
 (long) The number of input documents posted to the job.
 
 `invalid_date_count`:::
-(long) The number of records with either a missing date field or a date that
+(long) The number of input documents with either a missing date field or a date that
 could not be parsed.
 
 `job_id`:::

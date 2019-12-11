@@ -32,18 +32,21 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.transform.transforms.SourceDestValidator.Context;
+import org.elasticsearch.xpack.transform.transforms.SourceDestValidator.RemoteSourceEnabledAndRemoteLicenseValidation;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.spy;
 
 public class SourceDestValidatorTests extends ESTestCase {
 
@@ -53,7 +56,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     private static final String DEST_ALIAS = "dest-alias";
     private static final String ALIASED_DEST = "aliased-dest";
     private static final String ALIAS_READ_WRITE_DEST = "alias-read-write-dest";
-    private static final List<String> REMOTE_CLUSTERS = Arrays.asList("remote-1", "remote=2");
+    private static final String REMOTE_BASIC = "remote-basic";
+    private static final String REMOTE_PLATINUM = "remote-platinum";
 
     private static final ClusterState CLUSTER_STATE;
     private RemoteClusterLicenseChecker remoteClusterLicenseChecker;
@@ -306,7 +310,10 @@ public class SourceDestValidatorTests extends ESTestCase {
 
         assertNotNull(e);
         assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-1] is included in source expression [source-1]"));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [" + SOURCE_1 + "]")
+        );
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
@@ -335,7 +342,10 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-2] is included in source expression [source-*]"));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [source-*]")
+        );
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
@@ -364,7 +374,10 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-2] is included in source expression [source-*]"));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [source-*]")
+        );
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
@@ -396,7 +409,9 @@ public class SourceDestValidatorTests extends ESTestCase {
         assertThat(
             e.validationErrors().get(0),
             equalTo(
-                "no write index is defined for alias [dest-alias]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index"
+                "no write index is defined for alias [dest-alias]. "
+                    + "The write index may be explicitly disabled using is_write_index=false or the alias points "
+                    + "to multiple indices without one being designated as a write index"
             )
         );
 
@@ -416,7 +431,9 @@ public class SourceDestValidatorTests extends ESTestCase {
         assertThat(
             e.validationErrors().get(0),
             equalTo(
-                "no write index is defined for alias [dest-alias]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index"
+                "no write index is defined for alias [dest-alias]. "
+                    + "The write index may be explicitly disabled using is_write_index=false or the alias points "
+                    + "to multiple indices without one being designated as a write index"
             )
         );
     }
@@ -450,7 +467,10 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-1] is included in source expression [source-1]"));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [" + SOURCE_1 + "]")
+        );
 
         e = SourceDestValidator.validate(
             CLUSTER_STATE,
@@ -466,7 +486,24 @@ public class SourceDestValidatorTests extends ESTestCase {
         assertNull(e);
     }
 
-    public void testCheck_GivenSimpleCCSSourceIndexAndValidDestIndex() {
-        // TBD
+    public void testRemoteSourceBasic() {
+
+        Context context = new SourceDestValidator.Context(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            remoteClusterService,
+            remoteClusterLicenseChecker,
+            new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
+            "dest",
+            "node_id",
+            "license"
+        );
+
+        Context spyContext = spy(context);
+        when(spyContext.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
+
+        RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        validator.validate(spyContext);
+
     }
 }

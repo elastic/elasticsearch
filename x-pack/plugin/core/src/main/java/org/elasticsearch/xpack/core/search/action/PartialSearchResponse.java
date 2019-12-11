@@ -65,6 +65,7 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("is_partial", true);
         builder.field("total_shards", totalShards);
         builder.field("successful_shards", successfulShards);
         builder.field("shard_failures", shardFailures);

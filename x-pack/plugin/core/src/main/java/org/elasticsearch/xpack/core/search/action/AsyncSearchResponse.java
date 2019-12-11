@@ -59,7 +59,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         this.version = version;
         this.partialResponse = partialResponse;
         this.failure = failure;
-        this.finalResponse = finalResponse;
+        this.finalResponse = finalResponse != null ? wrapFinalResponse(finalResponse) : null;
         this.timestamp = System.currentTimeMillis();
         this.isRunning = isRunning;
     }
@@ -158,14 +158,26 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
+    public RestStatus status() {
+        if (finalResponse == null && partialResponse == null) {
+            return NOT_MODIFIED;
+        } else if (finalResponse == null) {
+            return failure != null ? failure.status() : PARTIAL_CONTENT;
+        } else {
+            return finalResponse.status();
+        }
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("id", id);
         builder.field("version", version);
         builder.field("is_running", isRunning);
         builder.field("timestamp", timestamp);
+
         if (partialResponse != null) {
-            builder.field("partial_response", partialResponse);
+            builder.field("response", partialResponse);
         } else if (finalResponse != null) {
             builder.field("response", finalResponse);
         }
@@ -178,14 +190,14 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         return builder;
     }
 
-    @Override
-    public RestStatus status() {
-        if (finalResponse == null && partialResponse == null) {
-            return NOT_MODIFIED;
-        } else if (finalResponse == null) {
-            return failure != null ? failure.status() : PARTIAL_CONTENT;
-        } else {
-            return finalResponse.status();
-        }
+    private static SearchResponse wrapFinalResponse(SearchResponse response) {
+        // Adds a partial flag set to false in the xcontent serialization
+        return new SearchResponse(response) {
+            @Override
+            public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.field("is_partial", false);
+                return super.innerToXContent(builder, params);
+            }
+        };
     }
 }

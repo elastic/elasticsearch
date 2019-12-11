@@ -145,6 +145,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
         assertEquals(expected.status(), actual.status());
         assertEquals(expected.getPartialResponse(), actual.getPartialResponse());
         assertEquals(expected.getFailure() == null, actual.getFailure() == null);
-        // TODO check equals response
+        // TODO check equal SearchResponse
     }
 }

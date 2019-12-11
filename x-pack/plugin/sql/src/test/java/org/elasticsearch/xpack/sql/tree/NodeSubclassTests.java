@@ -28,19 +28,17 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
 import org.elasticsearch.xpack.sql.tree.NodeTests.NoChildren;
-import org.junit.Assume;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -166,9 +164,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * Test {@link Node#replaceChildren} implementation on {@link #subclass}.
      */
     public void testReplaceChildren() throws Exception {
-        // TODO: Provide a proper fix for: https://github.com/elastic/elasticsearch/issues/48900
-        Assume.assumeFalse(subclass.equals(Pivot.class));
-
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);
         T node = ctor.newInstance(nodeCtorArgs);

@@ -219,6 +219,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             .run();
     }
 
+    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/50079 */
     public void test51WrongKeystorePasswordFromFile() throws Exception {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         Path esKeystorePassphraseFile = installation.config.resolve("eks");

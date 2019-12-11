@@ -101,7 +101,7 @@ public final class CsvProcessor extends AbstractProcessor {
             if (targetFields.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "target_fields", "target fields list can't be empty");
             }
-            return new CsvProcessor(processorTag, field, targetFields.toArray(String[]::new), trim, separator.charAt(0), quote.charAt(0),
+            return new CsvProcessor(processorTag, field, targetFields.toArray(new String[0]), trim, separator.charAt(0), quote.charAt(0),
                 ignoreMissing);
         }
     }

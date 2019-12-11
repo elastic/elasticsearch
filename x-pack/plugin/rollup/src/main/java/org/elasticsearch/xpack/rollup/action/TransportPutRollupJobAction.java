@@ -61,6 +61,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
+
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;

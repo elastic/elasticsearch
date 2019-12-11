@@ -138,7 +138,7 @@ public final class RemoteClusterLicenseChecker {
     }
 
     public static boolean isLicensePlatinumOrTrial(final XPackInfoResponse.LicenseInfo licenseInfo) {
-        final License.OperationMode mode = License.OperationMode.resolve(licenseInfo.getMode());
+        final License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
         return mode == License.OperationMode.PLATINUM || mode == License.OperationMode.TRIAL;
     }
 
@@ -168,7 +168,7 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
                 if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
-                        || predicate.test(License.OperationMode.resolve(licenseInfo.getMode())) == false) {
+                        || predicate.test(License.OperationMode.parse(licenseInfo.getMode())) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -282,7 +282,7 @@ public final class RemoteClusterLicenseChecker {
             final String message = String.format(
                     Locale.ROOT,
                     "the license mode [%s] on cluster [%s] does not enable [%s]",
-                    License.OperationMode.resolve(remoteClusterLicenseInfo.licenseInfo().getMode()),
+                    License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
                     remoteClusterLicenseInfo.clusterAlias(),
                     feature);
             error.append(message);

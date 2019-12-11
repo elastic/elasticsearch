@@ -681,6 +681,15 @@ those that contain arrays) won’t be included in the calculation for used
 percentage. Defaults to `100`.
 end::training_percent[]
 
+tag::randomize_seed[]
+`randomize_seed`::
+(Optional, long) Defines the seed to the random generator that is used to pick
+which documents will be used for training. By default it is randomly generated.
+Set it to a specific value to ensure the same documents are used for training
+assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are the same.
+end::randomize_seed[]
+
+
 tag::use-null[]
 Defines whether a new series is used as the null series when there is no value 
 for the by or partition fields. The default value is `false`.

@@ -40,7 +40,7 @@ public final class SDeclaration extends AStatement {
     private final String name;
     private AExpression expression;
 
-    private Variable variable = null;
+    Variable variable = null;
 
     public SDeclaration(Location location, DType type, String name, AExpression expression) {
         super(location);

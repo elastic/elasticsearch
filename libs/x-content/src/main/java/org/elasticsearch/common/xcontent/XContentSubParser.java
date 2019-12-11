@@ -23,7 +23,6 @@ import org.elasticsearch.common.CheckedFunction;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -100,7 +99,7 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
-    public LinkedHashMap<String, Object> mapOrdered() throws IOException {
+    public Map<String, Object> mapOrdered() throws IOException {
         return parser.mapOrdered();
     }
 

@@ -267,7 +267,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public LinkedHashMap<String, Object> mapOrdered() throws IOException {
+    public Map<String, Object> mapOrdered() throws IOException {
         return readOrderedMap(this);
     }
 
@@ -302,8 +302,8 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readMap(parser, SIMPLE_MAP_FACTORY);
     }
 
-    static LinkedHashMap<String, Object> readOrderedMap(XContentParser parser) throws IOException {
-        return (LinkedHashMap<String, Object>)readMap(parser, ORDERED_MAP_FACTORY);
+    static Map<String, Object> readOrderedMap(XContentParser parser) throws IOException {
+        return readMap(parser, ORDERED_MAP_FACTORY);
     }
 
     static Map<String, String> readMapStrings(XContentParser parser) throws IOException {

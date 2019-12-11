@@ -24,7 +24,6 @@ import org.elasticsearch.common.CheckedFunction;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.CharBuffer;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -133,7 +132,7 @@ public interface XContentParser extends Closeable {
 
     Map<String, Object> map() throws IOException;
 
-    LinkedHashMap<String, Object> mapOrdered() throws IOException;
+    Map<String, Object> mapOrdered() throws IOException;
 
     Map<String, String> mapStrings() throws IOException;
 

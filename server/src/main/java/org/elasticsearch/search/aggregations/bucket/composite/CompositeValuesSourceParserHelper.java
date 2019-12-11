@@ -45,9 +45,12 @@ public class CompositeValuesSourceParserHelper {
 
         objectParser.declareField(VB::valueType, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
-            // TODO: We used to apply limited type checking here to see if the user specified type was compatible with the expected type
-            //       That got removed in the process of moving away from ValueType, but we should add something back in before merging
-            //       to master.
+            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
+                throw new ParsingException(p.getTokenLocation(),
+                    "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
+                        + valueType + "].  It can only work on value off type ["
+                        + expectedValueType + "]");
+            }
             return valueType;
         }, new ParseField("value_type"), ObjectParser.ValueType.STRING);
 

@@ -46,7 +46,7 @@ import java.util.function.LongSupplier;
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
 public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
-    ANY {
+    ANY(EquivalenceType.STRING) {
         // ANY still has a lot of special handling in ValuesSourceConfig, and as such doesn't adhere to this interface yet
         @Override
         public ValuesSource getEmpty() {
@@ -71,7 +71,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
             return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
         }
     },
-    NUMERIC {
+    NUMERIC(EquivalenceType.NUMBER) {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.Numeric.EMPTY;
@@ -105,7 +105,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
     },
-    BYTES {
+    BYTES(EquivalenceType.STRING) {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.Bytes.WithOrdinals.EMPTY;
@@ -142,7 +142,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
             }
         }
     },
-    GEOPOINT {
+    GEOPOINT(EquivalenceType.GEO) {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.GeoPoint.EMPTY;
@@ -176,7 +176,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
             return DocValueFormat.GEOHASH;
         }
     },
-    RANGE {
+    RANGE(EquivalenceType.RANGE) {
         @Override
         public ValuesSource getEmpty() {
             // TODO: Is this the correct exception type here?
@@ -206,7 +206,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
         }
     },
     // TODO: Ordinal Numbering sync with types from master
-    IP {
+    IP(EquivalenceType.STRING) {
         @Override
         public ValuesSource getEmpty() {
             return BYTES.getEmpty();
@@ -232,7 +232,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
             return DocValueFormat.IP;
         }
     },
-    DATE {
+    DATE(EquivalenceType.NUMBER) {
         @Override
         public ValuesSource getEmpty() {
             return NUMERIC.getEmpty();
@@ -263,7 +263,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
                 DateFieldMapper.Resolution.MILLISECONDS);
         }
     },
-    BOOLEAN {
+    BOOLEAN(EquivalenceType.NUMBER) {
         @Override
         public ValuesSource getEmpty() {
             return NUMERIC.getEmpty();
@@ -290,6 +290,24 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
         }
     }
     ;
+
+    enum EquivalenceType {
+        STRING, NUMBER, GEO, RANGE;
+    }
+
+    EquivalenceType equivalenceType;
+
+    CoreValuesSourceType(EquivalenceType equivalenceType) {
+        this.equivalenceType = equivalenceType;
+    }
+    @Override
+    public boolean isCastableTo(ValuesSourceType valuesSourceType) {
+        if (valuesSourceType instanceof CoreValuesSourceType == false) {
+            return false;
+        }
+        CoreValuesSourceType other = (CoreValuesSourceType) valuesSourceType;
+        return this.equivalenceType == other.equivalenceType;
+    }
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

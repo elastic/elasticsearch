@@ -85,4 +85,7 @@ public interface ValuesSourceType {
     default DocValueFormat getFormatter(String format, ZoneId tz) {
         return DocValueFormat.RAW;
     }
+
+    // TODO: This is scaffolding to shore up the parser logic while we're still refactoring.  Don't merge this to master
+    boolean isCastableTo(ValuesSourceType valuesSourceType);
 }

@@ -78,6 +78,15 @@ public enum ValueType implements Writeable {
         return valuesSourceType;
     }
 
+    public boolean isA(ValueType valueType) {
+        return valueType.valuesSourceType.isCastableTo(valuesSourceType) &&
+            valueType.fieldDataType.isAssignableFrom(fieldDataType);
+    }
+
+    public boolean isNotA(ValueType valueType) {
+        return !isA(valueType);
+    }
+
     public DocValueFormat defaultFormat() {
         return defaultFormat;
     }

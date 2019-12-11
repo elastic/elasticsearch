@@ -128,7 +128,7 @@ discarded, since jobs require time series data to be in ascending chronological
 order.
 
 `processed_field_count`:::
-(long) The total number of fields in all the records that have been processed by
+(long) The total number of fields in all the documents that have been processed by
 the job. Only fields that are specified in the detector configuration object
 contribute to this count. The time stamp is not included in this count.
 

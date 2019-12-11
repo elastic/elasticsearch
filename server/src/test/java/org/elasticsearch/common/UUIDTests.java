@@ -31,6 +31,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -153,7 +154,7 @@ public class UUIDTests extends ESTestCase {
         // the quality of this test
         Directory dir = newFSDirectory(createTempDir());
         IndexWriterConfig config = new IndexWriterConfig()
-                .setCodec(Codec.forName("Lucene84"))
+                .setCodec(Codec.forName(Lucene.LATEST_CODEC))
                 .setMergeScheduler(new SerialMergeScheduler()); // for reproducibility
         IndexWriter w = new IndexWriter(dir, config);
         Document doc = new Document();

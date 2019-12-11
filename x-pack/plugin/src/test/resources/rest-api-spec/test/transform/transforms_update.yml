@@ -280,7 +280,7 @@ setup:
         index: created-destination-index
         name: dest2-index
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[dest2-index\] should refer to a single index/
+      catch: /.*reason=Validation Failed.* no write index is defined for alias [dest2-index].*/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >

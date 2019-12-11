@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.transport.RemoteClusterService;
 
@@ -321,10 +319,6 @@ public final class SourceDestValidator {
         return context.getValidationException();
     }
 
-    public static RemoteClusterLicenseChecker remoteClusterLicenseCheckerBasicLicense(Client client) {
-        return new RemoteClusterLicenseChecker(client, (operationMode -> operationMode != License.OperationMode.MISSING));
-    }
-
     static class SourceMissingValidation implements SourceDestValidation {
 
         @Override
@@ -376,20 +370,17 @@ public final class SourceDestValidator {
             CountDownLatch latch = new CountDownLatch(1);
 
             context.getRemoteClusterLicenseChecker()
-                .checkRemoteClusterLicenses(
-
-                    remoteAliases,
-                    new LatchedActionListener<>(ActionListener.wrap(response -> {
-                        if (response.isSuccess() == false) {
-                            context.addValidationError(
-                                FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE,
-                                true,
-                                response.remoteClusterLicenseInfo().clusterAlias(),
-                                context.getLicense()
-                            );
-                        }
-                    }, e -> {
-
+                .checkRemoteClusterLicenses(remoteAliases, new LatchedActionListener<>(ActionListener.wrap(response -> {
+                    if (response.isSuccess() == false) {
+                        context.addValidationError(
+                            FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE,
+                            true,
+                            response.remoteClusterLicenseInfo().clusterAlias(),
+                            context.getLicense()
+                        );
+                    }
+                },
+                    e -> {
                         context.addValidationError(
                             UNKNOWN_REMOTE_CLUSTER_LICENSE,
                             true,
@@ -397,8 +388,8 @@ public final class SourceDestValidator {
                             remoteAliases,
                             e.getMessage()
                         );
-                    }), latch)
-                );
+                    }
+                ), latch));
 
             try {
                 latch.await();

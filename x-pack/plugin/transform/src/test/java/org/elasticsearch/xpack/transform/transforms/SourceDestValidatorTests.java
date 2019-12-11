@@ -21,6 +21,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
@@ -60,8 +61,9 @@ public class SourceDestValidatorTests extends ESTestCase {
     private static final String REMOTE_PLATINUM = "remote-platinum";
 
     private static final ClusterState CLUSTER_STATE;
-    private RemoteClusterLicenseChecker remoteClusterLicenseChecker;
-    private Client client;
+    private Client clientWithBasicLicense;
+    private Client clientWithPlatinumLicense;
+    private RemoteClusterLicenseChecker remoteClusterLicenseCheckerBasic;
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
@@ -112,8 +114,11 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     private class MockClientLicenseCheck extends NoOpClient {
-        MockClientLicenseCheck(String testName) {
+        private final String license;
+
+        MockClientLicenseCheck(String testName, String license) {
             super(testName);
+            this.license = license;
         }
 
         @Override
@@ -129,10 +134,9 @@ public class SourceDestValidatorTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof XPackInfoRequest) {
-
                 XPackInfoResponse response = new XPackInfoResponse(
                     null,
-                    new LicenseInfo("uid", "BASIC", "BASIC", LicenseStatus.ACTIVE, randomNonNegativeLong()),
+                    new LicenseInfo("uid", license, license, LicenseStatus.ACTIVE, randomNonNegativeLong()),
                     null
                 );
                 listener.onResponse((Response) response);
@@ -144,16 +148,18 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     @Before
     public void setupComponents() {
-        client = new MockClientLicenseCheck(getTestName());
-        remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
-            client,
+        clientWithBasicLicense = new MockClientLicenseCheck(getTestName(), "basic");
+        remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(
+            clientWithBasicLicense,
             (operationMode -> operationMode != License.OperationMode.MISSING)
         );
+        clientWithPlatinumLicense = new MockClientLicenseCheck(getTestName(), "platinum");
     }
 
     @After
     public void closeComponents() throws Exception {
-        client.close();
+        clientWithBasicLicense.close();
+        clientWithPlatinumLicense.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -492,7 +498,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
             remoteClusterService,
-            remoteClusterLicenseChecker,
+            remoteClusterLicenseCheckerBasic,
             new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
             "dest",
             "node_id",
@@ -505,5 +511,28 @@ public class SourceDestValidatorTests extends ESTestCase {
         RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
         validator.validate(spyContext);
 
+        assertNull(context.getValidationException());
+    }
+
+    public void testRemoteSourcePlatinum() {
+
+        Context context = new SourceDestValidator.Context(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            remoteClusterService,
+            new RemoteClusterLicenseChecker(clientWithBasicLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
+            new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
+            "dest",
+            "node_id",
+            "license"
+        );
+
+        Context spyContext = spy(context);
+        when(spyContext.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
+
+        RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        validator.validate(spyContext);
+
+        assertNotNull(spyContext.getValidationException());
     }
 }

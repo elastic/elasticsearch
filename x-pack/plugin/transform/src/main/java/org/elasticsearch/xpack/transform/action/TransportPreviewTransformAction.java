@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -132,7 +133,7 @@ public class TransportPreviewTransformAction extends
             clusterState,
             indexNameExpressionResolver,
             this.transportService.getRemoteClusterService(),
-            isRemoteSearchEnabled ? SourceDestValidator.remoteClusterLicenseCheckerBasicLicense(client) : null,
+            isRemoteSearchEnabled ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode) : null,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             clusterService.getNodeName(),

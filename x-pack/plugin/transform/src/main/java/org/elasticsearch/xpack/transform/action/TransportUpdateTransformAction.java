@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
@@ -212,7 +213,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
             clusterState,
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            isRemoteSearchEnabled ? SourceDestValidator.remoteClusterLicenseCheckerBasicLicense(client) : null,
+            isRemoteSearchEnabled ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode) : null,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             clusterService.getNodeName(),

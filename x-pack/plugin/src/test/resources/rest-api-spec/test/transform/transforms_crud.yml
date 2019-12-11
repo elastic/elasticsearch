@@ -410,7 +410,7 @@ setup:
         name: dest-index
 
   - do:
-      catch: /Destination index \[dest-index\] should refer to a single index/
+      catch: /.*reason=Validation Failed.* no write index is defined for alias [dest2-index].*/
       transform.put_transform:
         transform_id: "airline-transform"
         body: >

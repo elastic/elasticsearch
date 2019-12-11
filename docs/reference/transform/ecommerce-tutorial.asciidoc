@@ -50,7 +50,7 @@ they purchased. Or you might want to take the currencies or geographies into
 consideration. What are the most interesting ways you can transform and
 interpret this data?
 
-Go to *Management* > *Transforms* in {kib} and use the
+Go to *Management* > *Elasticsearch* > *Transforms* in {kib} and use the
 wizard to create a {transform}:
 
 [role="screenshot"]
@@ -237,6 +237,11 @@ example:
 POST _transform/ecommerce-customer-transform/_start
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
+
+TIP: If you chose a batch {transform}, it is a single operation that has a
+single checkpoint. You cannot restart it when it's complete. {ctransforms-cap}
+differ in that they continually increment and process checkpoints as new source
+data is ingested.
 
 --
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -108,6 +109,11 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public ShapeType shapeType() {
+            return ShapeType.POINT;
+        }
+
+        @Override
         public double lat() {
             return geoPoint.lat();
         }
@@ -158,6 +164,15 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public ShapeType shapeType() {
+            try {
+                return reader.getShapeType();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to reach ShapeType", e);
+            }
+        }
+
+        @Override
         public double lat() {
             try {
                 return reader.getCentroidY();
@@ -202,6 +217,7 @@ public abstract class MultiGeoValues {
         double lon();
         BoundingBox boundingBox();
         GeoRelation relate(Rectangle rectangle);
+        ShapeType shapeType();
     }
 
     public static class BoundingBox {

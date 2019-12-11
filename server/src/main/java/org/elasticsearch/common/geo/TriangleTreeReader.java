@@ -20,6 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,8 +35,8 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * relations against the serialized triangle tree.
  */
 public class TriangleTreeReader {
+    private static final int SKIP_CENTROID = 8;
 
-    private final int extentOffset = 8;
     private ByteBufferStreamInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Rectangle2D rectangle2D;
@@ -58,7 +59,9 @@ public class TriangleTreeReader {
      */
     public Extent getExtent() throws IOException {
         if (treeOffset == 0) {
-            input.position(extentOffset);
+            input.position(SKIP_CENTROID);
+            input.readVInt(); // skip ShapeType
+
             int top = input.readInt();
             int bottom = Math.toIntExact(top - input.readVLong());
             int posRight = input.readInt();
@@ -87,6 +90,11 @@ public class TriangleTreeReader {
     public double getCentroidY() throws IOException {
         input.position(4);
         return coordinateEncoder.decodeY(input.readInt());
+    }
+
+    public ShapeType getShapeType() throws IOException {
+        input.position(SKIP_CENTROID);
+        return ShapeType.forOrdinal(input.readVInt());
     }
 
     /**

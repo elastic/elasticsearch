@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -45,6 +46,21 @@ import static org.elasticsearch.geo.GeometryTestUtils.randomPoint;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TriangleTreeTests extends ESTestCase {
+
+    public void testShapeType() throws IOException {
+        Geometry geometry = randomGeometryTreeGeometry();
+        TriangleTreeWriter writer = new TriangleTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+        assertThat(writer.getShapeType(), equalTo(geometry.type()));
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+
+        TriangleTreeReader reader = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+        reader.reset(output.bytes().toBytesRef());
+
+        assertThat(reader.getShapeType(), equalTo(geometry.type()));
+    }
 
     public void testRectangleShape() throws IOException {
         for (int i = 0; i < 1000; i++) {

@@ -71,6 +71,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
+        out.writeEnum(type);
         out.writeInt(extent.top);
         out.writeVLong((long) extent.top - extent.bottom);
         out.writeInt(extent.posRight);

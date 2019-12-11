@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -39,11 +38,6 @@ final class EConstant extends AExpression {
         super(location);
 
         this.constant = constant;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        throw new IllegalStateException("illegal tree structure");
     }
 
     @Override

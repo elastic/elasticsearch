@@ -6,4 +6,4 @@
 # or 'openjdk' followed by the major release number.
 
 ES_BUILD_JAVA:
-  - openjdk12
+  - openjdk13

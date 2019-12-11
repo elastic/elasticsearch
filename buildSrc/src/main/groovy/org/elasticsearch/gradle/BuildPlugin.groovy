@@ -257,7 +257,6 @@ class BuildPlugin implements Plugin<Project> {
                 rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                     List<String> messages = []
                     Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-                    task.logger.warn(requiredJavaVersions.toString())
                     for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
                         if (BuildParams.javaVersions.any { it.version == entry.key }) {
                             continue
@@ -719,6 +718,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+                // TODO: remove this property in 8.0
+                test.systemProperty 'es.search.rewrite_sort', 'true'
 
                 // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
                 test.systemProperty 'es.transport.cname_in_publish_address', 'true'

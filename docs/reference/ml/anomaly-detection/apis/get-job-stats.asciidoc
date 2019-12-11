@@ -123,7 +123,7 @@ necessarily a cause for concern.
 `out_of_order_timestamp_count`:::
 (long) The number of records that are out of time sequence and outside of the
 latency window. This information is applicable only when you provide data to the
-job by using the <<ml-post-data,post data API>>. These out of order records are 
+job by using the <<ml-post-data,post data API>>. These out of order documents are 
 discarded, since jobs require time series data to be in ascending chronological
 order.
 

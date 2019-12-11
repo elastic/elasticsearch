@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.util.AbstractMap;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /*
 This is a _very_ crude prototype for the ValuesSourceRegistry which basically hard-codes everything.  The intent is to define the API
@@ -79,7 +81,8 @@ public enum ValuesSourceRegistry {
 
         @Override
         public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, IndexFieldData indexFieldData, String aggregationName,
-                                                    ValueType valueType) {
+                                                    ValueType valueType, Script script,
+                                                    Function<Script, ValuesSourceType> defaultValuesSourceType) {
             if (resolverRegistry.containsKey(aggregationName)) {
                 List<AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType>> resolverList
                     = resolverRegistry.get(aggregationName);
@@ -102,7 +105,7 @@ public enum ValuesSourceRegistry {
                     return CoreValuesSourceType.RANGE;
                 } else {
                     if (valueType == null) {
-                        return CoreValuesSourceType.BYTES;
+                        return defaultValuesSourceType.apply(script);
                     } else {
                         return valueType.getValuesSourceType();
                     }
@@ -127,7 +130,8 @@ public enum ValuesSourceRegistry {
     public abstract AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName);
     // TODO: ValueType argument is only needed for legacy logic
     public abstract ValuesSourceType getValuesSourceType(MappedFieldType fieldType, IndexFieldData indexFieldData, String aggregationName,
-                                                         ValueType valueType);
+                                                         ValueType valueType, Script script,
+                                                         Function<Script, ValuesSourceType> defaultValuesSourceType);
 
     public static ValuesSourceRegistry getInstance() {return INSTANCE;}
 }

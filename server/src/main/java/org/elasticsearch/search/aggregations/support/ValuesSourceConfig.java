@@ -126,7 +126,7 @@ public class ValuesSourceConfig {
             } else {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
-                    aggregationName, userValueTypeHint);
+                    aggregationName, userValueTypeHint, script, defaultValueSourceType);
                 config = new ValuesSourceConfig(valuesSourceType);
 
                 config.fieldContext(new FieldContext(field, indexFieldData, fieldType));

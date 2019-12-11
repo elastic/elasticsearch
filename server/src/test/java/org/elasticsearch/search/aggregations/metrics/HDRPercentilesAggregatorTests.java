@@ -19,9 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -30,23 +33,30 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.HDRPercentilesAggregator;
-import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 
 public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
+
+    @Rule
+    public final ExpectedException expectedException = ExpectedException.none();
 
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -55,6 +65,71 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(0L, hdr.state.getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
+    }
+
+    /**
+     * Attempting to use HDRPercentileAggregation on a string field throws IllegalArgumentException
+     */
+    public void testStringField() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        final String fieldName = "string";
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("bogus")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("zwomp")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foobar")));
+                indexWriter.addDocument(document);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                PercentilesAggregationBuilder builder =
+                    new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
+
+                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+                fieldType.setName(fieldName);
+                fieldType.setHasDocValues(true);
+                expectedException.expect(IllegalArgumentException.class);
+                createAggregator(builder, indexSearcher, fieldType);
+            }
+        }
+    }
+
+    /**
+     * Attempting to use HDRPercentileAggregation on a range field throws AggregationExecutionException
+     *
+     * Note: this test passes, but this behavior is wrong.  It should throw IllegalArgumentException as the string case does.
+     */
+    public void testRangeField() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        final String fieldName = "range";
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                RangeFieldMapper.Range range =new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
+                BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
+                document.add(new BinaryDocValuesField(fieldName, encodedRange));
+                indexWriter.addDocument(document);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                PercentilesAggregationBuilder builder =
+                    new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
+
+                MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, RangeType.DOUBLE).fieldType();
+                fieldType.setName(fieldName);
+                expectedException.expect(AggregationExecutionException.class);
+                createAggregator(builder, indexSearcher, fieldType);
+            }
+        }
     }
 
     public void testNoMatchingField() throws IOException {

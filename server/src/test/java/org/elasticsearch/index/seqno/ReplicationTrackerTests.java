@@ -695,9 +695,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease =
                 (leases, listener) -> {};
         ReplicationTracker oldPrimary = new ReplicationTracker(shardId, aId.getId(), indexSettings, primaryTerm, globalCheckpoint,
-            onUpdate, () -> 0L, onNewRetentionLease, () -> {}, OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
+            onUpdate, () -> 0L, onNewRetentionLease, OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         ReplicationTracker newPrimary = new ReplicationTracker(shardId, aId.getRelocationId(), indexSettings, primaryTerm, globalCheckpoint,
-            onUpdate, () -> 0L, onNewRetentionLease, () -> {}, OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
+            onUpdate, () -> 0L, onNewRetentionLease, OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 

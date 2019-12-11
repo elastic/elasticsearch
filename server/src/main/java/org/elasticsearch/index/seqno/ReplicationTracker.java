@@ -210,13 +210,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * if we recently did a rolling upgrade and {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)} has not
      * yet completed. Is only permitted to change from false to true; can be removed once support for pre-PRRL indices is no longer needed.
      */
-    private volatile boolean hasAllPeerRecoveryRetentionLeases;
-
-    /**
-     * Called when {@link #hasAllPeerRecoveryRetentionLeases} becomes true. If the flag was initialized with true, this callback won't
-     * be called.
-     */
-    private final Runnable onHasAllPeerRecoveryRetentionLeases;
+    private boolean hasAllPeerRecoveryRetentionLeases;
 
     /**
      * Supplies information about the current safe commit which may be used to expire peer-recovery retention leases.
@@ -885,7 +879,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
             final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-            final Runnable onHasAllPeerRecoveryRetentionLeases,
             final Supplier<SafeCommitInfo> safeCommitInfoSupplier) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
@@ -906,7 +899,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0) ||
             (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0) &&
              indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN));
-        this.onHasAllPeerRecoveryRetentionLeases = onHasAllPeerRecoveryRetentionLeases;
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
@@ -1030,16 +1022,22 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 logger.trace("addPeerRecoveryRetentionLeaseForSolePrimary: adding lease [{}]", leaseId);
                 innerAddRetentionLease(leaseId, Math.max(0L, checkpoints.get(shardAllocationId).globalCheckpoint + 1),
                     PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                hasAllPeerRecoveryRetentionLeases = true;
             } else {
                 /*
                  * We got here here via a rolling upgrade from an older version that doesn't create peer recovery retention
                  * leases for every shard copy, but in this case we do not expect any leases to exist.
                  */
-                assert hasAllPeerRecoveryRetentionLeases == false : "soft-deletes " + indexSettings.isSoftDeleteEnabled() + " " + routingTable + " vs " + retentionLeases;
+                assert hasAllPeerRecoveryRetentionLeases == false : routingTable + " vs " + retentionLeases;
                 logger.debug("{} becoming primary of {} with missing lease: {}", primaryShard, routingTable, retentionLeases);
             }
+        } else if (hasAllPeerRecoveryRetentionLeases == false && routingTable.assignedShards().stream().allMatch(shardRouting ->
+            retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
+                || checkpoints.get(shardRouting.allocationId().getId()).tracked == false)) {
+            // Although this index is old enough not to have all the expected peer recovery retention leases, in fact it does, so we
+            // don't need to do any more work.
+            hasAllPeerRecoveryRetentionLeases = true;
         }
-        setHasAllPeerRecoveryRetentionLeasesIfReady();
     }
 
     /**
@@ -1346,24 +1344,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
-    private synchronized void setHasAllPeerRecoveryRetentionLeasesIfReady() {
-        setHasAllPeerRecoveryRetentionLeasesIfReady(routingTable);
-    }
-
-    public synchronized void setHasAllPeerRecoveryRetentionLeasesIfReady(IndexShardRoutingTable routingTable) {
-        if (indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases == false) {
-            final ShardRouting shardRouting = routingTable.getByAllocationId(shardAllocationId);
-            if (shardRouting != null && shardRouting.currentNodeId() != null) {
-                final String retentionLeaseId = getPeerRecoveryRetentionLeaseId(shardRouting);
-                final List<RetentionLease> peerRecoveryRetentionLeases = getPeerRecoveryRetentionLeases();
-                if (peerRecoveryRetentionLeases.size() >= routingTable.size() &&
-                    peerRecoveryRetentionLeases.stream().anyMatch(l -> l.id().equals(retentionLeaseId))) {
-                    hasAllPeerRecoveryRetentionLeases = true;
-                    assert invariant();
-                    onHasAllPeerRecoveryRetentionLeases.run();
-                }
-            }
-        }
+    private synchronized void setHasAllPeerRecoveryRetentionLeases() {
+        hasAllPeerRecoveryRetentionLeases = true;
+        assert invariant();
     }
 
     public synchronized boolean hasAllPeerRecoveryRetentionLeases() {
@@ -1378,7 +1361,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (indexSettings().isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases == false) {
             final List<ShardRouting> shardRoutings = routingTable.assignedShards();
             final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(vs -> {
-                setHasAllPeerRecoveryRetentionLeasesIfReady();
+                setHasAllPeerRecoveryRetentionLeases();
                 listener.onResponse(null);
             }, listener::onFailure), shardRoutings.size());
             for (ShardRouting shardRouting : shardRoutings) {

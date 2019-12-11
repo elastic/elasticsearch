@@ -71,7 +71,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -114,7 +113,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -144,7 +142,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -181,7 +178,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                                     .collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
                             equalTo(retainingSequenceNumbers));
                 },
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         reference.set(replicationTracker);
         replicationTracker.updateFromMaster(
@@ -219,7 +215,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -277,7 +272,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 assertTrue(synced.compareAndSet(false, true));
                 listener.onResponse(new ReplicationResponse());
             },
-            () -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTrackerRef.set(replicationTracker);
         replicationTracker.updateFromMaster(
@@ -322,7 +316,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> { },
-            () -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
             randomNonNegativeLong(),
@@ -346,7 +339,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> { },
-            () -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
             randomNonNegativeLong(),
@@ -374,7 +366,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -411,7 +402,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                                     .collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
                             equalTo(retainingSequenceNumbers));
                 },
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         reference.set(replicationTracker);
         replicationTracker.updateFromMaster(
@@ -466,7 +456,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 currentTimeMillis::get,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -542,7 +531,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -597,7 +585,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -632,7 +619,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -682,7 +668,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 (leases, listener) -> {},
-                () -> {},
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -746,7 +731,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            () -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
             randomNonNegativeLong(),

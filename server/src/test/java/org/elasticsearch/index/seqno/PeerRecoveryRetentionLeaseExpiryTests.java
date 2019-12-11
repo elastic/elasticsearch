@@ -78,7 +78,6 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             value -> { },
             currentTimeMillis::get,
             (leases, listener) -> { },
-            () -> {},
             () -> safeCommitInfo);
         replicationTracker.updateFromMaster(1L, Collections.singleton(primaryAllocationId.getId()),
             routingTable(Collections.emptySet(), primaryAllocationId));

@@ -52,7 +52,6 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase  {
                 updatedGlobalCheckpoint,
                 currentTimeMillisSupplier,
                 (leases, listener) -> {},
-                () -> { },
                 OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
     }
 

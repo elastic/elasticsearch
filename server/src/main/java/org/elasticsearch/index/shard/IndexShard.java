@@ -269,6 +269,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
+    private volatile boolean useRetentionLeasesInPeerRecovery;
 
     public IndexShard(
             final ShardRouting shardRouting,
@@ -342,7 +343,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
-                this::turnOffTranslogRetention,
                 this::getSafeCommitInfo);
 
         // the query cache is a node-level thing, however we want the most popular filters
@@ -366,6 +366,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
+        this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
     }
 
     public ThreadPool getThreadPool() {
@@ -602,7 +603,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (newRouting.equals(currentRouting) == false) {
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         }
-        replicationTracker.setHasAllPeerRecoveryRetentionLeasesIfReady(routingTable);
+
+        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
+            if (getPeerRecoveryRetentionLeases().size() >= routingTable.size()) {
+                useRetentionLeasesInPeerRecovery = true;
+                turnOffTranslogRetention();
+            }
+        }
     }
 
     /**
@@ -1880,7 +1887,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void onSettingsChanged() {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null) {
-            final boolean useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
+            final boolean useRetentionLeasesInPeerRecovery = this.useRetentionLeasesInPeerRecovery;
             engineOrNull.onSettingsChanged(
                 useRetentionLeasesInPeerRecovery ? TimeValue.MINUS_ONE : indexSettings.getTranslogRetentionAge(),
                 useRetentionLeasesInPeerRecovery ? new ByteSizeValue(-1) : indexSettings.getTranslogRetentionSize(),
@@ -2629,7 +2636,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean useRetentionLeasesInPeerRecovery() {
-        return replicationTracker.hasAllPeerRecoveryRetentionLeases();
+        return useRetentionLeasesInPeerRecovery;
     }
 
     private SafeCommitInfo getSafeCommitInfo() {

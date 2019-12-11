@@ -95,6 +95,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     @Override
     protected void taskOperation(GetDataFrameAnalyticsStatsAction.Request request, DataFrameAnalyticsTask task,
                                  ActionListener<QueryPage<Stats>> listener) {
+        LOGGER.debug("Get stats for running task [{}]", task.getParams().getId());
 
         ActionListener<List<PhaseProgress>> progressListener = ActionListener.wrap(
             progress -> {
@@ -117,6 +118,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     @Override
     protected void doExecute(Task task, GetDataFrameAnalyticsStatsAction.Request request,
                              ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
+        LOGGER.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
             getResponse -> {

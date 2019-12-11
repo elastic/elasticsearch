@@ -118,7 +118,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector); // does not really matter as this is a stump
         assertThat(42.0,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
     public void testInfer() {
@@ -138,27 +138,27 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.3,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should hit the left child of the left child of the root node
         // i.e. it takes the path left, left
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should hit the right child of the left child of the root node
         // i.e. it takes the path left, right
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should still work if the internal values are strings
         List<String> featureVectorStrings = Arrays.asList("0.3", "0.9");
         featureMap = zipObjMap(featureNames, featureVectorStrings);
         assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // This should handle missing values and take the default_left path
         featureMap = new HashMap<>(2) {{
@@ -166,7 +166,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             put("bar", null);
         }};
         assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
     public void testTreeClassificationProbability() {

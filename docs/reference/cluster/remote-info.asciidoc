@@ -13,7 +13,6 @@ GET /_remote/info
 This command returns connection and endpoint information keyed by
 the configured remote cluster alias.
 
-[float]
 [[connection-info]]
 
 `seeds`::

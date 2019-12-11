@@ -18,7 +18,6 @@ The second command selectively retrieves nodes information of only
 
 By default, it just returns all attributes and core settings for a node:
 
-[float]
 [[core-info]]
 
 `build_hash`::

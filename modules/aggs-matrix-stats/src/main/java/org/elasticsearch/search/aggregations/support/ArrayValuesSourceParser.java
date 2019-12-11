@@ -38,28 +38,28 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
     public abstract static class AnyValuesSourceParser extends ArrayValuesSourceParser<ValuesSource> {
 
         protected AnyValuesSourceParser(boolean formattable) {
-            super(formattable, ValuesSourceType.ANY, null);
+            super(formattable, CoreValuesSourceType.ANY, null);
         }
     }
 
     public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Numeric> {
 
         protected NumericValuesSourceParser(boolean formattable) {
-            super(formattable, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(formattable, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
     }
 
     public abstract static class BytesValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Bytes> {
 
         protected BytesValuesSourceParser(boolean formattable) {
-            super(formattable, ValuesSourceType.BYTES, ValueType.STRING);
+            super(formattable, CoreValuesSourceType.BYTES, ValueType.STRING);
         }
     }
 
     public abstract static class GeoPointValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.GeoPoint> {
 
         protected GeoPointValuesSourceParser(boolean formattable) {
-            super(formattable, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+            super(formattable, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         }
     }
 

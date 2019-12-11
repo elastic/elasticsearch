@@ -154,7 +154,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     public abstract B getBucketByKey(String term);
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException();
     }
 

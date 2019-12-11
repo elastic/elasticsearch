@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,8 +45,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
 
-    public RestReindexAction(RestController controller) {
+    private final ClusterService clusterService;
+
+    public RestReindexAction(RestController controller, ClusterService clusterService) {
         super(ReindexAction.INSTANCE);
+        this.clusterService = clusterService;
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -55,15 +60,17 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (System.getProperty("es.reindex.resilience", "true").equals("false")) {
-            // todo: remove this escape hatch in 8.0
+        // todo: remove system property escape hatch in 8.0
+        // todo: fix version constant on backport to 7.x
+        if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)
+                || System.getProperty("es.reindex.resilience", "true").equals("false")) {
             return doPrepareRequest(request, client, true, true);
         }
 
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
 
         // Build the internal request
-        StartReindexJobAction.Request internal = new StartReindexJobAction.Request(setCommonOptions(request, buildRequest(request)),
+        StartReindexTaskAction.Request internal = new StartReindexTaskAction.Request(setCommonOptions(request, buildRequest(request)),
             waitForCompletion);
         /*
          * Let's try and validate before forking so the user gets some error. The
@@ -81,12 +88,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(true));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(true));
 
-            return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new ActionListener<>() {
+            return channel -> client.execute(StartReindexTaskAction.INSTANCE, internal, new ActionListener<>() {
 
                 private BulkIndexByScrollResponseContentListener listener = new BulkIndexByScrollResponseContentListener(channel, params);
 
                 @Override
-                public void onResponse(StartReindexJobAction.Response response) {
+                public void onResponse(StartReindexTaskAction.Response response) {
                     listener.onResponse(response.getReindexResponse());
                 }
 
@@ -96,9 +103,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 }
             });
         } else {
-            return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new RestBuilderListener<>(channel) {
+            return channel -> client.execute(StartReindexTaskAction.INSTANCE, internal, new RestBuilderListener<>(channel) {
                 @Override
-                public RestResponse buildResponse(StartReindexJobAction.Response response, XContentBuilder builder) throws Exception {
+                public RestResponse buildResponse(StartReindexTaskAction.Response response, XContentBuilder builder) throws Exception {
                     builder.startObject();
                     // This is the ephemeral task-id from the first node that is assigned the task (for BWC).
                     builder.field("task", response.getTaskId());

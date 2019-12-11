@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -188,7 +189,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
         public ValuesSourceType getValueSourceType() {
-            return ValuesSourceType.NUMERIC;
+            return CoreValuesSourceType.NUMERIC;
         }
 
         public ValueType getValueType() {
@@ -287,7 +288,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
         List<B>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {

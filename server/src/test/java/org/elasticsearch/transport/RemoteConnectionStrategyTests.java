@@ -59,8 +59,6 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.SIMPLE);
 
-        ConnectionProfile profile = connectionManager.getConnectionProfile();
-
         Settings.Builder newBuilder = Settings.builder();
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "simple");
         if (randomBoolean()) {
@@ -70,6 +68,18 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), true);
         }
         assertTrue(first.shouldRebuildConnection(newBuilder.build()));
+    }
+
+    public void testCorrectChannelNumber() {
+        String clusterAlias = "cluster-alias";
+
+        for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
+            String settingKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+            Settings simpleSettings = Settings.builder().put(settingKey, strategy.name()).build();
+            ConnectionProfile simpleProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, simpleSettings);
+            assertEquals("Incorrect number of channels for " + strategy.name(),
+                strategy.getNumberOfChannels(), simpleProfile.getNumConnections());
+        }
     }
 
     private static class FakeConnectionStrategy extends RemoteConnectionStrategy {

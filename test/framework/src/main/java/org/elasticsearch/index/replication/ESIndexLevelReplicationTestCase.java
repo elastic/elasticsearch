@@ -178,21 +178,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 }
             });
 
-        private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer() {
-            @Override
-            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
-                syncRetentionLeases(shardId, retentionLeases, listener);
-            }
-
-            @Override
-            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases) {
-                sync(shardId, retentionLeases, ActionListener.wrap(
+        private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer(
+            (shardId, primaryAllocationId, primaryTerm, retentionLeases, listener) ->
+                syncRetentionLeases(shardId, retentionLeases, listener),
+            (shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(shardId, retentionLeases,
+                ActionListener.wrap(
                     r -> { },
                     e -> {
                         throw new AssertionError("failed to background sync retention lease", e);
-                    }));
-            }
-        };
+                    })));
 
         protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
@@ -607,14 +601,23 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.wrap(result -> result.respond(listener), listener::onFailure), new ReplicasRef(), logger, opType,
-                    primaryTerm).execute();
+                    ActionListener.map(listener, result -> {
+                        adaptResponse(result.finalResponse, getPrimaryShard());
+                        return result.finalResponse;
+                    }),
+                    new ReplicasRef(), logger, opType, primaryTerm)
+                    .execute();
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }
 
-        IndexShard getPrimaryShard() {
+        // to be overridden by subclasses
+        protected void adaptResponse(Response response, IndexShard indexShard) {
+
+        }
+
+        protected IndexShard getPrimaryShard() {
             return replicationTargets.primary;
         }
 
@@ -737,8 +740,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 finalResponse.setShardInfo(shardInfo);
             }
 
-            public void respond(ActionListener<Response> listener) {
-                listener.onResponse(finalResponse);
+            @Override
+            public void runPostReplicationActions(ActionListener<Void> listener) {
+                listener.onResponse(null);
             }
         }
 

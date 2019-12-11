@@ -28,11 +28,8 @@
                   source: throw new IllegalArgumentException("Cats!")
           dest:
             index:   dest
-  # TODO: revisit this once we keep original type.
   - match: {error.root_cause.0.type: exception}
-  # TODO: revisit this once we keep original reason message.
   - match: {error.root_cause.0.reason: "Elasticsearch exception [type=search_phase_execution_exception, reason=Partial shards failure]"}
   - match: {error.root_cause.0.phase: query}
   - match: {error.type: status_exception}
   - match: {error.reason: "Elasticsearch exception [type=search_phase_execution_exception, reason=Partial shards failure]"}
-  # TODO: we kind of change the response format here, but we never documented this so OK?

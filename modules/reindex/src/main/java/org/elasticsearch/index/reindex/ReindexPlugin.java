@@ -64,6 +64,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
 
     private final SetOnce<ScriptService> scriptService = new SetOnce<>();
     private final SetOnce<ReindexSslConfig> reindexSslConfig = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -71,7 +72,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
                 new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
                 new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
                 new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class),
-                new ActionHandler<>(StartReindexJobAction.INSTANCE, TransportStartReindexJobAction.class)
+                new ActionHandler<>(StartReindexTaskAction.INSTANCE, TransportStartReindexTaskAction.class)
             );
     }
 
@@ -79,18 +80,20 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ReindexJob.NAME, ReindexJob::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, ReindexJobState.NAME, ReindexJobState::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskState.class, ReindexJobState.NAME, ReindexJobState::new));
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ReindexTaskParams.NAME, ReindexTaskParams::new),
+            new NamedWriteableRegistry.Entry(Task.Status.class, ReindexPersistentTaskState.NAME, ReindexPersistentTaskState::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, ReindexPersistentTaskState.NAME, ReindexPersistentTaskState::new));
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-            new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(ReindexJob.NAME), ReindexJob::fromXContent),
-            new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(ReindexJobState.NAME), ReindexJobState::fromXContent),
-            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(ReindexJobState.NAME),
-                ReindexJobState::fromXContent));
+            new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(ReindexTaskParams.NAME),
+                ReindexTaskParams::fromXContent),
+            new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(ReindexPersistentTaskState.NAME),
+                ReindexPersistentTaskState::fromXContent),
+            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(ReindexPersistentTaskState.NAME),
+                ReindexPersistentTaskState::fromXContent));
     }
 
     @Override
@@ -98,7 +101,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestReindexAction(restController),
+                new RestReindexAction(restController, clusterService.get()),
                 new RestUpdateByQueryAction(restController),
                 new RestDeleteByQueryAction(restController),
                 new RestRethrottleAction(restController, nodesInCluster));
@@ -112,6 +115,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
         this.scriptService.set(scriptService);
         this.reindexSslConfig.set(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
         namedXContentRegistry.set(xContentRegistry);
+        this.clusterService.set(clusterService);
         return Collections.singletonList(reindexSslConfig.get());
     }
 

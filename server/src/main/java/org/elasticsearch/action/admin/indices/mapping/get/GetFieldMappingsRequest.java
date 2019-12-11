@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Request the mappings of specific fields
@@ -44,7 +46,6 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     private boolean includeDefaults = false;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
@@ -53,7 +54,12 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     public GetFieldMappingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String[] types = in.readStringArray();
+            if (types != Strings.EMPTY_ARRAY) {
+                throw new IllegalArgumentException("Expected empty type array but received [" + Arrays.toString(types) + "]");
+            }
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         local = in.readBoolean();
         fields = in.readStringArray();
@@ -79,11 +85,6 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return this;
     }
 
-    public GetFieldMappingsRequest types(String... types) {
-        this.types = types;
-        return this;
-    }
-
     public GetFieldMappingsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
@@ -92,10 +93,6 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     @Override
     public String[] indices() {
         return indices;
-    }
-
-    public String[] types() {
-        return types;
     }
 
     @Override
@@ -132,7 +129,9 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(local);
         out.writeStringArray(fields);

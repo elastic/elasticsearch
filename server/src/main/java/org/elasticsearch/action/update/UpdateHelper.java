@@ -99,8 +99,7 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(IndexRequest upsert, Script script, LongSupplier nowInMillis) {
-        Map<String, Object> upsertDoc = upsert.sourceAsMap();
+    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
         Map<String, Object> ctx = new HashMap<>(3);
         // Tell the script that this is a create and not an update
         ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());
@@ -133,11 +132,11 @@ public class UpdateHelper {
             if (request.scriptedUpsert() && request.script() != null) {
                 // Run the script to perform the create logic
                 IndexRequest upsert = request.upsertRequest();
-                Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(upsert, request.script, nowInMillis);
+                Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(upsert.sourceAsMap(), request.script,
+                    nowInMillis);
                 switch (upsertResult.v1()) {
                     case CREATE:
-                        // Update the index request with the new "_source"
-                        indexRequest.source(upsertResult.v2());
+                        indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
                         break;
                     case NONE:
                         UpdateResponse update = new UpdateResponse(shardId, getResult.getId(),

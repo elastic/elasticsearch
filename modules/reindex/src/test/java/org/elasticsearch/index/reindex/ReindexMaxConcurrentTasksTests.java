@@ -60,10 +60,6 @@ public class ReindexMaxConcurrentTasksTests extends ReindexTestCase {
                     tasksToWaitOn.add(client().execute(StartReindexTaskAction.INSTANCE, request).actionGet().getTaskId());
                 }
             });
-
-            for (String task : tasksToWaitOn) {
-                client().admin().cluster().prepareGetTask(task).setWaitForCompletion(true).get();
-            }
         } finally {
             ClusterUpdateSettingsRequest settingsUpdate = new ClusterUpdateSettingsRequest();
             Settings settings = Settings.builder()

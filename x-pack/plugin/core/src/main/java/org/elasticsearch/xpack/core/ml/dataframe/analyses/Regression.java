@@ -91,7 +91,7 @@ public class Regression implements DataFrameAnalysis {
         boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
         trainingPercent = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             randomizeSeed = in.readOptionalLong();
         } else {
             randomizeSeed = Randomness.get().nextLong();
@@ -130,7 +130,7 @@ public class Regression implements DataFrameAnalysis {
         boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
         out.writeDouble(trainingPercent);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalLong(randomizeSeed);
         }
     }
@@ -146,7 +146,7 @@ public class Regression implements DataFrameAnalysis {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
         builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
-        if (version.onOrAfter(Version.CURRENT)) {
+        if (version.onOrAfter(Version.V_7_6_0)) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
         builder.endObject();

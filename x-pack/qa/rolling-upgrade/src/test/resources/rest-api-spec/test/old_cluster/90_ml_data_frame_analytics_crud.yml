@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      version: "all"
-      reason:  "Until backport of https://github.com/elastic/elasticsearch/issues/49690"
 
   - do:
       index:

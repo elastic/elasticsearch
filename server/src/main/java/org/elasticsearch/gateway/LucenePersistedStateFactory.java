@@ -58,6 +58,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -124,6 +126,9 @@ public class LucenePersistedStateFactory {
     private static final int COMMIT_DATA_SIZE = 4;
 
     public static final String METADATA_DIRECTORY_NAME = "_metadata";
+
+    public static final Setting<TimeValue> SLOW_WRITE_LOGGING_THRESHOLD = Setting.timeSetting("gateway.slow_write_logging_threshold",
+        TimeValue.timeValueSeconds(10), TimeValue.ZERO, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     private final Path[] dataPaths;
     private final String nodeId;

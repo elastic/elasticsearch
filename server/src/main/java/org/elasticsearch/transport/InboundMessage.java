@@ -24,30 +24,29 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Supplier;
 
-public abstract class InboundMessage extends NetworkMessage implements Closeable {
+public abstract class InboundMessage extends NetworkMessage implements Releasable {
 
-    private StreamInput streamInput;
+    private final BytesReference content;
 
     private final Supplier<StreamInput> streamInputSupplier;
 
-    InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Supplier<StreamInput> streamInput) {
+    InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Supplier<StreamInput> streamInput,
+                   BytesReference content) {
         super(threadContext, version, status, requestId);
         this.streamInputSupplier = streamInput;
+        this.content = content;
     }
 
     StreamInput getStreamInput() {
-        if (streamInput == null) {
-            streamInput = streamInputSupplier.get();
-        }
-        return streamInput;
+        return streamInputSupplier.get();
     }
 
     static class Reader {
@@ -102,9 +101,9 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                         streamInput.readStringArray();
                     }
                     final String action = streamInput.readString();
-                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInputSupplier);
+                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInputSupplier, reference);
                 } else {
-                    message = new Response(threadContext, remoteVersion, status, requestId, streamInputSupplier);
+                    message = new Response(threadContext, remoteVersion, status, requestId, streamInputSupplier, reference);
                 }
                 success = true;
                 return message;
@@ -137,8 +136,10 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
     }
 
     @Override
-    public void close() throws IOException {
-        IOUtils.close(streamInput);
+    public void close() {
+        if (content instanceof Releasable) {
+            ((Releasable) content).close();
+        }
     }
 
     private static void ensureVersionCompatibility(Version version, Version currentVersion, boolean isHandshake) {
@@ -159,8 +160,8 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         private final String actionName;
 
         Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName,
-                Supplier<StreamInput> streamInput) {
-            super(threadContext, version, status, requestId, streamInput);
+                Supplier<StreamInput> streamInput, BytesReference content) {
+            super(threadContext, version, status, requestId, streamInput, content);
             this.actionName = actionName;
         }
 
@@ -172,8 +173,9 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
     public static class Response extends InboundMessage {
 
-        Response(ThreadContext threadContext, Version version, byte status, long requestId, Supplier<StreamInput> streamInput) {
-            super(threadContext, version, status, requestId, streamInput);
+        Response(ThreadContext threadContext, Version version, byte status, long requestId, Supplier<StreamInput> streamInput,
+                 BytesReference content) {
+            super(threadContext, version, status, requestId, streamInput, content);
         }
     }
 }

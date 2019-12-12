@@ -32,12 +32,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
@@ -121,23 +119,12 @@ public class InboundHandler {
             }
             throw e;
         }
-        final Releasable releasable = () -> {
-            try {
-                IOUtils.close(() -> {
-                    if (reference instanceof Releasable) {
-                        ((Releasable) reference).close();
-                    }
-                }, message);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
             // Place the context with the headers from the message
             message.getStoredContext().restore();
             threadContext.putTransient("_remote_address", remoteAddress);
             if (message.isRequest()) {
-                handleRequest(channel, (InboundMessage.Request) message, releasable, reference.length());
+                handleRequest(channel, (InboundMessage.Request) message, reference.length());
             } else {
                 boolean release = true;
                 try {
@@ -157,23 +144,24 @@ public class InboundHandler {
                     // ignore if its null, the service logs it
                     if (handler != null) {
                         if (message.isError()) {
-                            handlerResponseError(message.getStreamInput(), handler);
+                            try (StreamInput in = message.getStreamInput()) {
+                                handlerResponseError(in, handler);
+                            }
                         } else {
                             release = false;
-                            handleResponse(remoteAddress, message.getStreamInput(), releasable, handler);
+                            handleResponse(remoteAddress, message, handler);
                         }
                     }
                 } finally {
                     if (release) {
-                        releasable.close();
+                        message.close();
                     }
                 }
             }
         }
     }
 
-    private <T extends TransportRequest> void handleRequest(TcpChannel channel, InboundMessage.Request message, Releasable releasable,
-                                                            int messageLengthBytes) {
+    private <T extends TransportRequest> void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
         final Version version = message.getVersion();
@@ -182,7 +170,7 @@ public class InboundHandler {
             messageListener.onRequestReceived(requestId, action);
             if (message.isHandshake()) {
                 handshaker.handleHandshake(version, channel, requestId, message.getStreamInput());
-                releasable.close();
+                message.close();
             } else {
                 final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                 if (reg == null) {
@@ -203,8 +191,11 @@ public class InboundHandler {
 
                     @Override
                     protected void doRun() throws Exception {
-                        final T request = reg.newRequest(message.getStreamInput());
-                        releasable.close();
+                        final T request;
+                        try(StreamInput in = message.getStreamInput()) {
+                            request = reg.newRequest(in);
+                        }
+                        message.close();
                         released = true;
                         request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                         reg.processMessageReceived(request, requestChannel);
@@ -229,13 +220,13 @@ public class InboundHandler {
                     @Override
                     public void onAfter() {
                         if (released == false) {
-                            releasable.close();
+                            message.close();
                         }
                     }
                 });
             }
         } catch (Exception e) {
-            releasable.close();
+            message.close();
             // the circuit breaker tripped
             if (transportChannel == null) {
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
@@ -250,8 +241,8 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
-                                                              Releasable releasable, TransportResponseHandler<T> handler) {
+    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, InboundMessage inboundMessage,
+                                                              TransportResponseHandler<T> handler) {
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
 
             private boolean released = false;
@@ -265,8 +256,10 @@ public class InboundHandler {
             protected void doRun() {
                 final T response;
                 try {
-                    response = handler.read(stream);
-                    releasable.close();
+                    try (StreamInput in = inboundMessage.getStreamInput()) {
+                        response = handler.read(in);
+                    }
+                    inboundMessage.close();
                     released = true;
                     response.remoteAddress(new TransportAddress(remoteAddress));
                 } catch (Exception e) {
@@ -280,7 +273,7 @@ public class InboundHandler {
             @Override
             public void onAfter() {
                 if (released == false) {
-                    releasable.close();
+                    inboundMessage.close();
                 }
             }
         });

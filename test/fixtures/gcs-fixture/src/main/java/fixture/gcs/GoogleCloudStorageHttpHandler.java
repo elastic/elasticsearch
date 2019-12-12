@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -144,18 +143,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 }
-
-            } else if (Regex.simpleMatch("DELETE /storage/v1/b/" + bucket + "/o/*", request)) {
-                // Delete Object https://cloud.google.com/storage/docs/json_api/v1/objects/delete
-                int deletions = 0;
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
-                    Map.Entry<String, BytesReference> blob = iterator.next();
-                    if (blob.getKey().equals(exchange.getRequestURI().toString())) {
-                        iterator.remove();
-                        deletions++;
-                    }
-                }
-                exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (Regex.simpleMatch("POST /batch/storage/v1", request)) {
                 // Batch https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch

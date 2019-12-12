@@ -99,4 +99,4 @@ When the operation is complete, you receive the following results:
 }
 ----
 
-For a description of these properties, see <<ml-get-snapshot-results>>.
+For a description of these properties, see the <<ml-get-snapshot-results,get model snapshots API>>.

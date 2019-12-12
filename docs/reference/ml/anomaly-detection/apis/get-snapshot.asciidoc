@@ -32,8 +32,11 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `<snapshot_id>`::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
++
+--
 If you do not specify this optional parameter, the API returns information about
 all model snapshots.
+--
 
 [[ml-get-snapshot-request-body]]
 ==== {api-request-body-title}
@@ -69,15 +72,15 @@ properties:
 `job_id`::
 (string) A numerical character string that uniquely identifies the job that
   the snapshot was created for.
-
-`min_version`::
-(string) The minimum version required to be able to restore the model snapshot.
-
+  
 `latest_record_time_stamp`::
 (date) The timestamp of the latest processed record.
 
 `latest_result_time_stamp`::
 (date) The timestamp of the latest bucket result.
+
+`min_version`::
+(string) The minimum version required to be able to restore the model snapshot.
 
 `model_size_stats`::
 (object) Summary information describing the model.

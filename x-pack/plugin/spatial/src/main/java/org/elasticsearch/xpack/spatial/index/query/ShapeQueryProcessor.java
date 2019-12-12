@@ -133,13 +133,13 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
 
         @Override
         public Query visit(Point point) {
-            ShapeField.QueryRelation lucenRelation = relation.getLuceneRelation();
-            if (lucenRelation == ShapeField.QueryRelation.CONTAINS) {
+            ShapeField.QueryRelation luceneRelation = relation.getLuceneRelation();
+            if (luceneRelation == ShapeField.QueryRelation.CONTAINS) {
                 // contains and intersects are equivalent but the implementation of
                 // intersects is more efficient.
-                lucenRelation = ShapeField.QueryRelation.INTERSECTS;
+                luceneRelation = ShapeField.QueryRelation.INTERSECTS;
             }
-            return XYShape.newBoxQuery(fieldName, lucenRelation,
+            return XYShape.newBoxQuery(fieldName, luceneRelation,
                 (float)point.getX(), (float)point.getX(), (float)point.getY(), (float)point.getY());
         }
 

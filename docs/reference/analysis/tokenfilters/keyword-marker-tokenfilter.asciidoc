@@ -12,7 +12,7 @@ https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache
 
 [TIP]
 ====
-If you want to preserve both a stemmed and unstemmed version of each token,
+To preserve both a stemmed and unstemmed version of each token,
 use the <<analysis-keyword-repeat-tokenfilter,`keyword_repeat`>> token filter.
 ====
 

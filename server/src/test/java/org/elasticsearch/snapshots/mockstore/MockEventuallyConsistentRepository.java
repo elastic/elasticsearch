@@ -220,10 +220,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void deleteBlob(String blobName) {
+            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
                 ensureNotClosed();
                 synchronized (context.actions) {
-                    context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
+                    for (String blobName : blobNames) {
+                        context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
+                    }
                 }
             }
 

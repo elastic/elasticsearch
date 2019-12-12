@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import static org.apache.lucene.geo.GeoUtils.orient;
 
@@ -37,7 +35,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
 public class TriangleTreeReader {
     private static final int SKIP_CENTROID = 8;
 
-    private ByteBufferStreamInput input;
+    private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Rectangle2D rectangle2D;
     private final Extent extent;
@@ -47,42 +45,20 @@ public class TriangleTreeReader {
         this.coordinateEncoder = coordinateEncoder;
         this.rectangle2D = new Rectangle2D();
         this.extent = new Extent();
+        this.input = new ByteArrayDataInput();
     }
 
     public void reset(BytesRef bytesRef) throws IOException {
-        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        this.input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         treeOffset = 0;
-    }
-
-    public int getHighestDimension() throws IOException {
-        ShapeType shapeType = getShapeType();
-        switch (shapeType) {
-            case POINT:
-            case MULTIPOINT:
-                return 1;
-            case LINESTRING:
-            case LINEARRING:
-            case MULTILINESTRING:
-                return 2;
-            case POLYGON:
-            case MULTIPOLYGON:
-            case ENVELOPE:
-            case CIRCLE:
-                return 3;
-            case GEOMETRYCOLLECTION:
-                return input.readVInt();
-            default:
-                throw new IllegalStateException("unexpected shape-type [" + shapeType + "]");
-        }
     }
 
     /**
      * returns the bounding box of the geometry in the format [minX, maxX, minY, maxY].
      */
-    public Extent getExtent() throws IOException {
+    public Extent getExtent() {
         if (treeOffset == 0) {
-            getHighestDimension(); // skip ShapeType / highestDimension metadata
-
+            getDimensionalShapeType(); // skip DimensionalShapeType
             int top = input.readInt();
             int bottom = Math.toIntExact(top - input.readVLong());
             int posRight = input.readInt();
@@ -90,9 +66,9 @@ public class TriangleTreeReader {
             int negRight = input.readInt();
             int negLeft = input.readInt();
             extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
-            treeOffset = input.position();
+            treeOffset = input.getPosition();
         } else {
-            input.position(treeOffset);
+            input.setPosition(treeOffset);
         }
         return extent;
     }
@@ -100,98 +76,101 @@ public class TriangleTreeReader {
     /**
      * returns the X coordinate of the centroid.
      */
-    public double getCentroidX() throws IOException {
-        input.position(0);
+    public double getCentroidX() {
+        input.setPosition(0);
         return coordinateEncoder.decodeX(input.readInt());
     }
 
     /**
      * returns the Y coordinate of the centroid.
      */
-    public double getCentroidY() throws IOException {
-        input.position(4);
+    public double getCentroidY() {
+        input.setPosition(4);
         return coordinateEncoder.decodeY(input.readInt());
     }
 
-    public ShapeType getShapeType() throws IOException {
-        input.position(SKIP_CENTROID);
-        return ShapeType.forOrdinal(input.readVInt());
+    public CentroidCalculator.DimensionalShapeType getDimensionalShapeType() {
+        input.setPosition(SKIP_CENTROID);
+        return CentroidCalculator.DimensionalShapeType.forOrdinal(input.readVInt());
     }
 
     /**
      * Compute the relation with the provided bounding box. If the result is CELL_INSIDE_QUERY
      * then the bounding box is within the shape.
      */
-    public GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException {
+    public GeoRelation relate(int minX, int minY, int maxX, int maxY) {
         Extent extent = getExtent();
         int thisMaxX = extent.maxX();
         int thisMinX = extent.minX();
         int thisMaxY = extent.maxY();
         int thisMinY = extent.minY();
+        if ((thisMinX > maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY < minY)) {
+            // shapes are disjoint
+            return GeoRelation.QUERY_DISJOINT;
+        }
         if (minX <= thisMinX && maxX >= thisMaxX && minY <= thisMinY && maxY >= thisMaxY) {
             // the rectangle fully contains the shape
             return GeoRelation.QUERY_CROSSES;
         }
+        // quick checks failed, need to traverse the tree
         GeoRelation rel = GeoRelation.QUERY_DISJOINT;
-        if ((thisMinX > maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY < minY) == false) {
-            // shapes are NOT disjoint
-            rectangle2D.setValues(minX, maxX, minY, maxY);
-            byte metadata = input.readByte();
-            if ((metadata & 1 << 2) == 1 << 2) { // component in this node is a point
-                int x = Math.toIntExact(thisMaxX - input.readVLong());
-                int y = Math.toIntExact(thisMaxY - input.readVLong());
-                if (rectangle2D.contains(x, y)) {
-                    return GeoRelation.QUERY_CROSSES;
-                }
-                thisMinX = x;
-            } else if ((metadata & 1 << 3) == 1 << 3) {  // component in this node is a line
-                int aX = Math.toIntExact(thisMaxX - input.readVLong());
-                int aY = Math.toIntExact(thisMaxY - input.readVLong());
-                int bX = Math.toIntExact(thisMaxX - input.readVLong());
-                int bY = Math.toIntExact(thisMaxY - input.readVLong());
-                if (rectangle2D.intersectsLine(aX, aY, bX, bY)) {
-                    return GeoRelation.QUERY_CROSSES;
-                }
-                thisMinX = aX;
-            } else {  // component in this node is a triangle
-                int aX = Math.toIntExact(thisMaxX - input.readVLong());
-                int aY = Math.toIntExact(thisMaxY - input.readVLong());
-                int bX = Math.toIntExact(thisMaxX - input.readVLong());
-                int bY = Math.toIntExact(thisMaxY - input.readVLong());
-                int cX = Math.toIntExact(thisMaxX - input.readVLong());
-                int cY = Math.toIntExact(thisMaxY - input.readVLong());
-                boolean ab = (metadata & 1 << 4) == 1 << 4;
-                boolean bc = (metadata & 1 << 5) == 1 << 5;
-                boolean ca = (metadata & 1 << 6) == 1 << 6;
-                rel = rectangle2D.relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
-                if (rel == GeoRelation.QUERY_CROSSES) {
-                    return GeoRelation.QUERY_CROSSES;
-                }
-                thisMinX = aX;
+        rectangle2D.setValues(minX, maxX, minY, maxY);
+        byte metadata = input.readByte();
+        if ((metadata & 1 << 2) == 1 << 2) { // component in this node is a point
+            int x = Math.toIntExact(thisMaxX - input.readVLong());
+            int y = Math.toIntExact(thisMaxY - input.readVLong());
+            if (rectangle2D.contains(x, y)) {
+                return GeoRelation.QUERY_CROSSES;
             }
-            if ((metadata & 1 << 0) == 1 << 0) { // left != null
-                GeoRelation left = relate(rectangle2D, false, thisMaxX, thisMaxY);
-                if (left == GeoRelation.QUERY_CROSSES) {
-                    return GeoRelation.QUERY_CROSSES;
-                } else if (left == GeoRelation.QUERY_INSIDE) {
-                    rel = left;
-                }
+            thisMinX = x;
+        } else if ((metadata & 1 << 3) == 1 << 3) {  // component in this node is a line
+            int aX = Math.toIntExact(thisMaxX - input.readVLong());
+            int aY = Math.toIntExact(thisMaxY - input.readVLong());
+            int bX = Math.toIntExact(thisMaxX - input.readVLong());
+            int bY = Math.toIntExact(thisMaxY - input.readVLong());
+            if (rectangle2D.intersectsLine(aX, aY, bX, bY)) {
+                return GeoRelation.QUERY_CROSSES;
             }
-            if ((metadata & 1 << 1) == 1 << 1) { // right != null
-                if (rectangle2D.maxX >= thisMinX) {
-                    GeoRelation right = relate(rectangle2D, false, thisMaxX, thisMaxY);
-                    if (right == GeoRelation.QUERY_CROSSES) {
-                        return GeoRelation.QUERY_CROSSES;
-                    } else if (right == GeoRelation.QUERY_INSIDE) {
-                        rel = right;
-                    }
+            thisMinX = aX;
+        } else {  // component in this node is a triangle
+            int aX = Math.toIntExact(thisMaxX - input.readVLong());
+            int aY = Math.toIntExact(thisMaxY - input.readVLong());
+            int bX = Math.toIntExact(thisMaxX - input.readVLong());
+            int bY = Math.toIntExact(thisMaxY - input.readVLong());
+            int cX = Math.toIntExact(thisMaxX - input.readVLong());
+            int cY = Math.toIntExact(thisMaxY - input.readVLong());
+            boolean ab = (metadata & 1 << 4) == 1 << 4;
+            boolean bc = (metadata & 1 << 5) == 1 << 5;
+            boolean ca = (metadata & 1 << 6) == 1 << 6;
+            rel = rectangle2D.relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
+            if (rel == GeoRelation.QUERY_CROSSES) {
+                return GeoRelation.QUERY_CROSSES;
+            }
+            thisMinX = aX;
+        }
+        if ((metadata & 1 << 0) == 1 << 0) { // left != null
+            GeoRelation left = relate(rectangle2D, false, thisMaxX, thisMaxY);
+            if (left == GeoRelation.QUERY_CROSSES) {
+                return GeoRelation.QUERY_CROSSES;
+            } else if (left == GeoRelation.QUERY_INSIDE) {
+                rel = left;
+            }
+        }
+        if ((metadata & 1 << 1) == 1 << 1) { // right != null
+            if (rectangle2D.maxX >= thisMinX) {
+                GeoRelation right = relate(rectangle2D, false, thisMaxX, thisMaxY);
+                if (right == GeoRelation.QUERY_CROSSES) {
+                    return GeoRelation.QUERY_CROSSES;
+                } else if (right == GeoRelation.QUERY_INSIDE) {
+                    rel = right;
                 }
             }
         }
+
         return rel;
     }
 
-    private GeoRelation relate(Rectangle2D rectangle2D, boolean splitX, int parentMaxX, int parentMaxY) throws IOException {
+    private GeoRelation relate(Rectangle2D rectangle2D, boolean splitX, int parentMaxX, int parentMaxY) {
         int thisMaxX = Math.toIntExact(parentMaxX - input.readVLong());
         int thisMaxY = Math.toIntExact(parentMaxY - input.readVLong());
         GeoRelation rel = GeoRelation.QUERY_DISJOINT;
@@ -253,11 +232,11 @@ public class TriangleTreeReader {
                         rel = right;
                     }
                 } else {
-                    input.skip(rightSize);
+                    input.skipBytes(rightSize);
                 }
             }
         } else {
-            input.skip(size);
+            input.skipBytes(size);
         }
         return rel;
     }
@@ -272,7 +251,7 @@ public class TriangleTreeReader {
         Rectangle2D() {
         }
 
-        protected void setValues(int minX, int maxX, int minY, int maxY) {
+        private void setValues(int minX, int maxX, int minY, int maxY) {
             this.minX = minX;
             this.maxX = maxX;
             this.minY = minY;
@@ -289,7 +268,7 @@ public class TriangleTreeReader {
         /**
          * Checks if the rectangle intersects the provided triangle
          **/
-        public boolean intersectsLine(int aX, int aY, int bX, int bY) {
+        private boolean intersectsLine(int aX, int aY, int bX, int bY) {
             // 1. query contains any triangle points
             if (contains(aX, aY) || contains(bX, bY)) {
                 return true;
@@ -316,7 +295,7 @@ public class TriangleTreeReader {
         /**
          * Checks if the rectangle intersects the provided triangle
          **/
-        public GeoRelation relateTriangle(int aX, int aY, boolean ab, int bX, int bY, boolean bc, int cX, int cY, boolean ca) {
+        private GeoRelation relateTriangle(int aX, int aY, boolean ab, int bX, int bY, boolean bc, int cX, int cY, boolean ca) {
             // 1. query contains any triangle points
             if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
                 return GeoRelation.QUERY_CROSSES;
@@ -403,8 +382,8 @@ public class TriangleTreeReader {
         /**
          * Compute whether the given x, y point is in a triangle; uses the winding order method
          */
-        static boolean pointInTriangle(double minX, double maxX, double minY, double maxY, double x, double y,
-                                       double aX, double aY, double bX, double bY, double cX, double cY) {
+        private static boolean pointInTriangle(double minX, double maxX, double minY, double maxY, double x, double y,
+                                               double aX, double aY, double bX, double bY, double cX, double cY) {
             //check the bounding box because if the triangle is degenerated, e.g points and lines, we need to filter out
             //coplanar points that are not part of the triangle.
             if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
@@ -427,6 +406,5 @@ public class TriangleTreeReader {
                                                 final int bMinX, final int bMaxX, final int bMinY, final int bMaxY) {
             return (aMaxX < bMinX || aMinX > bMaxX || aMaxY < bMinY || aMinY > bMaxY);
         }
-
     }
 }

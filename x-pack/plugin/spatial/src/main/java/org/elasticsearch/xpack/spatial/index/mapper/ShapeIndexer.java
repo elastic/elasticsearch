@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYLine;
 import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -54,13 +56,14 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
     }
 
     @Override
-    public void indexDocValueField(ParseContext context, Geometry shape) {
+    public void indexDocValueField(ParseContext context, ShapeField.DecodedTriangle[] triangles,
+                                   CentroidCalculator centroidCalculator) {
         BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
         if (docValuesField == null) {
-            docValuesField = new BinaryGeoShapeDocValuesField(name, shape);
+            docValuesField = new BinaryGeoShapeDocValuesField(name, triangles, centroidCalculator);
             context.doc().addWithKey(name, docValuesField);
         } else {
-            docValuesField.add(shape);
+            docValuesField.add(triangles, centroidCalculator);
         }
     }
 

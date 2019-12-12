@@ -105,7 +105,7 @@ public class Docker {
 
         waitForElasticsearchToStart();
 
-        return Installation.ofContainer(distribution);
+        return Installation.ofContainer(dockerShell, distribution);
     }
 
     /**
@@ -166,7 +166,7 @@ public class Docker {
      * Waits for the Elasticsearch process to start executing in the container.
      * This is called every time a container is started.
      */
-    private static void waitForElasticsearchToStart() {
+    public static void waitForElasticsearchToStart() {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 

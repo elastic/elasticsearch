@@ -883,7 +883,7 @@ Size, in bytes, of direct buffer pools.
 (integer)
 Total capacity, in bytes, of direct buffer pools.
 
-`jvm.buffer_pools.classes.current_loaded_count`::
+`jvm.classes.current_loaded_count`::
 (integer)
 Number of buffer pool classes currently loaded by JVM.
 

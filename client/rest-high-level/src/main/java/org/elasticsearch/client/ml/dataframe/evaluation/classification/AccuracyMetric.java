@@ -160,9 +160,9 @@ public class AccuracyMetric implements EvaluationMetric {
 
         /** Name of the class. */
         private final String className;
-        /** Number of documents actually belonging to the {@code actualClass} class. */
+        /** Number of documents actually belonging to the {@code className} class. */
         private final long actualClassDocCount;
-        /** Fraction of documents actually belonging to the {@code actualClass} class predicted correctly. */
+        /** Fraction of documents actually belonging to the {@code className} class predicted correctly. */
         private final double accuracy;
 
         public PerClassResult(String className, long actualClassDocCount, double accuracy) {

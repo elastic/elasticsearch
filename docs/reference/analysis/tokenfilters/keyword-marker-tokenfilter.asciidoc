@@ -4,12 +4,10 @@
 <titleabbrev>Keyword marker</titleabbrev>
 ++++
 
-Excludes specified tokens, called <<stemmer-keyword,keywords>>, from
-<<stemming,stemming>>.
+Designates specific tokens as <<stemmer-keyword,keywords>> so they are not
+<<stemming,stemmed>>.
 
-The `keyword_marker` filter is often used with custom
-<<analysis-lang-analyzer,language analyzers>> to protect specific words from
-stemming. This filter uses Lucene's
+This filter uses Lucene's
 https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/KeywordMarkerFilter.html[KeywordMarkerFilter].
 
 [TIP]

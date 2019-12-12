@@ -49,6 +49,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class Packages {
 
@@ -94,8 +95,7 @@ public class Packages {
         return result;
     }
 
-    public static Installation installPackage(Distribution distribution) throws IOException {
-        Shell sh = new Shell();
+    public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
             sh.getEnv().put("JAVA_HOME", systemJavaHome);
@@ -105,7 +105,7 @@ public class Packages {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
 
-        Installation installation = Installation.ofPackage(distribution.packaging);
+        Installation installation = Installation.ofPackage(sh, distribution);
 
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
@@ -267,32 +267,17 @@ public class Packages {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
-    public static void startElasticsearch(Shell sh, Installation installation) throws IOException {
+    /**
+     * Starts Elasticsearch, without checking that startup is successful.
+     */
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
             sh.run("systemctl is-enabled elasticsearch.service");
-            sh.run("systemctl start elasticsearch.service");
-        } else {
-            sh.run("service elasticsearch start");
+            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
         }
-
-        assertElasticsearchStarted(sh, installation);
-    }
-
-    /**
-     * Starts Elasticsearch, without checking that startup is successful. To also check
-     * that Elasticsearch has started, call {@link #startElasticsearch(Shell, Installation)}.
-     */
-    public static void startElasticsearchIgnoringFailure(Shell sh) {
-        if (isSystemd()) {
-            sh.runIgnoreExitCode("systemctl daemon-reload");
-            sh.runIgnoreExitCode("systemctl enable elasticsearch.service");
-            sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service");
-            sh.runIgnoreExitCode("systemctl start elasticsearch.service");
-        } else {
-            sh.runIgnoreExitCode("service elasticsearch start");
-        }
+        return sh.runIgnoreExitCode("service elasticsearch start");
     }
 
     /**
@@ -301,12 +286,26 @@ public class Packages {
      */
     public static void clearJournal(Shell sh) {
         if (isSystemd()) {
-            sh.run("rm -rf /run/log/journal/");
-            sh.run("systemctl restart systemd-journald");
+            sh.run("rm -rf /run/log/journal/*");
+            final Result result = sh.runIgnoreExitCode("systemctl restart systemd-journald");
+
+            // Sometimes the restart fails on Debian 10 with:
+            //    Job for systemd-journald.service failed because the control process exited with error code.
+            //    See "systemctl status systemd-journald.service" and "journalctl -xe" for details.]
+            //
+            // ...so run these commands in an attempt to figure out what's going on.
+            if (result.isSuccess() == false) {
+                logger.error("Failed to restart systemd-journald: " + result);
+
+                logger.error(sh.runIgnoreExitCode("systemctl status systemd-journald.service"));
+                logger.error(sh.runIgnoreExitCode("journalctl -xe"));
+
+                fail("Couldn't clear the systemd journal as restarting systemd-journald failed");
+            }
         }
     }
 
-    private static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
+    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
         waitForElasticsearch(installation);
 
         if (isSystemd()) {
@@ -331,7 +330,6 @@ public class Packages {
         } else {
             sh.run("service elasticsearch restart");
         }
-
-        waitForElasticsearch(installation);
+        assertElasticsearchStarted(sh, installation);
     }
 }

@@ -50,9 +50,9 @@ public class RpmPreservationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         assertRemoved(distribution());
-        installation = installPackage(distribution());
+        installation = installPackage(sh, distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
     }
 
     public void test20Remove() throws Exception {
@@ -71,11 +71,11 @@ public class RpmPreservationTests extends PackagingTestCase {
     public void test30PreserveConfig() throws Exception {
         final Shell sh = new Shell();
 
-        installation = installPackage(distribution());
+        installation = installPackage(sh, distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
 
-        sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
+        sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
         Stream.of(
             "elasticsearch.yml",
             "jvm.options",

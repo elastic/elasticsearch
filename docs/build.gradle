@@ -29,6 +29,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/ml/anomaly-detection/apis/get-category.asciidoc',
   'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
   'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
   'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
   'reference/ml/anomaly-detection/apis/get-record.asciidoc',
   'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
@@ -89,6 +90,8 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
+  exclude 'build-idea'
+  exclude 'build-eclipse'
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests

@@ -284,14 +284,35 @@ public class InferenceProcessor extends AbstractProcessor {
 
             if (inferenceConfig.containsKey(ClassificationConfig.NAME)) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
-                return ClassificationConfig.fromMap(valueMap);
+                ClassificationConfig config = ClassificationConfig.fromMap(valueMap);
+                checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
+                return config;
             } else if (inferenceConfig.containsKey(RegressionConfig.NAME)) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
-                return RegressionConfig.fromMap(valueMap);
+                RegressionConfig config = RegressionConfig.fromMap(valueMap);
+                checkFieldUniqueness(config.getResultsField());
+                return config;
             } else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     inferenceConfig.keySet(),
                     Arrays.asList(ClassificationConfig.NAME, RegressionConfig.NAME));
+            }
+        }
+
+        private static void checkFieldUniqueness(String... fieldNames) {
+            Set<String> duplicatedFieldNames = new HashSet<>();
+            Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);
+            for(String fieldName : fieldNames) {
+                if (currentFieldNames.contains(fieldName)) {
+                    duplicatedFieldNames.add(fieldName);
+                } else {
+                    currentFieldNames.add(fieldName);
+                }
+            }
+            if (duplicatedFieldNames.isEmpty() == false) {
+                throw ExceptionsHelper.badRequestException("Cannot create processor as configured." +
+                        " More than one field is configured as {}",
+                    duplicatedFieldNames);
             }
         }
 

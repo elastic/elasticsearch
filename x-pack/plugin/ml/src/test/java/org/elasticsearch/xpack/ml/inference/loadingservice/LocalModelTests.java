@@ -122,7 +122,7 @@ public class LocalModelTests extends ESTestCase {
             put("baz", "dog");
         }};
 
-        WarningInferenceResults results = (WarningInferenceResults)getInferenceResult(model, fields, new RegressionConfig());
+        WarningInferenceResults results = (WarningInferenceResults)getInferenceResult(model, fields, RegressionConfig.EMPTY_PARAMS);
         assertThat(results.getWarning(),
             equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
     }

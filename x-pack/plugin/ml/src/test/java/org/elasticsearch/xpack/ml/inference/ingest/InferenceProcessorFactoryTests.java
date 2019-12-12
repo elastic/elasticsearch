@@ -247,9 +247,9 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         Map<String, Object> regression = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
-            put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.WARNING_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+            put(InferenceProcessor.TARGET_FIELD, "ml");
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME,
+                Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
         }};
 
         try {
@@ -257,7 +257,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             fail("should not have succeeded creating with duplicate fields");
         } catch (Exception ex) {
             assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +
-                "The following fields contain conflicting values [target_field, warning_field]"));
+                "More than one field is configured as [warning]"));
         }
     }
 

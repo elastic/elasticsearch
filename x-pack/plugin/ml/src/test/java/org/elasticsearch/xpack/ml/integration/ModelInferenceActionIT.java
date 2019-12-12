@@ -219,7 +219,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         InternalInferModelAction.Request request = new InternalInferModelAction.Request(
             modelId,
             toInferMissingField,
-            new RegressionConfig(),
+            RegressionConfig.EMPTY_PARAMS,
             true);
         try {
             InferenceResults result =

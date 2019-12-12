@@ -36,7 +36,7 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
     @Override
     protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
-        startTrialRequest.setType(request.param("type", "trial"));
+        startTrialRequest.setType(request.param("type", License.LicenseType.TRIAL.getTypeName()));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         return channel -> client.licensing().postStartTrial(startTrialRequest,
                 new RestBuilderListener<PostStartTrialResponse>(channel) {

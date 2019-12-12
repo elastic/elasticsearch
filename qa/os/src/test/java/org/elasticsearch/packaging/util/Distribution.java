@@ -20,11 +20,7 @@
 package org.elasticsearch.packaging.util;
 
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
 
 public class Distribution {
 

@@ -4,13 +4,8 @@
 <titleabbrev>Keyword repeat</titleabbrev>
 ++++
 
-Outputs each token in a stream twice:
-
-* Once as a <<stemmer-keyword,keyword>>, which is excluded from
-  <<stemming,stemming>>
-* Once as a non-keyword, which can be stemmed normally
-
-This allows you to preserve both a stemmed and unstemmed version of each token.
+Outputs both the stemmed and unstemmed (<<stemmer-keyword,keyword>>) version of
+each token.
 
 The `keyword_repeat` filter uses Lucene's
 https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/KeywordRepeatFilter.html[KeywordRepeatFilter].

@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -50,6 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -74,7 +76,12 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+                public <T extends ScriptFactory> T compile(
+                    String scriptName,
+                    String scriptSource,
+                    ScriptContext<T> context,
+                    Map<String, String> params
+                ) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScoreScript.CONTEXT;
                     ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
@@ -89,6 +96,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
                     };
                     return context.factoryClazz.cast(factory);
+                }
+
+                @Override
+                public Set<ScriptContext<?>> getSupportedContexts() {
+                    return Set.of(ScoreScript.CONTEXT);
                 }
             };
         }

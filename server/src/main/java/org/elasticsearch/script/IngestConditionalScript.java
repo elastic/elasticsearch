@@ -45,7 +45,7 @@ public abstract class IngestConditionalScript {
 
     public abstract boolean execute(Map<String, Object> ctx);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         IngestConditionalScript newInstance(Map<String, Object> params);
     }
 }

@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -19,18 +21,32 @@ public class RegressionConfig implements InferenceConfig {
 
     public static final String NAME = "regression";
     private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
+    public static final ParseField RESULTS_FIELD = new ParseField("results_field");
+    private static final String DEFAULT_RESULTS_FIELD = "predicted_value";
+
+    public static RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD);
 
     public static RegressionConfig fromMap(Map<String, Object> map) {
-        if (map.isEmpty() == false) {
+        Map<String, Object> options = new HashMap<>(map);
+        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
+        if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
         }
-        return new RegressionConfig();
+        return new RegressionConfig(resultsField);
     }
 
-    public RegressionConfig() {
+    private final String resultsField;
+
+    public RegressionConfig(String resultsField) {
+        this.resultsField = resultsField == null ? DEFAULT_RESULTS_FIELD : resultsField;
     }
 
-    public RegressionConfig(StreamInput in) {
+    public RegressionConfig(StreamInput in) throws IOException {
+        this.resultsField = in.readString();
+    }
+
+    public String getResultsField() {
+        return resultsField;
     }
 
     @Override
@@ -40,6 +56,7 @@ public class RegressionConfig implements InferenceConfig {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(resultsField);
     }
 
     @Override
@@ -50,6 +67,7 @@ public class RegressionConfig implements InferenceConfig {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         builder.endObject();
         return builder;
     }
@@ -58,13 +76,13 @@ public class RegressionConfig implements InferenceConfig {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
-        return true;
+        RegressionConfig that = (RegressionConfig)o;
+        return Objects.equals(this.resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(NAME);
+        return Objects.hash(resultsField);
     }
 
     @Override

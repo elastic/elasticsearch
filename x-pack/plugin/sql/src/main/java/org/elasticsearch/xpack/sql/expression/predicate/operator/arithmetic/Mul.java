@@ -34,14 +34,14 @@ public class Mul extends ArithmeticOperation {
         DataType r = right().dataType();
 
         // 1. both are numbers
-        if (l.isNumeric() && r.isNumeric()) {
+        if (l.isNullOrNumeric() && r.isNullOrNumeric()) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (l.isInterval() && r.isInteger()) {
+        if (l.isNullOrInterval() && (r.isInteger() || r.isNull())) {
             dataType = l;
             return TypeResolution.TYPE_RESOLVED;
-        } else if (r.isInterval() && l.isInteger()) {
+        } else if (r.isNullOrInterval() && (l.isInteger() || l.isNull())) {
             dataType = r;
             return TypeResolution.TYPE_RESOLVED;
         }

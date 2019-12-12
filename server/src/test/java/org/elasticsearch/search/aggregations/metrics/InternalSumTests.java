@@ -87,7 +87,7 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
             aggregations.add(new InternalSum("dummy1", value, null, null, null));
         }
         InternalSum internalSum = new InternalSum("dummy", 0, null, null, null);
-        InternalSum reduced = internalSum.doReduce(aggregations, null);
+        InternalSum reduced = internalSum.reduce(aggregations, null);
         assertEquals(expected, reduced.value(), delta);
     }
 

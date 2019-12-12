@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 
 public class BlobContainerWrapper implements BlobContainer {
@@ -56,18 +57,13 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        delegate.deleteBlob(blobName);
-    }
-
-    @Override
     public DeleteResult delete() throws IOException {
         return delegate.delete();
     }
 
     @Override
-    public void deleteBlobIgnoringIfNotExists(final String blobName) throws IOException {
-        delegate.deleteBlobIgnoringIfNotExists(blobName);
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        delegate.deleteBlobsIgnoringIfNotExists(blobNames);
     }
 
     @Override

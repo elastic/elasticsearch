@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -133,6 +134,18 @@ public class GetResultTests extends ESTestCase {
 
     public void testToXContentEmbeddedNotFound() throws IOException {
         GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
+        assertEquals("{\"found\":false}", originalBytes.utf8ToString());
+    }
+
+    public void testSerializationNotFound() throws IOException {
+        // serializes and deserializes with streamable, then prints back to xcontent
+        GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        getResult.writeTo(out);
+        getResult = new GetResult(out.bytes().streamInput());
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());

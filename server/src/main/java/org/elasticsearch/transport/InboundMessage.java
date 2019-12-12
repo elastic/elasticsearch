@@ -29,17 +29,24 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.function.Supplier;
 
 public abstract class InboundMessage extends NetworkMessage implements Closeable {
 
-    private final StreamInput streamInput;
+    private StreamInput streamInput;
 
-    InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
+    private final Supplier<StreamInput> streamInputSupplier;
+
+    InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Supplier<StreamInput> streamInput) {
         super(threadContext, version, status, requestId);
-        this.streamInput = streamInput;
+        this.streamInputSupplier = streamInput;
     }
 
     StreamInput getStreamInput() {
+        if (streamInput == null) {
+            streamInput = streamInputSupplier.get();
+        }
         return streamInput;
     }
 
@@ -75,24 +82,29 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 threadContext.readHeaders(streamInput);
 
                 InboundMessage message;
+                final StreamInput finalStreamInput = streamInput;
+                final Supplier<StreamInput> streamInputSupplier = () -> {
+                    final StreamInput input;
+                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                        try {
+                            input = decompressingStream(status, remoteVersion, finalStreamInput);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    } else {
+                        input = finalStreamInput;
+                    }
+                    return namedWriteableStream(input, remoteVersion);
+                };
                 if (TransportStatus.isRequest(status)) {
                     if (remoteVersion.before(Version.V_8_0_0)) {
                         // discard features
                         streamInput.readStringArray();
                     }
                     final String action = streamInput.readString();
-
-                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                        streamInput = decompressingStream(status, remoteVersion, streamInput);
-                    }
-                    streamInput = namedWriteableStream(streamInput, remoteVersion);
-                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInput);
+                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInputSupplier);
                 } else {
-                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                        streamInput = decompressingStream(status, remoteVersion, streamInput);
-                    }
-                    streamInput = namedWriteableStream(streamInput, remoteVersion);
-                    message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
+                    message = new Response(threadContext, remoteVersion, status, requestId, streamInputSupplier);
                 }
                 success = true;
                 return message;
@@ -126,7 +138,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
     @Override
     public void close() throws IOException {
-        streamInput.close();
+        IOUtils.close(streamInput);
     }
 
     private static void ensureVersionCompatibility(Version version, Version currentVersion, boolean isHandshake) {
@@ -147,7 +159,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         private final String actionName;
 
         Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName,
-                StreamInput streamInput) {
+                Supplier<StreamInput> streamInput) {
             super(threadContext, version, status, requestId, streamInput);
             this.actionName = actionName;
         }
@@ -160,7 +172,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
     public static class Response extends InboundMessage {
 
-        Response(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
+        Response(ThreadContext threadContext, Version version, byte status, long requestId, Supplier<StreamInput> streamInput) {
             super(threadContext, version, status, requestId, streamInput);
         }
     }

@@ -283,13 +283,28 @@ public class MinAggregatorTests extends AggregatorTestCase {
         assertEquals(e.getMessage(), "Expected numeric type on field [not_a_number], but got [keyword]");
     }
 
+    public void testBadMissingField() {
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number").missing("not_a_number");
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        expectThrows(NumberFormatException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+            }, (Consumer<InternalMin>) min -> {
+                fail("Should have thrown exception");
+            }, fieldType));
+    }
+
     public void testUnmappedWithBadMissingField() {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("does_not_exist").missing("not_a_number");
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("number");
 
-        NumberFormatException e = expectThrows(NumberFormatException.class,
+        expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
                 iw.addDocument(singleton(new NumericDocValuesField("number", 1)));

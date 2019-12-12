@@ -2939,6 +2939,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder() // <1>
                 .setIndex("put-test-source-index") // <2>
                 .setQueryConfig(queryConfig) // <3>
+                .setSourceFiltering(new FetchSourceContext(true,
+                    new String[] { "included_field_1", "included_field_2" },
+                    new String[] { "excluded_field" })) // <4>
                 .build();
             // end::put-data-frame-analytics-source-config
 
@@ -2972,7 +2975,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureBagFraction(0.4) // <6>
                 .setPredictionFieldName("my_prediction_field_name") // <7>
                 .setTrainingPercent(50.0) // <8>
-                .setNumTopClasses(1) // <9>
+                .setRandomizeSeed(1234L) // <9>
+                .setNumTopClasses(1) // <10>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -2985,6 +2989,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureBagFraction(0.4) // <6>
                 .setPredictionFieldName("my_prediction_field_name") // <7>
                 .setTrainingPercent(50.0) // <8>
+                .setRandomizeSeed(1234L) // <9>
                 .build();
             // end::put-data-frame-analytics-regression
 

@@ -16,6 +16,9 @@ repositories {
   maven {
     name = "local-test"
     url = file("sample_jars/build/testrepo")
+    metadataSources {
+      artifact()
+    }
   }
   jcenter()
 }

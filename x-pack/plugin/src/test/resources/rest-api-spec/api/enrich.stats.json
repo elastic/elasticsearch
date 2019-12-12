@@ -1,6 +1,9 @@
 {
   "enrich.stats": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-stats.html",
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-stats.html",
+      "since": "7.5.0"
+    },
     "stability" : "stable",
     "url": {
       "paths": [

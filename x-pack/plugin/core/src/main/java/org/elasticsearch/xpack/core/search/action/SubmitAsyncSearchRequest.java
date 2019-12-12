@@ -32,6 +32,14 @@ public class SubmitAsyncSearchRequest extends SearchRequest implements Composite
     /**
      * Create a new request
      * @param indices The indices the search will be executed on.
+     */
+    public SubmitAsyncSearchRequest(String... indices) {
+        this(indices, new SearchSourceBuilder());
+    }
+    
+    /**
+     * Create a new request
+     * @param indices The indices the search will be executed on.
      * @param source The source of the search request.
      */
     public SubmitAsyncSearchRequest(String[] indices, SearchSourceBuilder source) {
@@ -39,14 +47,7 @@ public class SubmitAsyncSearchRequest extends SearchRequest implements Composite
         setCcsMinimizeRoundtrips(false);
         setPreFilterShardSize(1);
         setBatchedReduceSize(5);
-    }
-
-    /**
-     * Create a new request
-     * @param indices The indices the search will be executed on.
-     */
-    public SubmitAsyncSearchRequest(String... indices) {
-        this(indices, new SearchSourceBuilder());
+        requestCache(true);
     }
 
     public SubmitAsyncSearchRequest(StreamInput in) throws IOException {

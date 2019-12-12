@@ -107,9 +107,9 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * Return <code>true</code> if a partial response is available through.
+     * Return <code>true</code> if a partial response is available.
      */
-    public boolean isPartialResponse() {
+    public boolean hasPartialResponse() {
         return partialResponse != null;
     }
 

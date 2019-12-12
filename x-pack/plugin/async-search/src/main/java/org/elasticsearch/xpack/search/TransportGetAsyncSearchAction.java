@@ -17,12 +17,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.rest.RestChannel;
 
 import java.io.IOException;
 
@@ -96,7 +98,9 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
 
    private void getSearchResponseFromIndex(Task task, GetAsyncSearchAction.Request request, AsyncSearchId searchId,
                                            ActionListener<AsyncSearchResponse> listener) {
-        GetRequest get = new GetRequest(searchId.getIndexName(), searchId.getDocId()).storedFields("response");
+        GetRequest get = new GetRequest(searchId.getIndexName(), searchId.getDocId())
+            .routing(searchId.getDocId())
+            .storedFields("response");
         get.setParentTask(clusterService.localNode().getId(), task.getId());
         store.getResponse(request, searchId,
             wrap(
@@ -141,6 +145,9 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
      * Returns a new listener that delegates the response to another listener and
      * then deletes the async search document from the system index if the response is
      * frozen (because the task has completed, failed or the coordinating node crashed).
+     *
+     * TODO: We should ensure that the response was successfully sent to the user before deleting
+     *      (see {@link RestChannel#sendResponse(RestResponse)}.
      */
     private ActionListener<AsyncSearchResponse> wrapCleanupListener(AsyncSearchId id,
                                                                     ActionListener<AsyncSearchResponse> listener) {

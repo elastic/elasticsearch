@@ -92,7 +92,7 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
     /**
      * The successful number of shards the search was executed on.
      */
-    public int getSuccesfullShards() {
+    public int getSuccessfulShards() {
         return successfulShards;
     }
 

@@ -69,6 +69,9 @@ class AsyncSearchTask extends SearchTask {
         private AtomicInteger version = new AtomicInteger(0);
         private AtomicInteger shardFailures = new AtomicInteger(0);
 
+        private int lastSuccess = 0;
+        private int lastFailures = 0;
+
         private volatile Response response;
 
         Listener() {
@@ -92,8 +95,10 @@ class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            lastSuccess = shards.size();
+            lastFailures = shardFailures.get();
             final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId,
-                new PartialSearchResponse(totalShards, shards.size(), shardFailures.get(), totalHits, aggs),
+                new PartialSearchResponse(totalShards, lastSuccess, lastFailures, totalHits, aggs),
                 version.incrementAndGet(),
                 true
             );
@@ -102,9 +107,11 @@ class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs) {
+            int failures = shardFailures.get();
+            int ver = (lastSuccess == shards.size() && lastFailures == failures) ? version.get() : version.incrementAndGet();
             final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId,
-                new PartialSearchResponse(totalShards, shards.size(), shardFailures.get(), totalHits, aggs),
-                version.incrementAndGet(),
+                new PartialSearchResponse(totalShards, shards.size(), failures, totalHits, aggs),
+                ver,
                 true
             );
             response = new Response(newResp, false);
@@ -118,9 +125,15 @@ class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onFailure(Exception exc) {
-            AsyncSearchResponse current = response.get(true);
-            response = new Response(new AsyncSearchResponse(searchId, current.getPartialResponse(),
+            AsyncSearchResponse previous = response.get(true);
+            response = new Response(new AsyncSearchResponse(searchId, newPartialResponse(previous, shardFailures.get()),
                 exc != null ? new ElasticsearchException(exc) : null, version.incrementAndGet(), false), false);
+        }
+
+        private PartialSearchResponse newPartialResponse(AsyncSearchResponse response, int numFailures) {
+            PartialSearchResponse old = response.getPartialResponse();
+            return response.hasPartialResponse() ? new PartialSearchResponse(totalShards, old.getSuccessfulShards(), shardFailures.get(),
+                old.getTotalHits(), old.getAggregations()) : null;
         }
     }
 
@@ -142,7 +155,7 @@ class AsyncSearchTask extends SearchTask {
                 InternalAggregations reducedAggs = internal.getPartialResponse().getAggregations();
                 reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(reducedAggs), reduceContextSupplier.get());
                 PartialSearchResponse old = internal.getPartialResponse();
-                PartialSearchResponse clone = new PartialSearchResponse(old.getTotalShards(), old.getSuccesfullShards(),
+                PartialSearchResponse clone = new PartialSearchResponse(old.getTotalShards(), old.getSuccessfulShards(),
                     old.getShardFailures(), old.getTotalHits(), reducedAggs);
                 needFinalReduce = false;
                 return internal = new AsyncSearchResponse(internal.id(), clone, internal.getFailure(), internal.getVersion(), true);

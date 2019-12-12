@@ -18,13 +18,42 @@ archivesBaseName = 'x-pack-async-search'
 compileJava.options.compilerArgs << "-Xlint:-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
 
+integTest.enabled = false
 
-dependencies {
-    compileOnly project(":server")
+// Instead we create a separate task to run the
+// tests based on ESIntegTestCase
+task internalClusterTest(type: Test) {
+  description = 'Java fantasy integration tests'
+  mustRunAfter test
 
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('ilm'))
+  include '**/*IT.class'
 }
 
-integTest.enabled = false
+check.dependsOn internalClusterTest
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
+}
+
+dependencies {
+  compileOnly project(":server")
+
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ilm'))
+}
+
+dependencyLicenses {
+  ignoreSha 'x-pack-core'
+}
+
+testingConventions.naming {
+  IT {
+    baseClass "org.elasticsearch.xpack.search.AsyncSearchIntegTestCase"
+  }
+}

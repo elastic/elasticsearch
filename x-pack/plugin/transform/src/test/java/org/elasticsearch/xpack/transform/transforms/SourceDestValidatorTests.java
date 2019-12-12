@@ -62,7 +62,9 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     private static final ClusterState CLUSTER_STATE;
     private Client clientWithBasicLicense;
+    private Client clientWithExpiredBasicLicense;
     private Client clientWithPlatinumLicense;
+    private Client clientWithTrialLicense;
     private RemoteClusterLicenseChecker remoteClusterLicenseCheckerBasic;
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -115,10 +117,12 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     private class MockClientLicenseCheck extends NoOpClient {
         private final String license;
+        private final LicenseStatus licenseStatus;
 
-        MockClientLicenseCheck(String testName, String license) {
+        MockClientLicenseCheck(String testName, String license, LicenseStatus licenseStatus) {
             super(testName);
             this.license = license;
+            this.licenseStatus = licenseStatus;
         }
 
         @Override
@@ -136,7 +140,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             if (request instanceof XPackInfoRequest) {
                 XPackInfoResponse response = new XPackInfoResponse(
                     null,
-                    new LicenseInfo("uid", license, license, LicenseStatus.ACTIVE, randomNonNegativeLong()),
+                    new LicenseInfo("uid", license, license, licenseStatus, randomNonNegativeLong()),
                     null
                 );
                 listener.onResponse((Response) response);
@@ -148,18 +152,22 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     @Before
     public void setupComponents() {
-        clientWithBasicLicense = new MockClientLicenseCheck(getTestName(), "basic");
+        clientWithBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.ACTIVE);
+        clientWithExpiredBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.EXPIRED);
         remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(
             clientWithBasicLicense,
             (operationMode -> operationMode != License.OperationMode.MISSING)
         );
-        clientWithPlatinumLicense = new MockClientLicenseCheck(getTestName(), "platinum");
+        clientWithPlatinumLicense = new MockClientLicenseCheck(getTestName(), "platinum", LicenseStatus.ACTIVE);
+        clientWithTrialLicense = new MockClientLicenseCheck(getTestName(), "trial", LicenseStatus.ACTIVE);
     }
 
     @After
     public void closeComponents() throws Exception {
         clientWithBasicLicense.close();
+        clientWithExpiredBasicLicense.close();
         clientWithPlatinumLicense.close();
+        clientWithTrialLicense.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -489,11 +497,11 @@ public class SourceDestValidatorTests extends ESTestCase {
             "license",
             true
         );
+
         assertNull(e);
     }
 
     public void testRemoteSourceBasic() {
-
         Context context = new SourceDestValidator.Context(
             CLUSTER_STATE,
             new IndexNameExpressionResolver(),
@@ -507,32 +515,141 @@ public class SourceDestValidatorTests extends ESTestCase {
 
         Context spyContext = spy(context);
         when(spyContext.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
-
         RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
-        validator.validate(spyContext);
 
+        validator.validate(spyContext);
         assertNull(context.getValidationException());
     }
 
     public void testRemoteSourcePlatinum() {
-
-        Context context = new SourceDestValidator.Context(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            new RemoteClusterLicenseChecker(clientWithBasicLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
-            new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
-            "dest",
-            "node_id",
-            "license"
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                new IndexNameExpressionResolver(),
+                remoteClusterService,
+                new RemoteClusterLicenseChecker(clientWithBasicLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
+                new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
+                "dest",
+                "node_id",
+                "platinum"
+            )
         );
 
-        Context spyContext = spy(context);
-        when(spyContext.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
-
+        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
         RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
-        validator.validate(spyContext);
+        validator.validate(context);
 
-        assertNotNull(spyContext.getValidationException());
+        assertNotNull(context.getValidationException());
+        assertEquals(1, context.getValidationException().validationErrors().size());
+        assertThat(
+            context.getValidationException().validationErrors().get(0),
+            equalTo(
+                "License check failed for remote cluster alias ["
+                    + REMOTE_BASIC
+                    + "], at least a [platinum] license is required, found license [basic]"
+            )
+        );
+
+        context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                new IndexNameExpressionResolver(),
+                remoteClusterService,
+                new RemoteClusterLicenseChecker(clientWithPlatinumLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
+                new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
+                "dest",
+                "node_id",
+                "license"
+            )
+        );
+        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
+
+        validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        validator.validate(context);
+        assertNull(context.getValidationException());
+
+        context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                new IndexNameExpressionResolver(),
+                remoteClusterService,
+                new RemoteClusterLicenseChecker(clientWithPlatinumLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
+                new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
+                "dest",
+                "node_id",
+                "platinum"
+            )
+        );
+        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
+
+        validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        validator.validate(context);
+        assertNull(context.getValidationException());
+
+        context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                new IndexNameExpressionResolver(),
+                remoteClusterService,
+                new RemoteClusterLicenseChecker(clientWithTrialLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
+                new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
+                "dest",
+                "node_id",
+                "trial"
+            )
+        );
+        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
+
+        validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        validator.validate(context);
+        assertNull(context.getValidationException());
+    }
+
+    public void testRemoteSourceLicenseInActive() {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                new IndexNameExpressionResolver(),
+                remoteClusterService,
+                new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
+                new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
+                "dest",
+                "node_id",
+                "license"
+            )
+        );
+
+        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
+        RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        validator.validate(context);
+
+        assertNotNull(context.getValidationException());
+        assertEquals(1, context.getValidationException().validationErrors().size());
+        assertThat(
+            context.getValidationException().validationErrors().get(0),
+            equalTo("License check failed for remote cluster alias [" + REMOTE_BASIC + "], license is not active")
+        );
+    }
+
+    public void testRemoteSourceDoesNotExist() {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                new IndexNameExpressionResolver(),
+                remoteClusterService,
+                new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense, XPackLicenseState::isPlatinumOrTrialOperationMode),
+                new String[] { "non_existing_remote:" + "SOURCE_1" },
+                "dest",
+                "node_id",
+                "license"
+            )
+        );
+
+        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
+        RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+
+        ValidationException e = expectThrows(ValidationException.class, () -> validator.validate(context));
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("no such remote cluster: [non_existing_remote]"));
     }
 }

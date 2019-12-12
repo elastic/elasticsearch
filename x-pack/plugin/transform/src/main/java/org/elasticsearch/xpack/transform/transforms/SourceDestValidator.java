@@ -17,6 +17,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.text.MessageFormat;
@@ -39,10 +41,13 @@ public final class SourceDestValidator {
     public static final String NEEDS_REMOTE_CLUSTER_SEARCH = "Source index is configured with a remote index pattern(s) [{0}]"
         + " but the current node [{1}] is not allowed to connect to remote clusters."
         + " Please enable cluster.remote.connect for all data nodes.";
+    public static final String ERROR_REMOTE_CLUSTER_SEARCH = "Error during resolving remote source, error: {2}";
     public static final String UNKNOWN_REMOTE_CLUSTER_LICENSE = "Error during license check ({0}) for remote cluster "
         + "alias(es) {1}, error: {2}";
     public static final String FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE = "License check failed for remote cluster "
-        + "alias {0}, at least a {1} license is required";
+        + "alias [{0}], at least a [{1}] license is required, found license [{2}]";
+    public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
+        + "alias [{0}], license is not active";
     public static final String TIMEOUT_CHECK_REMOTE_CLUSTER_LICENSE = "Timeout during license check ({0}) for remote cluster "
         + "alias(es) [{1}]";
 
@@ -362,22 +367,38 @@ public final class SourceDestValidator {
                 return;
             }
 
-            List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                context.getRegisteredRemoteClusterNames(),
-                remoteIndices
-            );
+            // this can throw
+            List<String> remoteAliases;
+            try {
+                remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
+            } catch (NoSuchRemoteClusterException e) {
+                context.addValidationError(e.getMessage(), false);
+                return;
+            } catch (Exception e) {
+                context.addValidationError(ERROR_REMOTE_CLUSTER_SEARCH, false, e.getMessage());
+                return;
+            }
 
             CountDownLatch latch = new CountDownLatch(1);
 
             context.getRemoteClusterLicenseChecker()
                 .checkRemoteClusterLicenses(remoteAliases, new LatchedActionListener<>(ActionListener.wrap(response -> {
                     if (response.isSuccess() == false) {
-                        context.addValidationError(
-                            FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE,
-                            true,
-                            response.remoteClusterLicenseInfo().clusterAlias(),
-                            context.getLicense()
-                        );
+                        if (response.remoteClusterLicenseInfo().licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
+                            context.addValidationError(
+                                REMOTE_CLUSTER_LICENSE_INACTIVE,
+                                true,
+                                response.remoteClusterLicenseInfo().clusterAlias()
+                            );
+                        } else {
+                            context.addValidationError(
+                                FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE,
+                                true,
+                                response.remoteClusterLicenseInfo().clusterAlias(),
+                                context.getLicense(),
+                                response.remoteClusterLicenseInfo().licenseInfo().getType()
+                            );
+                        }
                     }
                 },
                     e -> {

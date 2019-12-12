@@ -4,7 +4,8 @@
 <titleabbrev>Limit token count</titleabbrev>
 ++++
 
-Limits the number of output tokens.
+Limits the number of output tokens. The `limit` filter is commonly used to limit
+the size of document field values based on token count.
 
 By default, the `limit` filter keeps only the first token in a stream. For
 example, the filter can change the token stream `[ one, two, three ]` to 
@@ -15,8 +16,7 @@ https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache
 
 [TIP]
 ====
-The `limit` filter is commonly used to limit the size of document field values
-based on _token count_. If you want to limit the size of field values based on
+ If you want to limit the size of field values based on
 _character length_, use the <<ignore-above,`ignore_above`>> mapping parameter.
 ====
 

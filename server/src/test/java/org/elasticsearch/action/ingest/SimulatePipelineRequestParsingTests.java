@@ -108,15 +108,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
     }
 
-    public void testParseWithProvidedPipelineNoType() throws Exception {
-        innerTestParseWithProvidedPipeline(false);
-    }
-
-    public void testParseWithProvidedPipelineWithType() throws Exception {
-        innerTestParseWithProvidedPipeline(true);
-    }
-
-    private void innerTestParseWithProvidedPipeline(boolean useExplicitType) throws Exception {
+    public void innerTestParseWithProvidedPipeline() throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -204,9 +196,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.getPipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
-        if (useExplicitType) {
-            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
-        }
     }
 
     public void testNullPipelineId() {

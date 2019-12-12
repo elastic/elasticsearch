@@ -47,10 +47,6 @@ supports multiple languages and stemmer types. The
 the recommended stemmer for each language in bold, based on a reasonable
 compromise between performance and quality.
 
-If the recommended stemmer does not fit your use case, spend some time
-investigating and comparing the other available stemmers to
-find the one that best suits your needs.
-
 Aside from the `stemmer` filter, other stemming token filters include:
 
 * <<analysis-hunspell-tokenfilter,`hunspell`>>

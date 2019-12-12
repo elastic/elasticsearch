@@ -92,16 +92,16 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 12 is required to build Elasticsearch. You must have a JDK 12 installation
+JDK 13 is required to build Elasticsearch. You must have a JDK 13 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 12 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 13 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 12 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 13 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
 > Warning: do not use `sdkman` for Java installations which do not have proper
 `jrunscript` for jdk distributions.

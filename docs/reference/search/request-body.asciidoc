@@ -118,12 +118,12 @@ The API returns the following response:
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.3862944,
+        "max_score": 1.3862942,
         "hits" : [
             {
                 "_index" : "twitter",
                 "_id" : "0",
-                "_score": 1.3862944,
+                "_score": 1.3862942,
                 "_source" : {
                     "user" : "kimchy",
                     "message": "trying out Elasticsearch",

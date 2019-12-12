@@ -257,7 +257,6 @@ class BuildPlugin implements Plugin<Project> {
                 rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                     List<String> messages = []
                     Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
-                    task.logger.warn(requiredJavaVersions.toString())
                     for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
                         if (BuildParams.javaVersions.any { it.version == entry.key }) {
                             continue
@@ -673,9 +672,10 @@ class BuildPlugin implements Plugin<Project> {
 
                 test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
                         "-Xms${System.getProperty('tests.heap.size', '512m')}",
-                        '--illegal-access=warn'
+                        '--illegal-access=warn',
+                        '-XX:+HeapDumpOnOutOfMemoryError'
 
-                test.jvmArgumentProviders.add({ ['-XX:+HeapDumpOnOutOfMemoryError', "-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
+                test.jvmArgumentProviders.add({ ["-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
 
                 if (System.getProperty('tests.jvm.argline')) {
                     test.jvmArgs System.getProperty('tests.jvm.argline').split(" ")

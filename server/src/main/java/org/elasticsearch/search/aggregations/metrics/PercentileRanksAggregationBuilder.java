@@ -47,7 +47,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregationBuilder> {
+public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, PercentileRanksAggregationBuilder> {
     public static final String NAME = PercentileRanks.TYPE_NAME;
 
     public static final ParseField VALUES_FIELD = new ParseField("values");
@@ -80,7 +80,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     static {
         PARSER = new ConstructingObjectParser<>(PercentileRanksAggregationBuilder.NAME, false,
             (a, context) -> new PercentileRanksAggregationBuilder(context, (List) a[0]));
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, false, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
         PARSER.declareDoubleArray(constructorArg(), VALUES_FIELD);
         PARSER.declareBoolean(PercentileRanksAggregationBuilder::keyed, PercentilesAggregationBuilder.KEYED_FIELD);
 

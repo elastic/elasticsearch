@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
-
     private final double[] percents;
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;

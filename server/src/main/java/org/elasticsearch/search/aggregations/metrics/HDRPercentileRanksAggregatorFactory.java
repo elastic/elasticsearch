@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 class HDRPercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
-
     private final double[] values;
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;
@@ -72,8 +71,8 @@ class HDRPercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory 
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());
         }
-        return new HDRPercentileRanksAggregator(name, (Numeric) valuesSource, searchContext, parent, values, numberOfSignificantValueDigits,
-            keyed, config.format(), pipelineAggregators, metaData);
+        return new HDRPercentileRanksAggregator(name, (Numeric) valuesSource, searchContext, parent, values,
+            numberOfSignificantValueDigits, keyed, config.format(), pipelineAggregators, metaData);
     }
 
 }

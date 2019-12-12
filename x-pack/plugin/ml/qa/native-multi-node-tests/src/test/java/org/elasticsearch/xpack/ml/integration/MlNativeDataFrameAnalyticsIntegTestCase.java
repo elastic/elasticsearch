@@ -274,4 +274,11 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat(trainingRowsIds.isEmpty(), is(false));
         return trainingRowsIds;
     }
+
+    protected static void assertModelStatePersisted(String stateDocId) {
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
+            .get();
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+    }
 }

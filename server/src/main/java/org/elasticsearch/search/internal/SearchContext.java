@@ -22,7 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -93,9 +93,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         super("search_context");
     }
 
-    public abstract void setTask(SearchTask task);
+    public abstract void setTask(SearchShardTask task);
 
-    public abstract SearchTask getTask();
+    public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
 

@@ -46,7 +46,7 @@ public abstract class IngestScript {
 
     public abstract void execute(Map<String, Object> ctx);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         IngestScript newInstance(Map<String, Object> params);
     }
 }

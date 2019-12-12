@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregationBuilder> {
+public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, PercentilesAggregationBuilder> {
     public static final String NAME = Percentiles.TYPE_NAME;
 
     private static final double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
@@ -78,7 +78,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     private static final ObjectParser<InternalBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(PercentilesAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
 
         PARSER.declareDoubleArray(
                 (b, v) -> b.percentiles(v.stream().mapToDouble(Double::doubleValue).toArray()),

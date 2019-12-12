@@ -15,14 +15,20 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -46,12 +52,15 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -73,17 +82,32 @@ import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
 
 
 public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private JobResultsProvider jobProvider;
+    private ResultsPersisterService resultsPersisterService;
+    private AnomalyDetectionAuditor auditor;
 
     @Before
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobResultsProvider(client(), builder.build());
+        ThreadPool tp = mock(ThreadPool.class);
+        ClusterSettings clusterSettings = new ClusterSettings(builder.build(),
+            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                ClusterService.USER_DEFINED_META_DATA,
+                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
+
+        resultsPersisterService = new ResultsPersisterService(client(), clusterService, builder.build());
+        auditor = new AnomalyDetectionAuditor(client(), "test_node");
         waitForMlTemplates();
     }
 
@@ -574,29 +598,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
     }
 
-    private void indexDataCounts(DataCounts counts, String jobId) throws Exception {
-        JobDataCountsPersister persister = new JobDataCountsPersister(client());
-
-        AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        persister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean aBoolean) {
-                assertTrue(aBoolean);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                errorHolder.set(e);
-                latch.countDown();
-            }
-        });
-
-        latch.await();
-        if (errorHolder.get() != null) {
-            throw errorHolder.get();
-        }
+    private void indexDataCounts(DataCounts counts, String jobId) {
+        JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
+        persister.persistDataCounts(jobId, counts);
     }
 
     private void indexFilters(List<MlFilter> filters) throws IOException {
@@ -616,18 +620,18 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
-        JobResultsPersister persister = new JobResultsPersister(client());
-        persister.persistModelSizeStats(modelSizeStats);
+        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        persister.persistModelSizeStats(modelSizeStats, () -> true);
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {
-        JobResultsPersister persister = new JobResultsPersister(client());
-        persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
     }
 
     private void indexQuantiles(Quantiles quantiles) {
-        JobResultsPersister persister = new JobResultsPersister(client());
-        persister.persistQuantiles(quantiles);
+        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
+        persister.persistQuantiles(quantiles, () -> true);
     }
 
     private void indexCalendars(List<Calendar> calendars) throws IOException {

@@ -127,7 +127,7 @@ public class ValuesSourceConfig {
         if (script == null) {
             return null;
         } else {
-            AggregationScript.Factory factory = context.getScriptService().compile(script, AggregationScript.CONTEXT);
+            AggregationScript.Factory factory = context.compile(script, AggregationScript.CONTEXT);
             return factory.newFactory(script.getParams(), context.lookup());
         }
     }
@@ -243,7 +243,7 @@ public class ValuesSourceConfig {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
-                    "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+                "value source config is invalid; must have either a field context or a script or marked as unwrapped");
         }
 
         final ValuesSource vs;

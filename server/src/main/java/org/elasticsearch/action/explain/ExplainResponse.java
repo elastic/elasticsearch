@@ -154,6 +154,13 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _INDEX);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _ID);
+        final ConstructingObjectParser<Explanation, Boolean> explanationParser = getExplanationsParser();
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), explanationParser, EXPLANATION);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> GetResult.fromXContentEmbedded(p), GET);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ConstructingObjectParser<Explanation, Boolean> getExplanationsParser() {
         final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>("explanation", true,
             arg -> {
                 if ((float) arg[0] > 0) {
@@ -165,8 +172,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         explanationParser.declareFloat(ConstructingObjectParser.constructorArg(), VALUE);
         explanationParser.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION);
         explanationParser.declareObjectArray(ConstructingObjectParser.constructorArg(), explanationParser, DETAILS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), explanationParser, EXPLANATION);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> GetResult.fromXContentEmbedded(p), GET);
+        return explanationParser;
     }
 
     public static ExplainResponse fromXContent(XContentParser parser, boolean exists) {

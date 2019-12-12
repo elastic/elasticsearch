@@ -18,7 +18,7 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
         Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
         String qualifier = randomQualifier();
-        ExpressionId id = randomBoolean() ? null : new ExpressionId();
+        NameId id = randomBoolean() ? null : new NameId();
         String unresolvedMessage = randomUnresolvedMessage();
         Object resolutionMetadata = new Object();
         return new UnresolvedAttribute(source, name, qualifier, id, unresolvedMessage, resolutionMetadata);
@@ -82,7 +82,7 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
                 a.unresolvedMessage(), a.resolutionMetadata()),
             a.transformPropertiesOnly(v -> Objects.equals(v, a.qualifier()) ? newQualifier : v, Object.class));
 
-        ExpressionId newId = new ExpressionId();
+        NameId newId = new NameId();
         assertEquals(new UnresolvedAttribute(a.source(), a.name(), a.qualifier(), newId,
                 a.unresolvedMessage(), a.resolutionMetadata()),
             a.transformPropertiesOnly(v -> Objects.equals(v, a.id()) ? newId : v, Object.class));

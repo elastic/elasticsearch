@@ -69,5 +69,4 @@ public class TransportSearchIT extends ESIntegTestCase {
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null)));
         }
     }
-
 }

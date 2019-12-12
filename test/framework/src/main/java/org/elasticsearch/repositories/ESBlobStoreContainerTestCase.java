@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -32,12 +33,11 @@ import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.writeRandomBlob;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -121,22 +121,6 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testDeleteBlob() throws IOException {
-        try (BlobStore store = newBlobStore()) {
-            final String blobName = "foobar";
-            final BlobContainer container = store.blobContainer(new BlobPath());
-            expectThrows(NoSuchFileException.class, () -> container.deleteBlob(blobName));
-
-            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            final BytesArray bytesArray = new BytesArray(data);
-            writeBlob(container, blobName, bytesArray, randomBoolean());
-            container.deleteBlob(blobName); // should not raise
-
-            // blob deleted, so should raise again
-            expectThrows(NoSuchFileException.class, () -> container.deleteBlob(blobName));
-        }
-    }
-
     public void testDeleteBlobs() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final List<String> blobNames = Arrays.asList("foobar", "barfoo");
@@ -154,18 +138,6 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testDeleteBlobIgnoringIfNotExists() throws IOException {
-        try (BlobStore store = newBlobStore()) {
-            BlobPath blobPath = new BlobPath();
-            if (randomBoolean()) {
-                blobPath = blobPath.add(randomAlphaOfLengthBetween(1, 10));
-            }
-
-            final BlobContainer container = store.blobContainer(blobPath);
-            container.deleteBlobIgnoringIfNotExists("does_not_exist");
-        }
-    }
-
     public void testVerifyOverwriteFails() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final String blobName = "foobar";
@@ -175,7 +147,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             writeBlob(container, blobName, bytesArray, true);
             // should not be able to overwrite existing blob
             expectThrows(FileAlreadyExistsException.class, () -> writeBlob(container, blobName, bytesArray, true));
-            container.deleteBlob(blobName);
+            container.deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
             writeBlob(container, blobName, bytesArray, true); // after deleting the previous blob, we should be able to write to it again
         }
     }
@@ -188,6 +160,52 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             } else {
                 container.writeBlobAtomic(blobName, stream, bytesArray.length(), failIfAlreadyExists);
             }
+        }
+    }
+
+    public void testContainerCreationAndDeletion() throws IOException {
+        try(BlobStore store = newBlobStore()) {
+            final BlobContainer containerFoo = store.blobContainer(new BlobPath().add("foo"));
+            final BlobContainer containerBar = store.blobContainer(new BlobPath().add("bar"));
+            byte[] data1 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            byte[] data2 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            writeBlob(containerFoo, "test", new BytesArray(data1));
+            writeBlob(containerBar, "test", new BytesArray(data2));
+
+            assertArrayEquals(readBlobFully(containerFoo, "test", data1.length), data1);
+            assertArrayEquals(readBlobFully(containerBar, "test", data2.length), data2);
+
+            assertTrue(BlobStoreTestUtil.blobExists(containerFoo, "test"));
+            assertTrue(BlobStoreTestUtil.blobExists(containerBar, "test"));
+        }
+    }
+
+    public static byte[] writeRandomBlob(BlobContainer container, String name, int length) throws IOException {
+        byte[] data = randomBytes(length);
+        writeBlob(container, name, new BytesArray(data));
+        return data;
+    }
+
+    public static byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
+        byte[] data = new byte[length];
+        try (InputStream inputStream = container.readBlob(name)) {
+            assertThat(inputStream.read(data), equalTo(length));
+            assertThat(inputStream.read(), equalTo(-1));
+        }
+        return data;
+    }
+
+    public static byte[] randomBytes(int length) {
+        byte[] data = new byte[length];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        return data;
+    }
+
+    protected static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
+        try (InputStream stream = bytesArray.streamInput()) {
+            container.writeBlob(blobName, stream, bytesArray.length(), true);
         }
     }
 

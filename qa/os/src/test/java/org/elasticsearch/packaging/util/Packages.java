@@ -95,8 +95,7 @@ public class Packages {
         return result;
     }
 
-    public static Installation installPackage(Distribution distribution) throws IOException {
-        Shell sh = new Shell();
+    public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
             sh.getEnv().put("JAVA_HOME", systemJavaHome);
@@ -106,7 +105,7 @@ public class Packages {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
 
-        Installation installation = Installation.ofPackage(distribution);
+        Installation installation = Installation.ofPackage(sh, distribution);
 
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),

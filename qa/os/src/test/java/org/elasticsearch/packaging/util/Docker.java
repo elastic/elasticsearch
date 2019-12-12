@@ -105,7 +105,7 @@ public class Docker {
 
         waitForElasticsearchToStart();
 
-        return Installation.ofContainer(distribution);
+        return Installation.ofContainer(dockerShell, distribution);
     }
 
     /**

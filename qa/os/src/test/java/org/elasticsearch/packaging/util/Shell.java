@@ -53,6 +53,14 @@ public class Shell {
         this.workingDirectory = null;
     }
 
+    /**
+     * Reset the shell to its newly created state.
+     */
+    public void reset() {
+        env.clear();
+        workingDirectory = null;
+    }
+
     public Map<String, String> getEnv() {
         return env;
     }
@@ -112,6 +120,7 @@ public class Shell {
     }
 
     private Result runScript(String[] command) {
+        logger.warn("Running command with env: " + env);
         Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
             throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());

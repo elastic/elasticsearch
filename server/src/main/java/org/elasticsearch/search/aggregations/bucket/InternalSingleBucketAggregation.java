@@ -109,6 +109,22 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         return newAggregation(getName(), docCount, aggs);
     }
 
+    /**
+     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a single-bucket
+     * agg needs to first reduce the aggs in it's bucket (and their parent pipelines) before allowing sibling pipelines
+     * to reduce
+     */
+    @Override
+    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        List<InternalAggregation> aggs = new ArrayList<>();
+        for (Aggregation agg : getAggregations().asList()) {
+            aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+        }
+        InternalAggregations reducedSubAggs = new InternalAggregations(aggs);
+        return super.reducePipelines(create(reducedSubAggs), reduceContext);
+    }
+
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {

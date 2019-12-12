@@ -249,9 +249,7 @@ public class AuthenticationService {
                     } else {
                         tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
                             if (userToken != null) {
-                                authenticatedBy = new RealmRef(TokenService.TOKEN_PSEUDO_REALM, TokenService.TOKEN_PSEUDO_REALM, nodeName);
-                                writeAuthToContext(new Authentication(userToken.getAuthentication().getUser(), authenticatedBy, null,
-                                    Version.CURRENT, AuthenticationType.TOKEN, userToken.getAuthentication().getMetadata()));
+                                writeAuthToContext(userToken.getAuthentication());
                             } else {
                                 checkForApiKey();
                             }

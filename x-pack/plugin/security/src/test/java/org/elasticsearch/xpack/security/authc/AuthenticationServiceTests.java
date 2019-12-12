@@ -1173,7 +1173,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             }, this::logAndFail));
         }
         assertTrue(completed.get());
-        verify(auditTrail).authenticationSuccess(anyString(), eq(TokenService.TOKEN_PSEUDO_REALM), eq(user), eq("_action"), same(message));
+        verify(auditTrail).authenticationSuccess(anyString(), eq("realm"), eq(user), eq("_action"), same(message));
         verifyNoMoreInteractions(auditTrail);
     }
 

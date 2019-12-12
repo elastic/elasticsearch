@@ -1,6 +1,7 @@
 package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -10,25 +11,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class NodeDanglingIndicesResponse extends BaseNodeResponse {
-    private final List<DanglingIndexInfo> indexInfo;
+    private final List<IndexMetaData> indexMetaData;
 
-    public List<DanglingIndexInfo> getDanglingIndices() {
-        return this.indexInfo;
+    public List<IndexMetaData> getDanglingIndices() {
+        return this.indexMetaData;
     }
 
-    public NodeDanglingIndicesResponse(DiscoveryNode node, List<DanglingIndexInfo> indexInfo) {
+    public NodeDanglingIndicesResponse(DiscoveryNode node, List<IndexMetaData> indexMetaData) {
         super(node);
-        this.indexInfo = indexInfo;
+        this.indexMetaData = indexMetaData;
     }
 
     protected NodeDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
 
         final int size = in.readInt();
-        this.indexInfo = new ArrayList<>(size);
+        this.indexMetaData = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
-            this.indexInfo.add(new DanglingIndexInfo(in));
+            this.indexMetaData.add(IndexMetaData.readFrom(in));
         }
     }
 
@@ -36,9 +37,9 @@ public class NodeDanglingIndicesResponse extends BaseNodeResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeInt(this.indexInfo.size());
-        for (DanglingIndexInfo info : this.indexInfo) {
-            info.writeTo(out);
+        out.writeInt(this.indexMetaData.size());
+        for (IndexMetaData indexMetaData : this.indexMetaData) {
+            indexMetaData.writeTo(out);
         }
     }
 }

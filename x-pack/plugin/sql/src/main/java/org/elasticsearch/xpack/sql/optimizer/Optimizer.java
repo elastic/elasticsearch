@@ -397,7 +397,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return ob;
         }
     }
-    
+
     static class PruneOrderByForImplicitGrouping extends OptimizerRule<OrderBy> {
 
         @Override

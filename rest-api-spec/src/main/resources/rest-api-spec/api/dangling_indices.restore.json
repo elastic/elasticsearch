@@ -1,0 +1,23 @@
+{
+  "dangling_indices.restore":{
+    "documentation":{
+      "description":"Restores the specified dangling indices."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_dangling/restore",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"Specifies the dangling indices to be restored",
+      "required":true
+    }
+  }
+}

@@ -159,6 +159,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -1155,6 +1158,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public void listDanglingIndices(ListDanglingIndicesRequest request, ActionListener<ListDanglingIndicesResponse> listener) {
             execute(ListDanglingIndicesAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<RestoreDanglingIndicesResponse> restoreDanglingIndices(RestoreDanglingIndicesRequest request) {
+            return execute(RestoreDanglingIndicesAction.INSTANCE, request);
+        }
+
+        @Override
+        public void restoreDanglingIndices(RestoreDanglingIndicesRequest request, ActionListener<RestoreDanglingIndicesResponse> listener) {
+            execute(RestoreDanglingIndicesAction.INSTANCE, request, listener);
         }
 
         @Override

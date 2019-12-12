@@ -19,27 +19,27 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class DanglingIndexInfo implements Writeable, ToXContentObject {
-    private String nodeId;
+public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObject {
     private String indexName;
     private String indexUUID;
 
-    public DanglingIndexInfo(String nodeId, String indexName, String indexUUID) {
-        this.nodeId = nodeId;
+    public DanglingIndexInfo(DiscoveryNode node, String indexName, String indexUUID) {
+        super(node);
         this.indexName = indexName;
         this.indexUUID = indexUUID;
     }
 
     public DanglingIndexInfo(StreamInput in) throws IOException {
-        this.nodeId = in.readString();
+        super(in);
         this.indexName = in.readString();
         this.indexUUID = in.readString();
     }
@@ -53,13 +53,13 @@ public class DanglingIndexInfo implements Writeable, ToXContentObject {
     }
 
     public String getNodeId() {
-        return nodeId;
+        return this.getNode().getId();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("nodeId", this.nodeId);
+        builder.field("nodeId", this.getNodeId());
         builder.field("indexName", this.indexName);
         builder.field("indexUUID", this.indexUUID);
         builder.endObject();
@@ -68,7 +68,7 @@ public class DanglingIndexInfo implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(this.nodeId);
+        super.writeTo(out);
         out.writeString(this.indexName);
         out.writeString(this.indexUUID);
     }

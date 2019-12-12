@@ -36,8 +36,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportListDanglingIndicesAction extends
-    TransportNodesAction<ListDanglingIndicesRequest, ListDanglingIndicesResponse, NodeDanglingIndicesRequest, NodeDanglingIndicesResponse> {
+public class TransportListDanglingIndicesAction extends TransportNodesAction<
+    ListDanglingIndicesRequest,
+    ListDanglingIndicesResponse,
+    NodeDanglingIndicesRequest,
+    NodeDanglingIndicesResponse> {
     private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
@@ -70,7 +73,20 @@ public class TransportListDanglingIndicesAction extends
         List<NodeDanglingIndicesResponse> nodeDanglingIndicesResponses,
         List<FailedNodeException> failures
     ) {
-        return new ListDanglingIndicesResponse(clusterService.getClusterName(), nodeDanglingIndicesResponses, failures);
+        final List<DanglingIndexInfo> combinedInfo = new ArrayList<>();
+
+        for (NodeDanglingIndicesResponse response : nodeDanglingIndicesResponses) {
+            for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
+                DanglingIndexInfo info = new DanglingIndexInfo(
+                    response.getNode().getId(),
+                    danglingIndex.getIndex().getName(),
+                    danglingIndex.getIndexUUID()
+                );
+                combinedInfo.add(info);
+            }
+        }
+
+        return new ListDanglingIndicesResponse(clusterService.getClusterName(), combinedInfo, failures);
     }
 
     @Override
@@ -85,18 +101,10 @@ public class TransportListDanglingIndicesAction extends
 
     @Override
     protected NodeDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
-        final List<DanglingIndexInfo> indexInfo = new ArrayList<>();
         final DiscoveryNode localNode = transportService.getLocalNode();
 
-        for (IndexMetaData metaData : danglingIndicesState.getDanglingIndices().values()) {
-            DanglingIndexInfo info = new DanglingIndexInfo(
-                localNode.getId(),
-                metaData.getIndex().getName(),
-                metaData.getIndexUUID()
-            );
-            indexInfo.add(info);
-        }
+        final ArrayList<IndexMetaData> indexMetaData = new ArrayList<>(danglingIndicesState.getDanglingIndices().values());
 
-        return new NodeDanglingIndicesResponse(localNode, indexInfo);
+        return new NodeDanglingIndicesResponse(localNode, indexMetaData);
     }
 }

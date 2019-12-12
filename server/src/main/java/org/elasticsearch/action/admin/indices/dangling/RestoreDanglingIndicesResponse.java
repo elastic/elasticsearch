@@ -31,13 +31,13 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.List;
 
-public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingIndicesResponse> implements StatusToXContentObject {
+public class RestoreDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingIndicesResponse> implements StatusToXContentObject {
 
-    public ListDanglingIndicesResponse(StreamInput in) throws IOException {
+    public RestoreDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public ListDanglingIndicesResponse(
+    public RestoreDanglingIndicesResponse(
         ClusterName clusterName,
         List<NodeDanglingIndicesResponse> nodes,
         List<FailedNodeException> failures
@@ -47,22 +47,14 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
 
     @Override
     public RestStatus status() {
-        return this.hasFailures() ? RestStatus.SERVICE_UNAVAILABLE : RestStatus.OK;
-    }
-
-    public List<DanglingIndexInfo> getDanglingIndices() {
-        return this.getNodes();
+        return this.hasFailures() ? RestStatus.SERVICE_UNAVAILABLE : RestStatus.ACCEPTED;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.startArray("dangling_indices");
-        for (DanglingIndexInfo info : this.getDanglingIndices()) {
-            info.toXContent(builder, params);
-        }
-        builder.endArray();
+        builder.field("status", this.hasFailures() ? "error" : "ok");
 
         if (this.hasFailures()) {
             builder.startArray("failed_nodes");

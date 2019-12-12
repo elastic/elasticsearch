@@ -22,13 +22,13 @@ out-of-the-box support for most use cases.
 [[stemming]]
 === Stemming
 
-Most natural languages are inflected, meaning words can change
-their form to express differences, such as the following:
+https://simple.wikipedia.org/wiki/Natural_language[Natural languages] are
+typically inflected: the form of a word changes to express differences. These
+differences, or inflections, can include:
 
 * _Number_:      fox, foxes
 * _Tense_:       pay, paid, paying
 * _Person_:      hear, hears
-
 
 _Stemming_ removes these inflections to reduce tokens to a root form. This
 improves retrievability by enabling matches across the various inflected forms

@@ -43,7 +43,7 @@ public class RawInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField) {
+    public void writeResult(IngestDocument document, String parentResultField) {
         throw new UnsupportedOperationException("[raw] does not support writing inference results");
     }
 

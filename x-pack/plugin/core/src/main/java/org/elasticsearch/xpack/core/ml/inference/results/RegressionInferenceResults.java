@@ -53,10 +53,10 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField) {
+    public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(resultField, "resultField");
-        document.setFieldValue(resultField + "." + resultsField, value());
+        ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
+        document.setFieldValue(parentResultField + "." + this.resultsField, value());
     }
 
     @Override

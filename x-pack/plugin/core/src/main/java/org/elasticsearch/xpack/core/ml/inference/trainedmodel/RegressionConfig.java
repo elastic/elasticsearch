@@ -36,6 +36,7 @@ public class RegressionConfig implements InferenceConfig {
     }
 
     private final String resultsField;
+
     public RegressionConfig(String resultsField) {
         this.resultsField = resultsField == null ? DEFAULT_RESULTS_FIELD : resultsField;
     }

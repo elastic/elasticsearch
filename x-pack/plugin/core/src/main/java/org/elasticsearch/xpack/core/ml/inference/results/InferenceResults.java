@@ -10,6 +10,6 @@ import org.elasticsearch.ingest.IngestDocument;
 
 public interface InferenceResults extends NamedWriteable {
 
-    void writeResult(IngestDocument document, String resultField);
+    void writeResult(IngestDocument document, String parentResultField);
 
 }

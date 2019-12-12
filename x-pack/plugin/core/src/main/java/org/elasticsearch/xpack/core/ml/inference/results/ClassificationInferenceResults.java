@@ -92,12 +92,12 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField) {
+    public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(resultField, "resultField");
-        document.setFieldValue(resultField + "." + this.resultsField, valueAsString());
+        ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
+        document.setFieldValue(parentResultField + "." + this.resultsField, valueAsString());
         if (topClasses.size() > 0) {
-            document.setFieldValue(resultField + "." + topNumClassesField,
+            document.setFieldValue(parentResultField + "." + topNumClassesField,
                 topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -273,7 +274,7 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
             BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
-            return transport.consumeNetworkReads(channel, bytesReference);
+            return transport.consumeNetworkReads(channel, new BytesArray(BytesReference.toBytes(bytesReference)));
         }
     }
 

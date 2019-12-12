@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -39,6 +40,6 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
         BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
-        return transport.consumeNetworkReads(channel, bytesReference);
+        return transport.consumeNetworkReads(channel, new BytesArray(BytesReference.toBytes(bytesReference)));
     }
 }

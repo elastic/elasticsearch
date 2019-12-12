@@ -140,11 +140,9 @@ public class CentroidCalculator {
 
         private final CentroidCalculator calculator;
         private DimensionalShapeType dimensionalShapeType;
-        private boolean isGeometryCollection;
 
         private CentroidCalculatorVisitor(CentroidCalculator calculator) {
             this.calculator = calculator;
-            this.isGeometryCollection = false;
         }
 
         @Override
@@ -156,7 +154,6 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(GeometryCollection<?> collection) {
-            isGeometryCollection = true;
             for (Geometry shape : collection) {
                 shape.visit(this);
             }

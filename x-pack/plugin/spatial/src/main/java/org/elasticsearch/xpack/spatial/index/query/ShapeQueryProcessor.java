@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYLine;
 import org.apache.lucene.geo.XYPolygon;
@@ -38,11 +39,6 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
 
     @Override
     public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        // CONTAINS queries are not yet supported by VECTOR strategy
-        if (relation == ShapeRelation.CONTAINS) {
-            throw new QueryShardException(context,
-                ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]");
-        }
         if (shape == null) {
             return new MatchNoDocsQuery();
         }
@@ -76,12 +72,21 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
         }
 
         private void visit(BooleanQuery.Builder bqb, GeometryCollection<?> collection) {
+            BooleanClause.Occur occur;
+            if (relation == ShapeRelation.CONTAINS || relation == ShapeRelation.DISJOINT) {
+                // all shapes must be disjoint / must be contained in relation to the indexed shape.
+                occur = BooleanClause.Occur.MUST;
+            } else {
+                // at least one shape must intersect / contain the indexed shape.
+                occur = BooleanClause.Occur.SHOULD;
+            }
             for (Geometry shape : collection) {
                 if (shape instanceof MultiPoint) {
                     // Flatten multipoints
+                    // We do not support multi-point queries?
                     visit(bqb, (GeometryCollection<?>) shape);
                 } else {
-                    bqb.add(shape.visit(this), BooleanClause.Occur.SHOULD);
+                    bqb.add(shape.visit(this), occur);
                 }
             }
         }
@@ -128,7 +133,13 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
 
         @Override
         public Query visit(Point point) {
-            return XYShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
+            ShapeField.QueryRelation lucenRelation = relation.getLuceneRelation();
+            if (lucenRelation == ShapeField.QueryRelation.CONTAINS) {
+                // contains and intersects are equivalent but the implementation of
+                // intersects is more efficient.
+                lucenRelation = ShapeField.QueryRelation.INTERSECTS;
+            }
+            return XYShape.newBoxQuery(fieldName, lucenRelation,
                 (float)point.getX(), (float)point.getX(), (float)point.getY(), (float)point.getY());
         }
 

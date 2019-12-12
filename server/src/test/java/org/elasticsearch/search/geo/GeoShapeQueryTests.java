@@ -449,8 +449,13 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         Rectangle mbr = xRandomRectangle(random(), xRandomPoint(random()), true);
         GeometryCollectionBuilder gcb = createGeometryCollectionWithin(random(), mbr);
 
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree" )
-                .get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+                .execute().actionGet();
+        } else {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+                .execute().actionGet();
+        }
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -726,5 +731,78 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertEquals(2, response.getHits().getTotalHits().value);
         assertNotEquals("1", response.getHits().getAt(0).getId());
         assertNotEquals("1", response.getHits().getAt(1).getId());
+    }
+
+    public void testGeometryCollectionRelations() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("doc")
+            .startObject("properties")
+            .startObject("geo").field("type", "geo_shape").endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+
+        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
+
+        client().index(new IndexRequest("test")
+            .source(jsonBuilder().startObject().field("geo", envelopeBuilder).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        {
+            // A geometry collection that is fully within the indexed shape
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(1, 2));
+            builder.shape(new PointBuilder(-2, -1));
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+        }
+        // A geometry collection that is partially within the indexed shape
+        {
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(1, 2));
+            builder.shape(new PointBuilder(20, 30));
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+        }
+        {
+            // A geometry collection that is disjoint with the indexed shape
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(-20, -30));
+            builder.shape(new PointBuilder(20, 30));
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+        }
     }
 }

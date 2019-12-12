@@ -7,7 +7,6 @@ These resource definitions are used in APIs related to {ml-features} and
 
 
 * <<ml-dfa-analysis-objects>>
-* <<ml-evaluate-dfanalytics-resources,Evaluate {dfanalytics}>>
 * <<ml-snapshot-resource,{anomaly-detect-cap} model snapshots>>
 * <<ml-results-resource,{anomaly-detect-cap} results>>
 * <<role-mapping-resources,Role mappings>>
@@ -15,7 +14,6 @@ These resource definitions are used in APIs related to {ml-features} and
 
 
 include::{es-repo-dir}/ml/df-analytics/apis/analysisobjects.asciidoc[]
-include::{es-repo-dir}/ml/df-analytics/apis/evaluateresources.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/snapshotresource.asciidoc[]
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/resultsresource.asciidoc[]

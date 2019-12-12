@@ -29,9 +29,11 @@ their form to express differences, such as the following:
 * _Tense_:       pay, paid, paying
 * _Person_:      hear, hears
 
-_Stemming_ attempts to remove theses differences and reduce each token to its
-root form. For example, `foxes` can be stemmed to the root `fox`. This often
-aids search retrieval by consolidating near-identical terms.
+
+_Stemming_ removes these inflections to reduce tokens to a root form. This
+improves retrievability by enabling matches across the various inflected forms
+of a word. For example, if `foxes` is stemmed to `fox`, searches for the term
+`fox` match documents that contain either `fox` or `foxes`.
 
 [float]
 [[stemming-token-filters]]

@@ -95,6 +95,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
@@ -135,6 +136,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
@@ -195,6 +197,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
@@ -446,5 +449,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
             assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
         }
+    }
+
+    protected String stateDocId() {
+        return jobId + "_classification_state#1";
     }
 }

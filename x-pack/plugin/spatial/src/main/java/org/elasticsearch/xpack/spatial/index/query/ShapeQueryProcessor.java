@@ -44,7 +44,8 @@ public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryPro
             return new MatchNoDocsQuery();
         }
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-        if (context.indexVersionCreated().before(Version.V_7_5_0) && relation == ShapeRelation.CONTAINS) {
+        Version version = context.indexVersionCreated();
+        if (version != null && version.before(Version.V_7_5_0) && relation == ShapeRelation.CONTAINS) {
             throw new QueryShardException(context,
                 ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
         }

@@ -49,16 +49,16 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 ==== {api-query-parms-title}  
   
 `allow_no_match`::
-  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
-  match any {dfanalytics-job} an error will be returned. The default value is
-  `true`.
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
 
 `force`::
   (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
   
 `timeout`::
-  (Optional, time) Controls the amount of time to wait until the
-  {dfanalytics-job} stops. The default value is 20 seconds.
+(Optional, <<time-units,time units>>) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-stop]
 
 
 [[ml-stop-dfanalytics-example]]

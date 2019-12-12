@@ -20,13 +20,24 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 
 public class Header {
+
+    private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
 
     private final int networkMessageSize;
     private final Version version;
     private final long requestId;
     private final byte status;
+    private String actionName;
+    private Tuple<Map<String, String>, Map<String, Set<String>>> headers;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
@@ -73,5 +84,22 @@ public class Header {
 
     boolean isCompressed() {
         return TransportStatus.isCompress(status);
+    }
+
+    boolean isVariableHeaderUncompressed() {
+        return version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE);
+    }
+
+    void finishParsingHeader(StreamInput input) throws IOException {
+        headers = ThreadContext.readHeadersFromStream(input);
+        if (version.before(Version.V_8_0_0)) {
+            // discard features
+            input.readStringArray();
+        }
+        if (TransportStatus.isRequest(status)) {
+            actionName = input.readString();
+        } else {
+            actionName = RESPONSE_NAME;
+        }
     }
 }

@@ -55,7 +55,34 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testDecode() throws IOException {
         String action = "test-request";
-        boolean isCompressed = randomBoolean();
+        boolean isCompressed = false;
+        long requestId = randomNonNegativeLong();
+        OutboundMessage message;
+        if (randomBoolean()) {
+            message = new OutboundMessage.Request(threadPool.getThreadContext(), new TestRequest(randomAlphaOfLength(100)), version,
+                action, requestId, false, isCompressed);
+        } else {
+            message = new OutboundMessage.Response(threadPool.getThreadContext(), new TestResponse(randomAlphaOfLength(100)), version,
+                requestId, false, isCompressed);
+        }
+
+        final BytesReference bytes = message.serialize(new BytesStreamOutput());
+
+        InboundAggregator aggregator = mock(InboundAggregator.class);
+        InboundDecoder decoder = new InboundDecoder(aggregator);
+        int bytesConsumed = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes, releasable));
+        verify(aggregator).headerReceived(any(Header.class));
+        assertEquals(TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed);
+
+        final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
+        int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
+        assertEquals(bytes.length() - TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed2);
+        verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
+    }
+
+    public void testCompressedDecode() throws IOException {
+        String action = "test-request";
+        boolean isCompressed = true;
         long requestId = randomNonNegativeLong();
         OutboundMessage message;
         if (randomBoolean()) {

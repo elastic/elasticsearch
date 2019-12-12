@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[preview-transform]]
-=== Preview {transforms} API
+=== Preview {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Preview {transforms}</titleabbrev>
+<titleabbrev>Preview {transform}</titleabbrev>
 ++++
 
 Previews a {transform}.

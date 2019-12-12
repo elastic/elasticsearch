@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-transform]]
-=== Update {transforms} API
+=== Update {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Update {transforms}</titleabbrev>
+<titleabbrev>Update {transform}</titleabbrev>
 ++++
 
 Updates certain properties of a {transform}.

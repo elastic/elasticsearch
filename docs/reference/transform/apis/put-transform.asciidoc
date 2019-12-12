@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-transform]]
-=== Create {transforms} API
+=== Create {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Create {transforms}</titleabbrev>
+<titleabbrev>Create {transform}</titleabbrev>
 ++++
 
 Instantiates a {transform}.

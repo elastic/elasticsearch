@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-transform]]
-=== Start {transforms} API
+=== Start {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Start {transforms}</titleabbrev>
+<titleabbrev>Start {transform}</titleabbrev>
 ++++
 
 Starts one or more {transforms}.

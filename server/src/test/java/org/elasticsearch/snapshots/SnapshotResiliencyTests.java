@@ -92,7 +92,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
@@ -388,79 +387,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
-    }
-
-    @AwaitsFix(bugUrl = "still working on making this pass")
-    public void testSnapshotDeletesWithNodeDisconnects() {
-        final int dataNodes = randomIntBetween(2, 10);
-        final int masterNodes = randomFrom(1, 3, 5);
-        setupTestCluster(masterNodes, dataNodes);
-
-        String repoName = "repo";
-        String snapshotNamePrefix = "snapshot-";
-        final String index = "test";
-        final int shards = randomIntBetween(1, 10);
-
-        TestClusterNodes.TestClusterNode masterNode =
-            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
-
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
-
-        continueOrDie(createRepoAndIndex(repoName, index, shards),
-            createIndexResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotNamePrefix + "1")
-                .setWaitForCompletion(true).execute(createSnapshotResponseStepListener));
-
-        final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
-
-        continueOrDie(createSnapshotResponseStepListener, acknowledgedResponse -> client().admin().cluster()
-            .prepareCreateSnapshot(repoName, snapshotNamePrefix + "2").
-                setWaitForCompletion(true).execute(createAnotherSnapshotResponseStepListener));
-
-        final StepListener<Boolean> deleteStepListener = new StepListener<>();
-
-        continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse -> {
-            assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS);
-            client().admin().cluster().deleteSnapshots(
-                new DeleteSnapshotsRequest(repoName, new String[]{snapshotNamePrefix + "1", snapshotNamePrefix + "2"}),
-                ActionListener.wrap(
-                    resp -> deleteStepListener.onResponse(true),
-                    e -> {
-                        final Throwable unwrapped =
-                            ExceptionsHelper.unwrap(e, ConcurrentSnapshotExecutionException.class);
-                        assertThat(unwrapped, instanceOf(ConcurrentSnapshotExecutionException.class));
-                        deleteStepListener.onResponse(false);
-                    }));
-
-            for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
-                scheduleNow(this::disconnectOrRestartDataNode);
-            }
-            // Only disconnect master if we have more than a single master and can simulate a failover
-            final boolean disconnectedMaster = randomBoolean() && masterNodes > 1;
-            if (disconnectedMaster) {
-                scheduleNow(this::disconnectOrRestartMasterNode);
-            }
-            if (disconnectedMaster || randomBoolean()) {
-                scheduleSoon(() -> testClusterNodes.clearNetworkDisruptions());
-            } else if (randomBoolean()) {
-                scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
-            }
-        });
-
-        continueOrDie(deleteStepListener, r -> {
-            logger.info("done");
-        });
-
-        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
-            final ClusterState state = master.clusterService.state();
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress != null
-                && snapshotDeletionsInProgress.getEntries().isEmpty();
-        }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
-
-        assertNotNull(createAnotherSnapshotResponseStepListener.result());
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
     }
 
     public void testConcurrentSnapshotCreateAndDelete() {

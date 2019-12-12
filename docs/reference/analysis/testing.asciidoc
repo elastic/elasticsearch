@@ -65,7 +65,7 @@ POST _analyze
 
 The above request would produce the following response:
 
-[source,console]
+[source,console-result]
 -------------------------------------
 {
     "tokens": [

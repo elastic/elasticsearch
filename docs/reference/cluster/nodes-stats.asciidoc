@@ -891,7 +891,7 @@ Number of buffer pool classes currently loaded by JVM.
 (integer)
 Total number of buffer pool classes loaded since the JVM started.
 
-`jvm.buffer_pools.classes.total_unloaded_count`::
+`jvm.classes.total_unloaded_count`::
 (integer)
 Total number of buffer pool classes unloaded since the JVM started.
 

@@ -45,10 +45,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.readBlobFully;
-
-
 @ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
 public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 

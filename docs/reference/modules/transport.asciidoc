@@ -35,7 +35,7 @@ addressable from the outside. Defaults to the actual port assigned via
 
 |`transport.publish_host` |The host address to publish for nodes in the cluster to connect to. Defaults to `transport.host` (if set) or `network.publish_host`.
 
-|`transport.host` |Used to set the `transport.bind_host` and the `transport.publish_host` Defaults to `transport.host` or `network.host`.
+|`transport.host` |Used to set the `transport.bind_host` and the `transport.publish_host`.
 
 
 |`transport.connect_timeout` |The connect timeout for initiating a new connection (in

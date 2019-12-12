@@ -104,7 +104,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             if (mmd != null) {
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
                 final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
-                indexMetadataBuilder.putMapping(mmd.type(), mapping);
+                indexMetadataBuilder.putMapping(mapping);
             }
             indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
                 .put(SOURCE_ONLY.getKey(), true)

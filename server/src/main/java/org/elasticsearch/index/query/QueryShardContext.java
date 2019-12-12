@@ -52,6 +52,9 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -189,6 +192,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return bitsetFilterCache.getBitSetProducer(filter);
     }
 
+    @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
     }
@@ -318,10 +322,13 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndex();
     }
 
-    /** Return the script service to allow compiling scripts. */
-    public final ScriptService getScriptService() {
-        failIfFrozen();
-        return scriptService;
+    /** Compile script using script service */
+    public <FactoryType extends ScriptFactory> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+        FactoryType factory = scriptService.compile(script, context);
+        if (factory.isResultDeterministic() == false) {
+            failIfFrozen();
+        }
+        return factory;
     }
 
     /**
@@ -357,6 +364,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public void executeAsyncActions(ActionListener listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);

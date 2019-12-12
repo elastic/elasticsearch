@@ -269,28 +269,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else
-     * @deprecated this method is only required while we deprecate types and can be removed in 8.0
-     */
-    @Deprecated
-    public static RequestOptions allowTypesRemovalWarnings() {
-        Builder builder = RequestOptions.DEFAULT.toBuilder();
-        builder.setWarningsHandler(new WarningsHandler() {
-                @Override
-                public boolean warningsShouldFailRequest(List<String> warnings) {
-                    for (String warning : warnings) {
-                        if(warning.startsWith("[types removal]") == false) {
-                            //Something other than a types removal message - return true
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-            });
-        return builder.build();
-    }
-
-    /**
      * Construct an HttpHost from the given host and port
      */
     protected HttpHost buildHttpHost(String host, int port) {
@@ -470,6 +448,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Returns whether to preserve auto-follow patterns. Defaults to not
+     * preserving them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveAutoFollowPatternsUponCompletion() {
+        return false;
+    }
+
+    /**
      * Returns whether to preserve SLM Policies of this test. Defaults to not
      * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
@@ -558,6 +545,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
             deleteAllILMPolicies();
+        }
+
+        if (hasXPack && false == preserveAutoFollowPatternsUponCompletion()) {
+            deleteAllAutoFollowPatterns();
         }
 
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
@@ -736,6 +727,31 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    private static void deleteAllAutoFollowPatterns() throws IOException {
+        final List<Map<?, ?>> patterns;
+
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_ccr/auto_follow"));
+            patterns = (List<Map<?, ?>>) entityAsMap(response).get("patterns");
+        } catch (ResponseException e) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode() ||
+                RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                // If bad request returned, CCR is not enabled.
+                return;
+            }
+            throw e;
+        }
+
+        if (patterns == null || patterns.isEmpty()) {
+            return;
+        }
+
+        for (Map<?, ?> pattern : patterns) {
+            String patternName = (String) pattern.get("name");
+            adminClient().performRequest(new Request("DELETE", "/_ccr/auto_follow/" + patternName));
+        }
+    }
+
     /**
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.
@@ -843,14 +859,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new RuntimeException("Error setting up ssl", e);
             }
         }
-        try (ThreadContext threadContext = new ThreadContext(settings)) {
-            Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
-            int i = 0;
-            for (Map.Entry<String, String> entry : threadContext.getHeaders().entrySet()) {
-                defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
-            }
-            builder.setDefaultHeaders(defaultHeaders);
+        Map<String, String> headers = ThreadContext.buildDefaultHeaders(settings);
+        Header[] defaultHeaders = new Header[headers.size()];
+        int i = 0;
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
         }
+        builder.setDefaultHeaders(defaultHeaders);
         final String socketTimeoutString = Objects.requireNonNullElse(settings.get(CLIENT_SOCKET_TIMEOUT), "60s");
         final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
         builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));

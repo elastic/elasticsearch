@@ -50,7 +50,7 @@ they purchased. Or you might want to take the currencies or geographies into
 consideration. What are the most interesting ways you can transform and
 interpret this data?
 
-Go to *Machine Learning* > *Data Frames* in {kib} and use the
+Go to *Management* > *Elasticsearch* > *Transforms* in {kib} and use the
 wizard to create a {transform}:
 
 [role="screenshot"]
@@ -63,25 +63,25 @@ Let's add some more aggregations to learn more about our customers' orders. For
 example, let's calculate the total sum of their purchases, the maximum number of
 products that they purchased in a single order, and their total number of orders.
 We'll accomplish this by using the
-{ref}/search-aggregations-metrics-sum-aggregation.html[`sum` aggregation] on the
+<<search-aggregations-metrics-sum-aggregation,`sum` aggregation>> on the
 `taxless_total_price` field, the
-{ref}/search-aggregations-metrics-max-aggregation.html[`max` aggregation] on the
+<<search-aggregations-metrics-max-aggregation,`max` aggregation>> on the
 `total_quantity` field, and the
-{ref}/search-aggregations-metrics-cardinality-aggregation.html[`cardinality` aggregation]
+<<search-aggregations-metrics-cardinality-aggregation,`cardinality` aggregation>>
 on the `order_id` field:
 
 [role="screenshot"]
 image::images/ecommerce-pivot2.jpg["Adding multiple aggregations to a {transform} in {kib}"]
 
 TIP: If you're interested in a subset of the data, you can optionally include a
-{ref}/search-request-body.html#request-body-search-query[query] element. In this
+<<request-body-search-query,query>> element. In this
 example, we've filtered the data so that we're only looking at orders with a
 `currency` of `EUR`. Alternatively, we could group the data by that field too.
 If you want to use more complex queries, you can create your {dataframe} from a
 {kibana-ref}/save-open-search.html[saved search].
 
 If you prefer, you can use the
-{ref}/preview-transform.html[preview {transforms} API]:
+<<preview-transform,preview {transforms} API>>:
 
 [source,console]
 --------------------------------------------------
@@ -147,16 +147,13 @@ target index does not exist, it will be created automatically.
 Since this sample data index is unchanging, let's use the default behavior and
 just run the {transform} once.
 
-[role="screenshot"]
-image::images/ecommerce-batch.jpg["Specifying the {transform} options in {kib}"]
-
 If you want to try it out, however, go ahead and click on *Continuous mode*. 
 You must choose a field that the {transform} can use to check which
 entities have changed. In general, it's a good idea to use the ingest timestamp
 field. In this example, however, you can use the `order_date` field.
 
 If you prefer, you can use the
-{ref}/put-transform.html[create {transforms} API]. For
+<<put-transform,create {transforms} API>>. For
 example:
 
 [source,console]
@@ -228,11 +225,11 @@ can stop it.
 You can start, stop, and manage {transforms} in {kib}:
 
 [role="screenshot"]
-image::images/dataframe-transforms.jpg["Managing {transforms} in {kib}"]
+image::images/manage-transforms.jpg["Managing {transforms} in {kib}"]
 
 Alternatively, you can use the
-{ref}/start-transform.html[start {transforms}] and
-{ref}/stop-transform.html[stop {transforms}] APIs. For
+<<start-transform,start {transforms}>> and
+<<stop-transform,stop {transforms}>> APIs. For
 example:
 
 [source,console]
@@ -240,6 +237,11 @@ example:
 POST _transform/ecommerce-customer-transform/_start
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
+
+TIP: If you chose a batch {transform}, it is a single operation that has a
+single checkpoint. You cannot restart it when it's complete. {ctransforms-cap}
+differ in that they continually increment and process checkpoints as new source
+data is ingested.
 
 --
 
@@ -255,6 +257,6 @@ image::images/ecommerce-results.jpg["Exploring the new index in {kib}"]
 
 TIP: If you do not want to keep the {transform}, you can delete it in
 {kib} or use the
-{ref}/delete-transform.html[delete {transform} API]. When
+<<delete-transform,delete {transform} API>>. When
 you delete a {transform}, its destination index and {kib} index
 patterns remain.

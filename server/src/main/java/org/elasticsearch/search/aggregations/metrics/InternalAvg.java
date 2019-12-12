@@ -87,25 +87,17 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAvg reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         long count = 0;
-        double sum = 0;
-        double compensation = 0;
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
             InternalAvg avg = (InternalAvg) aggregation;
             count += avg.count;
-            if (Double.isFinite(avg.sum) == false) {
-                sum += avg.sum;
-            } else if (Double.isFinite(sum)) {
-                double corrected = avg.sum - compensation;
-                double newSum = sum + corrected;
-                compensation = (newSum - sum) - corrected;
-                sum = newSum;
-            }
+            kahanSummation.add(avg.sum);
         }
-        return new InternalAvg(getName(), sum, count, format, pipelineAggregators(), getMetaData());
+        return new InternalAvg(getName(), kahanSummation.value(), count, format, pipelineAggregators(), getMetaData());
     }
 
     @Override

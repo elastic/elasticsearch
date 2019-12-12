@@ -26,13 +26,13 @@ import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.info.GlobalInfoExtension
 import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -76,15 +76,14 @@ import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
 import org.gradle.language.base.plugins.LifecycleBasePlugin
 import org.gradle.process.CommandLineArgumentProvider
-import org.gradle.process.ExecResult
-import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.util.regex.Matcher
 
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+import static org.elasticsearch.gradle.tool.DockerUtils.assertDockerIsAvailable
+import static org.elasticsearch.gradle.tool.DockerUtils.getDockerPath
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -139,31 +138,50 @@ class BuildPlugin implements Plugin<Project> {
         configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
-
         configureFips140(project)
     }
 
-    public static void configureFips140(Project project) {
-        // Need to do it here to support external plugins
-        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
-        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
-        globalInfo.ready {
-                // Common config when running with a FIPS-140 runtime JVM
-                if (BuildParams.inFipsJvm) {
-                    project.tasks.withType(Test).configureEach { Test task ->
-                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+    static void configureFips140(Project project) {
+        // Common config when running with a FIPS-140 runtime JVM
+        if (inFipsJvm()) {
+            ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources') as ExportElasticsearchBuildResourcesTask
+            File securityProperties = buildResources.copy("fips_java.security")
+            File securityPolicy = buildResources.copy("fips_java.policy")
+            File bcfksKeystore = buildResources.copy("cacerts.bcfks")
+            // This configuration can be removed once system modules are available
+            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+                project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
+                project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
+            }
+            project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                testClusters.all { ElasticsearchCluster cluster ->
+                    for (File dep : project.getConfigurations().getByName("extraJars").getFiles()){
+                        cluster.extraJarFile(dep)
                     }
-                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
-                        if (testClusters != null) {
-                            testClusters.all { ElasticsearchCluster cluster ->
-                                cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                                cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                            }
-                        }
-                    }
+                    cluster.extraConfigFile("fips_java.security", securityProperties)
+                    cluster.extraConfigFile("fips_java.policy", securityPolicy)
+                    cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
+                    cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
+                    cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
+                    cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
+                    cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                    cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                    cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
                 }
+            }
+            project.tasks.withType(Test).configureEach { Test task ->
+                task.dependsOn(buildResources)
+                task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')
+                // Using the key==value format to override default JVM security settings and policy
+                // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
+                task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", securityProperties.toString()))
+                task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", securityPolicy.toString()))
+                task.systemProperty('javax.net.ssl.trustStore', bcfksKeystore.toString())
+            }
+
         }
     }
 
@@ -183,8 +201,7 @@ class BuildPlugin implements Plugin<Project> {
              */
 
             // check if the Docker binary exists and record its path
-            final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
-            final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
+            final String dockerBinary = getDockerPath().orElse(null)
 
             final boolean buildDocker
             final String buildDockerProperty = System.getProperty("build.docker")
@@ -203,55 +220,9 @@ class BuildPlugin implements Plugin<Project> {
             ext.set('requiresDocker', [])
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
+
                 if (tasks.isEmpty() == false) {
-                    /*
-                     * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
-                     * exist or because execution of a privileged Docker command failed.
-                     */
-                    if (dockerBinary == null) {
-                        final String message = String.format(
-                                Locale.ROOT,
-                                "Docker (checked [%s]) is required to run the following task%s: \n%s",
-                                maybeDockerBinaries.join(","),
-                                tasks.size() > 1 ? "s" : "",
-                                tasks.join('\n'))
-                        throwDockerRequiredException(message)
-                    }
-
-                    // we use a multi-stage Docker build, check the Docker version since 17.05
-                    final ByteArrayOutputStream dockerVersionOutput = new ByteArrayOutputStream()
-                    LoggedExec.exec(
-                            rootProject,
-                            { ExecSpec it ->
-                                it.commandLine = [dockerBinary, '--version']
-                                it.standardOutput = dockerVersionOutput
-                            })
-                    final String dockerVersion = dockerVersionOutput.toString().trim()
-                    checkDockerVersionRecent(dockerVersion)
-
-                    final ByteArrayOutputStream dockerImagesErrorOutput = new ByteArrayOutputStream()
-                    // the Docker binary executes, check that we can execute a privileged command
-                    final ExecResult dockerImagesResult = LoggedExec.exec(
-                            rootProject,
-                            { ExecSpec it ->
-                                it.commandLine = [dockerBinary, "images"]
-                                it.errorOutput = dockerImagesErrorOutput
-                                it.ignoreExitValue = true
-                            })
-
-                    if (dockerImagesResult.exitValue != 0) {
-                        final String message = String.format(
-                                Locale.ROOT,
-                                "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n" +
-                                        "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
-                                dockerBinary,
-                                tasks.size() > 1 ? "s" : "",
-                                tasks.join('\n'),
-                                dockerImagesResult.exitValue,
-                                dockerImagesErrorOutput.toString().trim())
-                        throwDockerRequiredException(message)
-                    }
-
+                    assertDockerIsAvailable(task.project, tasks)
                 }
             }
         }
@@ -259,67 +230,58 @@ class BuildPlugin implements Plugin<Project> {
         (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
-    protected static void checkDockerVersionRecent(String dockerVersion) {
-        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-[a-zA-Z0-9]+)?, build [0-9a-f]{7,40}/
-        assert matcher.matches(): dockerVersion
-        final dockerMajorMinorVersion = matcher.group(1)
-        final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
-        if (Integer.parseInt(majorMinor[0]) < 17
-                || (Integer.parseInt(majorMinor[0]) == 17 && Integer.parseInt(majorMinor[1]) < 5)) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
-                    dockerVersion)
-            throwDockerRequiredException(message)
-        }
-    }
-
-    private static void throwDockerRequiredException(final String message) {
-        throw new GradleException(
-                message + "\nyou can address this by attending to the reported issue, "
-                        + "removing the offending tasks from being executed, "
-                        + "or by passing -Dbuild.docker=false")
-    }
-
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
     static void requireJavaHome(Task task, int version) {
         // use root project for global accounting
         Project rootProject = task.project.rootProject
-        ExtraPropertiesExtension ext = rootProject.extensions.getByType(ExtraPropertiesExtension)
+        ExtraPropertiesExtension extraProperties = rootProject.extensions.extraProperties
 
-        if (rootProject.hasProperty('requiredJavaVersions') == false) {
-            ext.set('requiredJavaVersions', [:])
-            rootProject.gradle.taskGraph.whenReady({ TaskExecutionGraph taskGraph ->
-                List<String> messages = []
-                Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) ext.get('requiredJavaVersions')
-                for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
-                    if (BuildParams.javaVersions.find { it.version == entry.key } != null) {
-                        continue
-                    }
-                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
-                    if (tasks.isEmpty() == false) {
-                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
-                    }
-                }
-                if (messages.isEmpty() == false) {
-                    throw new GradleException(messages.join('\n'))
-                }
-                ext.set('requiredJavaVersions', null) // reset to null to indicate the pre-execution checks have executed
-            })
-        } else if (ext.has('requiredJavaVersions') == false || ext.get('requiredJavaVersions') == null) {
+        // hacky way (but the only way) to find if the task graph has already been populated
+        boolean taskGraphReady
+        try {
+            rootProject.gradle.taskGraph.getAllTasks()
+            taskGraphReady = true
+        } catch (IllegalStateException) {
+            taskGraphReady = false
+        }
+
+        if (taskGraphReady) {
             // check directly if the version is present since we are already executing
             if (BuildParams.javaVersions.find { it.version == version } == null) {
                 throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
             }
         } else {
-            (ext.get('requiredJavaVersions') as Map<Integer, List<Task>>).getOrDefault(version, []).add(task)
+            // setup list of java versions we will check at the end of configuration time
+            if (extraProperties.has('requiredJavaVersions') == false) {
+                extraProperties.set('requiredJavaVersions', [:])
+                rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                    List<String> messages = []
+                    Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
+                    for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
+                        if (BuildParams.javaVersions.any { it.version == entry.key }) {
+                            continue
+                        }
+                        List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
+                        if (tasks.isEmpty() == false) {
+                            messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
+                        }
+                    }
+                    if (messages.isEmpty() == false) {
+                        throw new GradleException(messages.join('\n'))
+                    }
+                }
+            }
+            Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) extraProperties.get('requiredJavaVersions')
+            requiredJavaVersions.putIfAbsent(version, [])
+            requiredJavaVersions.get(version).add(task)
         }
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
-        return BuildParams.javaVersions.find { it.version == version }.javaHome.absolutePath
+        JavaHome java = BuildParams.javaVersions.find { it.version == version }
+        return java == null ? null : java.javaHome.absolutePath
     }
 
     /**
@@ -693,19 +655,16 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
 
-                    if (BuildParams.inFipsJvm) {
-                        nonInputProperties.systemProperty('runtime.java', "${-> BuildParams.runtimeJavaVersion.majorVersion}FIPS")
-                    } else {
-                        nonInputProperties.systemProperty('runtime.java', "${-> BuildParams.runtimeJavaVersion.majorVersion}")
-                    }
                     //TODO remove once jvm.options are added to test system properties
                     test.systemProperty ('java.locale.providers','SPI,COMPAT')
                 }
-
+                if (inFipsJvm()) {
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bctls-fips:1.0.9")
+                }
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.add('nonInputProperties', nonInputProperties)
 
-                test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
                 test.maxParallelForks = System.getProperty('tests.jvms', BuildParams.defaultParallel.toString()) as Integer
 
@@ -713,9 +672,10 @@ class BuildPlugin implements Plugin<Project> {
 
                 test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
                         "-Xms${System.getProperty('tests.heap.size', '512m')}",
-                        '--illegal-access=warn'
+                        '--illegal-access=warn',
+                        '-XX:+HeapDumpOnOutOfMemoryError'
 
-                test.jvmArgumentProviders.add({ ['-XX:+HeapDumpOnOutOfMemoryError', "-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
+                test.jvmArgumentProviders.add({ ["-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
 
                 if (System.getProperty('tests.jvm.argline')) {
                     test.jvmArgs System.getProperty('tests.jvm.argline').split(" ")
@@ -759,6 +719,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+                // TODO: remove this property in 8.0
+                test.systemProperty 'es.search.rewrite_sort', 'true'
 
                 // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
                 test.systemProperty 'es.transport.cname_in_publish_address', 'true'
@@ -844,5 +807,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             })
         }
+    }
+
+    private static inFipsJvm(){
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

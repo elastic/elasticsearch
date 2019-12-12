@@ -61,6 +61,8 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
@@ -83,8 +85,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         IndexMetaData metaData = IndexMetaData.builder(shardRouting.getIndexName())
             .settings(settings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("_doc",
-                "{\"_source\":{\"enabled\": false}}").build();
+            .putMapping("{\"_source\":{\"enabled\": false}}").build();
         IndexShard shard = newShard(shardRouting, metaData, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
 
@@ -179,7 +180,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         int numInitialDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numInitialDocs; i++) {
             final String id = Integer.toString(i);
-            indexDoc(shard, "_doc", id, randomDoc());
+            indexDoc(shard, id, randomDoc());
             if (randomBoolean()) {
                 shard.refresh("test");
             }
@@ -190,7 +191,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 if (rarely()) {
                     deleteDoc(shard, id);
                 } else {
-                    indexDoc(shard, "_doc", id, randomDoc());
+                    indexDoc(shard, id, randomDoc());
                 }
             }
             if (frequently()) {
@@ -212,7 +213,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 repository.finalizeSnapshot(snapshotId,
                     ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build(),
                     indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
-                    repository.getRepositoryData().getGenId(), true,
+                    ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(), true,
                     MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(),
                     true,
                     finFuture);
@@ -313,11 +314,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         rootFieldsVisitor.reset();
                         leafReader.document(i, rootFieldsVisitor);
                         rootFieldsVisitor.postProcess(targetShard.mapperService());
-                        Uid uid = rootFieldsVisitor.uid();
+                        String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                            new SourceToParse(index, uid.id(), source, XContentHelper.xContentType(source),
+                            new SourceToParse(index, id, source, XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {
@@ -348,10 +349,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     /** Create a {@link Repository} with a random name **/
-    private Repository createRepository() throws IOException {
+    private Repository createRepository() {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(), threadPool);
+        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(),
+            BlobStoreTestUtil.mockClusterService(repositoryMetaData));
     }
 
     private static void runAsSnapshot(ThreadPool pool, Runnable runnable) {

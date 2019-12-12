@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,14 +34,14 @@ import java.util.List;
 import java.util.Map;
 
 class TDigestPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double[] percents;
     private final double compression;
     private final boolean keyed;
 
     TDigestPercentileRanksAggregatorFactory(String name,
-                                                ValuesSourceConfig<Numeric> config,
+                                                ValuesSourceConfig<ValuesSource> config,
                                                 double[] percents,
                                                 double compression,
                                                 boolean keyed,
@@ -66,7 +65,7 @@ class TDigestPercentileRanksAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,

@@ -40,12 +40,11 @@ aids search retrieval by consolidating near-identical terms.
 In {es}, stemming is handled by a <<analysis-tokenfilters,token filter>> in
 the <<analyzer-anatomy,analyzer>>.
 
-If you're unsure of which token filter to use for stemming, we recommend
-starting out with the <<analysis-stemmer-tokenfilter,`stemmer`>> filter, which
-supports multiple languages and stemmer types. The
-<<analysis-stemmer-tokenfilter,`stemmer` filter documentation>> page highlights
-the recommended stemmer for each language in bold, based on a reasonable
-compromise between performance and quality.
+If you're unsure of which stemming token filter to use, start out with the
+<<analysis-stemmer-tokenfilter,`stemmer`>> filter, which supports multiple
+languages and stemmer types. The <<analysis-stemmer-tokenfilter,`stemmer` filter
+documentation>> page highlights the recommended stemmer for each language in
+bold, based on a reasonable compromise between performance and quality.
 
 Aside from the `stemmer` filter, other stemming token filters include:
 

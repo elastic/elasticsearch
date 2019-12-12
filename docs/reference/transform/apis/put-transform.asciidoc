@@ -101,15 +101,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
 
 `pivot`.`aggregations` or `aggs`:::
-(object)
+(Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 
 `pivot`.`group_by`:::
-(object)
+(Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 
 `pivot`.`max_page_search_size`:::
-(integer)
+(Optional, integer)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
 
 `source`::

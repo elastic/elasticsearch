@@ -37,26 +37,46 @@ on all the current data in the source index.
 [[preview-transform-request-body]]
 ==== {api-request-body-title}
 
+
+`description`::
+(Optional, string) Free text description of the {transform}.
+
+`dest`::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
+  
+`dest`.`index`:::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`dest`.`pipeline`:::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+
+`frequency`::
+(Optional, <<time-units, time units>>)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
+
 `pivot`::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
 
 `pivot`.`aggregations` or `aggs`:::
-(object)
+(Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 
 `pivot`.`group_by`:::
-(object)
+(Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 
 `pivot`.`max_page_search_size`:::
-(integer)
+(Optional, integer)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
 
 `source`::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
-  
+
 `source`.`index`:::
 (Required, string or array)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
@@ -64,6 +84,23 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
 `source`.`query`:::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+
+`sync`::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
+  
+`sync`.`time`:::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
+
+`sync`.`time`.`delay`::::
+(Optional, <<time-units, time units>>)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+    
+`sync`.`time`.`field`::::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+
 
 [[preview-transform-response]]
 ==== {api-response-body-title}

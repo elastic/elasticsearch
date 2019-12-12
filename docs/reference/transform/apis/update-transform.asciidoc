@@ -97,19 +97,19 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
   
 `sync`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=synch]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync`]
   
-`synch`.`time`:::
+`sync`.`time`:::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=synch-time]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
 
-`synch`.`time`.`delay`::::
+`sync`.`time`.`delay`::::
 (Optional, <<time-units, time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=synch-time-delay]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
 
-`synch`.`time`.`field`::::
+`sync`.`time`.`field`::::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=synch-time-field]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
@@ -196,9 +196,9 @@ When the {transform} is updated, you receive the updated configuration:
       "delay": "120s"
     }
   },
-  "version": "8.0.0-alpha1",
+  "version": "7.5.0",
   "create_time": 1518808660505
 }
 ----
-// TESTRESPONSE[s/"version": "8.0.0-alpha1"/"version": $body.version/]
+// TESTRESPONSE[s/"version": "7.5.0"/"version": $body.version/]
 // TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]

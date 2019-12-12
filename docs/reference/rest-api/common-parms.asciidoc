@@ -785,23 +785,23 @@ tag::stored_fields[]
 index rather than the document `_source`. Defaults to `false`.
 end::stored_fields[]
 
-tag::synch[]
+tag::sync[]
 Defines the properties {transforms} require to run continuously.
-end::synch[]
+end::sync[]
 
-tag::synch-time[]
+tag::sync-time[]
 Specifies that the {transform} uses a time field to synchronize the source and
 destination indices.
-end::synch-time[]
+end::sync-time[]
 
-tag::synch-time-field[]
+tag::sync-time-field[]
 The date field that is used to identify new documents in the source.
-end::synch-time-field[]
+end::sync-time-field[]
 
-tag::synch-time-delay[]
+tag::sync-time-delay[]
 The time delay between the current time and the latest input data time. The
 default value is `60s`.
-end::synch-time-delay[]
+end::sync-time-delay[]
 
 tag::target-index[]
 `<target-index>`::

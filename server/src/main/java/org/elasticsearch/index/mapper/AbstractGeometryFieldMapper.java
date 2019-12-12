@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -81,7 +84,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         List<IndexableField> indexShape(ParseContext context, Processed shape);
 
-        void indexDocValueField(ParseContext context, Processed shape);
+        void indexDocValueField(ParseContext context, ShapeField.DecodedTriangle[] triangles,
+                                CentroidCalculator centroidCalculator);
     }
 
     /**
@@ -436,10 +440,18 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 shape = geometryIndexer.prepareForIndexing(geometry);
             }
 
-            List<IndexableField> fields = new ArrayList<>();
-            fields.addAll(geometryIndexer.indexShape(context, shape));
+            List<IndexableField> fields = new ArrayList<>(geometryIndexer.indexShape(context, shape));
+            final byte[] scratch = new byte[7 * Integer.BYTES];
             if (fieldType().hasDocValues()) {
-                geometryIndexer.indexDocValueField(context, shape);
+                // doc values are generated from the indexed fields.
+                ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
+                for (int i =0; i < fields.size(); i++) {
+                    BytesRef bytesRef = fields.get(i).binaryValue();
+                    assert bytesRef.length == 7 * Integer.BYTES;
+                    System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
+                    ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
+                 }
+                geometryIndexer.indexDocValueField(context, triangles, new CentroidCalculator((Geometry) shape));
             }
             createFieldNamesField(context, fields);
             for (IndexableField field : fields) {

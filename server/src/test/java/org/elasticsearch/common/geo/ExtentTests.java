@@ -18,15 +18,11 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-
-import java.io.IOException;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExtentTests extends AbstractWireSerializingTestCase {
+public class ExtentTests extends ESTestCase {
 
     public void testFromPoint() {
         int x = randomFrom(-1, 0, 1);
@@ -88,22 +84,5 @@ public class ExtentTests extends AbstractWireSerializingTestCase {
         assertThat(extent.maxX(), equalTo(topRightX2));
         assertThat(extent.minY(), equalTo(bottomLeftY2));
         assertThat(extent.maxY(), equalTo(topRightY2));
-    }
-
-    @Override
-    protected Extent createTestInstance() {
-        return new Extent(randomIntBetween(-10, 10), randomIntBetween(-10, 10), randomIntBetween(-10, 10),
-            randomIntBetween(-10, 10), randomIntBetween(-10, 10), randomIntBetween(-10, 10));
-    }
-
-    @Override
-    protected Writeable.Reader instanceReader() {
-        return Extent::new;
-    }
-
-    @Override
-    protected Object copyInstance(Object instance, Version version) throws IOException {
-        Extent other = (Extent) instance;
-        return new Extent(other.top, other.bottom, other.negLeft, other.negRight, other.posLeft, other.posRight);
     }
 }

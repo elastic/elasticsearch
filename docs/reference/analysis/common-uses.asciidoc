@@ -7,8 +7,7 @@ Analyzing full text often means analyzing natural, human language. While each
 language is different, this usually means solving a common set of problems for
 search, such as how to reduce words to their root form.
 
-This section describes how {es} is commonly used to address these problems and
-our recommendations.
+This section describes how {es} is commonly used to address these problems.
 
 [TIP]
 ====

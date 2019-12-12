@@ -18,6 +18,13 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -38,20 +45,20 @@ public class SearchableSnapshotIndexInputTests extends ESTestCase {
                 String name = (String) invocationOnMock.getArguments()[0];
                 long position = (long) invocationOnMock.getArguments()[1];
                 int length = (int) invocationOnMock.getArguments()[2];
+                assertThat("Reading [" + length + "] bytes from [" + name + "] at [" + position + "] exceeds part size [" + partSize + "]",
+                    position + length, lessThanOrEqualTo(partSize));
 
                 if (fileInfo.numberOfParts() == 1L) {
-                    if (name.equals(fileInfo.name()) == false || name.contains(".part")) {
-                        throw new IOException("Unexpected part name " + name);
-                    }
+                    assertThat("Unexpected blob name [" + name + "]", name, equalTo(fileInfo.name()));
                     return new ByteArrayInputStream(input, Math.toIntExact(position), length);
+
                 } else {
-                    if (name.startsWith(fileInfo.name()) == false || name.contains(".part") == false) {
-                        throw new IOException("Unexpected part name " + name);
-                    }
+                    assertThat("Unexpected blob name [" + name + "]", name, allOf(startsWith(fileInfo.name()), containsString(".part")));
+
                     long partNumber = Long.parseLong(name.substring(name.indexOf(".part") + ".part".length()));
-                    if (partNumber < 0 || partNumber >= fileInfo.numberOfParts()) {
-                        throw new IOException("Unexpected part number " + name);
-                    }
+                    assertThat("Unexpected part number [" + partNumber + "] for [" + name + "]", partNumber,
+                        allOf(greaterThanOrEqualTo(0L), lessThan(fileInfo.numberOfParts())));
+
                     return new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), length);
                 }
             });

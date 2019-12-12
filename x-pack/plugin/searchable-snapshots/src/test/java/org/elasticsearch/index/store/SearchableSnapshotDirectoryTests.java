@@ -28,11 +28,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -79,21 +79,22 @@ import static org.mockito.Mockito.when;
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
     public void testListAll() throws Exception {
-        testDirectories((directory, searchableDirectory) ->
-            assertThat(searchableDirectory.listAll(), equalTo(Arrays.stream(directory.listAll())
+        testDirectories((directory, snapshotDirectory) ->
+            assertThat(snapshotDirectory.listAll(), equalTo(Arrays.stream(directory.listAll())
                 .filter(file -> "write.lock".equals(file) == false)
                 .filter(file -> file.startsWith("extra") == false)
                 .toArray(String[]::new))));
     }
 
     public void testFileLength() throws Exception {
-        testDirectories((directory, searchableDirectory) ->
+        testDirectories((directory, snapshotDirectory) ->
             Arrays.stream(directory.listAll())
                 .filter(file -> "write.lock".equals(file) == false)
                 .filter(file -> file.startsWith("extra") == false)
                 .forEach(file -> {
                     try {
-                        assertThat(searchableDirectory.fileLength(file), equalTo(directory.fileLength(file)));
+                        assertThat("File [" + file + "] length mismatch",
+                            snapshotDirectory.fileLength(file), equalTo(directory.fileLength(file)));
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
@@ -101,42 +102,34 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testIndexSearcher() throws Exception {
-        testDirectories((directory, searchableDirectory) -> {
+        testDirectories((directory, snapshotDirectory) -> {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 final IndexSearcher searcher = newSearcher(reader);
 
-                try (DirectoryReader searchableReader = DirectoryReader.open(searchableDirectory)) {
-                    final IndexSearcher searchableSearcher = newSearcher(searchableReader);
+                try (DirectoryReader snapshotReader = DirectoryReader.open(snapshotDirectory)) {
+                    final IndexSearcher snapshotSearcher = newSearcher(snapshotReader);
                     {
                         Query query = new MatchAllDocsQuery();
-                        assertThat(searchableSearcher.count(query), equalTo(searcher.count(query)));
-                        CheckHits.checkEqual(query,
-                            searchableSearcher.search(query, 10).scoreDocs,
-                            searcher.search(query, 10).scoreDocs);
+                        assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
+                        CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
                     {
                         Query query = new TermQuery(new Term("text", "fox"));
-                        assertThat(searchableSearcher.count(query), equalTo(searcher.count(query)));
-                        CheckHits.checkEqual(query,
-                            searchableSearcher.search(query, 10).scoreDocs,
-                            searcher.search(query, 10).scoreDocs);
+                        assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
+                        CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
                     {
                         Query query = new TermInSetQuery("text", List.of(new BytesRef("quick"), new BytesRef("lazy")));
-                        assertThat(searchableSearcher.count(query), equalTo(searcher.count(query)));
-                        CheckHits.checkEqual(query,
-                            searchableSearcher.search(query, 10).scoreDocs,
-                            searcher.search(query, 10).scoreDocs);
+                        assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
+                        CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
                     {
                         Query query = new TermRangeQuery("rank",
                             BytesRefs.toBytesRef(randomLongBetween(0L, 500L)),
                             BytesRefs.toBytesRef(randomLongBetween(501L, 1000L)),
                             randomBoolean(), randomBoolean());
-                        assertThat(searchableSearcher.count(query), equalTo(searcher.count(query)));
-                        CheckHits.checkEqual(query,
-                            searchableSearcher.search(query, 10).scoreDocs,
-                            searcher.search(query, 10).scoreDocs);
+                        assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
+                        CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
                 }
             }
@@ -144,45 +137,45 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testDirectoryReader() throws Exception {
-        testDirectories((directory, searchableDirectory) -> {
+        testDirectories((directory, snapshotDirectory) -> {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                try (DirectoryReader searchableReader = DirectoryReader.open(searchableDirectory)) {
-                    assertThat(searchableReader.leaves(), hasSize(reader.leaves().size()));
-                    assertThat(searchableReader.maxDoc(), equalTo(reader.maxDoc()));
-                    assertThat(searchableReader.getVersion(), equalTo(reader.getVersion()));
-                    assertThat(searchableReader.getIndexCommit().getGeneration(), equalTo(reader.getIndexCommit().getGeneration()));
+                try (DirectoryReader snapshotReader = DirectoryReader.open(snapshotDirectory)) {
+                    assertThat(snapshotReader.leaves(), hasSize(reader.leaves().size()));
+                    assertThat(snapshotReader.maxDoc(), equalTo(reader.maxDoc()));
+                    assertThat(snapshotReader.getVersion(), equalTo(reader.getVersion()));
+                    assertThat(snapshotReader.getIndexCommit().getGeneration(), equalTo(reader.getIndexCommit().getGeneration()));
 
                     String field = randomFrom("id", "text");
                     Terms terms = reader.leaves().get(0).reader().terms(field);
-                    Terms searchableTerms = searchableReader.leaves().get(0).reader().terms(field);
-                    assertThat(searchableTerms.size(), equalTo(terms.size()));
-                    assertThat(searchableTerms.getDocCount(), equalTo(terms.getDocCount()));
-                    assertThat(searchableTerms.getMin(), equalTo(terms.getMin()));
-                    assertThat(searchableTerms.getMax(), equalTo(terms.getMax()));
+                    Terms snapshotTerms = snapshotReader.leaves().get(0).reader().terms(field);
+                    assertThat(snapshotTerms.size(), equalTo(terms.size()));
+                    assertThat(snapshotTerms.getDocCount(), equalTo(terms.getDocCount()));
+                    assertThat(snapshotTerms.getMin(), equalTo(terms.getMin()));
+                    assertThat(snapshotTerms.getMax(), equalTo(terms.getMax()));
                 }
             }
         });
     }
 
     public void testReadByte() throws Exception {
-        testIndexInputs((indexInput, searchableIndexInput) -> {
+        testIndexInputs((indexInput, snapshotIndexInput) -> {
             try {
                 for (int i = 0; i < 10; i++) {
                     if (randomBoolean()) {
                         long position = randomLongBetween(0L, indexInput.length());
                         indexInput.seek(position);
-                        searchableIndexInput.seek(position);
+                        snapshotIndexInput.seek(position);
                     }
                     assertThat("File pointers values should be the same before reading a byte",
-                        searchableIndexInput.getFilePointer(), equalTo(indexInput.getFilePointer()));
+                        snapshotIndexInput, indexInput, IndexInput::getFilePointer);
 
                     if (indexInput.getFilePointer() < indexInput.length()) {
-                        assertThat(searchableIndexInput.readByte(), equalTo(indexInput.readByte()));
+                        assertThat("Read byte result should be the same", snapshotIndexInput, indexInput, IndexInput::readByte);
                     } else {
-                        expectThrows(EOFException.class, searchableIndexInput::readByte);
+                        expectThrows(EOFException.class, snapshotIndexInput::readByte);
                     }
                     assertThat("File pointers values should be the same after reading a byte",
-                        searchableIndexInput.getFilePointer(), equalTo(indexInput.getFilePointer()));
+                        snapshotIndexInput, indexInput, IndexInput::getFilePointer);
                 }
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -192,21 +185,21 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
     public void testReadBytes() throws Exception {
         final byte[] buffer = new byte[8192];
-        final byte[] searchableBuffer = new byte[buffer.length];
+        final byte[] snapshotBuffer = new byte[buffer.length];
 
-        testIndexInputs((indexInput, searchableIndexInput) -> {
+        testIndexInputs((indexInput, snapshotIndexInput) -> {
             try {
                 if (randomBoolean()) {
                     long position = randomLongBetween(0L, indexInput.length());
                     indexInput.seek(position);
-                    searchableIndexInput.seek(position);
+                    snapshotIndexInput.seek(position);
                 }
                 assertThat("File pointers values should be the same before reading a byte",
-                    searchableIndexInput.getFilePointer(), equalTo(indexInput.getFilePointer()));
+                    snapshotIndexInput, indexInput, IndexInput::getFilePointer);
 
                 int available = Math.toIntExact(indexInput.length() - indexInput.getFilePointer());
                 if (available == 0) {
-                    expectThrows(EOFException.class, () -> searchableIndexInput.readBytes(searchableBuffer, 0, searchableBuffer.length));
+                    expectThrows(EOFException.class, () -> snapshotIndexInput.readBytes(snapshotBuffer, 0, snapshotBuffer.length));
                     return;
                 }
 
@@ -215,12 +208,12 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 Arrays.fill(buffer, (byte) 0);
                 indexInput.readBytes(buffer, 0, length);
 
-                Arrays.fill(searchableBuffer, (byte) 0);
-                searchableIndexInput.readBytes(searchableBuffer, 0, length);
+                Arrays.fill(snapshotBuffer, (byte) 0);
+                snapshotIndexInput.readBytes(snapshotBuffer, 0, length);
 
                 assertThat("File pointers values should be the same after reading a byte",
-                    searchableIndexInput.getFilePointer(), equalTo(indexInput.getFilePointer()));
-                assertArrayEquals(searchableBuffer, buffer);
+                    snapshotIndexInput, indexInput, IndexInput::getFilePointer);
+                assertArrayEquals(snapshotBuffer, buffer);
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -263,8 +256,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 }
                 writer.commit();
             }
-
-            final SetOnce<SearchableSnapshotDirectory> searchableSnapshotDirectory = new SetOnce<>();
 
             final ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
             releasables.add(() -> terminate(threadPool));
@@ -317,20 +308,22 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final RepositoriesService repositories = mock(RepositoriesService.class);
                 when(repositories.repository(eq(repositoryName))).thenReturn(repository);
 
-                final IndexSettings ephemeralIndexSettings = IndexSettingsModule.newIndexSettings("_searchable_snapshot_index",
+                final IndexSettings tmpIndexSettings = IndexSettingsModule.newIndexSettings("_searchable_snapshot_index",
                     Settings.builder()
                         .put(indexSettings.getSettings())
-                        .put(SearchableSnapshots.EPHEMERAL_INDEX_REPOSITORY_SETTING.getKey(), repositoryName)
-                        .put(SearchableSnapshots.EPHEMERAL_INDEX_SNAPSHOT_SETTING.getKey(), snapshotId.getUUID())
+                        .put(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.getKey(), repositoryName)
+                        .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
+                        .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(), snapshotId.getUUID())
+                        .put(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey(), indexId.getId())
                         .build());
 
                 Path tmpDir = createTempDir().resolve(indexId.getId()).resolve(Integer.toString(shardId.id()));
-                ShardId ephemeralShardId = new ShardId(new Index(indexId.getName(), indexId.getId()), shardId.id());
-                ShardPath ephemeralShardPath = new ShardPath(false, tmpDir, tmpDir, ephemeralShardId);
+                ShardId tmpShardId = new ShardId(new Index(indexId.getName(), indexId.getId()), shardId.id());
+                ShardPath tmpShardPath = new ShardPath(false, tmpDir, tmpDir, tmpShardId);
 
                 final DirectoryFactory factory = SearchableSnapshots.newDirectoryFactory(() -> repositories);
-                try (Directory searchableDirectory = factory.newDirectory(ephemeralIndexSettings, ephemeralShardPath)) {
-                    consumer.accept(directory, searchableDirectory);
+                try (Directory snapshotDirectory = factory.newDirectory(tmpIndexSettings, tmpShardPath)) {
+                    consumer.accept(directory, snapshotDirectory);
                 }
             } finally {
                 Releasables.close(releasables);
@@ -339,23 +332,30 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     private void testIndexInputs(final CheckedBiConsumer<IndexInput, IndexInput, Exception> consumer) throws Exception {
-        testDirectories((directory, searchableDirectory) -> {
-            for (String fileName : randomSubsetOf(Arrays.asList(searchableDirectory.listAll()))) {
+        testDirectories((directory, snapshotDirectory) -> {
+            for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
                 final IOContext context = newIOContext(random());
                 try (IndexInput indexInput = directory.openInput(fileName, context)) {
                     final List<Closeable> closeables = new ArrayList<>();
                     try {
-                        IndexInput searchableIndexInput = searchableDirectory.openInput(fileName, context);
-                        closeables.add(searchableIndexInput);
+                        IndexInput snapshotIndexInput = snapshotDirectory.openInput(fileName, context);
+                        closeables.add(snapshotIndexInput);
                         if (randomBoolean()) {
-                            searchableIndexInput = searchableIndexInput.clone();
+                            snapshotIndexInput = snapshotIndexInput.clone();
                         }
-                        consumer.accept(indexInput, searchableIndexInput);
+                        consumer.accept(indexInput, snapshotIndexInput);
                     } finally {
                         IOUtils.close(closeables);
                     }
                 }
             }
         });
+    }
+
+    private static <T> void assertThat(String reason, IndexInput actual, IndexInput expected,
+                                       CheckedFunction<IndexInput, ? super T, IOException> eval) throws IOException {
+        assertThat(reason
+                + "\n\t  actual index input: " + actual.toString()
+                + "\n\texpected index input: " + expected.toString(), eval.apply(actual), equalTo(eval.apply(expected)));
     }
 }

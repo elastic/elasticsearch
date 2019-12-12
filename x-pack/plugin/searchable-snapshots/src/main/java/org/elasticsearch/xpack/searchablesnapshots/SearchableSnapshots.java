@@ -39,11 +39,17 @@ import java.util.function.Supplier;
  */
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, RepositoryPlugin {
 
-    public static final Setting<String> EPHEMERAL_INDEX_REPOSITORY_SETTING =
+    public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING =
         Setting.simpleString("index.store.snapshot.repository_name", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
-    public static final Setting<String> EPHEMERAL_INDEX_SNAPSHOT_SETTING =
+    public static final Setting<String> SNAPSHOT_SNAPSHOT_NAME_SETTING =
+        Setting.simpleString("index.store.snapshot.snapshot_name", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+
+    public static final Setting<String> SNAPSHOT_SNAPSHOT_ID_SETTING =
         Setting.simpleString("index.store.snapshot.snapshot_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+
+    public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING =
+        Setting.simpleString("index.store.snapshot.index_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     private final SetOnce<RepositoriesService> repositoriesService;
     private final SetOnce<ThreadPool> threadPool;
@@ -55,7 +61,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(EPHEMERAL_INDEX_REPOSITORY_SETTING, EPHEMERAL_INDEX_SNAPSHOT_SETTING);
+        return List.of(SNAPSHOT_REPOSITORY_SETTING, SNAPSHOT_SNAPSHOT_ID_SETTING, SNAPSHOT_INDEX_ID_SETTING);
     }
 
     @Override
@@ -89,16 +95,18 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             final RepositoriesService repositories = repositoriesService.get();
             assert repositories != null;
 
-            final Repository repository = repositories.repository(EPHEMERAL_INDEX_REPOSITORY_SETTING.get(indexSettings.getSettings()));
+            final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
             if (repository instanceof BlobStoreRepository == false) {
                 throw new IllegalArgumentException("Repository [" + repository + "] does not support searchable snapshots" );
             }
 
             BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            BlobContainer blobContainer = blobStoreRepository.shardContainer(new IndexId(indexSettings.getIndex().getName(),
-                shardPath.getShardId().getIndex().getUUID()), shardPath.getShardId().id());
-            BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer,
-                new SnapshotId("_ephemeral", EPHEMERAL_INDEX_SNAPSHOT_SETTING.get(indexSettings.getSettings())));
+            IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
+            BlobContainer blobContainer = blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id());
+
+            SnapshotId snapshotId = new SnapshotId(SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
+                SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()));
+            BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
 
             return new SearchableSnapshotDirectory(snapshot, blobContainer);
         };

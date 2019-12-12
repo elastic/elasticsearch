@@ -18,7 +18,8 @@ the cluster:
     either a percentage value, like `5%`, or an exact value, like `512mb`.
 
 The following setting is an _index_ setting that can be configured on a
-per-index basis:
+per-index basis. Can only be set at index creation time or on a
+<<indices-open-close,closed index>>:
 
 `index.queries.cache.enabled`::
 

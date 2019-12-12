@@ -608,6 +608,15 @@ public class RestControllerTests extends ESTestCase {
             public HttpResponse createResponse(RestStatus status, BytesReference content) {
                 return null;
             }
+
+            @Override
+            public void release() {
+            }
+
+            @Override
+            public HttpRequest releaseAndCopy() {
+                return this;
+            }
         }, null);
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);

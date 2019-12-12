@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -48,11 +47,6 @@ public final class EInstanceof extends AExpression {
         super(location);
         this.expression = Objects.requireNonNull(expression);
         this.type = Objects.requireNonNull(type);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
     }
 
     @Override

@@ -26,7 +26,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -36,9 +39,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -77,7 +81,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         return Map.of(
-            "/", new GoogleCloudStorageHttpHandler("bucket"),
+            "/", new GoogleCloudStorageBlobStoreHttpHandler("bucket"),
             "/token", new FakeOAuth2HttpHandler()
         );
     }
@@ -99,6 +103,15 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(), serviceAccount);
         settings.setSecureSettings(secureSettings);
         return settings.build();
+    }
+
+    public void testDeleteSingleItem() {
+        final String repoName = createRepository(randomName());
+        final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->
+            repository.blobStore().blobContainer(repository.basePath()).deleteBlobsIgnoringIfNotExists(Collections.singletonList("foo"))
+        )));
     }
 
     public void testChunkSize() {
@@ -170,9 +183,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry registry, ThreadPool threadPool) {
+        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry registry,
+                                                               ClusterService clusterService) {
             return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-                metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, threadPool) {
+                metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, clusterService) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore("bucket", "test", storageService) {
@@ -183,6 +197,14 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                         };
                     }
                 });
+        }
+    }
+
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate a Google Cloud Storage endpoint")
+    private static class GoogleCloudStorageBlobStoreHttpHandler extends GoogleCloudStorageHttpHandler implements BlobStoreHttpHandler {
+
+        GoogleCloudStorageBlobStoreHttpHandler(final String bucket) {
+            super(bucket);
         }
     }
 
@@ -204,7 +226,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             if ("/token".equals(exchange.getRequestURI().getPath())) {
                 try {
                     // token content is unique per node (not per request)
-                    return Streams.readFully(exchange.getRequestBody()).utf8ToString();
+                    return Streams.readFully(Streams.noCloseStream(exchange.getRequestBody())).utf8ToString();
                 } catch (IOException e) {
                     throw new AssertionError("Unable to read token request body", e);
                 }

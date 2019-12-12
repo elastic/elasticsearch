@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
@@ -55,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -1136,7 +1138,12 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+        public <T extends ScriptFactory> T compile(
+            String scriptName,
+            String scriptSource,
+            ScriptContext<T> context,
+            Map<String, String> params
+        ) {
             if (context.instanceClazz != TemplateScript.class) {
                 throw new UnsupportedOperationException();
             }
@@ -1154,6 +1161,11 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 };
             };
             return context.factoryClazz.cast(factory);
+        }
+
+        @Override
+        public Set<ScriptContext<?>> getSupportedContexts() {
+            return Set.of(TemplateScript.CONTEXT);
         }
     }
 

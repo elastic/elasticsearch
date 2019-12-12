@@ -6,7 +6,7 @@ A special single bucket aggregation that enables aggregating nested documents.
 For example, lets say we have an index of products, and each product holds the list of resellers - each having its own
 price for the product. The mapping could look like:
 
-[source,console]
+[source,console,id=nested-aggregation-example]
 --------------------------------------------------
 PUT /products
 {

@@ -38,6 +38,40 @@ if [[ "$1" != "eswrapper" ]]; then
   fi
 fi
 
+# Allow environment variables to be set by creating a file with the
+# contents, and setting an environment variable with the suffix _FILE to
+# point to it. This can be used to provide secrets to a container, without
+# the values being specified explicitly when running the container.
+for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
+  if [[ -n "$VAR_NAME_FILE" ]]; then
+    VAR_NAME="${VAR_NAME_FILE%_FILE}"
+
+    if env | grep "^${VAR_NAME}="; then
+      echo "ERROR: Both $VAR_NAME_FILE and $VAR_NAME are set. These are mutually exclusive." >&2
+      exit 1
+    fi
+
+    if [[ ! -e "${!VAR_NAME_FILE}" ]]; then
+      echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE does not exist" >&2
+      exit 1
+    fi
+
+    FILE_PERMS="$(stat -c '%a' ${!VAR_NAME_FILE})"
+
+    if [[ "$FILE_PERMS" != "400" && "$FILE_PERMS" != 600 ]]; then
+        echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE must have file permissions 400 or 600, but actually has: $FILE_PERMS" >&2
+        exit 1
+    fi
+
+    echo "Setting $VAR_NAME from $VAR_NAME_FILE at ${!VAR_NAME_FILE}" >&2
+    export "$VAR_NAME"="$(cat ${!VAR_NAME_FILE})"
+
+    unset VAR_NAME
+    # Unset the suffixed environment variable
+    unset "$VAR_NAME_FILE"
+  fi
+done
+
 # Parse Docker env vars to customize Elasticsearch
 #
 # e.g. Setting the env var cluster.name=testcluster
@@ -51,8 +85,7 @@ declare -a es_opts
 while IFS='=' read -r envvar_key envvar_value
 do
   # Elasticsearch settings need to have at least two dot separated lowercase
-  # words, e.g. `cluster.name`, except for `processors` which we handle
-  # specially
+  # words, e.g. `cluster.name`
   if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
     if [[ ! -z $envvar_value ]]; then
       es_opt="-E${envvar_key}=${envvar_value}"

@@ -44,7 +44,9 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -97,31 +99,19 @@ public class FsBlobContainer extends AbstractBlobContainer {
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
             for (Path file : stream) {
-                final BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
+                final BasicFileAttributes attrs;
+                try {
+                    attrs = Files.readAttributes(file, BasicFileAttributes.class);
+                } catch (FileNotFoundException | NoSuchFileException e) {
+                    // The file was concurrently deleted between listing files and trying to get its attributes so we skip it here
+                    continue;
+                }
                 if (attrs.isRegularFile()) {
                     builder.put(file.getFileName().toString(), new PlainBlobMetaData(file.getFileName().toString(), attrs.size()));
                 }
             }
         }
         return unmodifiableMap(builder);
-    }
-
-    @Override
-    public void deleteBlob(String blobName) throws IOException {
-        Path blobPath = path.resolve(blobName);
-        if (Files.isDirectory(blobPath)) {
-            // delete directory recursively as long as it is empty (only contains empty directories),
-            // which is the reason we aren't deleting any files, only the directories on the post-visit
-            Files.walkFileTree(blobPath, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                    Files.delete(dir);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } else {
-            Files.delete(blobPath);
-        }
     }
 
     @Override
@@ -148,6 +138,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
+    }
+
+    @Override
     public InputStream readBlob(String name) throws IOException {
         final Path resolvedPath = path.resolve(name);
         try {
@@ -160,7 +155,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         if (failIfAlreadyExists == false) {
-            deleteBlobIgnoringIfNotExists(blobName);
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
         }
         final Path file = path.resolve(blobName);
         try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
@@ -183,7 +178,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
-                deleteBlobIgnoringIfNotExists(tempBlob);
+                deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob));
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -203,7 +198,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
             } else {
-                deleteBlobIgnoringIfNotExists(targetBlobName);
+                deleteBlobsIgnoringIfNotExists(Collections.singletonList(targetBlobName));
             }
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);

@@ -75,7 +75,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
-    private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691";
+    private static final String GRADLE_JDK_VERSION = "13.0.1+9@cec27d702aa74d5a8630c65ae61e4305";
     private static final String GRADLE_JDK_VENDOR = "openjdk";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
@@ -392,7 +392,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         // temporary until distro tests have one test per distro
         Configuration packagingConfig = project.getConfigurations().create(DISTRIBUTIONS_CONFIGURATION);
-        List<Configuration> distroConfigs = currentDistros.stream().map(ElasticsearchDistribution::getConfiguration)
+        List<Configuration> distroConfigs = currentDistros.stream()
+            .filter(d -> d.getType() != Type.DOCKER)
+            .map(ElasticsearchDistribution::getConfiguration)
             .collect(Collectors.toList());
         packagingConfig.setExtendsFrom(distroConfigs);
 

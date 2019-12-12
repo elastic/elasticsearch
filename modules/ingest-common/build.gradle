@@ -18,13 +18,19 @@
  */
 
 esplugin {
-    description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-    classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
-    extendedPlugins = ['lang-painless']
+  description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
+  classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+  extendedPlugins = ['lang-painless']
 }
 
 dependencies {
-    compileOnly project(':modules:lang-painless')
-    compile project(':libs:elasticsearch-grok')
-    compile project(':libs:elasticsearch-dissect')
+  compileOnly project(':modules:lang-painless')
+  compile project(':libs:elasticsearch-grok')
+  compile project(':libs:elasticsearch-dissect')
+}
+
+testClusters.integTest {
+  // Needed in order to test ingest pipeline templating:
+  // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
+  module file(project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile)
 }

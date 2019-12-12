@@ -51,7 +51,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping("mapping1", MAPPING_SOURCE1))
+                        .putMapping(MAPPING_SOURCE1))
                 .put(IndexMetaData.builder("test4")
                         .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
@@ -61,8 +61,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping("mapping1", MAPPING_SOURCE1)
-                        .putMapping("mapping2", MAPPING_SOURCE2))
+                        .putMapping(MAPPING_SOURCE2))
                 .put(IndexMetaData.builder("test6")
                         .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
@@ -73,14 +72,12 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .creationDate(2L)
-                        .putMapping("mapping1", MAPPING_SOURCE1)
-                        .putMapping("mapping2", MAPPING_SOURCE2))
+                        .putMapping(MAPPING_SOURCE2))
                 .put(IndexMetaData.builder("test8")
                         .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping("mapping1", MAPPING_SOURCE1)
-                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putMapping(MAPPING_SOURCE1)
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
                 .put(IndexMetaData.builder("test9")
@@ -88,8 +85,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .creationDate(2L)
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping("mapping1", MAPPING_SOURCE1)
-                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putMapping(MAPPING_SOURCE1)
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
                 .put(IndexMetaData.builder("test10")
@@ -98,8 +94,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                                 .put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping("mapping1", MAPPING_SOURCE1)
-                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putMapping(MAPPING_SOURCE1)
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
                 .put(IndexMetaData.builder("test11")
@@ -108,8 +103,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                                 .put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping("mapping1", MAPPING_SOURCE1)
-                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putMapping(MAPPING_SOURCE1)
                         .putAlias(newAliasMetaDataBuilder("alias1").filter(ALIAS_FILTER1))
                         .putAlias(newAliasMetaDataBuilder("alias2").writeIndex(randomBoolean() ? null : randomBoolean()))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
@@ -129,8 +123,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .creationDate(2L)
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping("mapping1", MAPPING_SOURCE1)
-                        .putMapping("mapping2", MAPPING_SOURCE2)
+                        .putMapping(MAPPING_SOURCE1)
                         .putAlias(newAliasMetaDataBuilder("alias1").filter(ALIAS_FILTER1))
                         .putAlias(newAliasMetaDataBuilder("alias3").writeIndex(randomBoolean() ? null : randomBoolean()))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
@@ -147,7 +140,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
 
-        MetaData parsedMetaData = MetaData.Builder.fromXContent(createParser(JsonXContent.jsonXContent, metaDataSource));
+        MetaData parsedMetaData = MetaData.Builder.fromXContent(createParser(JsonXContent.jsonXContent, metaDataSource), false);
 
         IndexMetaData indexMetaData = parsedMetaData.index("test1");
         assertThat(indexMetaData.primaryTerm(0), equalTo(1L));
@@ -214,7 +207,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(indexMetaData.getSettings().size(), equalTo(5));
         assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE1));
         assertThat(indexMetaData.getAliases().size(), equalTo(2));
         assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
         assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
@@ -226,7 +219,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(indexMetaData.getSettings().size(), equalTo(6));
         assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE1));
         assertThat(indexMetaData.getAliases().size(), equalTo(2));
         assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
         assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
@@ -238,7 +231,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(indexMetaData.getSettings().size(), equalTo(5));
         assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE1));
         assertThat(indexMetaData.getAliases().size(), equalTo(2));
         assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
         assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
@@ -250,7 +243,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(indexMetaData.getSettings().size(), equalTo(5));
         assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE1));
         assertThat(indexMetaData.getAliases().size(), equalTo(3));
         assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
         assertThat(indexMetaData.getAliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));
@@ -268,7 +261,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(indexMetaData.getSettings().size(), equalTo(6));
         assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.mapping().source().string(), equalTo(MAPPING_SOURCE1));
         assertThat(indexMetaData.getAliases().size(), equalTo(3));
         assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
         assertThat(indexMetaData.getAliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));

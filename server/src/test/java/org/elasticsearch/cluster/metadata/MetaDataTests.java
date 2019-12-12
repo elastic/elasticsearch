@@ -365,7 +365,7 @@ public class MetaDataTests extends ESTestCase {
                 .endObject()
             .endObject());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
-            MetaData.Builder.fromXContent(parser);
+            MetaData.Builder.fromXContent(parser, randomBoolean());
             fail();
         } catch (IllegalArgumentException e) {
             assertEquals("Unexpected field [random]", e.getMessage());
@@ -508,11 +508,11 @@ public class MetaDataTests extends ESTestCase {
                 .put(IndexMetaData.builder("index1")
                     .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM))
+                    .putMapping(FIND_MAPPINGS_TEST_ITEM))
                 .put(IndexMetaData.builder("index2")
                     .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM)).build();
+                    .putMapping(FIND_MAPPINGS_TEST_ITEM)).build();
 
         {
             ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(Strings.EMPTY_ARRAY,
@@ -575,15 +575,15 @@ public class MetaDataTests extends ESTestCase {
                 .put(IndexMetaData.builder("index1")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping("_doc", mapping))
+                .putMapping(mapping))
                 .put(IndexMetaData.builder("index2")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("_doc", mapping))
+                        .putMapping(mapping))
                 .put(IndexMetaData.builder("index3")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("_doc", mapping)).build();
+                        .putMapping(mapping)).build();
 
         {
             ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(

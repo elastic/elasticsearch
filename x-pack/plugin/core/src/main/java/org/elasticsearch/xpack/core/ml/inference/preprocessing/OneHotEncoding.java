@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -23,6 +25,7 @@ import java.util.Objects;
  */
 public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(OneHotEncoding.class);
     public static final ParseField NAME = new ParseField("one_hot_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField HOT_MAP = new ParseField("hot_map");
@@ -83,12 +86,12 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     @Override
     public void process(Map<String, Object> fields) {
-        String value = (String)fields.get(field);
+        Object value = fields.get(field);
         if (value == null) {
             return;
         }
         hotMap.forEach((val, col) -> {
-            int encoding = value.equals(val) ? 1 : 0;
+            int encoding = value.toString().equals(val) ? 1 : 0;
             fields.put(col, encoding);
         });
     }
@@ -127,4 +130,17 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         return Objects.hash(field, hotMap);
     }
 
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(field);
+        // defSize:0 does not do much in this case as sizeOf(String) is a known quantity
+        size += RamUsageEstimator.sizeOfMap(hotMap, 0);
+        return size;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

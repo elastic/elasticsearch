@@ -153,7 +153,7 @@ public class InternalComposite
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
         boolean earlyTerminated = false;
         for (InternalAggregation agg : aggregations) {

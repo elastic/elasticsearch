@@ -93,12 +93,12 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public static final Setting.AffixSetting<String> DUMMY_ACCOUNT_USER = Setting.affixKeySetting("index.acc.", "user",
             k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic));
         public static final Setting<String> DUMMY_ACCOUNT_PW = Setting.affixKeySetting("index.acc.", "pw",
-            k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic), DUMMY_ACCOUNT_USER);
+            k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic), () -> DUMMY_ACCOUNT_USER);
 
         public static final Setting.AffixSetting<String> DUMMY_ACCOUNT_USER_CLUSTER = Setting.affixKeySetting("cluster.acc.", "user",
             k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic));
         public static final Setting<String> DUMMY_ACCOUNT_PW_CLUSTER = Setting.affixKeySetting("cluster.acc.", "pw",
-            k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic), DUMMY_ACCOUNT_USER_CLUSTER);
+            k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic), () -> DUMMY_ACCOUNT_USER_CLUSTER);
 
         @Override
         public void onIndexModule(IndexModule indexModule) {

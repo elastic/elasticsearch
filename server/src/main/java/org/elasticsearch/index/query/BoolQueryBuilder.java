@@ -250,7 +250,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         doXArrayContent(FILTER, filterClauses, builder, params);
         doXArrayContent(MUST_NOT, mustNotClauses, builder, params);
         doXArrayContent(SHOULD, shouldClauses, builder, params);
-        builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
+        if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
+            builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
+        }
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }

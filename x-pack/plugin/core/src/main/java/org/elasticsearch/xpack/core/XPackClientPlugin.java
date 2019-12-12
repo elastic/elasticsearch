@@ -269,6 +269,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         settings.addAll(XPackSettings.getAllSettings());
 
         settings.add(LicenseService.SELF_GENERATED_LICENSE_TYPE);
+        settings.add(LicenseService.ALLOWED_LICENSE_TYPES_SETTING);
 
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));

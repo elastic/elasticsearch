@@ -220,10 +220,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void deleteBlob(String blobName) {
+            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
                 ensureNotClosed();
                 synchronized (context.actions) {
-                    context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
+                    for (String blobName : blobNames) {
+                        context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
+                    }
                 }
             }
 
@@ -282,13 +284,13 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         .collect(Collectors.toList())));
             }
 
-            // Randomly filter out the latest /index-N blob from a listing to test that tracking of it in latestKnownRepoGen
-            // overrides an inconsistent listing
+            // Randomly filter out the index-N blobs from a listing to test that tracking of it in latestKnownRepoGen and the cluster state
+            // ensures consistent repository operations
             private Map<String, BlobMetaData> maybeMissLatestIndexN(Map<String, BlobMetaData> listing) {
-                // Only filter out latest index-N at the repo root and only as long as we're not in a forced consistent state
-                if (path.parent() == null && context.consistent == false && random.nextBoolean()) {
+                // Randomly filter out index-N blobs at the repo root to proof that we don't need them to be consistently listed
+                if (path.parent() == null && context.consistent == false) {
                     final Map<String, BlobMetaData> filtered = new HashMap<>(listing);
-                    filtered.remove(BlobStoreRepository.INDEX_FILE_PREFIX + latestKnownRepoGen.get());
+                    filtered.keySet().removeIf(b -> b.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX) && random.nextBoolean());
                     return Map.copyOf(filtered);
                 }
                 return listing;

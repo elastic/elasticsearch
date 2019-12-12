@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MoreLikeThisQueryTests extends ESTestCase {
@@ -64,4 +65,15 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         reader.close();
         indexWriter.close();
     }
+
+    public void testValidateMaxQueryTerms() {
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
+            () ->  new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(0));
+        assertThat(e1.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+            () -> new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(-3));
+        assertThat(e2.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
+    }
+
 }

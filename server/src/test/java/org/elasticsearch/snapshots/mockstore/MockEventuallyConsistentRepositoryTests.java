@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots.mockstore;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +91,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             final int lengthWritten = randomIntBetween(1, 100);
             final byte[] blobData = randomByteArrayOfLength(lengthWritten);
             blobContainer.writeBlob(blobName, new ByteArrayInputStream(blobData), lengthWritten, true);
-            blobContainer.deleteBlob(blobName);
+            blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
             assertThrowsOnInconsistentRead(blobContainer, blobName);
             blobStoreContext.forceConsistent();
             expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob(blobName));
@@ -134,9 +135,11 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
 
     public void testOverwriteSnapshotInfoBlob() {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
-        try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), BlobStoreTestUtil.mockClusterService(), blobStoreContext, random())) {
+        final RepositoryMetaData metaData = new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(metaData);
+        try (BlobStoreRepository repository =
+                 new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random())) {
+            clusterService.addStateApplier(event -> repository.updateState(event.state()));
             repository.start();
 
             // We create a snap- blob for snapshot "foo" in the first generation

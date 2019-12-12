@@ -23,8 +23,8 @@ out-of-the-box support for most use cases.
 === Stemming
 
 https://simple.wikipedia.org/wiki/Natural_language[Natural languages] are
-typically inflected: the form of a word changes to express differences. These
-differences, or inflections, can include:
+typically inflected, meaning the form of a word changes to express differences.
+These differences, or inflections, can include:
 
 * _Number_:      fox, foxes
 * _Tense_:       pay, paid, paying

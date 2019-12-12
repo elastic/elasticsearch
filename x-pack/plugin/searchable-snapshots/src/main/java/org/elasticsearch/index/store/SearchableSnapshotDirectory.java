@@ -72,7 +72,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         isOpen = false;
     }
 
@@ -82,37 +82,37 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     @Override
-    public Set<String> getPendingDeletions() throws IOException {
+    public Set<String> getPendingDeletions() {
         throw unsupportedException();
     }
 
     @Override
-    public void sync(Collection<String> names) throws IOException {
+    public void sync(Collection<String> names) {
         throw unsupportedException();
     }
 
     @Override
-    public void syncMetaData() throws IOException {
+    public void syncMetaData() {
         throw unsupportedException();
     }
 
     @Override
-    public void deleteFile(String name) throws IOException {
+    public void deleteFile(String name) {
         throw unsupportedException();
     }
 
     @Override
-    public IndexOutput createOutput(String name, IOContext context) throws IOException {
+    public IndexOutput createOutput(String name, IOContext context) {
         throw unsupportedException();
     }
 
     @Override
-    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
+    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
         throw unsupportedException();
     }
 
     @Override
-    public void rename(String source, String dest) throws IOException {
+    public void rename(String source, String dest) {
         throw unsupportedException();
     }
 

@@ -40,10 +40,10 @@ import java.util.function.Supplier;
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, RepositoryPlugin {
 
     public static final Setting<String> EPHEMERAL_INDEX_REPOSITORY_SETTING =
-        Setting.simpleString("index.ephemeral.repository", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+        Setting.simpleString("index.store.snapshot.repository_name", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     public static final Setting<String> EPHEMERAL_INDEX_SNAPSHOT_SETTING =
-        Setting.simpleString("index.ephemeral.snapshot", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+        Setting.simpleString("index.store.snapshot.snapshot_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     private final SetOnce<RepositoriesService> repositoriesService;
     private final SetOnce<ThreadPool> threadPool;
@@ -81,7 +81,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
-        return Map.of("ephemeral", newDirectoryFactory(repositoriesService::get));
+        return Map.of("snapshot", newDirectoryFactory(repositoriesService::get));
     }
 
     public static DirectoryFactory newDirectoryFactory(final Supplier<RepositoriesService> repositoriesService) {
@@ -95,7 +95,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             }
 
             BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            BlobContainer blobContainer = blobStoreRepository.shardContainer(new IndexId("_ephemeral",
+            BlobContainer blobContainer = blobStoreRepository.shardContainer(new IndexId(indexSettings.getIndex().getName(),
                 shardPath.getShardId().getIndex().getUUID()), shardPath.getShardId().id());
             BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer,
                 new SnapshotId("_ephemeral", EPHEMERAL_INDEX_SNAPSHOT_SETTING.get(indexSettings.getSettings())));

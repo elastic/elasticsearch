@@ -20,6 +20,19 @@ https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache
 _character length_, use the <<ignore-above,`ignore_above`>> mapping parameter.
 ====
 
+[[analysis-limit-token-count-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`max_token_count`::
+(Optional, integer)
+Maximum number of tokens to keep. Once this limit is reached, any remaining
+tokens are excluded from the output. Defaults to `1`.
+
+`consume_all_tokens`::
+(Optional, boolean)
+If `true`, the `limit` filter exhausts the token stream, even if the
+`max_token_count` has already been reached. Defaults to `false`.
+
 [[analysis-limit-token-count-tokenfilter-analyze-ex]]
 ==== Example
 
@@ -95,19 +108,6 @@ PUT limit_example
   }
 }
 --------------------------------------------------
-
-[[analysis-limit-token-count-tokenfilter-configure-parms]]
-==== Configurable parameters
-
-`max_token_count`::
-(Optional, integer)
-Maximum number of tokens to keep. Once this limit is reached, any remaining
-tokens are excluded from the output. Defaults to `1`.
-
-`consume_all_tokens`::
-(Optional, boolean)
-If `true`, the `limit` filter exhausts the token stream, even if the
-`max_token_count` has already been reached. Defaults to `false`.
 
 [[analysis-limit-token-count-tokenfilter-customize]]
 ==== Customize

@@ -127,7 +127,8 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
                     .size(0)
                     .trackTotalHits(true)
                     .query(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.existsQuery("regression_value"))))).get().getHits().getTotalHits().value,
+                        .filter(
+                            QueryBuilders.existsQuery("ml.inference.regression.predicted_value"))))).get().getHits().getTotalHits().value,
             equalTo(20L));
 
         assertThat(client().search(new SearchRequest().indices("index_for_inference_test")
@@ -135,7 +136,12 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
                     .size(0)
                     .trackTotalHits(true)
                     .query(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.existsQuery("result_class"))))).get().getHits().getTotalHits().value,
+                        .filter(
+                            QueryBuilders.existsQuery("ml.inference.classification.predicted_value")))))
+                .get()
+                .getHits()
+                .getTotalHits()
+                .value,
             equalTo(20L));
 
     }
@@ -146,9 +152,9 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             "    \"processors\": [\n" +
             "      {\n" +
             "        \"inference\": {\n" +
-            "          \"target_field\": \"result_class\",\n" +
+            "          \"target_field\": \"ml.classification\",\n" +
             "          \"inference_config\": {\"classification\": " +
-            "                {\"num_top_classes\":2, \"top_classes_result_field\": \"result_class_prob\"}},\n" +
+            "                {\"num_top_classes\":2, \"top_classes_results_field\": \"result_class_prob\"}},\n" +
             "          \"model_id\": \"test_classification\",\n" +
             "          \"field_mappings\": {\n" +
             "            \"col1\": \"col1\",\n" +
@@ -160,7 +166,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             "      },\n" +
             "      {\n" +
             "        \"inference\": {\n" +
-            "          \"target_field\": \"regression_value\",\n" +
+            "          \"target_field\": \"ml.regression\",\n" +
             "          \"model_id\": \"test_regression\",\n" +
             "          \"inference_config\": {\"regression\":{}},\n" +
             "          \"field_mappings\": {\n" +
@@ -186,16 +192,17 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             .prepareSimulatePipeline(new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON).get();
         SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)response.getResults().get(0);
-        assertThat(baseResult.getIngestDocument().getFieldValue("regression_value", Double.class), equalTo(1.0));
-        assertThat(baseResult.getIngestDocument().getFieldValue("result_class", String.class), equalTo("second"));
-        assertThat(baseResult.getIngestDocument().getFieldValue("result_class_prob", List.class).size(), equalTo(2));
+        assertThat(baseResult.getIngestDocument().getFieldValue("ml.regression.predicted_value", Double.class), equalTo(1.0));
+        assertThat(baseResult.getIngestDocument().getFieldValue("ml.classification.predicted_value", String.class),
+            equalTo("second"));
+        assertThat(baseResult.getIngestDocument().getFieldValue("ml.classification.result_class_prob", List.class).size(),
+            equalTo(2));
 
         String sourceWithMissingModel = "{\n" +
             "  \"pipeline\": {\n" +
             "    \"processors\": [\n" +
             "      {\n" +
             "        \"inference\": {\n" +
-            "          \"target_field\": \"result_class\",\n" +
             "          \"model_id\": \"test_classification_missing\",\n" +
             "          \"inference_config\": {\"classification\":{}},\n" +
             "          \"field_mappings\": {\n" +
@@ -526,8 +533,8 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "    \"processors\": [\n" +
         "      {\n" +
         "        \"inference\": {\n" +
-        "          \"target_field\": \"result_class\",\n" +
         "          \"model_id\": \"test_classification\",\n" +
+        "          \"tag\": \"classification\",\n" +
         "          \"inference_config\": {\"classification\": {}},\n" +
         "          \"field_mappings\": {\n" +
         "            \"col1\": \"col1\",\n" +
@@ -542,8 +549,8 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "    \"processors\": [\n" +
         "      {\n" +
         "        \"inference\": {\n" +
-        "          \"target_field\": \"regression_value\",\n" +
         "          \"model_id\": \"test_regression\",\n" +
+        "          \"tag\": \"regression\",\n" +
         "          \"inference_config\": {\"regression\": {}},\n" +
         "          \"field_mappings\": {\n" +
         "            \"col1\": \"col1\",\n" +

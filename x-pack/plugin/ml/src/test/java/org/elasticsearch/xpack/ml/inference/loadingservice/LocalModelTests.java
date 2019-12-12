@@ -93,7 +93,7 @@ public class LocalModelTests extends ESTestCase {
             put("categorical", "dog");
         }};
 
-        SingleValueInferenceResults results = getSingleValue(model, fields, new RegressionConfig());
+        SingleValueInferenceResults results = getSingleValue(model, fields, RegressionConfig.EMPTY_PARAMS);
         assertThat(results.value(), equalTo(1.3));
 
         PlainActionFuture<InferenceResults> failedFuture = new PlainActionFuture<>();

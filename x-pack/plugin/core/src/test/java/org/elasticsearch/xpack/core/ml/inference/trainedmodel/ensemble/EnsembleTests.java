@@ -413,12 +413,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.9,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(0.5,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         // Test with NO aggregator supplied, verifies default behavior of non-weighted sum
         ensemble = Ensemble.builder()
@@ -430,19 +430,19 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureVector = Arrays.asList(0.4, 0.0);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(1.8,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertThat(1.0,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
 
         featureMap = new HashMap<>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
         assertThat(1.8,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
     public void testOperationsEstimations() {

@@ -447,13 +447,28 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     public void testContainsShapeQuery() throws Exception {
         // Create a random geometry collection.
         Rectangle mbr = xRandomRectangle(random(), xRandomPoint(random()), true);
-        GeometryCollectionBuilder gcb = createGeometryCollectionWithin(random(), mbr);
+        boolean usePrefixTrees = randomBoolean();
+        GeometryCollectionBuilder gcb;
+        if (usePrefixTrees) {
+            gcb = createGeometryCollectionWithin(random(), mbr);
+        } else {
+            // vector strategy does not yet support multipoint queries
+            gcb = new GeometryCollectionBuilder();
+            int numShapes = RandomNumbers.randomIntBetween(random(), 1, 4);
+            for (int i = 0; i < numShapes; ++i) {
+                ShapeBuilder shape;
+                do {
+                    shape = RandomShapeGenerator.createShapeWithin(random(), mbr);
+                } while (shape instanceof MultiPointBuilder);
+                gcb.shape(shape);
+            }
+        }
 
-        if (randomBoolean()) {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+        if (usePrefixTrees) {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
                 .execute().actionGet();
         } else {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
                 .execute().actionGet();
         }
 

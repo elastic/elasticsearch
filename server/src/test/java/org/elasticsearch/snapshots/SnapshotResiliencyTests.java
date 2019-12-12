@@ -92,6 +92,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
@@ -445,14 +446,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
+            final ClusterState state = master.clusterService.state();
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress != null
+                && snapshotDeletionsInProgress.getEntries().isEmpty();
+        }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         assertNotNull(createAnotherSnapshotResponseStepListener.result());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
-        //assertThat(snapshotIds, hasSize(0));
     }
 
     public void testConcurrentSnapshotCreateAndDelete() {

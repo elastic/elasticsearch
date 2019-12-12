@@ -25,9 +25,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class TcpHeader {
-
-    // TODO: Change to 7.6 after backport
-    public static final Version VERSION_WITH_HEADER_SIZE = Version.V_8_0_0;
+    
+    public static final Version VERSION_WITH_HEADER_SIZE = Version.V_7_6_0;
 
     public static final int MARKER_BYTES_SIZE = 2;
 

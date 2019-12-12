@@ -39,7 +39,8 @@ using those same roles.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-update-datafeed-request-body]]
 ==== {api-request-body-title}
@@ -47,70 +48,58 @@ using those same roles.
 The following properties can be updated after the {dfeed} is created:
 
 `aggregations`::
-  (Optional, object) If set, the {dfeed} performs aggregation searches. For more
-  information, see <<ml-datafeed-resource>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
-  (Optional, object) Specifies how data searches are split into time chunks. See
-  <<ml-datafeed-chunking-config>>.
-  
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
+
 `delayed_data_check_config`::
-  (Optional, object) Specifies whether the data feed checks for missing data and 
-  the size of the window. See <<ml-datafeed-delayed-data-check-config>>.  
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
 
 `frequency`::
-  (Optional, <<time-units, time units>>) The interval at which scheduled queries 
-  are made while the {dfeed} runs in real time. The default value is either the 
-  bucket span for short bucket spans, or, for longer bucket spans, a sensible 
-  fraction of the bucket span. For example: `150s`.
+(Optional, <<time-units, time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
 
 `indices`::
-  (Optional, array) An array of index names. Wildcards are supported. For
-  example: `["it_ops_metrics", "server*"]`.
+(Optional, array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
 
-`query`::
-  (Optional, object) The {es} query domain-specific language (DSL). This value
-  corresponds to the query object in an {es} search POST body. All the options
-  that are supported by {es} can be used, as this object is passed verbatim to
-  {es}. By default, this property has the following value:
-  `{"match_all": {"boost": 1}}`.
+`max_empty_searches`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
 +
 --
-WARNING: If you change the query, then the analyzed data will also be changed, 
-therefore the required time to learn might be long and the understandability of 
-the results is unpredictable.
-If you want to make significant changes to the source data, we would recommend 
-you clone it and create a second job containing the amendments. Let both run in 
-parallel and close one when you are satisfied with the results of the other job.
+The special value `-1` unsets this setting.
+--
+
+`query`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query]
++
+--
+WARNING: If you change the query, the analyzed data is also changed. Therefore,
+the required time to learn might be long and the understandability of the
+results is unpredictable. If you want to make significant changes to the source
+data, we would recommend you clone it and create a second job containing the
+amendments. Let both run in parallel and close one when you are satisfied with
+the results of the other job.
+
 --
 
 `query_delay`::
-  (Optional, <<time-units, time units>>) The number of seconds behind real-time 
-  that data is queried. For example, if data from 10:04 a.m. might not be 
-  searchable in {es} until 10:06 a.m., set this property to 120 seconds. The 
-  default value is `60s`.
+(Optional, <<time-units, time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
 
 `script_fields`::
-  (Optional, object) Specifies scripts that evaluate custom expressions and
-  returns script fields to the {dfeed}. The detector configuration objects in a
-  job can contain functions that use these script fields. For more information,
-  see <<request-body-search-script-fields,Script fields>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
 
 `scroll_size`::
-  (Optional, unsigned integer) The `size` parameter that is used in {es}
-  searches. The default value is `1000`.
-
-`max_empty_searches`::
-  (Optional, integer) If a real-time {dfeed} has never seen any data (including
-  during any initial training period) then it will automatically stop itself
-  and close its associated job after this many real-time searches that return
-  no documents. In other words, it will stop after `frequency` times
-  `max_empty_searches` of real-time operation. If not set
-  then a {dfeed} with no end time that sees no data will remain started until
-  it is explicitly stopped. The special value `-1` unsets this setting.
-
-For more information about these properties, see <<ml-datafeed-resource>>.
-
+(Optional, unsigned integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 [[ml-update-datafeed-example]]
 ==== {api-examples-title}

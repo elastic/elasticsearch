@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 
@@ -161,6 +162,12 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         spoolOutput = true
         workingDir = checkoutDir
         doFirst {
+          // TODO: Remove this once we've updated to Gradle 6.1
+          // Workaround for https://github.com/gradle/gradle/issues/11426
+          if (GradleVersion.version(file("${ checkoutDir}/buildSrc/src/main/resources/minimumGradleVersion").text) != GradleVersion.current()) {
+            environment = environment.findAll { key, val -> key != 'OPENSHIFT_IP' }
+          }
+
           // Execution time so that the checkouts are available
           List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
           environment(

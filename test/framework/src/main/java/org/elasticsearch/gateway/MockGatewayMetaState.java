@@ -50,12 +50,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    void upgradeMetaData(Settings settings, MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                         MetaDataUpgrader metaDataUpgrader) {
-        // MetaData upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
-    }
-
-    @Override
     MetaData upgradeMetaDataForMasterEligibleNode(MetaData metaData, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
                                                   MetaDataUpgrader metaDataUpgrader) {
         // MetaData upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
@@ -74,7 +68,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings())
             .thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        start(settings, transportService, clusterService, new MetaStateService(nodeEnvironment, xContentRegistry),
+        start(settings, transportService, clusterService,
             null, null, new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry, BigArrays.NON_RECYCLING_INSTANCE));
     }
 }

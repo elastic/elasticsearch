@@ -539,6 +539,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701")
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();

@@ -32,6 +32,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,10 +47,12 @@ import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -276,7 +279,7 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec " + "--user elasticsearch:root " + "--tty " + containerId + " " + script);
+            return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
         }
     }
 
@@ -445,6 +448,14 @@ public class Docker {
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.textile").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+
+        // These are installed to help users who are working with certificates.
+        Stream.of("zip", "unzip").forEach(cliTool -> {
+            // `which` isn't installed in our image, so instead just try to call the command.
+            final Shell.Result result = dockerShell.runIgnoreExitCode(cliTool + " -h");
+
+            assertTrue(cliTool + " ought to be installed. " + result, result.isSuccess());
+        });
     }
 
     private static void verifyDefaultInstallation(Installation es) {

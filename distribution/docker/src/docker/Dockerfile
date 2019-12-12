@@ -14,7 +14,7 @@
 FROM ${base_image} AS builder
 
 RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
-    ${package_manager} install --setopt=tsflags=nodocs -y gzip shadow-utils tar unzip zip && \
+    ${package_manager} install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
     ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
 
@@ -46,7 +46,7 @@ FROM ${base_image}
 ENV ELASTIC_CONTAINER true
 
 RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
-    ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils && \
+    ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \
     ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
 

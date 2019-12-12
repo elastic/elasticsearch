@@ -2,7 +2,8 @@
   "cat.templates":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-templates.html",
-      "description":"Returns information about existing templates."
+      "description":"Returns information about existing templates.",
+      "since":"5.2.0"
     },
     "stability":"stable",
     "url":{

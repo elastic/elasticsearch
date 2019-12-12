@@ -2,7 +2,8 @@
   "indices.put_template":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
-      "description":"Creates or updates an index template."
+      "description":"Creates or updates an index template.",
+      "since":null
     },
     "stability":"stable",
     "url":{

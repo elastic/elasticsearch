@@ -1,7 +1,8 @@
 {
   "ml.put_filter":{
     "documentation":{
-      "url":null
+      "url":null,
+      "since":"5.4.0"
     },
     "stability":"stable",
     "url":{

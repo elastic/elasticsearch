@@ -1,7 +1,8 @@
 {
   "ml.forecast":{
     "documentation":{
-      "url":null
+      "url":null,
+      "since":"6.1.0"
     },
     "stability":"stable",
     "url":{

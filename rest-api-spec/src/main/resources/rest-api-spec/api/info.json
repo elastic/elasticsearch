@@ -2,7 +2,8 @@
   "info":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
-      "description":"Returns basic information about the cluster."
+      "description":"Returns basic information about the cluster.",
+      "since":null
     },
     "stability":"stable",
     "url":{

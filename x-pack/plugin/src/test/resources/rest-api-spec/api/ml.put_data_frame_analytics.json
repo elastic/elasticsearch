@@ -1,7 +1,8 @@
 {
   "ml.put_data_frame_analytics":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html",
+      "since":"7.3.0"
     },
     "stability":"experimental",
     "url":{

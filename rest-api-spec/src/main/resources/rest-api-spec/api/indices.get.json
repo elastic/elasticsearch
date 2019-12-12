@@ -2,7 +2,8 @@
   "indices.get":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-index.html",
-      "description":"Returns information about one or more indices."
+      "description":"Returns information about one or more indices.",
+      "since":null
     },
     "stability":"stable",
     "url":{

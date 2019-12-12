@@ -2,7 +2,8 @@
   "indices.rollover":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html",
-      "description":"Updates an alias to point to a new index when the existing index\nis considered to be too large or too old."
+      "description":"Updates an alias to point to a new index when the existing index\nis considered to be too large or too old.",
+      "since":"5.0.0"
     },
     "stability":"stable",
     "url":{

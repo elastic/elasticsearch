@@ -1,7 +1,8 @@
 {
   "ml.find_file_structure":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html",
+      "since":"6.5.0"
     },
     "stability":"experimental",
     "url":{

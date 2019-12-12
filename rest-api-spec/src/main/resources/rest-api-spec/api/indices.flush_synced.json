@@ -2,7 +2,8 @@
   "indices.flush_synced":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush-api.html",
-      "description":"Performs a synced flush operation on one or more indices."
+      "description":"Performs a synced flush operation on one or more indices.",
+      "since":null
     },
     "stability":"stable",
     "url":{

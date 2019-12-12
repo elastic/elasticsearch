@@ -2,7 +2,8 @@
   "reindex":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
-      "description":"Allows to copy documents from one index to another, optionally filtering the source\ndocuments by a query, changing the destination index settings, or fetching the\ndocuments from a remote cluster."
+      "description":"Allows to copy documents from one index to another, optionally filtering the source\ndocuments by a query, changing the destination index settings, or fetching the\ndocuments from a remote cluster.",
+      "since":"2.3.0"
     },
     "stability":"stable",
     "url":{

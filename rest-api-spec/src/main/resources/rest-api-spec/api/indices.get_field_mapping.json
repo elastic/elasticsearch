@@ -2,7 +2,8 @@
   "indices.get_field_mapping":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-field-mapping.html",
-      "description":"Returns mapping for one or more fields."
+      "description":"Returns mapping for one or more fields.",
+      "since":null
     },
     "stability":"stable",
     "url":{

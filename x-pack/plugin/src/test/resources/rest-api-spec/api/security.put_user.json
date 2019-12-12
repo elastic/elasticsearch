@@ -1,7 +1,8 @@
 {
   "security.put_user":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-user.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-user.html",
+      "since":null
     },
     "stability":"stable",
     "url":{

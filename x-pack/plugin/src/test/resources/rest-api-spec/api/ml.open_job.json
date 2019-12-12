@@ -1,7 +1,8 @@
 {
   "ml.open_job":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
+      "since":"5.4.0"
     },
     "stability":"stable",
     "url":{

@@ -1,7 +1,8 @@
 {
   "ml.set_upgrade_mode":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html",
+      "since":"6.7.0"
     },
     "stability":"stable",
     "url":{

@@ -2,7 +2,8 @@
   "ingest.delete_pipeline":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-pipeline-api.html",
-      "description":"Deletes a pipeline."
+      "description":"Deletes a pipeline.",
+      "since":"5.0.0"
     },
     "stability":"stable",
     "url":{

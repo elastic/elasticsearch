@@ -1,7 +1,8 @@
 {
   "ml.delete_trained_model":{
     "documentation":{
-      "url":"TODO"
+      "url":"TODO",
+      "since":"7.6.0"
     },
     "stability":"experimental",
     "url":{

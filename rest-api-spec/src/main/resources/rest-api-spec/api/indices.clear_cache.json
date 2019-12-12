@@ -2,7 +2,8 @@
   "indices.clear_cache":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-clearcache.html",
-      "description":"Clears all or specific caches for one or more indices."
+      "description":"Clears all or specific caches for one or more indices.",
+      "since":null
     },
     "stability":"stable",
     "url":{

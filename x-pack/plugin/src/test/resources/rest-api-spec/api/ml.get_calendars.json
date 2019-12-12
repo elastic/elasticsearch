@@ -1,7 +1,8 @@
 {
   "ml.get_calendars":{
     "documentation":{
-      "url":null
+      "url":null,
+      "since":"6.2.0"
     },
     "stability":"stable",
     "url":{

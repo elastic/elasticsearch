@@ -1,7 +1,8 @@
 {
   "ml.post_data":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html",
+      "since":"5.4.0"
     },
     "stability":"stable",
     "url":{

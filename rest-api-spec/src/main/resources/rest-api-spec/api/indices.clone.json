@@ -2,7 +2,8 @@
   "indices.clone": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-clone-index.html",
-      "description": "Clones an index"
+      "description":"Clones an index",
+      "since":"7.4.0"
     },
     "stability": "stable",
     "url": {

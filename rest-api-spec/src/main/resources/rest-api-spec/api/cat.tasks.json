@@ -2,7 +2,8 @@
   "cat.tasks":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
-      "description":"Returns information about the tasks currently executing on one or more nodes in the cluster."
+      "description":"Returns information about the tasks currently executing on one or more nodes in the cluster.",
+      "since":"5.0.0"
     },
     "stability":"stable",
     "url":{

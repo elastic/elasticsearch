@@ -2,7 +2,8 @@
   "field_caps":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html",
-      "description":"Returns the information about the capabilities of fields among multiple indices."
+      "description":"Returns the information about the capabilities of fields among multiple indices.",
+      "since":"5.4.0"
     },
     "stability":"stable",
     "url":{

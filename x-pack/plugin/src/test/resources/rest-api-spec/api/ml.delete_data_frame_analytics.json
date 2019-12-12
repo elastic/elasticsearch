@@ -1,7 +1,8 @@
 {
   "ml.delete_data_frame_analytics":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html",
+      "since":"7.3.0"
     },
     "stability":"experimental",
     "url":{

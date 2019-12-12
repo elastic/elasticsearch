@@ -1,7 +1,8 @@
 {
   "watcher.ack_watch":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html",
+      "since":null
     },
     "stability":"stable",
     "url":{

@@ -2,7 +2,8 @@
   "indices.stats":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-stats.html",
-      "description":"Provides statistics on operations happening in an index."
+      "description":"Provides statistics on operations happening in an index.",
+      "since":null
     },
     "stability":"stable",
     "url":{

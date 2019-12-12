@@ -2,7 +2,8 @@
   "exists":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
-      "description":"Returns information about whether a document exists in an index."
+      "description":"Returns information about whether a document exists in an index.",
+      "since":null
     },
     "stability":"stable",
     "url":{

@@ -1,7 +1,8 @@
 {
   "ml.revert_model_snapshot":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html",
+      "since":"5.4.0"
     },
     "stability":"stable",
     "url":{

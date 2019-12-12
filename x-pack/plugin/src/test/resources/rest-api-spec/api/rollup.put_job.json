@@ -1,7 +1,8 @@
 {
   "rollup.put_job":{
     "documentation":{
-      "url":""
+      "url":"",
+      "since":"6.3.0"
     },
     "stability":"experimental",
     "url":{

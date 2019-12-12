@@ -1,7 +1,8 @@
 {
   "xpack.usage":{
     "documentation":{
-      "url":"Retrieve information about xpack features usage"
+      "url":"Retrieve information about xpack features usage",
+      "since":null
     },
     "stability":"stable",
     "url":{

@@ -2,7 +2,8 @@
   "get_source":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
-      "description":"Returns the source of a document."
+      "description":"Returns the source of a document.",
+      "since":null
     },
     "stability":"stable",
     "url":{

@@ -2,7 +2,8 @@
   "indices.shrink":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-shrink-index.html",
-      "description":"Allow to shrink an existing index into a new index with fewer primary shards."
+      "description":"Allow to shrink an existing index into a new index with fewer primary shards.",
+      "since":"5.0.0"
     },
     "stability":"stable",
     "url":{

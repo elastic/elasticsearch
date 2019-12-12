@@ -1,7 +1,8 @@
 {
   "xpack.info":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html",
+      "since":null
     },
     "stability":"stable",
     "url":{

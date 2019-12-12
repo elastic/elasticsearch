@@ -2,7 +2,8 @@
   "indices.delete_template":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
-      "description":"Deletes an index template."
+      "description":"Deletes an index template.",
+      "since":null
     },
     "stability":"stable",
     "url":{

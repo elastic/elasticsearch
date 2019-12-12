@@ -1,7 +1,8 @@
 {
   "ml.delete_model_snapshot":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html",
+      "since":"5.4.0"
     },
     "stability":"stable",
     "url":{

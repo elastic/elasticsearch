@@ -2,7 +2,8 @@
   "msearch":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html",
-      "description":"Allows to execute several search operations in one request."
+      "description":"Allows to execute several search operations in one request.",
+      "since":null
     },
     "stability":"stable",
     "url":{

@@ -2,7 +2,8 @@
   "bulk":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-bulk.html",
-      "description":"Allows to perform multiple index/update/delete operations in a single request."
+      "description":"Allows to perform multiple index/update/delete operations in a single request.",
+      "since":null
     },
     "stability":"stable",
     "url":{

@@ -2,7 +2,8 @@
   "indices.segments":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-segments.html",
-      "description":"Provides low-level information about segments in a Lucene index."
+      "description":"Provides low-level information about segments in a Lucene index.",
+      "since":null
     },
     "stability":"stable",
     "url":{

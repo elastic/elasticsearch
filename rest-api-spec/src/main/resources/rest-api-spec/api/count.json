@@ -2,7 +2,8 @@
   "count":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html",
-      "description":"Returns number of documents matching a query."
+      "description":"Returns number of documents matching a query.",
+      "since":null
     },
     "stability":"stable",
     "url":{

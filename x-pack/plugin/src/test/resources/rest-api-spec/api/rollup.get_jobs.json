@@ -1,7 +1,8 @@
 {
   "rollup.get_jobs":{
     "documentation":{
-      "url":""
+      "url":"",
+      "since":"6.3.0"
     },
     "stability":"experimental",
     "url":{

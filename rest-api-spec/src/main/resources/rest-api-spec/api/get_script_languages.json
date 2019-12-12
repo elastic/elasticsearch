@@ -1,7 +1,8 @@
 {
   "get_script_languages":{
     "documentation":{
-      "description":"Returns available script types, languages and contexts"
+      "description":"Returns available script types, languages and contexts",
+      "since":"7.6.0"
     },
     "stability":"experimental",
     "url":{

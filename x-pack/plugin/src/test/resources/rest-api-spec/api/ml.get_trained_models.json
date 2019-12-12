@@ -1,7 +1,8 @@
 {
   "ml.get_trained_models":{
     "documentation":{
-      "url":"TODO"
+      "url":"TODO",
+      "since":"7.6.0"
     },
     "stability":"experimental",
     "url":{

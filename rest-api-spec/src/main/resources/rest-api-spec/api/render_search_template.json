@@ -2,7 +2,8 @@
   "render_search_template":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html#_validating_templates",
-      "description":"Allows to use the Mustache language to pre-render a search definition."
+      "description":"Allows to use the Mustache language to pre-render a search definition.",
+      "since":null
     },
     "stability":"stable",
     "url":{

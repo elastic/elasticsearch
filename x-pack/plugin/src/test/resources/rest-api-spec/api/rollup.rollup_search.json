@@ -1,7 +1,8 @@
 {
   "rollup.rollup_search":{
     "documentation":{
-      "url":""
+      "url":"",
+      "since":"6.3.0"
     },
     "stability":"experimental",
     "url":{

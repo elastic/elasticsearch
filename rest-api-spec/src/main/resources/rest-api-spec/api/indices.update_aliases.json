@@ -2,7 +2,8 @@
   "indices.update_aliases":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
-      "description":"Updates index aliases."
+      "description":"Updates index aliases.",
+      "since":null
     },
     "stability":"stable",
     "url":{

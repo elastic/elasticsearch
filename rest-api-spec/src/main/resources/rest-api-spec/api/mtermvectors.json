@@ -2,7 +2,8 @@
   "mtermvectors":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html",
-      "description":"Returns multiple termvectors in one request."
+      "description":"Returns multiple termvectors in one request.",
+      "since":null
     },
     "stability":"stable",
     "url":{

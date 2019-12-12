@@ -2,7 +2,8 @@
   "get_script":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
-      "description":"Returns a script."
+      "description":"Returns a script.",
+      "since":null
     },
     "stability":"stable",
     "url":{

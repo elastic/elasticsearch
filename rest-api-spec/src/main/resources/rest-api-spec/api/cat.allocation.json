@@ -2,7 +2,8 @@
   "cat.allocation":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-allocation.html",
-      "description":"Provides a snapshot of how many shards are allocated to each data node and how much disk space they are using."
+      "description":"Provides a snapshot of how many shards are allocated to each data node and how much disk space they are using.",
+      "since":null
     },
     "stability":"stable",
     "url":{

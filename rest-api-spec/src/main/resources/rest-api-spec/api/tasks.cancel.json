@@ -2,7 +2,8 @@
   "tasks.cancel":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
-      "description":"Cancels a task, if it can be cancelled through an API."
+      "description":"Cancels a task, if it can be cancelled through an API.",
+      "since":"2.3.0"
     },
     "stability":"stable",
     "url":{

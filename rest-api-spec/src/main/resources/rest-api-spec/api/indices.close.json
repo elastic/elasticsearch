@@ -2,7 +2,8 @@
   "indices.close":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-open-close.html",
-      "description":"Closes an index."
+      "description":"Closes an index.",
+      "since":null
     },
     "stability":"stable",
     "url":{

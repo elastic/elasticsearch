@@ -2,7 +2,8 @@
   "update_by_query":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update-by-query.html",
-      "description":"Performs an update on every document in the index without changing the source,\nfor example to pick up a mapping change."
+      "description":"Performs an update on every document in the index without changing the source,\nfor example to pick up a mapping change.",
+      "since":"2.4.0"
     },
     "stability":"stable",
     "url":{

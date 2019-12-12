@@ -2,7 +2,8 @@
   "cat.nodeattrs":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-nodeattrs.html",
-      "description":"Returns information about custom node attributes."
+      "description":"Returns information about custom node attributes.",
+      "since":null
     },
     "stability":"stable",
     "url":{

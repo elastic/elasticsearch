@@ -2,7 +2,8 @@
   "ingest.simulate":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html",
-      "description":"Allows to simulate a pipeline with example documents."
+      "description":"Allows to simulate a pipeline with example documents.",
+      "since":"5.0.0"
     },
     "stability":"stable",
     "url":{

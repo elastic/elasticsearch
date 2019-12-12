@@ -1,7 +1,8 @@
 {
   "watcher.start":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-start.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-start.html",
+      "since":null
     },
     "stability":"stable",
     "url":{

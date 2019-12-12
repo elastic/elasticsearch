@@ -1,7 +1,8 @@
 {
   "ml.get_buckets":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-bucket.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-bucket.html",
+      "since":"5.4.0"
     },
     "stability":"stable",
     "url":{

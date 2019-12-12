@@ -1,7 +1,8 @@
 {
   "ml.explain_data_frame_analytics": {
     "documentation": {
-      "url": "http://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html",
+      "since":"7.6.0"
     },
     "stability": "experimental",
     "url": {

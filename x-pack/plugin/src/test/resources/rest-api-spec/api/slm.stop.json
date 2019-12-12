@@ -1,7 +1,8 @@
 {
   "slm.stop":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-stop.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-stop.html",
+      "since":"7.6.0"
     },
     "stability":"stable",
     "url":{

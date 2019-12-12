@@ -1,7 +1,8 @@
 {
   "ml.evaluate_data_frame":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/evaluate-dfanalytics.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/evaluate-dfanalytics.html",
+      "since":"7.3.0"
     },
     "stability":"experimental",
     "url":{

@@ -1,7 +1,8 @@
 {
   "rollup.get_rollup_index_caps":{
     "documentation":{
-      "url":""
+      "url":"",
+      "since":"6.4.0"
     },
     "stability":"experimental",
     "url":{

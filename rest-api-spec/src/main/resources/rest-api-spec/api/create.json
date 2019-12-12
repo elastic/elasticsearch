@@ -2,7 +2,8 @@
   "create":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
-      "description":"Creates a new document in the index.\n\nReturns a 409 response when a document with a same ID already exists in the index."
+      "description":"Creates a new document in the index.\n\nReturns a 409 response when a document with a same ID already exists in the index.",
+      "since":"5.0.0"
     },
     "stability":"stable",
     "url":{

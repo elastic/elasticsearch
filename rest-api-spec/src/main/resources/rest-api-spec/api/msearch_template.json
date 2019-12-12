@@ -2,7 +2,8 @@
   "msearch_template":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html",
-      "description":"Allows to execute several search template operations in one request."
+      "description":"Allows to execute several search template operations in one request.",
+      "since":"5.0.0"
     },
     "stability":"stable",
     "url":{

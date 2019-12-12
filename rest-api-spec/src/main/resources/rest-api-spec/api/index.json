@@ -2,7 +2,8 @@
   "index":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
-      "description":"Creates or updates a document in an index."
+      "description":"Creates or updates a document in an index.",
+      "since":null
     },
     "stability":"stable",
     "url":{

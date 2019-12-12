@@ -1,7 +1,8 @@
 {
   "migration.deprecations":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-deprecation.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-deprecation.html",
+      "since":"6.1.0"
     },
     "stability":"stable",
     "url":{

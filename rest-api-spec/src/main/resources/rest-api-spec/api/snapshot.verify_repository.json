@@ -2,7 +2,8 @@
   "snapshot.verify_repository":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Verifies a repository."
+      "description":"Verifies a repository.",
+      "since":null
     },
     "stability":"stable",
     "url":{

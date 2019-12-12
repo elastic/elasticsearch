@@ -28,6 +28,8 @@ following settings:
     offsets (which map the term back to the original string) are indexed.
     Offsets are used by the <<unified-highlighter,unified highlighter>> to speed up highlighting.
 
+NOTE: This setting only applies to `text` fields.
+
 NOTE: <<number,Numeric fields>> don't support the `index_options` parameter any longer.
 
 <<mapping-index,Analyzed>> string fields use `positions` as the default, and

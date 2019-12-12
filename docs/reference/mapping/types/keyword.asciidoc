@@ -31,7 +31,7 @@ PUT my_index
 --------------------------------
 
 [TIP]
-.Mapping identifiers
+.Mapping numeric identifiers
 ====
 include::numeric.asciidoc[tag=map-ids-as-keyword]
 ====

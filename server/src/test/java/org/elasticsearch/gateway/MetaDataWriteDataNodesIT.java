@@ -56,8 +56,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, "test");
     }
 
-    public void testMetaIsRemovedIfAllShardsFromIndexRemoved() throws Exception {
-        // this test checks that the index state is removed from a data only node once all shards have been allocated away from it
+    public void testIndexFilesAreRemovedIfAllShardsFromIndexRemoved() throws Exception {
+        // this test checks that the index data is removed from a data only node once all shards have been allocated away from it
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         List<String> nodeNames= internalCluster().startDataOnlyNodes(2);
         String node1 = nodeNames.get(0);
@@ -70,8 +70,10 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         ensureGreen();
         assertIndexInMetaState(node1, index);
         Index resolveIndex = resolveIndex(index);
+        assertIndexDirectoryExists(node1, resolveIndex);
         assertIndexDirectoryDeleted(node2, resolveIndex);
         assertIndexInMetaState(masterNode, index);
+        assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
         logger.debug("relocating index...");
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
@@ -80,7 +82,13 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
+        assertIndexDirectoryExists(node2, resolveIndex);
         assertIndexInMetaState(masterNode, index);
+        assertIndexDirectoryDeleted(masterNode, resolveIndex);
+
+        client().admin().indices().prepareDelete(index).get();
+        assertIndexDirectoryDeleted(node1, resolveIndex);
+        assertIndexDirectoryDeleted(node2, resolveIndex);
     }
 
     @SuppressWarnings("unchecked")
@@ -162,6 +170,15 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
             assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
                 indexDirectoryExists(nodeName, index));
         }
+        );
+    }
+
+    protected void assertIndexDirectoryExists(final String nodeName, final Index index) throws Exception {
+        assertBusy(() -> {
+                logger.info("checking if index directory exists...");
+                assertTrue("Expecting index directory of " + index + " to exist on node " + nodeName,
+                    indexDirectoryExists(nodeName, index));
+            }
         );
     }
 

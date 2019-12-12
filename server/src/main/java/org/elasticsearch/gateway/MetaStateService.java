@@ -271,7 +271,8 @@ public class MetaStateService {
         MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
         META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            INDEX_META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.resolveIndexFolder(indexFolderName));
+            // delete meta state directories of indices
+            MetaDataStateFormat.deleteMetaState(nodeEnv.resolveIndexFolder(indexFolderName));
         }
     }
 }

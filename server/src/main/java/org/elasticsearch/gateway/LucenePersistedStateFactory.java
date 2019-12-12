@@ -206,12 +206,11 @@ public class LucenePersistedStateFactory {
         success = false;
         try {
             lucenePersistedState.persistInitialState();
+            legacyLoader.clean();
             success = true;
             return lucenePersistedState;
         } finally {
-            if (success) {
-                legacyLoader.clean();
-            } else {
+            if (success == false) {
                 IOUtils.closeWhileHandlingException(lucenePersistedState);
             }
         }
@@ -302,6 +301,7 @@ public class LucenePersistedStateFactory {
         }
 
         if (bestOnDiskState == NO_ON_DISK_STATE) {
+            assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "legacy metadata loader is not needed anymore from v9 onwards";
             final Tuple<Manifest, MetaData> legacyState = legacyLoader.loadClusterState();
             if (legacyState.v1().isEmpty() == false) {
                 return new OnDiskState(nodeEnvironment.nodeId(), null, legacyState.v1().getCurrentTerm(),

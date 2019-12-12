@@ -78,13 +78,13 @@ public class GatewayMetaState implements Closeable {
 
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
-                PersistedState ps = lucenePersistedStateFactory.loadPersistedState((version, metadata) ->
+                persistedState.set(lucenePersistedStateFactory.loadPersistedState((version, metadata) ->
                     prepareInitialClusterState(transportService, clusterService,
                         ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                             .version(version)
-                            .metaData(upgradeMetaDataForMasterEligibleNode(metadata, metaDataIndexUpgradeService, metaDataUpgrader))
-                            .build()));
-                persistedState.set(ps);
+                            .metaData(upgradeMetaDataForNode(metadata, metaDataIndexUpgradeService, metaDataUpgrader))
+                            .build()))
+                );
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to load metadata", e);
             }
@@ -107,9 +107,9 @@ public class GatewayMetaState implements Closeable {
     }
 
     // exposed so it can be overridden by tests
-    MetaData upgradeMetaDataForMasterEligibleNode(MetaData metaData,
-                                                  MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                                                  MetaDataUpgrader metaDataUpgrader) {
+    MetaData upgradeMetaDataForNode(MetaData metaData,
+                                    MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                                    MetaDataUpgrader metaDataUpgrader) {
         return upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
     }
 

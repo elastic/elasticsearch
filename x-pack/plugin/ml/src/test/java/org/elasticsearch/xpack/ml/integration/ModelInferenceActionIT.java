@@ -119,12 +119,15 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }});
 
         // Test regression
-        InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId1, toInfer, new RegressionConfig(), true);
+        InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId1,
+            toInfer,
+            RegressionConfig.EMPTY_PARAMS,
+            true);
         InternalInferModelAction.Response response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
-        request = new InternalInferModelAction.Request(modelId1, toInfer2, new RegressionConfig(), true);
+        request = new InternalInferModelAction.Request(modelId1, toInfer2, RegressionConfig.EMPTY_PARAMS, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.65, 1.55));
@@ -140,7 +143,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("not_to_be", "to_be"));
 
         // Get top classes
-        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2, null), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2, null, null), true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults =
@@ -159,7 +162,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
-        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1, null), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1, null, null), true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
@@ -172,7 +175,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         InternalInferModelAction.Request request = new InternalInferModelAction.Request(
             model,
             Collections.emptyList(),
-            new RegressionConfig(),
+            RegressionConfig.EMPTY_PARAMS,
             true);
         try {
             client().execute(InternalInferModelAction.INSTANCE, request).actionGet();

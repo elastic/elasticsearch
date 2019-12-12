@@ -48,12 +48,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
-  (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The
-  default value is `0`.
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=from]
 
 `size`::
-  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to
-  obtain. The default value is `100`.
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
 
 [[ml-get-dfanalytics-stats-response-body]]
@@ -62,25 +62,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 The API returns the following information:
 
 `data_frame_analytics`::
-  (array) An array of statistics objects for {dfanalytics-jobs}, which are
-  sorted by the `id` value in ascending order.
-  
-  `id`::
-    (string) The unique identifier of the {dfanalytics-job}.
-    
-  `state`::
-    (string) Current state of the {dfanalytics-job}.
-    
-  `progress`::
-    (array) The progress report of the {dfanalytics-job} by phase.
-    
-    `phase`::
-      (string) Defines the phase of the {dfanalytics-job}. Possible phases: 
-      `reindexing`, `loading_data`, `analyzing`, and `writing_results`.
-      
-    `progress_percent`::
-      (integer) The progress that the {dfanalytics-job} has made expressed in 
-      percentage.
+(array) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=data-frame-analytics-stats]
 
 
 [[ml-get-dfanalytics-stats-response-codes]]

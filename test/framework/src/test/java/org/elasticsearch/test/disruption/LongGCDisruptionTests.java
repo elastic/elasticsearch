@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -114,6 +115,8 @@ public class LongGCDisruptionTests extends ESTestCase {
      * but does keep retrying until all threads can be safely paused
      */
     public void testNotBlockingUnsafeStackTraces() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/50047",
+            JavaVersion.current().equals(JavaVersion.parse("11")) || JavaVersion.current().equals(JavaVersion.parse("12")));
         final String nodeName = "test_node";
         LongGCDisruption disruption = new LongGCDisruption(random(), nodeName) {
             @Override

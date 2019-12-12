@@ -46,45 +46,54 @@ public class InferenceProcessorTests extends ESTestCase {
     }
 
     public void testMutateDocumentWithClassification() {
-        String targetField = "classification_value";
+        String targetField = "ml.my_processor";
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
             targetField,
             "classification_model",
             ClassificationConfig.EMPTY_PARAMS,
+<<<<<<< HEAD
             Collections.emptyMap(),
             "ml.my_processor",
             true,
             null);
+=======
+            Collections.emptyMap());
+>>>>>>> master
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", null)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                null,
+                ClassificationConfig.EMPTY_PARAMS)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
-        assertThat(document.getFieldValue(targetField, String.class), equalTo("foo"));
-        assertThat(document.getFieldValue("ml", Map.class),
-            equalTo(Collections.singletonMap("my_processor", Collections.singletonMap("model_id", "classification_model"))));
+        assertThat(document.getFieldValue(targetField + "." + ClassificationConfig.EMPTY_PARAMS.getResultsField(), String.class),
+            equalTo("foo"));
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
     }
 
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClasses() {
-        String targetField = "classification_value_probabilities";
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            targetField,
-            "classification_model",
-            new ClassificationConfig(2, null),
-            Collections.emptyMap(),
             "ml.my_processor",
+<<<<<<< HEAD
             true,
             null);
+=======
+            "classification_model",
+            classificationConfig,
+            Collections.emptyMap());
+>>>>>>> master
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -95,30 +104,31 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
-        assertThat((List<Map<?,?>>)document.getFieldValue(ClassificationConfig.DEFAULT_TOP_CLASSES_RESULT_FIELD, List.class),
+        assertThat((List<Map<?,?>>)document.getFieldValue("ml.my_processor.top_classes", List.class),
             contains(classes.stream().map(ClassificationInferenceResults.TopClassEntry::asValueMap).toArray(Map[]::new)));
-        assertThat(document.getFieldValue("ml", Map.class),
-            equalTo(Collections.singletonMap("my_processor", Collections.singletonMap("model_id", "classification_model"))));
-        assertThat(document.getFieldValue(targetField, String.class), equalTo("foo"));
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
+        assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
     }
 
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClassesWithSpecificField() {
-        String targetField = "classification_value_probabilities";
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops");
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            targetField,
-            "classification_model",
-            new ClassificationConfig(2, "my_top_classes"),
-            Collections.emptyMap(),
             "ml.my_processor",
+<<<<<<< HEAD
             true,
             null);
+=======
+            "classification_model",
+            classificationConfig,
+            Collections.emptyMap());
+>>>>>>> master
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -129,27 +139,23 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
-        assertThat((List<Map<?,?>>)document.getFieldValue("my_top_classes", List.class),
+        assertThat((List<Map<?,?>>)document.getFieldValue("ml.my_processor.tops", List.class),
             contains(classes.stream().map(ClassificationInferenceResults.TopClassEntry::asValueMap).toArray(Map[]::new)));
-        assertThat(document.getFieldValue("ml", Map.class),
-            equalTo(Collections.singletonMap("my_processor", Collections.singletonMap("model_id", "classification_model"))));
-        assertThat(document.getFieldValue(targetField, String.class), equalTo("foo"));
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
+        assertThat(document.getFieldValue("ml.my_processor.result", String.class), equalTo("foo"));
     }
 
     public void testMutateDocumentRegression() {
-        String targetField = "regression_value";
+        RegressionConfig regressionConfig = new RegressionConfig("foo");
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            targetField,
-            "regression_model",
-            new RegressionConfig(),
-            Collections.emptyMap(),
             "ml.my_processor",
+<<<<<<< HEAD
             true,
             null);
 
@@ -178,15 +184,21 @@ public class InferenceProcessorTests extends ESTestCase {
             "ml.my_processor",
             false,
             null);
+=======
+            "regression_model",
+            regressionConfig,
+            Collections.emptyMap());
+>>>>>>> master
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new RegressionInferenceResults(0.7)), true);
+            Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig)), true);
         inferenceProcessor.mutateDocument(response, document);
 
+<<<<<<< HEAD
         assertThat(document.getFieldValue(targetField, Double.class), equalTo(0.7));
         assertThat(document.hasField("ml"), is(false));
     }
@@ -224,6 +236,10 @@ public class InferenceProcessorTests extends ESTestCase {
                 put("my_processor", Collections.singletonMap("model_id", "regression_model"));
                 put("regression_prediction", 0.55);
             }}));
+=======
+        assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("regression_model"));
+>>>>>>> master
     }
 
     public void testGenerateRequestWithEmptyMapping() {
@@ -235,11 +251,16 @@ public class InferenceProcessorTests extends ESTestCase {
             "my_processor",
             "my_field",
             modelId,
+<<<<<<< HEAD
             new ClassificationConfig(topNClasses, null),
             Collections.emptyMap(),
             "ml.my_processor",
             false,
             null);
+=======
+            new ClassificationConfig(topNClasses, null, null),
+            Collections.emptyMap());
+>>>>>>> master
 
         Map<String, Object> source = new HashMap<>(){{
             put("value1", 1);
@@ -267,11 +288,16 @@ public class InferenceProcessorTests extends ESTestCase {
             "my_processor",
             "my_field",
             modelId,
+<<<<<<< HEAD
             new ClassificationConfig(topNClasses, null),
             fieldMapping,
             "ml.my_processor",
             false,
             null);
+=======
+            new ClassificationConfig(topNClasses, null, null),
+            fieldMapping);
+>>>>>>> master
 
         Map<String, Object> source = new HashMap<>(3){{
             put("value1", 1);
@@ -296,11 +322,16 @@ public class InferenceProcessorTests extends ESTestCase {
             "my_processor",
             targetField,
             "regression_model",
+<<<<<<< HEAD
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
             true,
             null);
+=======
+            RegressionConfig.EMPTY_PARAMS,
+            Collections.emptyMap());
+>>>>>>> master
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -309,7 +340,7 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(false));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new RegressionInferenceResults(0.7)), true);
+            Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)), true);
         inferenceProcessor.handleResponse(response, document, (doc, ex) -> {
             assertThat(doc, is(not(nullValue())));
             assertThat(ex, is(nullValue()));
@@ -318,7 +349,7 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
 
         response = new InternalInferModelAction.Response(
-            Collections.singletonList(new RegressionInferenceResults(0.7)), false);
+            Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)), false);
 
         inferenceProcessor.handleResponse(response, document, (doc, ex) -> {
             assertThat(doc, is(not(nullValue())));

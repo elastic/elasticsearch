@@ -38,7 +38,7 @@ public class SqlCliTests extends PackagingTestCase {
     }
 
     public void test020Help() throws Exception {
-        Shell.Result result = installation.executables().elasticsearchSqlCli.run(sh, "--help");
+        Shell.Result result = installation.executables().sqlCli.run("--help");
         assertThat(result.stdout, containsString("Elasticsearch SQL CLI"));
     }
 }

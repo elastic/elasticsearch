@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -54,10 +52,10 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField, InferenceConfig inferenceConfig) {
+    public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(resultField, "resultField");
-        document.setFieldValue(resultField, warning);
+        ExceptionsHelper.requireNonNull(parentResultField, "resultField");
+        document.setFieldValue(parentResultField + "." + "warning", warning);
     }
 
     @Override
@@ -65,16 +63,4 @@ public class WarningInferenceResults implements InferenceResults {
         return NAME;
     }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(WARNING.getPreferredName(), warning);
-        builder.endObject();
-        return builder;
-    }
 }

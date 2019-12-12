@@ -6,7 +6,7 @@ control flow statements] except the `switch` statement.
 
 ==== Conditional statements
 
-===== If / Else if / Else
+===== If / Else
 
 [source,painless]
 ---------------------------------------------------------
@@ -40,7 +40,7 @@ while (ctx._source.item < condition) {
 }
 ---------------------------------------------------------
 
-===== Do...While
+===== Do-While
 [source,painless]
 ---------------------------------------------------------
 do {

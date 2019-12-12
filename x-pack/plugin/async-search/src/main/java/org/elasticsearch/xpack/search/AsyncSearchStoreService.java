@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Random;
 
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_SEARCH_TEMPLATE_NAME;
@@ -42,10 +44,12 @@ class AsyncSearchStoreService {
 
     private final Client client;
     private final NamedWriteableRegistry registry;
+    private final Random random;
 
     AsyncSearchStoreService(Client client, NamedWriteableRegistry registry) {
         this.client = client;
         this.registry = registry;
+        this.random = new Random(System.nanoTime());
     }
 
     /**
@@ -53,7 +57,9 @@ class AsyncSearchStoreService {
      * as a place-holder for the future response.
      */
     void storeInitialResponse(ActionListener<IndexResponse> next) {
-        IndexRequest request = new IndexRequest(ASYNC_SEARCH_ALIAS).source(Collections.emptyMap(), XContentType.JSON);
+        IndexRequest request = new IndexRequest(ASYNC_SEARCH_ALIAS)
+            .id(UUIDs.randomBase64UUID())
+            .source(Collections.emptyMap(), XContentType.JSON);
         client.index(request, next);
     }
 

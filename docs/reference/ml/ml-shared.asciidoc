@@ -895,8 +895,7 @@ end::model-plot-config[]
 
 tag::model-snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot. For 
-example, `1491007364`. For more information about model snapshots, see
-<<ml-snapshot-resource>>.
+example, `1491007364`.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
@@ -1006,6 +1005,12 @@ are deleted from {es}. The default value is null, which means results are
 retained.
 end::results-retention-days[]
 
+tag::retain[]
+If `true`, this snapshot will not be deleted during automatic cleanup of
+snapshots older than `model_snapshot_retention_days`. However, this snapshot
+will be deleted when the job is deleted. The default value is `false`.
+end::retain[]
+
 tag::script-fields[]
 Specifies scripts that evaluate custom expressions and returns script fields to
 the {dfeed}. The detector configuration objects in a job can contain functions
@@ -1022,6 +1027,10 @@ tag::size[]
 Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value 
 is `100`.
 end::size[]
+
+tag::snapshot-id[]
+Identifier for the model snapshot.
+end::snapshot-id[]
 
 tag::source-put-dfa[]
 The configuration of how to source the analysis data. It requires an 

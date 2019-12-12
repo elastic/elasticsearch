@@ -1442,7 +1442,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     )
                 ).aggregateAfter(createAfterKey("histo", 0.8d, "keyword", "b"))
             , (result) -> {
-                //assertEquals(3, result.getBuckets().size());
+                assertEquals(3, result.getBuckets().size());
                 assertEquals("{histo=0.9, keyword=d}", result.afterKey().toString());
                 assertEquals("{histo=0.8, keyword=z}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());

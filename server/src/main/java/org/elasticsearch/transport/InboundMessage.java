@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -75,6 +76,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
         InboundMessage deserialize(BytesReference reference) throws IOException {
             StreamInput streamInput = reference.streamInput();
+            ArrayList<Releasable> managedResources = new ArrayList<>(2);
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 long requestId = streamInput.readLong();
@@ -103,7 +105,6 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                     if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                         streamInput = decompressingStream(status, remoteVersion, streamInput);
                     }
-                    ArrayList<Releasable> managedResources = new ArrayList<>(2);
                     streamInput = new ReleasableArraysStreamInput(streamInput, bigArrays, managedResources);
                     streamInput.setVersion(remoteVersion);
                     streamInput = namedWriteableStream(streamInput, remoteVersion);
@@ -119,6 +120,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 return message;
             } finally {
                 if (success == false) {
+                    Releasables.close(managedResources);
                     IOUtils.closeWhileHandlingException(streamInput);
                 }
             }
@@ -208,20 +210,28 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 return new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
             }
             ByteArray array = bigArrays.newByteArray(length, false);
-            PagedBytesReference reference = new PagedBytesReference(array, length);
-            BytesRefIterator iterator = reference.iterator();
-            BytesRef scratch;
-            int bytesRead = 0;
-            while((scratch = iterator.next()) != null) {
-                readBytes(scratch.bytes, scratch.offset, scratch.length);
-                bytesRead += scratch.length;
+            boolean success = false;
+            try {
+                PagedBytesReference reference = new PagedBytesReference(array, length);
+                BytesRefIterator iterator = reference.iterator();
+                BytesRef scratch;
+                int bytesRead = 0;
+                while((scratch = iterator.next()) != null) {
+                    readBytes(scratch.bytes, scratch.offset, scratch.length);
+                    bytesRead += scratch.length;
+                }
+
+                assert bytesRead == length;
+
+                ReleasableBytesReference resource = new ReleasableBytesReference(reference, array);
+                managedResources.add(resource);
+                success = true;
+                return resource;
+            } finally {
+                if (success == false) {
+                    array.close();
+                }
             }
-
-            assert bytesRead == length;
-
-            ReleasableBytesReference resource = new ReleasableBytesReference(reference, array);
-            managedResources.add(resource);
-            return resource;
         }
     }
 }

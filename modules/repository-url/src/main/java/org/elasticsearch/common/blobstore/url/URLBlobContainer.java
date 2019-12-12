@@ -35,6 +35,7 @@ import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -93,7 +94,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public void deleteBlob(String blobName) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 

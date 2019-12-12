@@ -108,11 +108,6 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        deleteBlobIgnoringIfNotExists(blobName);
-    }
-
-    @Override
     public DeleteResult delete() throws IOException {
         final AtomicLong deletedBlobs = new AtomicLong();
         final AtomicLong deletedBytes = new AtomicLong();
@@ -213,16 +208,6 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
         return new DeleteObjectsRequest(bucket).withKeys(blobs.toArray(Strings.EMPTY_ARRAY)).withQuiet(true);
-    }
-
-    @Override
-    public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            // There is no way to know if an non-versioned object existed before the deletion
-            SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObject(blobStore.bucket(), buildKey(blobName)));
-        } catch (final AmazonClientException e) {
-            throw new IOException("Exception when deleting blob [" + blobName + "]", e);
-        }
     }
 
     @Override

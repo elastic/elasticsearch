@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -120,22 +121,6 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testDeleteBlob() throws IOException {
-        try (BlobStore store = newBlobStore()) {
-            final String blobName = "foobar";
-            final BlobContainer container = store.blobContainer(new BlobPath());
-            expectThrows(NoSuchFileException.class, () -> container.deleteBlob(blobName));
-
-            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            final BytesArray bytesArray = new BytesArray(data);
-            writeBlob(container, blobName, bytesArray, randomBoolean());
-            container.deleteBlob(blobName); // should not raise
-
-            // blob deleted, so should raise again
-            expectThrows(NoSuchFileException.class, () -> container.deleteBlob(blobName));
-        }
-    }
-
     public void testDeleteBlobs() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final List<String> blobNames = Arrays.asList("foobar", "barfoo");
@@ -153,18 +138,6 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testDeleteBlobIgnoringIfNotExists() throws IOException {
-        try (BlobStore store = newBlobStore()) {
-            BlobPath blobPath = new BlobPath();
-            if (randomBoolean()) {
-                blobPath = blobPath.add(randomAlphaOfLengthBetween(1, 10));
-            }
-
-            final BlobContainer container = store.blobContainer(blobPath);
-            container.deleteBlobIgnoringIfNotExists("does_not_exist");
-        }
-    }
-
     public void testVerifyOverwriteFails() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final String blobName = "foobar";
@@ -174,7 +147,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             writeBlob(container, blobName, bytesArray, true);
             // should not be able to overwrite existing blob
             expectThrows(FileAlreadyExistsException.class, () -> writeBlob(container, blobName, bytesArray, true));
-            container.deleteBlob(blobName);
+            container.deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
             writeBlob(container, blobName, bytesArray, true); // after deleting the previous blob, we should be able to write to it again
         }
     }

@@ -1193,7 +1193,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             try {
                                 blobContainer().deleteBlobsIgnoringIfNotExists(oldIndexN);
                             } catch (IOException e) {
-                                logger.warn("Failed to clean up old index blobs {}", oldIndexN);
+                                logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs {}", oldIndexN), e);
                             }
                         }));
                     }

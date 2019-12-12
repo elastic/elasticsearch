@@ -6,11 +6,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
 
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
- * A collection of messy feature extractors that are specific to google cld3 models
+ * A collection of messy feature extractors
  */
 public final class FeatureUtils {
 
@@ -18,9 +18,8 @@ public final class FeatureUtils {
 
     // Bespoke hashing function for UTF8 strings
     // required so features align with cld3 models
-    public static int Hash32WithDefaultSeed(String input) throws UnsupportedEncodingException {
-        byte[] bytes = input.getBytes("UTF8");
-
+    public static int Hash32WithDefaultSeed(String input) {
+        byte[] bytes = input.getBytes(StandardCharsets.UTF_8);
         return Hash32(bytes, bytes.length, 0xBEEF);
     }
 
@@ -99,8 +98,8 @@ public final class FeatureUtils {
     /**
      * Text cleaning pre-processors
      */
-    public static String truncateToNumValidBytes(String text, int maxLength) throws UnsupportedEncodingException {
-        byte[] bytes = text.getBytes("UTF-8");
+    public static String truncateToNumValidBytes(String text, int maxLength) {
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         if (bytes.length < maxLength) {
             return text;
         }
@@ -108,7 +107,7 @@ public final class FeatureUtils {
         // interchange-valid UTF8.
         int numValidBytes = validUTF8Length(text, maxLength);
 
-        return new String(bytes, 0, numValidBytes, "UTF-8");
+        return new String(bytes, 0, numValidBytes, StandardCharsets.UTF_8);
     }
 
     // Return truncated byte length of UTF8 string (truncating without splitting UTF8)
@@ -142,38 +141,26 @@ public final class FeatureUtils {
     // Clean up text and lowercase it
 
     /**
+     * simplified logic
      *
+     * NOTE: This does not do any string compression by removing duplicate tokens
      */
     public static String cleanAndLowerText(String text) {
-        // cld3 has complex optimised cleaning code - but generally boils down to:
-        // - remove punctuation
-        // - remove whitespace (except for spaces)
-        // - replace multiple spaces with one space
-        // - add space at ^ and $
-        // ideally we can do this in a optimised pass(es) over string
-        // but for simplicity we initially do this using standard java functions
-
-        // TODO - PLEASE NOTE, this is probably the main difference between
-        // TODO - cld3 and this code. This should partition text into multiple
-        // TODO - scripts etc. and be more inline with cld3
-        // TODO - also this is inefficient
-
         // 1. Start with ' ', only if the string already does not start with a space
         String newText = text.startsWith(" ") ? "" : " ";
 
         // 2. Replace punctuation and whitespace with ' '
         // NOTE: we capture unicode letters AND marks as Nepalese and other languages
-        // have marks that cld3 uses.
-        newText += text.replaceAll("[^\\p{L}|\\p{M}\\p{IsWhite_Space}]|\\|", "");
+        newText += text.replaceAll("[^\\p{L}|\\p{M}|\\s]|\\|", " ");
 
         // 2.1. Replace spacing modifier characters
-        newText = newText.replaceAll("\\p{InSpacing_Modifier_Letters}", "");
+        newText = newText.replaceAll("\\p{InSpacing_Modifier_Letters}", " ");
 
         // 3. Add space at end
         newText += text.endsWith(" ") ? "" : " ";
 
-        // 4. Remove multiple spaces with a single space
-        //newText = newText.replaceAll("(\\p{IsWhite_Space})+", " ");
+        // 4. Remove multiple spaces (2 or more) with a single space
+        newText = newText.replaceAll("\\s\\s+", " ");
 
         // 5. Replace Turkish İ with I (TODO - check this out better...)
         newText = newText.replaceAll("\\u0130", "I");

@@ -7,6 +7,7 @@ import java.util.List;
 public class ContinuousNGramExtractionExamples {
 
     public static final List<NGramExampleEntry> goldenNGrams = new ArrayList<>(360);
+    // Gets around "code too big" errors
     static {
         goldenNGrams.addAll(ngrams_a());
         goldenNGrams.addAll(ngrams_b());

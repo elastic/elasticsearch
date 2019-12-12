@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Derived from https://github.com/google/cld3/blob/master/src/script_detector.h
@@ -68,15 +69,10 @@ public final class ScriptDetector {
         int numBytes;
         byte[] bytes;
 
-        try {
-            // TODO Java is UTF16 So, if we actually care about accuracy here we need to dig further
-            // Derived from: https://github.com/google/cld3/blob/484afe9ba7438d078e60b3a26e7fb590213c0e17/src/utils.cc#L228
-            bytes = p.substring(0, 1).getBytes("UTF8");
-            numBytes = bytes.length;
-        } catch (UnsupportedEncodingException e) {
-            // TODO add error message
-            return Script.kScriptError;
-        }
+        // TODO Java is UTF16 So, if we actually care about accuracy here we need to dig further
+        // Derived from: https://github.com/google/cld3/blob/484afe9ba7438d078e60b3a26e7fb590213c0e17/src/utils.cc#L228
+        bytes = p.substring(0, 1).getBytes(StandardCharsets.UTF_8);
+        numBytes = bytes.length;
 
         switch (numBytes) {
             case 1:

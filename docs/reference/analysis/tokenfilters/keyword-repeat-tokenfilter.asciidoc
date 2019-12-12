@@ -17,8 +17,8 @@ https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache
 
 [TIP]
 ====
-If you only want to exclude specific tokens from stemming, we recommend using
-the <<analysis-keyword-marker-tokenfilter,`keyword_marker`>> token filter. 
+If you only want to exclude specific tokens from stemming, use the
+<<analysis-keyword-marker-tokenfilter,`keyword_marker`>> token filter. 
 ====
 
 [[analysis-keyword-repeat-tokenfilter-analyze-ex]]

@@ -247,6 +247,13 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, String> getFieldMappingsToCopy(String resultsFieldName) {
+        return Map.of(
+            resultsFieldName + "." + predictionFieldName, dependentVariable,
+            resultsFieldName + ".top_classes.class_name", dependentVariable);
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return true;
     }

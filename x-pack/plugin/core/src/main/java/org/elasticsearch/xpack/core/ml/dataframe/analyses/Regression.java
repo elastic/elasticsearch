@@ -187,6 +187,11 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, String> getFieldMappingsToCopy(String resultsFieldName) {
+        return Collections.singletonMap(resultsFieldName + "." + predictionFieldName, dependentVariable);
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return true;
     }

@@ -42,6 +42,17 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     Map<String, Long> getFieldCardinalityLimits();
 
     /**
+     * Returns field mappings to be copied from source index to destination index.
+     * Each entry of the returned {@link Map} is of the form:
+     *   key   - field path in the destination index
+     *   value - field path in the source index from which the mapping should be taken
+     *
+     * @param resultsFieldName name of the results field under which all the results are stored
+     * @return {@link Map} containing field mappings to be copied from source index to destination index
+     */
+    Map<String, String> getFieldMappingsToCopy(String resultsFieldName);
+
+    /**
      * @return {@code true} if this analysis supports data frame rows with missing values
      */
     boolean supportsMissingValues();

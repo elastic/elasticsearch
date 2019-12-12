@@ -72,7 +72,7 @@ public class PackageTests extends PackagingTestCase {
 
     public void test10InstallPackage() throws Exception {
         assertRemoved(distribution());
-        installation = installPackage(distribution());
+        installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
     }
@@ -302,7 +302,6 @@ public class PackageTests extends PackagingTestCase {
             assumeTrue(isSystemd());
 
             sh.run("systemctl mask systemd-sysctl.service");
-
             install();
 
             sh.run("systemctl unmask systemd-sysctl.service");

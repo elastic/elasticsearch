@@ -12,10 +12,9 @@ our recommendations.
 
 [TIP]
 ====
-If you'd like to get started quickly, we recommend using {es}'s built-in
-<<analysis-standard-analyzer,`standard`>> analyzer or 
-<<analysis-lang-analyzer,language analyzers>>. These analyzers provide good
-out-of-the-box support for most use cases.
+Start with the built-in <<analysis-standard-analyzer,`standard`>> analyzer or
+one of the <<analysis-lang-analyzer,language analyzers>>. These analyzers
+provide good out-of-the-box support for most use cases.
 ====
 
 [float]

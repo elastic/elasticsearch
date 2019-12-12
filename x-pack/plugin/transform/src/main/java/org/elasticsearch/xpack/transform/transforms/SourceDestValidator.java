@@ -24,7 +24,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -184,13 +184,13 @@ public final class SourceDestValidator {
         }
 
         private void resolveLocalAndRemoteSource() {
-            resolvedSource = new HashSet<>(Arrays.asList(source));
-            resolvedRemoteSource = new HashSet<>(RemoteClusterLicenseChecker.remoteIndices(resolvedSource));
+            resolvedSource = new LinkedHashSet<>(Arrays.asList(source));
+            resolvedRemoteSource = new LinkedHashSet<>(RemoteClusterLicenseChecker.remoteIndices(resolvedSource));
             resolvedSource.removeAll(resolvedRemoteSource);
 
             // special case: if indexNameExpressionResolver gets an empty list it treats it as _all
             if (resolvedSource.isEmpty() == false) {
-                resolvedSource = new HashSet<>(
+                resolvedSource = new LinkedHashSet<>(
                     Arrays.asList(
                         indexNameExpressionResolver.concreteIndexNames(
                             state,
@@ -372,10 +372,10 @@ public final class SourceDestValidator {
             try {
                 remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
             } catch (NoSuchRemoteClusterException e) {
-                context.addValidationError(e.getMessage(), false);
+                context.addValidationError(e.getMessage(), true);
                 return;
             } catch (Exception e) {
-                context.addValidationError(ERROR_REMOTE_CLUSTER_SEARCH, false, e.getMessage());
+                context.addValidationError(ERROR_REMOTE_CLUSTER_SEARCH, true, e.getMessage());
                 return;
             }
 

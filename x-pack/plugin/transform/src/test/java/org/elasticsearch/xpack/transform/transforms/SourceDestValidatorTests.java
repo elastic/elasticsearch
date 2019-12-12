@@ -501,6 +501,30 @@ public class SourceDestValidatorTests extends ESTestCase {
         assertNull(e);
     }
 
+    public void testCheck_MultipleValidationErrors() {
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            remoteClusterService,
+            null,
+            new String[] { SOURCE_1, "missing" },
+            SOURCE_1_ALIAS,
+            "node_id",
+            "license",
+            false
+        );
+
+        assertNotNull(e);
+        assertEquals(2, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+        assertThat(
+            e.validationErrors().get(1),
+            equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [source-1,missing]")
+        );
+    }
+
+    // CCS tests: at time of writing it wasn't possible to mock RemoteClusterService, therefore it's not possible
+    // to test the whole validation but test RemoteSourceEnabledAndRemoteLicenseValidation
     public void testRemoteSourceBasic() {
         Context context = new SourceDestValidator.Context(
             CLUSTER_STATE,
@@ -648,8 +672,8 @@ public class SourceDestValidatorTests extends ESTestCase {
         when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
         RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
 
-        ValidationException e = expectThrows(ValidationException.class, () -> validator.validate(context));
-        assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("no such remote cluster: [non_existing_remote]"));
+        validator.validate(context);
+        assertEquals(1, context.getValidationException().validationErrors().size());
+        assertThat(context.getValidationException().validationErrors().get(0), equalTo("no such remote cluster: [non_existing_remote]"));
     }
 }

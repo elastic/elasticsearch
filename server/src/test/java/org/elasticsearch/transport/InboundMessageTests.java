@@ -191,7 +191,7 @@ public class InboundMessageTests extends ESTestCase {
         reference = new BytesArray(serialized);
         InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, registry, threadContext);
         BytesReference sliced = reference.slice(6, reference.length() - 6);
-        final IllegalStateException iste = expectThrows(IllegalStateException.class, () -> reader.deserialize(sliced));
+        final IllegalStateException iste = expectThrows(IllegalStateException.class, () -> reader.deserialize(sliced).getStreamInput());
         assertThat(iste.getMessage(), Matchers.equalTo("stream marked as compressed, but is missing deflate header"));
     }
 

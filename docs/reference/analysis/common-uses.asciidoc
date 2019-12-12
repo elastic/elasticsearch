@@ -60,7 +60,7 @@ Aside from the `stemmer` filter, other stemming token filters include:
 
 [float]
 [[overriding-stemmers]]
-==== Overridding stemmers
+==== Overriding stemmers
 
 There may be some tokens, such as a proper noun or branded term, you don't want
 stemmed during analysis.

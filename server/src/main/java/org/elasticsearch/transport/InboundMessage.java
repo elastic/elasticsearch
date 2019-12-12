@@ -34,9 +34,9 @@ import java.util.function.Supplier;
 
 public abstract class InboundMessage extends NetworkMessage implements Releasable {
 
-    private final BytesReference content;
+    private volatile BytesReference content;
 
-    private final Supplier<StreamInput> streamInputSupplier;
+    private volatile Supplier<StreamInput> streamInputSupplier;
 
     InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Supplier<StreamInput> streamInput,
                    BytesReference content) {
@@ -46,7 +46,14 @@ public abstract class InboundMessage extends NetworkMessage implements Releasabl
     }
 
     StreamInput getStreamInput() {
-        return streamInputSupplier.get();
+        if (streamInputSupplier == null) {
+            throw new IllegalStateException("Already closed");
+        }
+        try {
+            return streamInputSupplier.get();
+        } finally {
+            streamInputSupplier = null;
+        }
     }
 
     static class Reader {
@@ -137,8 +144,11 @@ public abstract class InboundMessage extends NetworkMessage implements Releasabl
 
     @Override
     public void close() {
-        if (content instanceof Releasable) {
-            ((Releasable) content).close();
+        streamInputSupplier = null;
+        final BytesReference contentRef = content;
+        content = null;
+        if (contentRef instanceof Releasable) {
+            ((Releasable) contentRef).close();
         }
     }
 

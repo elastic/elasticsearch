@@ -187,8 +187,6 @@ public class InboundHandler {
                 final TransportChannel requestChannel = transportChannel;
                 threadPool.executor(reg.getExecutor()).execute(new AbstractRunnable() {
 
-                    private boolean released = false;
-
                     @Override
                     protected void doRun() throws Exception {
                         final T request;
@@ -196,7 +194,6 @@ public class InboundHandler {
                             request = reg.newRequest(in);
                         }
                         message.close();
-                        released = true;
                         request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                         reg.processMessageReceived(request, requestChannel);
                     }
@@ -219,9 +216,7 @@ public class InboundHandler {
 
                     @Override
                     public void onAfter() {
-                        if (released == false) {
-                            message.close();
-                        }
+                        message.close();
                     }
                 });
             }
@@ -245,8 +240,6 @@ public class InboundHandler {
                                                               TransportResponseHandler<T> handler) {
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
 
-            private boolean released = false;
-
             @Override
             public void onFailure(Exception e) {
                 handleException(handler, new ResponseHandlerFailureTransportException(e));
@@ -260,7 +253,6 @@ public class InboundHandler {
                         response = handler.read(in);
                     }
                     inboundMessage.close();
-                    released = true;
                     response.remoteAddress(new TransportAddress(remoteAddress));
                 } catch (Exception e) {
                     handleException(handler, new TransportSerializationException(
@@ -272,9 +264,7 @@ public class InboundHandler {
 
             @Override
             public void onAfter() {
-                if (released == false) {
-                    inboundMessage.close();
-                }
+                inboundMessage.close();
             }
         });
     }

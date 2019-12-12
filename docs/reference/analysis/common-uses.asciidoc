@@ -62,30 +62,18 @@ Aside from the `stemmer` filter, other stemming token filters include:
 [[overriding-stemmers]]
 ==== Overriding stemmers
 
-There may be some tokens, such as a proper noun or branded term, you don't want
-stemmed during analysis.
-
 [[stemmer-keyword]]
-In {es}, these tokens are called _keywords_ and marked
-internally using a special attribute. Once marked, keywords are excluded from
-stemming by the above filters.
+You can use a _keyword_ token filter to exclude tokens such as proper nouns or
+brand names from stemming. Tokens that you designate as keywords are not
+stemmed.
 
-You can use the following token filters to mark tokens as keywords and leave
-them unstemmed:
+Keyword token filters include:
 
 <<analysis-keyword-repeat-tokenfilter,`keyword_marker`>>::
-Excludes only specified keywords from stemming.
+Designates specific tokens as keywords.
 
 <<analysis-keyword-repeat-tokenfilter,`keyword_repeat`>>::
-+
---
-Outputs each token in a stream twice:
-
-* Once as a keyword, which is excluded from stemming
-* Once as a non-keyword, which can be stemmed normally
-
-This allows you to preserve both a stemmed and unstemmed version of each token.
---
+Outputs both the stemmed and unstemmed (keyword) version of each token.
 
 <<analysis-stemmer-override-tokenfilter,`stemmer_override`>>::
 Uses a custom mapping to stem certain tokens as specified. These tokens are then

@@ -76,7 +76,7 @@ public final class ENewObj extends AExpression {
                     "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + arguments.size() + "] not found"));
         }
 
-        scriptRoot.setDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class) == false);
+        scriptRoot.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
 
         Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
         constructor.typeParameters.toArray(types);

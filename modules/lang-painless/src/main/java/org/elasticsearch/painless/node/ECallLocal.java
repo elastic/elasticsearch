@@ -128,11 +128,11 @@ public final class ECallLocal extends AExpression {
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
             actual = localFunction.getReturnType();
         } else if (importedMethod != null) {
-            scriptRoot.setDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class) == false);
+            scriptRoot.markNonDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
             actual = importedMethod.returnType;
         } else if (classBinding != null) {
-            scriptRoot.setDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class) == false);
+            scriptRoot.markNonDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             actual = classBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("class_binding");

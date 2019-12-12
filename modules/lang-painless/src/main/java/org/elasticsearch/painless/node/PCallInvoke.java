@@ -80,7 +80,7 @@ public final class PCallInvoke extends AExpression {
                         "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
 
-            scriptRoot.setDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class) == false);
+            scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }

@@ -100,6 +100,8 @@ If `false`,
 {es} returns an error
 if you request a flush
 when another flush operation is running.
+Because of this, you cannot set
+`force=true` at the same time.
 
 Defaults to `true`.
 --

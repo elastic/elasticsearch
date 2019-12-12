@@ -36,7 +36,7 @@ public class SubmitAsyncSearchRequest extends SearchRequest implements Composite
     public SubmitAsyncSearchRequest(String... indices) {
         this(indices, new SearchSourceBuilder());
     }
-    
+
     /**
      * Create a new request
      * @param indices The indices the search will be executed on.

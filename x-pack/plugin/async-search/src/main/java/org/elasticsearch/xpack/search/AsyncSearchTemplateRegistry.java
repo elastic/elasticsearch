@@ -28,34 +28,34 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
 /**
- * Manage the index template and associated ILM policy for the async search history index.
+ * Manage the index template and associated ILM policy for the .async-search index.
  */
-public class AsyncSearchHistoryTemplateRegistry extends IndexTemplateRegistry {
+public class AsyncSearchTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
     public static final String INDEX_TEMPLATE_VERSION = "1";
-    public static final String ASYNC_SEARCH_HISTORY_TEMPLATE_VERSION_VARIABLE = "xpack.async-search-history.template.version";
-    public static final String ASYNC_SEARCH_HISTORY_TEMPLATE_NAME = ".async-search-history";
+    public static final String ASYNC_SEARCH_TEMPLATE_VERSION_VARIABLE = "xpack.async-search.template.version";
+    public static final String ASYNC_SEARCH_TEMPLATE_NAME = ".async-search";
 
-    public static final String ASYNC_SEARCH_POLICY_NAME = "async-search-history-ilm-policy";
+    public static final String ASYNC_SEARCH_POLICY_NAME = "async-search-ilm-policy";
 
     public static final IndexTemplateConfig TEMPLATE_ASYNC_SEARCH = new IndexTemplateConfig(
-        ASYNC_SEARCH_HISTORY_TEMPLATE_NAME,
-        "/async-search-history.json",
+        ASYNC_SEARCH_TEMPLATE_NAME,
+        "/async-search.json",
         INDEX_TEMPLATE_VERSION,
-        ASYNC_SEARCH_HISTORY_TEMPLATE_VERSION_VARIABLE
+        ASYNC_SEARCH_TEMPLATE_VERSION_VARIABLE
     );
 
-    public static final LifecyclePolicyConfig ASYNC_SEARCH_HISTORY_POLICY = new LifecyclePolicyConfig(
+    public static final LifecyclePolicyConfig ASYNC_SEARCH_POLICY = new LifecyclePolicyConfig(
         ASYNC_SEARCH_POLICY_NAME,
-        "/async-search-history-ilm-policy.json"
+        "/async-search-ilm-policy.json"
     );
 
-    public AsyncSearchHistoryTemplateRegistry(Settings nodeSettings,
-                                              ClusterService clusterService,
-                                              ThreadPool threadPool,
-                                              Client client,
-                                              NamedXContentRegistry xContentRegistry) {
+    public AsyncSearchTemplateRegistry(Settings nodeSettings,
+                                       ClusterService clusterService,
+                                       ThreadPool threadPool,
+                                       Client client,
+                                       NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
     }
 
@@ -66,7 +66,7 @@ public class AsyncSearchHistoryTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        return Collections.singletonList(ASYNC_SEARCH_HISTORY_POLICY);
+        return Collections.singletonList(ASYNC_SEARCH_POLICY);
     }
 
     @Override

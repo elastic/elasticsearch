@@ -68,7 +68,7 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                Environment environment,
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry) {
-        new AsyncSearchHistoryTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
+        new AsyncSearchTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
         return Collections.emptyList();
     }
 }

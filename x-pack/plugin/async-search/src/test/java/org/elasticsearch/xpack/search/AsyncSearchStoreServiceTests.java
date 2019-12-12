@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -28,7 +27,6 @@ public class AsyncSearchStoreServiceTests extends ESTestCase {
     @Before
     public void registerNamedObjects() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
     }
@@ -37,7 +35,7 @@ public class AsyncSearchStoreServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             AsyncSearchResponse response = randomAsyncSearchResponse(randomSearchId(), randomSearchResponse());
             String encoded = AsyncSearchStoreService.encodeResponse(response);
-            AsyncSearchResponse same = AsyncSearchStoreService.decodeResponse(Base64.getDecoder().decode(encoded), namedWriteableRegistry);
+            AsyncSearchResponse same = AsyncSearchStoreService.decodeResponse(encoded, namedWriteableRegistry);
             assertEqualResponses(response, same);
         }
     }

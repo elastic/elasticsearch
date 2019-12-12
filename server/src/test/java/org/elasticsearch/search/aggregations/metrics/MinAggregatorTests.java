@@ -27,6 +27,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
@@ -44,11 +45,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -264,6 +267,37 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    public void testUnsupportedType() {
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("not_a_number");
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+        fieldType.setName("not_a_number");
+        fieldType.setHasDocValues(true);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, (Consumer<InternalMin>) min -> {
+                fail("Should have thrown exception");
+            }, fieldType));
+        assertEquals(e.getMessage(), "Expected numeric type on field [not_a_number], but got [keyword]");
+    }
+
+    public void testUnmappedWithBadMissingField() {
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("does_not_exist").missing("not_a_number");
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        NumberFormatException e = expectThrows(NumberFormatException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+            }, (Consumer<InternalMin>) min -> {
+                fail("Should have thrown exception");
+            }, fieldType));
+    }
+
     public void testEmptyBucket() throws IOException {
         HistogramAggregationBuilder histogram = new HistogramAggregationBuilder("histo").field("number").interval(1).minDocCount(0)
             .subAggregation(new MinAggregationBuilder("min").field("number"));
@@ -341,7 +375,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
 
-        try (Directory directory = newDirectory(); Directory unmappedDirectory = newDirectory();) {
+        try (Directory directory = newDirectory();
+             Directory unmappedDirectory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
@@ -365,6 +400,38 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testSingleValuedFieldPartiallyUnmappedWithMissing() throws IOException {
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number").missing(-19L);
+
+        try (Directory directory = newDirectory();
+             Directory unmappedDirectory = newDirectory()) {
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
+            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
+            indexWriter.close();
+
+
+            RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+            unmappedIndexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
+            unmappedIndexWriter.close();
+
+            try (IndexReader indexReader = DirectoryReader.open(directory);
+                 IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory)) {
+
+                MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+                IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+
+                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                assertEquals(-19.0, min.getValue(), 0);
+                assertTrue(AggregationInspectionHelper.hasValue(min));
+            }
+        }
+    }
+
     public void testSingleValuedFieldWithValueScript() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("number");
@@ -380,6 +447,27 @@ public class MinAggregatorTests extends AggregatorTestCase {
             }
         }, (Consumer<InternalMin>) min -> {
             assertEquals(-10.0, min.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(min));
+        }, fieldType);
+    }
+
+    public void testSingleValuedFieldWithValueScriptAndMissing() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min")
+            .field("number")
+            .missing(-100L)
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            final int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+            }
+            iw.addDocument(singleton(new NumericDocValuesField("unrelated", 1)));
+        }, (Consumer<InternalMin>) min -> {
+            assertEquals(-100.0, min.getValue(), 0); // Note: this comes straight from missing, and is not inverted from script
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }

@@ -8,7 +8,7 @@
 <titleabbrev>Update {transforms}</titleabbrev>
 ++++
 
-Updates an existing {transform}.
+Updates certain properties of a {transform}.
 
 beta[]
 
@@ -30,21 +30,26 @@ privileges on the destination index. For more information, see
 [[update-transform-desc]]
 ==== {api-description-title}
 
-This API updates an existing {transform}. All settings except description do not
-take effect until after the {transform} starts the next checkpoint. This is
-so there is consistency with the pivoted data in each checkpoint.
+This API updates an existing {transform}. The list of properties that you can
+update is a subset of the list that you can define when you create a {transform}.
 
-IMPORTANT: When {es} {security-features} are enabled, your {transform}
-remembers which roles the user who updated it had at the time of update and
-runs with those privileges.
+All updated properties except description do not take effect until after the
+{transform} starts the next checkpoint. This is so there is consistency with the
+pivoted data in each checkpoint.
 
-IMPORTANT:  You must use {kib} or this API to update a {transform}.
-            Do not update a {transform} directly via
-            `.transform-internal*` indices using the Elasticsearch index API.
-            If {es} {security-features} are enabled, do not give users any
-            privileges on `.transform-internal*` indices. If you used transforms
-            prior 7.5, also do not give users any privileges on
-            `.data-frame-internal*` indices.
+[IMPORTANT]
+====
+
+* When {es} {security-features} are enabled, your {transform} remembers which
+roles the user who updated it had at the time of update and runs with those
+privileges.
+* You must use {kib} or this API to update a {transform}. Do not update a
+{transform} directly via `.transform-internal*` indices using the {es} index API.
+If {es} {security-features} are enabled, do not give users any privileges on
+`.transform-internal*` indices. If you used {transforms} prior 7.5, also do not
+give users any privileges on `.data-frame-internal*` indices.
+
+====
 
 [[update-transform-path-parms]]
 ==== {api-path-parms-title}

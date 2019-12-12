@@ -256,8 +256,7 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public String getStateDocId(String jobId) {
-        // The state doc id prefix is same as for regression
-        return jobId + "_regression_state#1";
+        return jobId + "_classification_state#1";
     }
 
     @Override

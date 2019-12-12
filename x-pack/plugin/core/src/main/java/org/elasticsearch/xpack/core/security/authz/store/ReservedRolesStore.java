@@ -50,18 +50,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("kibana_user", new RoleDescriptor("kibana_user", null, null, new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-.kibana").resources("*").privileges("all").build() },
-                        null, null,
-                        MetadataUtils.DEPRECATED_RESERVED_METADATA, null))
-                .put("kibana_admin", new RoleDescriptor("kibana_admin", null, null,
-                                new RoleDescriptor.ApplicationResourcePrivileges[] {
-                                                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                                                .application("kibana-.kibana")
-                                                                .resources("*").privileges("all")
-                                                                .build() },
-                                null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                .put("kibana_admin", kibanaAdminUser("kibana_admin", MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("kibana_user", kibanaAdminUser("kibana_user",
+                    MetadataUtils.getDeprecatedReservedMetadata("Please use the [kibana_admin] role instead")))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
                         new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] {
@@ -115,7 +106,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-.kibana").resources("*").privileges("read").build() },
                         null, null,
-                        MetadataUtils.DEPRECATED_RESERVED_METADATA,
+                        MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
                         null))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
                         new String[] {
@@ -282,6 +273,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("manage", "read", "write")
                             .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .immutableMap();
+    }
+
+    private static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
+        return new RoleDescriptor(name, null, null,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*").privileges("all")
+                    .build() },
+            null, null, metadata, null);
     }
 
     public static boolean isReserved(String role) {

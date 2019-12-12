@@ -49,7 +49,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
     private final Integer maximumNumberTrees;
     private final Double featureBagFraction;
 
-    BoostedTreeParams(@Nullable Double lambda,
+    public BoostedTreeParams(@Nullable Double lambda,
                       @Nullable Double gamma,
                       @Nullable Double eta,
                       @Nullable Integer maximumNumberTrees,
@@ -76,7 +76,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         this.featureBagFraction = featureBagFraction;
     }
 
-    BoostedTreeParams() {
+    public BoostedTreeParams() {
         this(null, null, null, null, null);
     }
 

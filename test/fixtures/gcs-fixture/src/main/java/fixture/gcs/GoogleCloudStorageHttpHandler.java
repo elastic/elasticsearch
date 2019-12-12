@@ -167,10 +167,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     } else if (line.startsWith("DELETE")) {
                         final String name = line.substring(line.indexOf(uri) + uri.length(), line.lastIndexOf(" HTTP"));
                         if (Strings.hasText(name)) {
-                            if (blobs.entrySet().removeIf(blob -> blob.getKey().equals(URLDecoder.decode(name, UTF_8)))) {
-                                batch.append("HTTP/1.1 204 NO_CONTENT").append('\n');
-                                batch.append('\n');
-                            }
+                            blobs.remove(URLDecoder.decode(name, UTF_8));
+                            batch.append("HTTP/1.1 204 NO_CONTENT").append('\n');
+                            batch.append('\n');
                         }
                     }
                 }
@@ -190,7 +189,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                 } else {
-                    exchange.sendResponseHeaders(RestStatus.BAD_REQUEST.getStatus(), -1);
+                    throw new AssertionError("Could not read multi-part request to [" + request + "] with headers ["
+                        + new HashMap<>(exchange.getRequestHeaders()) + "]");
                 }
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {

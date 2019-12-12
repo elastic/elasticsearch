@@ -111,7 +111,7 @@ public class TransportPutDataFrameAnalyticsAction
     protected void masterOperation(Task task, PutDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
         validateConfig(request.getConfig());
-        DataFrameAnalyticsConfig memoryCappedConfig =
+        DataFrameAnalyticsConfig preparedForPutConfig =
             new DataFrameAnalyticsConfig.Builder(request.getConfig(), maxModelMemoryLimit)
                 .setCreateTime(Instant.now())
                 .setVersion(Version.CURRENT)
@@ -120,11 +120,11 @@ public class TransportPutDataFrameAnalyticsAction
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(memoryCappedConfig.getSource().getIndex())
+                .indices(preparedForPutConfig.getSource().getIndex())
                 .privileges("read")
                 .build();
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(memoryCappedConfig.getDest().getIndex())
+                .indices(preparedForPutConfig.getDest().getIndex())
                 .privileges("read", "index", "create_index")
                 .build();
 
@@ -135,16 +135,16 @@ public class TransportPutDataFrameAnalyticsAction
             privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
 
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, memoryCappedConfig, r, listener),
+                r -> handlePrivsResponse(username, preparedForPutConfig, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {
             updateDocMappingAndPutConfig(
-                memoryCappedConfig,
+                preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
                     listener::onFailure
                 ));
         }

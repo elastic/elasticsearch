@@ -75,8 +75,9 @@ public class InboundHandler {
         requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
     }
 
-    final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
-        return requestHandlers.get(action);
+    @SuppressWarnings("unchecked")
+    final <T extends TransportRequest> RequestHandlerRegistry<T> getRequestHandler(String action) {
+        return (RequestHandlerRegistry<T>) requestHandlers.get(action);
     }
 
     final Transport.ResponseHandlers getResponseHandlers() {
@@ -171,7 +172,8 @@ public class InboundHandler {
         }
     }
 
-    private void handleRequest(TcpChannel channel, InboundMessage.Request message, Releasable releasable, int messageLengthBytes) {
+    private <T extends TransportRequest> void handleRequest(TcpChannel channel, InboundMessage.Request message, Releasable releasable,
+                                                            int messageLengthBytes) {
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
         final Version version = message.getVersion();
@@ -182,7 +184,7 @@ public class InboundHandler {
                 handshaker.handleHandshake(version, channel, requestId, message.getStreamInput());
                 releasable.close();
             } else {
-                final RequestHandlerRegistry reg = getRequestHandler(action);
+                final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                 if (reg == null) {
                     throw new ActionNotFoundTransportException(action);
                 }
@@ -199,10 +201,9 @@ public class InboundHandler {
 
                     private boolean released = false;
 
-                    @SuppressWarnings({"unchecked"})
                     @Override
                     protected void doRun() throws Exception {
-                        final TransportRequest request = reg.newRequest(message.getStreamInput());
+                        final T request = reg.newRequest(message.getStreamInput());
                         releasable.close();
                         released = true;
                         request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
@@ -308,5 +309,4 @@ public class InboundHandler {
             }
         });
     }
-
 }

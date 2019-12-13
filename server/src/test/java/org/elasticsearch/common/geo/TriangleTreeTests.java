@@ -54,31 +54,31 @@ public class TriangleTreeTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDimensionalShapeType() throws IOException {
-        assertDimensionalShapeType(randomPoint(false), CentroidCalculator.DimensionalShapeType.POINT);
-        assertDimensionalShapeType(randomMultiPoint(false), CentroidCalculator.DimensionalShapeType.MULTIPOINT);
-        assertDimensionalShapeType(randomLine(false), CentroidCalculator.DimensionalShapeType.LINESTRING);
-        assertDimensionalShapeType(randomMultiLine(false), CentroidCalculator.DimensionalShapeType.MULTILINESTRING);
-        assertDimensionalShapeType(randomPolygon(false), CentroidCalculator.DimensionalShapeType.POLYGON);
-        assertDimensionalShapeType(randomMultiPolygon(false), CentroidCalculator.DimensionalShapeType.MULTIPOLYGON);
-        assertDimensionalShapeType(randomRectangle(), CentroidCalculator.DimensionalShapeType.ENVELOPE);
+        assertDimensionalShapeType(randomPoint(false), DimensionalShapeType.POINT);
+        assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.MULTIPOINT);
+        assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINESTRING);
+        assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.MULTILINESTRING);
+        assertDimensionalShapeType(randomPolygon(false), DimensionalShapeType.POLYGON);
+        assertDimensionalShapeType(randomMultiPolygon(false), DimensionalShapeType.MULTIPOLYGON);
+        assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randomFrom(
             new GeometryCollection<>(List.of(randomPoint(false))),
             new GeometryCollection<>(List.of(randomMultiPoint(false))),
             new GeometryCollection<>(Collections.singletonList(
                 new GeometryCollection<>(List.of(randomPoint(false), randomMultiPoint(false))))))
-            , CentroidCalculator.DimensionalShapeType.GEOMETRYCOLLECTION_POINTS);
+            , DimensionalShapeType.GEOMETRYCOLLECTION_POINTS);
         assertDimensionalShapeType(randomFrom(
             new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))),
             new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiLine(false))),
             new GeometryCollection<>(Collections.singletonList(
                 new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
-            , CentroidCalculator.DimensionalShapeType.GEOMETRYCOLLECTION_LINES);
+            , DimensionalShapeType.GEOMETRYCOLLECTION_LINES);
         assertDimensionalShapeType(randomFrom(
             new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), randomPolygon(false))),
             new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiPolygon(false))),
             new GeometryCollection<>(Collections.singletonList(
                 new GeometryCollection<>(List.of(randomLine(false), randomPolygon(false))))))
-            , CentroidCalculator.DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS);
+            , DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS);
     }
 
 
@@ -353,7 +353,7 @@ public class TriangleTreeTests extends ESTestCase {
         return new GeometryCollection<>(shapes);
     }
 
-    private static void assertDimensionalShapeType(Geometry geometry, CentroidCalculator.DimensionalShapeType expected) throws IOException {
+    private static void assertDimensionalShapeType(Geometry geometry, DimensionalShapeType expected) throws IOException {
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         assertThat(reader.getDimensionalShapeType(), equalTo(expected));
     }

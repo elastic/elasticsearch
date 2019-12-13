@@ -89,9 +89,9 @@ public class TriangleTreeReader {
         return coordinateEncoder.decodeY(input.readInt());
     }
 
-    public CentroidCalculator.DimensionalShapeType getDimensionalShapeType() {
+    public DimensionalShapeType getDimensionalShapeType() {
         input.setPosition(SKIP_CENTROID);
-        return CentroidCalculator.DimensionalShapeType.forOrdinal(input.readVInt());
+        return DimensionalShapeType.forOrdinal(input.readVInt());
     }
 
     /**

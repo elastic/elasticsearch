@@ -25,6 +25,7 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.CoordinateEncoder;
+import org.elasticsearch.common.geo.DimensionalShapeType;
 import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoRelation;
@@ -118,8 +119,8 @@ public abstract class MultiGeoValues {
         }
 
         @Override
-        public CentroidCalculator.DimensionalShapeType dimensionalShapeType() {
-            return CentroidCalculator.DimensionalShapeType.POINT;
+        public DimensionalShapeType dimensionalShapeType() {
+            return DimensionalShapeType.POINT;
         }
 
         @Override
@@ -168,7 +169,7 @@ public abstract class MultiGeoValues {
         }
 
         @Override
-        public CentroidCalculator.DimensionalShapeType dimensionalShapeType() {
+        public DimensionalShapeType dimensionalShapeType() {
             return reader.getDimensionalShapeType();
         }
 
@@ -227,7 +228,7 @@ public abstract class MultiGeoValues {
         double lon();
         BoundingBox boundingBox();
         GeoRelation relate(Rectangle rectangle);
-        CentroidCalculator.DimensionalShapeType dimensionalShapeType();
+        DimensionalShapeType dimensionalShapeType();
     }
 
     public static class BoundingBox {

@@ -451,6 +451,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                     System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
                     ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
                  }
+
                 geometryIndexer.indexDocValueField(context, triangles, new CentroidCalculator((Geometry) shape));
             }
             createFieldNamesField(context, fields);

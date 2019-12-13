@@ -54,6 +54,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -77,19 +78,23 @@ public final class DateFieldMapper extends FieldMapper {
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
+            @Override
             public long convert(Instant instant) {
                 return instant.toEpochMilli();
             }
 
+            @Override
             public Instant toInstant(long value) {
                 return Instant.ofEpochMilli(value);
             }
         },
         NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
+            @Override
             public long convert(Instant instant) {
                 return toLong(instant);
             }
 
+            @Override
             public Instant toInstant(long value) {
                 return DateUtils.toInstant(value);
             }
@@ -274,7 +279,9 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
+            if (!super.equals(o)) {
+                return false;
+            }
             DateFieldType that = (DateFieldType) o;
             return Objects.equals(dateTimeFormatter, that.dateTimeFormatter) && Objects.equals(resolution, that.resolution);
         }
@@ -536,7 +543,7 @@ public final class DateFieldMapper extends FieldMapper {
         long timestamp;
         try {
             timestamp = fieldType().parse(dateAsString);
-        } catch (IllegalArgumentException | ElasticsearchParseException e) {
+        } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(fieldType.name());
                 return;

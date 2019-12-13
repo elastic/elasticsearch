@@ -61,7 +61,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(SNAPSHOT_REPOSITORY_SETTING, SNAPSHOT_SNAPSHOT_ID_SETTING, SNAPSHOT_INDEX_ID_SETTING);
+        return List.of(SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_SNAPSHOT_NAME_SETTING,
+            SNAPSHOT_SNAPSHOT_ID_SETTING,
+            SNAPSHOT_INDEX_ID_SETTING);
     }
 
     @Override

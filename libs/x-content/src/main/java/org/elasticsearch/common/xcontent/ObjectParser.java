@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -223,6 +224,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         FieldParser fieldParser = null;
         String currentFieldName = null;
         XContentLocation currentPosition = null;
+        List<String[]> requiredFields = new ArrayList<>(this.requiredFieldSets);
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -239,7 +242,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
                     // Check to see if this field is a required field, if it is we can
                     // remove the entry as the requirement is satisfied
-                    Iterator<String[]> iter = requiredFieldSets.iterator();
+                    Iterator<String[]> iter = requiredFields.iterator();
                     while (iter.hasNext()) {
                         String[] requriedFields = iter.next();
                         for (String field : requriedFields) {
@@ -255,9 +258,9 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 fieldParser = null;
             }
         }
-        if (requiredFieldSets.isEmpty() == false) {
+        if (requiredFields.isEmpty() == false) {
             StringBuilder message = new StringBuilder();
-            for (String[] fields : requiredFieldSets) {
+            for (String[] fields : requiredFields) {
                 message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
             }
             throw new IllegalArgumentException(message.toString());

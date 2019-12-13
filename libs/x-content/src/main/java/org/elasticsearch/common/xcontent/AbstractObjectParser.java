@@ -37,7 +37,7 @@ import java.util.function.Consumer;
 public abstract class AbstractObjectParser<Value, Context>
         implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
-    final ArrayList<String[]> requiredFieldSets = new ArrayList<>();
+    final List<String[]> requiredFieldSets = new ArrayList<>();
 
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
@@ -225,9 +225,31 @@ public abstract class AbstractObjectParser<Value, Context>
      *   declareRequiredFieldSet(new String[]{"foo", "bar"});
      *   declareRequiredFieldSet(new String[]{"bizz", "buzz"});
      *
-     * requires that ("foo" OR "bar") AND ("bizz" OR "buzz") are configured by the user
+     * requires that ("foo" OR "bar") AND ("bizz" OR "buzz") are configured by the user.
+     * In JSON, it means any of these combinations are acceptable
+     *
+     * - {"foo":"...", "bizz": "..."}
+     * - {"bar":"...", "bizz": "..."}
+     * - {"foo":"...", "buzz": "..."}
+     * - {"bar":"...", "buzz": "..."}
+     * - {"foo":"...", "bar":"...", "bizz": "..."}
+     * - {"foo":"...", "bar":"...", "buzz": "..."}
+     * - {"foo":"...", "bizz":"...", "buzz": "..."}
+     * - {"bar":"...", "bizz":"...", "buzz": "..."}
+     * - {"foo":"...", "bar":"...", "bizz": "...", "buzz": "..."}
+     *
+     * The following would however be rejected:
+     *
+     * - {"foo":"..."}                   Missing (bizz OR buzz)
+     * - {"bar":"..."}                   Missing (bizz OR buzz)
+     * - {"bizz": "..."}                 Missing (foo OR bar)
+     * - {"buzz": "..."}                 Missing (foo OR bar)
+     * - {"foo":"...", "bar": "..."}     Missing (bizz OR buzz)
+     * - {"bizz":"...", "buzz": "..."}   Missing (foo OR bar)
+     * - {"unrelated":"..."}             Missing (foo OR bar) AND (bizz OR buzz)
+     *
      */
-    public void declareRequiredFieldSet(String[] requriedSet) {
+    public void declareRequiredFieldSet(String... requriedSet) {
         if (requriedSet.length == 0) {
             return;
         }

@@ -92,6 +92,7 @@ public final class Messages {
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
     public static final String INFERENCE_TO_MANY_DEFINITIONS_REQUESTED =
         "Getting model definition is not supported when getting more than one model";
+    public static final String INFERENCE_WARNING_ALL_FIELDS_MISSING = "Model [{0}] could not be inferred as all fields were missing";
 
     public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";

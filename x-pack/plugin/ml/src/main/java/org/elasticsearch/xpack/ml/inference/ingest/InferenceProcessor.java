@@ -28,6 +28,8 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -37,7 +39,9 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -146,7 +150,12 @@ public class InferenceProcessor extends AbstractProcessor {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
-        response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
+        InferenceResults inferenceResults = response.getInferenceResults().get(0);
+        if (inferenceResults instanceof WarningInferenceResults) {
+            inferenceResults.writeResult(ingestDocument, this.targetField);
+        } else {
+            response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
+        }
         ingestDocument.setFieldValue(targetField + "." + MODEL_ID, modelId);
     }
 
@@ -163,6 +172,10 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
 
         private static final Logger logger = LogManager.getLogger(Factory.class);
+
+        private static final Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
+            WarningInferenceResults.WARNING.getPreferredName(),
+            MODEL_ID));
 
         private final Client client;
         private final IngestService ingestService;
@@ -235,6 +248,7 @@ public class InferenceProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD, defaultTargetField);
             Map<String, String> fieldMapping = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
+
             return new InferenceProcessor(client,
                 auditor,
                 tag,
@@ -252,7 +266,6 @@ public class InferenceProcessor extends AbstractProcessor {
 
         InferenceConfig inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
             ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
-
             if (inferenceConfig.size() != 1) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
                     INFERENCE_CONFIG);
@@ -268,14 +281,35 @@ public class InferenceProcessor extends AbstractProcessor {
 
             if (inferenceConfig.containsKey(ClassificationConfig.NAME)) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
-                return ClassificationConfig.fromMap(valueMap);
+                ClassificationConfig config = ClassificationConfig.fromMap(valueMap);
+                checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
+                return config;
             } else if (inferenceConfig.containsKey(RegressionConfig.NAME)) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
-                return RegressionConfig.fromMap(valueMap);
+                RegressionConfig config = RegressionConfig.fromMap(valueMap);
+                checkFieldUniqueness(config.getResultsField());
+                return config;
             } else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     inferenceConfig.keySet(),
                     Arrays.asList(ClassificationConfig.NAME, RegressionConfig.NAME));
+            }
+        }
+
+        private static void checkFieldUniqueness(String... fieldNames) {
+            Set<String> duplicatedFieldNames = new HashSet<>();
+            Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);
+            for(String fieldName : fieldNames) {
+                if (currentFieldNames.contains(fieldName)) {
+                    duplicatedFieldNames.add(fieldName);
+                } else {
+                    currentFieldNames.add(fieldName);
+                }
+            }
+            if (duplicatedFieldNames.isEmpty() == false) {
+                throw ExceptionsHelper.badRequestException("Cannot create processor as configured." +
+                        " More than one field is configured as {}",
+                    duplicatedFieldNames);
             }
         }
 
@@ -287,6 +321,5 @@ public class InferenceProcessor extends AbstractProcessor {
                     minNodeVersion));
             }
         }
-
     }
 }

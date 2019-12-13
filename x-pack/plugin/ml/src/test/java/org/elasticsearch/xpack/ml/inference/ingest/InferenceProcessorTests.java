@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -253,4 +254,26 @@ public class InferenceProcessorTests extends ESTestCase {
         verify(auditor, times(1)).warning(eq("regression_model"), any(String.class));
     }
 
+    public void testMutateDocumentWithWarningResult() {
+        String targetField = "regression_value";
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "ml",
+            "regression_model",
+            RegressionConfig.EMPTY_PARAMS,
+            Collections.emptyMap());
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new WarningInferenceResults("something broke")), true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.hasField(targetField), is(false));
+        assertThat(document.hasField("ml.warning"), is(true));
+        assertThat(document.hasField("ml.my_processor"), is(false));
+    }
 }

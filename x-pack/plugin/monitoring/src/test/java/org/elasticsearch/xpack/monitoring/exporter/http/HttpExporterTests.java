@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -134,14 +136,10 @@ public class HttpExporterTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
         builder.putList(prefix + ".host", Collections.singletonList("https://example.com:443"));
         final Settings settings = builder.build();
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
-        assertThat(
-            e,
-            hasToString(containsString("Failed to parse value [[\"https://example.com:443\"]] for setting [" + prefix + ".host]")));
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is set but type is [local]")));
+        final ClusterSettings clusterSettings =
+            new ClusterSettings(settings, new HashSet<>(Arrays.asList(HttpExporter.HOST_SETTING, Exporter.TYPE_SETTING)));
+        final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e, hasToString(containsString("[" + prefix + ".host] is set but type is [local]")));
     }
 
     public void testInvalidHost() {

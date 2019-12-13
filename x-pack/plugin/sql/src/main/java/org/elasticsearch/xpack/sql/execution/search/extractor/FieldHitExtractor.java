@@ -16,10 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
@@ -115,7 +115,7 @@ public class FieldHitExtractor implements HitExtractor {
         if (out.getVersion().onOrAfter(SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION)) {
             out.writeOptionalString(fullFieldName);
         }
-        out.writeOptionalString(dataType == null ? null : dataType.typeName);
+        out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
         out.writeBoolean(arrayLeniency);

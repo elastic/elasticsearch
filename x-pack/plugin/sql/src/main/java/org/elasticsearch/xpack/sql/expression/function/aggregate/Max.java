@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isExact;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumericOrDateOrTime;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumericOrDateOrTime;
 
 /**
  * Find the maximum value in matching documents.

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZoneId;

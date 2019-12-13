@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import java.util.List;
 import java.util.Objects;
 
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.capabilities.Resolvables;
-import org.elasticsearch.xpack.sql.expression.Order;
 
 public class OrderBy extends UnaryPlan {
 

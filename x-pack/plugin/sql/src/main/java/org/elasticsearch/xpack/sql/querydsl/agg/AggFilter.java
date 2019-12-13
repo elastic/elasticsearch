@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.Map;

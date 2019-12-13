@@ -6,18 +6,18 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Assert;
 
 import java.util.List;
@@ -157,9 +157,9 @@ public class EscapedFunctionsTests extends ESTestCase {
     public void testFunctionWithFunctionWithArgAndParams() {
         String e = "POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})";
         Function f = (Function) parser.createExpression(e,
-                asList(new SqlTypedParamValue(DataType.LONG.typeName, 1),
-                       new SqlTypedParamValue(DataType.LONG.typeName, 1),
-                       new SqlTypedParamValue(DataType.LONG.typeName, 1)));
+                asList(new SqlTypedParamValue(DataType.LONG.typeName(), 1),
+                       new SqlTypedParamValue(DataType.LONG.typeName(), 1),
+                       new SqlTypedParamValue(DataType.LONG.typeName(), 1)));
 
         assertEquals(e, f.sourceText());
         assertEquals(2, f.arguments().size());

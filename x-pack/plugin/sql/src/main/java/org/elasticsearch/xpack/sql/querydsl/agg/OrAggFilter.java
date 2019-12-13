@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 
 public class OrAggFilter extends AggFilter {
 

@@ -29,10 +29,10 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,7 +65,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         try {
             shape = parse(value);
         } catch (ParseException ex) {
-            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
+            throw new QlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
         }
     }
 
@@ -74,7 +74,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         try {
             shape = parse(value);
         } catch (ParseException ex) {
-            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
+            throw new QlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
         }
     }
 
@@ -178,10 +178,10 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     public static double distance(GeoShape shape1, GeoShape shape2) {
         if (shape1.shape instanceof Point == false) {
-            throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape1);
+            throw new QlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape1);
         }
         if (shape2.shape instanceof Point == false) {
-            throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape2);
+            throw new QlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape2);
         }
         double srcLat = ((Point) shape1.shape).getY();
         double srcLon = ((Point) shape1.shape).getX();

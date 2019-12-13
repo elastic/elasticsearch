@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 public class SearchHitFieldRef extends FieldReference {
     private final String name;

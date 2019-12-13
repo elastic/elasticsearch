@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 public class User extends ConfigurationFunction {
 

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Literal;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;

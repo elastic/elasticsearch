@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
-import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;

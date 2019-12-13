@@ -197,7 +197,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
 [discrete]
-[[ml-hyperparameter-optimization]]
+[[ml-hyperparam-optimization]]
 ==== Hyperparameter optimization
 
 If you don't supply {regression} or {classification} parameters, hyperparameter 

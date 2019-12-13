@@ -847,6 +847,14 @@ Defines the name of the prediction field in the results.
 Defaults to `<dependent_variable>_prediction`.
 end::prediction-field-name[]
 
+tag::randomize-seed[]
+Defines the seed to the random generator that is used to pick
+which documents will be used for training. By default it is randomly generated.
+Set it to a specific value to ensure the same documents are used for training
+assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are 
+the same.
+end::randomize-seed[]
+
 tag::renormalization-window-days[]
 Advanced configuration option. The period over which adjustments to the score
 are applied, as new data is seen. The default value is the longer of 30 days or

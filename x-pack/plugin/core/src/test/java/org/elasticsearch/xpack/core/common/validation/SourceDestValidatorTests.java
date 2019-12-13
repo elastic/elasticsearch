@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.transform.transforms;
+package org.elasticsearch.xpack.core.common.validation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,8 +33,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.transform.transforms.SourceDestValidator.Context;
-import org.elasticsearch.xpack.transform.transforms.SourceDestValidator.RemoteSourceEnabledAndRemoteLicenseValidation;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Context;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteSourceEnabledAndRemoteLicenseValidation;
 import org.junit.After;
 import org.junit.Before;
 

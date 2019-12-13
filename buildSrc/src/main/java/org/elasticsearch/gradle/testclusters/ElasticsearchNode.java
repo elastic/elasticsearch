@@ -832,7 +832,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
-        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
+        // No-op if the process has already exited by itself.
         if (processHandle.isAlive() == false) {
             LOGGER.info("Process was not running when we tried to terminate it.");
             return;

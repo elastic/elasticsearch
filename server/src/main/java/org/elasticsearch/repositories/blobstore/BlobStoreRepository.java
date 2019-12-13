@@ -1143,48 +1143,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    /**
-     * Initializes this repositories' generation {@code N} in the cluster state by listing all {@code index-N} under the repository root
-     * and then updating {@link RepositoriesMetaData} accordingly.
-     *
-     * @param listener listener to invoke once repo generation has been initialized in the cluster state
-     */
-    private void initializeRepoInClusterState(ActionListener<Void> listener) {
-        final String repoName = metadata.name();
-        threadPool.generic().execute(ActionRunnable.supply(ActionListener.wrap(gen ->
-                clusterService.submitStateUpdateTask("initialize repository [" + metadata.name() + "] to generation [" + gen + "]",
-                    new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            final RepositoriesMetaData repositoriesMetaData = currentState.metaData().custom(RepositoriesMetaData.TYPE);
-                            final RepositoryMetaData repoMetaData = repositoriesMetaData.repository(metadata.name());
-                            if (repoMetaData.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
-                                // Repository generation was already initialized, nothing to do here
-                                return currentState;
-                            }
-                            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData()).putCustom(
-                                RepositoriesMetaData.TYPE, repositoriesMetaData.withUpdatedGeneration(metadata.name(), gen, gen)
-                            ).build()).build();
-                        }
-
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            logger.warn(new ParameterizedMessage("Failed to initialize repository [{}] in cluster state [{}]",
-                                repoName, source), e);
-                            listener.onFailure(new RepositoryException(metadata.name(),
-                                "Failed to initialize repository with cluster update [" + source + "]", e));
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            assert latestKnownRepoGen.get() != RepositoryData.UNKNOWN_REPO_GEN
-                                : "latest known generation can't be unknown after initializing the repository";
-                            listener.onResponse(null);
-                        }
-                    }), e -> listener.onFailure(new RepositoryException(repoName, "Failed to determine repository generation", e))),
-            this::latestIndexBlobId));
-    }
-
     private static String testBlobPrefix(String seed) {
         return TESTS_FILE + seed;
     }

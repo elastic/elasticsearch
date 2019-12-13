@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -450,9 +452,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             evaluateDataFrame(
                 destIndex,
                 new org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification(
-                    dependentVariable, predictedClassField, Arrays.asList(new Accuracy(), new MulticlassConfusionMatrix())));
+                    dependentVariable,
+                    predictedClassField,
+                    Arrays.asList(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
-        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(2));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
 
         {   // Accuracy
             Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
@@ -482,6 +486,28 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     equalTo(dependentVariableValuesAsStrings));
             }
             assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
+        }
+
+        {   // Precision
+            Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(2);
+            assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
+            List<Precision.PerClassResult> classes = precisionResult.getClasses();
+            assertThat(
+                classes.stream().map(Precision.PerClassResult::getClassName).collect(toList()),
+                equalTo(dependentVariableValuesAsStrings));
+            classes.forEach(
+                klass -> assertThat(klass.getPrecision(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
+        }
+
+        {   // Recall
+            Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(3);
+            assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
+            List<Recall.PerClassResult> classes = recallResult.getClasses();
+            assertThat(
+                classes.stream().map(Recall.PerClassResult::getClassName).collect(toList()),
+                equalTo(dependentVariableValuesAsStrings));
+            classes.forEach(
+                klass -> assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
         }
     }
 

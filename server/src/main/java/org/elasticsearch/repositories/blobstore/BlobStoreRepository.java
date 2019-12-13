@@ -185,6 +185,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", true, Setting.Property.NodeScope);
 
+    /**
+     * When set to {@code true}, {@link #bestEffortConsistency} will be set to {@code true} and concurrent modifications of the repository
+     * contents will not result in the repository being marked as corrupted.
+     * Note: This setting is intended as a backwards compatibility solution for 7.x and will go away in 8.
+     */
+    public static final Setting<Boolean> ALLOW_CONCURRENT_MODIFICATION =
+        Setting.boolSetting("allow_concurrent_mod", false, Setting.Property.Deprecated, Setting.Property.Dynamic);
+
     private final boolean compress;
 
     private final RateLimiter snapshotRateLimiter;
@@ -298,7 +306,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void updateState(ClusterState state) {
         metadata = getRepoMetaData(state);
         bestEffortConsistency = isReadOnly() || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION)
-            || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN;
+            || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN || ALLOW_CONCURRENT_MODIFICATION.get(metadata.settings());
         if (isReadOnly()) {
             // No need to waste cycles, no operations can run against a read-only repository
             return;
@@ -1089,6 +1097,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private void markRepoCorrupted(long corruptedGeneration, Exception originalException, ActionListener<Void> listener) {
         assert corruptedGeneration != RepositoryData.UNKNOWN_REPO_GEN;
+        assert bestEffortConsistency == false;
         clusterService.submitStateUpdateTask("mark repository corrupted [" + metadata.name() + "][" + corruptedGeneration + "]",
             new ClusterStateUpdateTask() {
                 @Override
@@ -1189,13 +1198,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     final RepositoryMetaData meta = getRepoMetaData(currentState);
                     final String repoName = metadata.name();
                     final long genInState = meta.generation();
-                    // TODO: Remove all usages of this variable, instead initialize the generation when loading RepositoryData
-                    final boolean uninitializedMeta = meta.generation() == RepositoryData.UNKNOWN_REPO_GEN;
+                    final boolean uninitializedMeta = meta.generation() == RepositoryData.UNKNOWN_REPO_GEN || bestEffortConsistency;
                     if (uninitializedMeta == false && meta.pendingGeneration() != genInState) {
                         logger.info("Trying to write new repository data over unfinished write, repo [{}] is at " +
                             "safe generation [{}] and pending generation [{}]", meta.name(), genInState, meta.pendingGeneration());
                     }
-                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN || RepositoryData.UNKNOWN_REPO_GEN == meta.generation()
+                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN || uninitializedMeta
                         || expectedGen == meta.generation() :
                         "Expected non-empty generation [" + expectedGen + "] does not match generation tracked in [" + meta + "]";
                     // If we run into the empty repo generation for the expected gen, the repo is assumed to have been cleared of
@@ -1206,7 +1214,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // even if a repository has been manually cleared of all contents we will never reuse the same repository generation.
                     // This is motivated by the consistency behavior the S3 based blob repository implementation has to support which does
                     // not offer any consistency guarantees when it comes to overwriting the same blob name with different content.
-                    newGen = uninitializedMeta ? expectedGen + 1: metadata.pendingGeneration() + 1;
+                    final long nextPendingGen = metadata.pendingGeneration() + 1;
+                    newGen = uninitializedMeta ? Math.max(expectedGen + 1, nextPendingGen) : nextPendingGen;
                     assert newGen > latestKnownRepoGen.get() : "Attempted new generation [" + newGen +
                         "] must be larger than latest known generation [" + latestKnownRepoGen.get() + "]";
                     return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.getMetaData())

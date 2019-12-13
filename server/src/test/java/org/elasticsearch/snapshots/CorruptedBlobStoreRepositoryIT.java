@@ -23,8 +23,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,6 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCase {
 
@@ -90,6 +93,55 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+
+        logger.info("--> make sure snapshot doesn't exist");
+        expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
+            .addSnapshots(snapshot).get().getSnapshots(repoName));
+    }
+
+    public void testConcurrentlyChangeRepositoryContentsInBwCMode() throws Exception {
+        Client client = client();
+
+        Path repo = randomRepoPath();
+        final String repoName = "test-repo";
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
+        assertAcked(client.admin().cluster().preparePutRepository(repoName)
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", repo)
+                .put("compress", false)
+                .put(BlobStoreRepository.ALLOW_CONCURRENT_MODIFICATION.getKey(), true)
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        createIndex("test-idx-1", "test-idx-2");
+        logger.info("--> indexing some data");
+        indexRandom(true,
+            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2").setSource("foo", "bar"));
+
+        final String snapshot = "test-snap";
+
+        logger.info("--> creating snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, snapshot)
+            .setWaitForCompletion(true).setIndices("test-idx-*").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        final Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repoName);
+
+        logger.info("--> move index-N blob to next generation");
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        final long beforeMoveGen = repositoryData.getGenId();
+        Files.move(repo.resolve("index-" + beforeMoveGen), repo.resolve("index-" + (beforeMoveGen + 1)));
+
+        logger.info("--> verify index-N blob is found at the new location");
+        assertThat(getRepositoryData(repository).getGenId(), is(beforeMoveGen + 1));
+
+        logger.info("--> delete snapshot");
+        client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+
+        logger.info("--> verify index-N blob is found at the expected location");
+        assertThat(getRepositoryData(repository).getGenId(), is(beforeMoveGen + 2));
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)

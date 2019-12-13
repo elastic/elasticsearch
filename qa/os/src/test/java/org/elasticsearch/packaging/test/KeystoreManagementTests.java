@@ -90,10 +90,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         verifyKeystorePermissions();
 
-        String possibleSudo = distribution().isArchive() && Platforms.LINUX
-            ? "sudo -u " + ARCHIVE_OWNER + " "
-            : "";
-        Shell.Result r = sh.run(possibleSudo + bin.keystoreTool + " list");
+        Shell.Result r = bin.keystoreTool.run("list");
         assertThat(r.stdout, containsString("keystore.seed"));
     }
 
@@ -109,10 +106,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         verifyKeystorePermissions();
 
         final Installation.Executables bin = installation.executables();
-        String possibleSudo = distribution().isArchive() && Platforms.LINUX
-            ? "sudo -u " + ARCHIVE_OWNER + " "
-            : "";
-        Shell.Result r = sh.run(possibleSudo + bin.keystoreTool + " list");
+        Shell.Result r = bin.keystoreTool.run("list");
         assertThat(r.stdout, containsString("keystore.seed"));
     }
 

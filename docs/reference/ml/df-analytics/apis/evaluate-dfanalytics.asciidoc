@@ -12,6 +12,7 @@ Evaluates the {dfanalytics} for an annotated index.
 
 experimental[]
 
+
 [[ml-evaluate-dfanalytics-request]]
 ==== {api-request-title}
 
@@ -37,25 +38,112 @@ result field to be present.
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`index`::
-  (Required, object) Defines the `index` in which the evaluation will be
-  performed.
-
-`query`::
-  (Optional, object) A query clause that retrieves a subset of data from the 
-  source index. See <<query-dsl>>.
-
 `evaluation`::
-  (Required, object) Defines the type of evaluation you want to perform. See 
-  <<ml-evaluate-dfanalytics-resources>>.
+(Required, object) Defines the type of evaluation you want to perform. The 
+value of this object can be different depending on the type of evaluation you 
+want to perform. See <<ml-evaluate-dfanalytics-resources>>.
 +
 --
 Available evaluation types:
-
 * `binary_soft_classification`
 * `regression`
 * `classification`
 --
+
+`index`::
+(Required, object) Defines the `index` in which the evaluation will be
+performed.
+
+`query`::
+(Optional, object) A query clause that retrieves a subset of data from the 
+source index. See <<query-dsl>>.
+
+[[ml-evaluate-dfanalytics-resources]]
+==== {dfanalytics-cap} evaluation resources
+
+[[binary-sc-resources]]
+===== Binary soft classification configuration objects
+
+Binary soft classification evaluates the results of an analysis which outputs 
+the probability that each document belongs to a certain class. For example, in 
+the context of {oldetection}, the analysis outputs the probability whether each 
+document is an outlier.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`. 
+  The data type of this field can be boolean or integer. If the data type is 
+  integer, the value has to be either `0` (false) or `1` (true).
+
+`predicted_probability_field`::
+  (Required, string) The field of the `index` that defines the probability of 
+  whether the item belongs to the class in question or not. It's the field that 
+  contains the results of the analysis.
+
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation. 
+  Available metrics:
+  
+  `auc_roc`::
+    (Optional, object) The AUC ROC (area under the curve of the receiver 
+    operating characteristic) score and optionally the curve. Default value is 
+    {"includes_curve": false}.
+    
+  `precision`::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
+  
+  `recall`::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
+  
+  `confusion_matrix`::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metrics (`tp` - true positive, `fp` - false positive, `tn` - true 
+    negative, `fn` - false negative) are calculated. Default value is 
+    {"at": [0.25, 0.50, 0.75]}.
+
+    
+[[regression-evaluation-resources]]
+===== {regression-cap} evaluation objects
+
+{regression-cap} evaluation evaluates the results of a {regression} analysis 
+which outputs a prediction of values.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`. 
+  The data type of this field must be numerical.
+  
+`predicted_field`::
+  (Required, string) The field in the `index` that contains the predicted value, 
+  in other words the results of the {regression} analysis.
+  
+`metrics`::
+  (Required, object) Specifies the metrics that are used for the evaluation. 
+  Available metrics are `r_squared` and `mean_squared_error`.
+  
+  
+[[classification-evaluation-resources]]
+==== {classification-cap} evaluation objects
+
+{classification-cap} evaluation evaluates the results of a {classanalysis} which 
+outputs a prediction that identifies to which of the classes each document 
+belongs.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the ground truth. 
+  The data type of this field must be keyword.
+  
+`metrics`::
+  (Required, object) Specifies the metrics that are used for the evaluation. 
+  Available metric is `multiclass_confusion_matrix`.
+  
+`predicted_field`::
+  (Required, string) The field in the `index` that contains the predicted value, 
+  in other words the results of the {classanalysis}. The data type of this field 
+  is string. You need to add `.keyword` to the predicted field name (the name 
+  you put in the {classanalysis} object as `prediction_field_name` or the 
+  default value of the same field if you didn't specified explicitly). For 
+  example, `predicted_field` : `ml.animal_class_prediction.keyword`.
 
 
 ////
@@ -74,6 +162,7 @@ Available evaluation types:
 
 `recall`::: TBD
 ////
+
 
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}

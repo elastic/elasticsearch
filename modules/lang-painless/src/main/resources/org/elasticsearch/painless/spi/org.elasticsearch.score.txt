@@ -25,8 +25,8 @@ class org.elasticsearch.script.ScoreScript @no_import {
 static_import {
     double saturation(double, double) from_class org.elasticsearch.script.ScoreScriptUtils
     double sigmoid(double, double, double) from_class org.elasticsearch.script.ScoreScriptUtils
-    double randomScore(org.elasticsearch.script.ScoreScript, int, String) bound_to org.elasticsearch.script.ScoreScriptUtils$RandomScoreField @nondeterministic
-    double randomScore(org.elasticsearch.script.ScoreScript, int) bound_to org.elasticsearch.script.ScoreScriptUtils$RandomScoreDoc @nondeterministic
+    double randomScore(org.elasticsearch.script.ScoreScript, int, String) bound_to org.elasticsearch.script.ScoreScriptUtils$RandomScoreField
+    double randomScore(org.elasticsearch.script.ScoreScript, int) bound_to org.elasticsearch.script.ScoreScriptUtils$RandomScoreDoc
     double decayGeoLinear(String, String, String, double, GeoPoint) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayGeoLinear
     double decayGeoExp(String, String, String, double, GeoPoint) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayGeoExp
     double decayGeoGauss(String, String, String, double, GeoPoint) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayGeoGauss

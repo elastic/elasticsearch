@@ -575,7 +575,7 @@ class java.util.Collections {
   Comparator reverseOrder(Comparator)
   void rotate(List,int)
   void shuffle(List) @nondeterministic
-  void shuffle(List,Random) @nondeterministic
+  void shuffle(List,Random)
   Set singleton(def)
   List singletonList(def)
   Map singletonMap(def,def)
@@ -911,7 +911,7 @@ class java.util.PriorityQueue {
 
 class java.util.Random {
   () @nondeterministic
-  (long) @nondeterministic
+  (long)
   DoubleStream doubles(long) @nondeterministic
   DoubleStream doubles(long,double,double) @nondeterministic
   IntStream ints(long) @nondeterministic

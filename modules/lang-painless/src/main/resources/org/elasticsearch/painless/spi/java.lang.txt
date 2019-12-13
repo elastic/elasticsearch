@@ -844,8 +844,8 @@ class java.lang.StringBuilder {
 
 class java.lang.System {
   void arraycopy(Object,int,Object,int,int)
-  long currentTimeMillis()
-  long nanoTime()
+  long currentTimeMillis() @nondeterministic
+  long nanoTime() @nondeterministic
 }
 
 # Thread: skipped

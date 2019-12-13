@@ -21,33 +21,26 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.util.CollectionUtils.filter;
+import static org.elasticsearch.common.util.CollectionUtils.map;
 
 public class TransportRestoreDanglingIndicesAction extends HandledTransportAction<
     RestoreDanglingIndicesRequest,
@@ -69,23 +62,49 @@ public class TransportRestoreDanglingIndicesAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, RestoreDanglingIndicesRequest request, ActionListener<RestoreDanglingIndicesResponse> listener) {
-        final Set<String> indexIds = new HashSet<>(Set.of(request.getIndexIds()));
+        final Set<String> specifiedIndexIdsToRestore = Set.of(request.getIndexIds());
 
-        if (indexIds.isEmpty()) {
-            listener.onFailure(new IllegalArgumentException("No index UUIDs specified in request"));
+        List<IndexMetaData> indexMetaDataToRestore;
+        try {
+            indexMetaDataToRestore = getIndexMetaDataToRestore(specifiedIndexIdsToRestore);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
         }
 
-        final List<DanglingIndexInfo> danglingIndices = fetchDanglingIndices().actionGet().getDanglingIndices();
+        this.danglingIndexAllocator.allocateDangled(indexMetaDataToRestore, new ActionListener<>() {
+            @Override
+            public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
+                listener.onResponse(new RestoreDanglingIndicesResponse());
+            }
 
-        final Set<String> availableIndices = danglingIndices.stream().map(DanglingIndexInfo::getIndexUUID).collect(Collectors.toSet());
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
 
-        if (availableIndices.containsAll(indexIds) == false) {
-            throw new IllegalArgumentException(
-                "Dangling index list missing some specified UUIDs: [" + indexIds.removeAll(availableIndices) + "]"
-            );
+    private List<IndexMetaData> getIndexMetaDataToRestore(Set<String> specifiedIndexIdsToRestore) {
+        if (specifiedIndexIdsToRestore.isEmpty()) {
+            throw new IllegalArgumentException("No index UUIDs specified in request");
         }
 
-        this.danglingIndexAllocator.allocateDangled(indexIds, listener);
+        final List<IndexMetaData> allMetaData = new ArrayList<>();
+        for (NodeDanglingIndicesResponse response : fetchDanglingIndices().actionGet().getNodes()) {
+            allMetaData.addAll(response.getDanglingIndices());
+        }
+
+        final List<String> allMetaDataIds = map(allMetaData, IndexMetaData::getIndexUUID);
+
+        final List<String> unknownIndexIds = new ArrayList<>(specifiedIndexIdsToRestore);
+        unknownIndexIds.removeAll(allMetaDataIds);
+
+        if (unknownIndexIds.isEmpty() == false) {
+            throw new IllegalArgumentException("Dangling index list missing some specified UUIDs: " + unknownIndexIds);
+        }
+
+        return filter(allMetaData, each -> specifiedIndexIdsToRestore.contains(each.getIndexUUID()));
     }
 
     private ActionFuture<ListDanglingIndicesResponse> fetchDanglingIndices() {
@@ -120,66 +139,4 @@ public class TransportRestoreDanglingIndicesAction extends HandledTransportActio
 
         return future;
     }
-
-    // @Inject
-    // public TransportRestoreDanglingIndicesAction(
-    // ThreadPool threadPool,
-    // ClusterService clusterService,
-    // TransportService transportService,
-    // ActionFilters actionFilters,
-    // DanglingIndicesState danglingIndicesState,
-    // LocalAllocateDangledIndices danglingIndexAllocator
-    // ) {
-    // super(
-    // RestoreDanglingIndicesAction.NAME,
-    // threadPool,
-    // clusterService,
-    // transportService,
-    // actionFilters,
-    // RestoreDanglingIndicesRequest::new,
-    // NodeDanglingIndicesRequest::new,
-    // ThreadPool.Names.MANAGEMENT,
-    // NodeDanglingIndicesResponse.class
-    // );
-    // this.transportService = transportService;
-    // this.danglingIndicesState = danglingIndicesState;
-    // this.danglingIndexAllocator = danglingIndexAllocator;
-    // }
-    //
-    // @Override
-    // protected RestoreDanglingIndicesResponse newResponse(
-    // RestoreDanglingIndicesRequest request,
-    // List<NodeDanglingIndicesResponse> nodeDanglingIndicesResponses,
-    // List<FailedNodeException> failures
-    // ) {
-    // if (failures.isEmpty()) {
-    // // TODO: Do some kind of restore operation
-    // this.danglingIndexAllocator.allocateDangled();
-    // }
-    //
-    // return new RestoreDanglingIndicesResponse(clusterService.getClusterName(), nodeDanglingIndicesResponses, failures);
-    // }
-    //
-    // @Override
-    // protected NodeDanglingIndicesRequest newNodeRequest(RestoreDanglingIndicesRequest request) {
-    // return new NodeDanglingIndicesRequest();
-    // }
-    //
-    // @Override
-    // protected NodeDanglingIndicesResponse newNodeResponse(StreamInput in) throws IOException {
-    // return new NodeDanglingIndicesResponse(in);
-    // }
-    //
-    // @Override
-    // protected NodeDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
-    // final List<DanglingIndexInfo> indexInfo = new ArrayList<>();
-    // final DiscoveryNode localNode = transportService.getLocalNode();
-    //
-    // for (IndexMetaData metaData : danglingIndicesState.getDanglingIndices().values()) {
-    // DanglingIndexInfo info = new DanglingIndexInfo(localNode.getId(), metaData.getIndex().getName(), metaData.getIndexUUID());
-    // indexInfo.add(info);
-    // }
-    //
-    // return new NodeDanglingIndicesResponse(localNode, indexInfo);
-    // }
 }

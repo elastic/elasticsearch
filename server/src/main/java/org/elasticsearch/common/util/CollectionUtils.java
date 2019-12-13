@@ -29,6 +29,7 @@ import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 
+import java.lang.reflect.Array;
 import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -43,6 +44,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {
@@ -347,5 +351,55 @@ public class CollectionUtils {
         }
 
         return result;
+    }
+
+    /**
+     * Utility method that removes some of the boilerplate around streams and mapping. Instead of writing e.g.
+     *
+     * <pre>
+     * List&lt;String&gt; ids = indexMetaData
+     *   .stream()
+     *   .map(each -&gt; each.getIndexUUID())
+     *   .collect(Collectors.toList());
+     * </pre>
+     *
+     * You can instead write:
+     *
+     * <pre>
+     * List&lt;String&gt; ids = map(indexMetaData, each -&gt; each.getIndexUUID());
+     * </pre>
+     *
+     * @param list the list to map
+     * @param mapper a mapping function to apply to each element of the list
+     * @param <T1> the type that the supplied list contains
+     * @param <T2> the type that the returned list contains
+     * @return a list containing the result of applying the <code>mapper</code> function to each element in <code>list</code>.
+     */
+    public static <T1, T2> List<T2> map(List<T1> list, Function<T1, T2> mapper) {
+        return list.stream().map(mapper).collect(Collectors.toList());
+    }
+
+    /**
+     * Utility method that removes some of the boilerplate around streams and filtering. Instead of writing e.g.
+     *
+     * <pre>
+     * List&lt;String&gt; ids = indexMetaData
+     *   .stream()
+     *   .filter(each -&gt; each.isRoutingPartitionedIndex())
+     *   .collect(Collectors.toList());
+     * </pre>
+     *
+     * You can instead write:
+     *
+     * <pre>
+     * List&lt;String&gt; partitioned = filter(indexMetaData, each -&gt; each.isRoutingPartitionedIndex());
+     * </pre>
+     *
+     * @param list the list to map
+     * @param predicate a predicate function to apply to each element of the list
+     * @return a new list containing all elements from <code>list</code> for which <code>predicate</code> returns true.
+     */
+    public static <T> List<T> filter(List<T> list, Predicate<T> predicate) {
+        return list.stream().filter(predicate).collect(Collectors.toList());
     }
 }

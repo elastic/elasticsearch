@@ -19,9 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -29,51 +27,26 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.List;
 
-public class RestoreDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingIndicesResponse> implements StatusToXContentObject {
-
-    public RestoreDanglingIndicesResponse(StreamInput in) throws IOException {
-        super(in);
+public class RestoreDanglingIndicesResponse extends ActionResponse implements StatusToXContentObject {
+    public RestoreDanglingIndicesResponse() {
     }
 
-    public RestoreDanglingIndicesResponse(
-        ClusterName clusterName,
-        List<NodeDanglingIndicesResponse> nodes,
-        List<FailedNodeException> failures
-    ) {
-        super(clusterName, nodes, failures);
+    public RestoreDanglingIndicesResponse(StreamInput in) {
     }
 
     @Override
     public RestStatus status() {
-        return this.hasFailures() ? RestStatus.SERVICE_UNAVAILABLE : RestStatus.ACCEPTED;
+        return RestStatus.ACCEPTED;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        builder.field("status", this.hasFailures() ? "error" : "ok");
-
-        if (this.hasFailures()) {
-            builder.startArray("failed_nodes");
-            for (FailedNodeException failure : this.failures()) {
-                failure.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-
-        return builder.endObject();
+        return builder.startObject().field("status", "ok").endObject();
     }
 
     @Override
-    protected List<NodeDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeDanglingIndicesResponse::new);
-    }
-
-    @Override
-    protected void writeNodesTo(StreamOutput out, List<NodeDanglingIndicesResponse> nodes) throws IOException {
-        out.writeList(nodes);
+    public void writeTo(StreamOutput out) throws IOException {
+        // no fields to write
     }
 }

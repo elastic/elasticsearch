@@ -117,9 +117,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
 /**

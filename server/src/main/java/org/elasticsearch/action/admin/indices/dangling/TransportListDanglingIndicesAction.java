@@ -73,20 +73,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
         List<NodeDanglingIndicesResponse> nodeDanglingIndicesResponses,
         List<FailedNodeException> failures
     ) {
-        final List<DanglingIndexInfo> combinedInfo = new ArrayList<>();
-
-        for (NodeDanglingIndicesResponse response : nodeDanglingIndicesResponses) {
-            for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
-                DanglingIndexInfo info = new DanglingIndexInfo(
-                    response.getNode().getId(),
-                    danglingIndex.getIndex().getName(),
-                    danglingIndex.getIndexUUID()
-                );
-                combinedInfo.add(info);
-            }
-        }
-
-        return new ListDanglingIndicesResponse(clusterService.getClusterName(), combinedInfo, failures);
+        return new ListDanglingIndicesResponse(clusterService.getClusterName(), nodeDanglingIndicesResponses, failures);
     }
 
     @Override
@@ -103,7 +90,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     protected NodeDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
         final DiscoveryNode localNode = transportService.getLocalNode();
 
-        final ArrayList<IndexMetaData> indexMetaData = new ArrayList<>(danglingIndicesState.getDanglingIndices().values());
+        final List<IndexMetaData> indexMetaData = new ArrayList<>(danglingIndicesState.getDanglingIndices().values());
 
         return new NodeDanglingIndicesResponse(localNode, indexMetaData);
     }

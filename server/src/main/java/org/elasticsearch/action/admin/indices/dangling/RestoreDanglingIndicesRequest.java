@@ -55,6 +55,10 @@ public class RestoreDanglingIndicesRequest extends BaseNodesRequest<RestoreDangl
         return indexIds;
     }
 
+    public void setIndexIds(String[] indexIds) {
+        this.indexIds = indexIds;
+    }
+
     @Override
     public String toString() {
         return "restore dangling indices";

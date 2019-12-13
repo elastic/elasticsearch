@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.dangling;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -50,17 +51,20 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
         return this.hasFailures() ? RestStatus.SERVICE_UNAVAILABLE : RestStatus.OK;
     }
 
-    public List<DanglingIndexInfo> getDanglingIndices() {
-        return this.getNodes();
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
         builder.startArray("dangling_indices");
-        for (DanglingIndexInfo info : this.getDanglingIndices()) {
-            info.toXContent(builder, params);
+        for (NodeDanglingIndicesResponse nodeResponse : this.getNodes()) {
+            for (IndexMetaData indexMetaData : nodeResponse.getDanglingIndices()) {
+                DanglingIndexInfo danglingIndexInfo = new DanglingIndexInfo(
+                    nodeResponse.getNode(),
+                    indexMetaData.getIndex().getName(),
+                    indexMetaData.getIndexUUID()
+                );
+                danglingIndexInfo.toXContent(builder, params);
+            }
         }
         builder.endArray();
 

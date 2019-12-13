@@ -191,7 +191,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Note: This setting is intended as a backwards compatibility solution for 7.x and will go away in 8.
      */
     public static final Setting<Boolean> ALLOW_CONCURRENT_MODIFICATION =
-        Setting.boolSetting("allow_concurrent_mod", false, Setting.Property.Deprecated, Setting.Property.Dynamic);
+        Setting.boolSetting("allow_concurrent_modifications", false, Setting.Property.Deprecated);
 
     private final boolean compress;
 

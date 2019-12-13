@@ -165,26 +165,19 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
     protected void assertIndexDirectoryDeleted(final String nodeName, final Index index) throws Exception {
-        assertBusy(() -> {
-            logger.info("checking if index directory exists...");
-            assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
-                indexDirectoryExists(nodeName, index));
-        }
+        assertBusy(() -> assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
+            indexDirectoryExists(nodeName, index))
         );
     }
 
     protected void assertIndexDirectoryExists(final String nodeName, final Index index) throws Exception {
-        assertBusy(() -> {
-                logger.info("checking if index directory exists...");
-                assertTrue("Expecting index directory of " + index + " to exist on node " + nodeName,
-                    indexDirectoryExists(nodeName, index));
-            }
+        assertBusy(() -> assertTrue("Expecting index directory of " + index + " to exist on node " + nodeName,
+            indexDirectoryExists(nodeName, index))
         );
     }
 
     protected void assertIndexInMetaState(final String nodeName, final String indexName) throws Exception {
         assertBusy(() -> {
-            logger.info("checking if meta state exists...");
             try {
                 assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName,
                     getIndicesMetaDataOnNode(nodeName).containsKey(indexName));

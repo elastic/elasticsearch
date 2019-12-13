@@ -10,50 +10,7 @@ change their values.
 [[ml-results-buckets]]
 ==== Buckets
 
-A bucket resource has the following properties:
-
-`anomaly_score`::
-  (number) The maximum anomaly score, between 0-100, for any of the bucket
-  influencers. This is an overall, rate-limited score for the job. All the
-  anomaly records in the bucket contribute to this score. This value might be
-  updated as new data is analyzed.
-
-`bucket_influencers`::
-  (array) An array of bucket influencer objects.
-  For more information, see <<ml-results-bucket-influencers,Bucket Influencers>>.
-
-`bucket_span`::
-  (number) The length of the bucket in seconds.
-  This value matches the `bucket_span` that is specified in the job.
-
-`event_count`::
-  (number) The number of input data records processed in this bucket.
-
-`initial_anomaly_score`::
-  (number) The maximum `anomaly_score` for any of the bucket influencers.
-  This is the initial value that was calculated at the time the bucket was
-  processed.
-
-`is_interim`::
-  (boolean) If true, this is an interim result. In other words, the bucket
-  results are calculated based on partial input data.
-
-`job_id`::
-  (string) The unique identifier for the job that these results belong to.
-
-`processing_time_ms`::
-  (number) The amount of time, in milliseconds, that it took to analyze the
-  bucket contents and calculate results.
-
-`result_type`::
-  (string) Internal. This value is always set to `bucket`.
-
-`timestamp`::
-  (date) The start time of the bucket. This timestamp uniquely identifies the
-  bucket. +
-
-NOTE: Events that occur exactly at the timestamp of the bucket are included in
-the results for the bucket.
+See <<ml-get-bucket>>.
 
 
 [float]

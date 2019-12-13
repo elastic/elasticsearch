@@ -115,7 +115,7 @@ public class SearchableSnapshotIndexInputTests extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            switch (randomIntBetween(0, 3)) {
+            switch (randomIntBetween(0, 4)) {
                 case 0:
                     // Read by one byte at a time
                     output[readPos++] = indexInput.readByte();
@@ -143,6 +143,18 @@ public class SearchableSnapshotIndexInputTests extends ESTestCase {
                     assertEquals(readPos, indexInput.getFilePointer());
                     System.arraycopy(temp, 0, output, readPos, len);
                     readPos += len;
+                    indexInput.seek(readPos);
+                    assertEquals(readPos, indexInput.getFilePointer());
+                    break;
+                case 4:
+                    // Seek at a random position and read a single byte,
+                    // then seek back to original position
+                    final int lastReadPos = readPos;
+                    readPos = randomIntBetween(0, length - 1);
+                    indexInput.seek(readPos);
+                    assertEquals(readPos, indexInput.getFilePointer());
+                    randomReadAndSlice(indexInput, 1);
+                    readPos = lastReadPos;
                     indexInput.seek(readPos);
                     assertEquals(readPos, indexInput.getFilePointer());
                     break;

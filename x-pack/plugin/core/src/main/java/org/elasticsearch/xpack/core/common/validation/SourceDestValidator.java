@@ -399,7 +399,8 @@ public final class SourceDestValidator {
             }
 
             List<String> remoteIndices = new ArrayList<>(context.resolveRemoteSource());
-            // we can only check this node at the moment, clusters with mixed CCS enabled/disabled nodes are not supported, see gh#TBD
+            // we can only check this node at the moment, clusters with mixed CCS enabled/disabled nodes are not supported,
+            // see gh#50033
             if (context.isRemoteSearchEnabled() == false) {
                 context.addValidationError(NEEDS_REMOTE_CLUSTER_SEARCH, true, context.resolveRemoteSource(), context.getNodeName());
                 return;

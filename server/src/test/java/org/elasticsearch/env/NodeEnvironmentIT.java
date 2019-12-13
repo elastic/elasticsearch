@@ -74,13 +74,10 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                             .build();
                     }
                 }));
-        assertThat(ex.getMessage(), containsString(indexUUID));
         assertThat(ex.getMessage(),
             startsWith("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
-                + "=false and "
-                + Node.NODE_MASTER_SETTING.getKey()
-                + "=false, but has index metadata"));
+                + "=false, but has shard data"));
 
         logger.info("--> start the node again with node.data=true and node.master=true");
         internalCluster().startNode(dataPathSettings);
@@ -191,8 +188,10 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             assertThat(ise.getMessage(), containsString("unexpected folder encountered during data folder upgrade"));
             Files.delete(badFolder);
 
-            final Path conflictingFolder = randomFrom(dataPaths).resolve("indices");
-            if (Files.exists(conflictingFolder) == false) {
+            final Path randomDataPath = randomFrom(dataPaths);
+            final Path conflictingFolder = randomDataPath.resolve("indices");
+            final Path sourceFolder = randomDataPath.resolve("nodes").resolve("0").resolve("indices");
+            if (Files.exists(sourceFolder) && Files.exists(conflictingFolder) == false) {
                 Files.createDirectories(conflictingFolder);
                 ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
                 assertThat(ise.getMessage(), containsString("target folder already exists during data folder upgrade"));

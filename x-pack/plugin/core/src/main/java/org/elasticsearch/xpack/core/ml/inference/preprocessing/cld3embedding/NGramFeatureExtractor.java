@@ -2,6 +2,7 @@
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
+ * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
 
@@ -10,12 +11,14 @@ import java.util.TreeMap;
 
 public class NGramFeatureExtractor implements FeatureExtractor {
 
-    private final int nGrams;
-    private final int deminsionId;
+    private static final Hash32 hashing = new Hash32();
 
-    public NGramFeatureExtractor(int nGrams, int deminsionId) {
+    private final int nGrams;
+    private final int dimensionId;
+
+    public NGramFeatureExtractor(int nGrams, int dimensionId) {
         this.nGrams = nGrams;
-        this.deminsionId = deminsionId;
+        this.dimensionId = dimensionId;
     }
 
     @Override
@@ -71,7 +74,7 @@ public class NGramFeatureExtractor implements FeatureExtractor {
             int value = entry.getValue();
 
             double weight = (double) value / (double) countSum;
-            int id = Integer.remainderUnsigned(FeatureUtils.Hash32WithDefaultSeed(key), deminsionId);
+            int id = Integer.remainderUnsigned(hashing.hash(key), dimensionId);
 
             results[index++] = new ContinuousFeatureValue(id, weight);
         }

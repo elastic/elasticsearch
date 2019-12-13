@@ -238,69 +238,6 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
     }
 
     /**
-     * Derived from: https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/language_identifier_features.cc#L56
-     */
-    public static FeatureValue[] getNGramFeatureValue(String text, int nGramSize, int idDimension) throws Exception {
-
-        // First add terminators:
-        // Split the text based on spaces to get tokens, adds "^"
-        // to the beginning of each token, and adds "$" to the end of each token.
-        // e.g.
-        // " this text is written in english" goes to
-        // "^$ ^this$ ^text$ ^is$ ^written$ ^in$ ^english$ ^$"
-        StringBuilder newText = new StringBuilder("^");
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c == ' ') {
-                newText.append("$ ^");
-            } else {
-                newText.append(c);
-            }
-        }
-        newText.append("$");
-
-        // Find the char ngrams
-        // ^$ ^this$ ^text$ ^is$ ^written$ ^in$ ^english$ ^$"
-        // nGramSize = 2
-        // [{h$},{sh},{li},{gl},{in},{en},{^$},...]
-        Map<String, Integer> charNGrams = new TreeMap<>();
-
-        //TODO use lucene tokenizer ?
-        int countSum = 0;
-        for (int start = 0; start <= (newText.toString().length()) - nGramSize; ++start) {
-            StringBuilder charNGram = new StringBuilder();
-
-            int index;
-            for (index = 0; index < nGramSize; ++index) {
-                char currentChar = newText.toString().charAt(start + index);
-                if (currentChar == ' ') {
-                    break;
-                }
-                charNGram.append(currentChar);
-            }
-
-            if (index == nGramSize) {
-                charNGrams.put(charNGram.toString(),
-                    charNGrams.getOrDefault(charNGram.toString(), 0) + 1);
-                ++countSum;
-            }
-        }
-
-        FeatureValue[] results = new FeatureValue[charNGrams.size()];
-        int index = 0;
-        for (Map.Entry<String, Integer> entry : charNGrams.entrySet()) {
-            String key = entry.getKey();
-            int value = entry.getValue();
-
-            double weight = (double) value / (double) countSum;
-            int id = Integer.remainderUnsigned(FeatureUtils.Hash32WithDefaultSeed(key), idDimension);
-
-            results[index++] = new ContinuousFeatureValue(id, weight);
-        }
-        return results;
-    }
-
-    /**
      * Derived from: https://github.com/google/cld3/blob/master/src/relevant_script_feature.cc
      */
     static FeatureValue[] getRelevantScriptFeature(String text) throws UnsupportedEncodingException {
@@ -355,15 +292,13 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
             return;
         }
         String text = (String)field;
-
-        List<FeatureValue[]> processedFeatures = new ArrayList<>(6);
         try {
             //These two preprocessing steps are to satisfy the cleaning done here in CLD3
             // https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/nnet_language_identifier.cc#L190..L226
             text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
             text = FeatureUtils.cleanAndLowerText(text);
             String finalText = text;
-            processedFeatures = FEATURE_EXTRACTORS.stream()
+            List<FeatureValue[]> processedFeatures = FEATURE_EXTRACTORS.stream()
                 .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
                 .collect(Collectors.toList());
             fields.put(destField, concatEmbeddings(processedFeatures));

@@ -15,7 +15,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NGramFeatureExtractorTests extends ESTestCase {
     /**
-     * Known failing languages and why
+     * Known failing languages (due to string pre-processing) and why
      *
      * This does not mean that these languages are not accurately chosen when necessary, just that the golden result text did extra
      *  processing for efficiency reasons that are not currently done.
@@ -44,7 +44,7 @@ public class NGramFeatureExtractorTests extends ESTestCase {
         Arrays.asList("bn", "bs", "fr", "ha", "hi", "hr", "ht", "hu", "ig", "is", "mi", "mn", "mr", "ms", "ne", "pa", "tg", "tr", "zu")
     );
 
-    public void testExtractor() throws Exception {
+    public void testExtractor() {
         for (ContinuousNGramExtractionExamples.NGramExampleEntry entry : ContinuousNGramExtractionExamples.goldenNGrams) {
             String text = null;
             if (KNOWN_FAILING_LANGUAGES.contains(entry.language)) {

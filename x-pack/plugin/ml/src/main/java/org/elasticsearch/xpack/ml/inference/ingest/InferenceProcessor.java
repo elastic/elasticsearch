@@ -266,9 +266,6 @@ public class InferenceProcessor extends AbstractProcessor {
 
         InferenceConfig inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
             ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
-            //throw ExceptionsHelper.badRequestException("Cannot create processor as configured." +
-            //                        " The following fields contain conflicting values {}",
-            //                    stringUniquenessVerifier.getFieldsWithDuplicateValues());
             if (inferenceConfig.size() != 1) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
                     INFERENCE_CONFIG);

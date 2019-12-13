@@ -55,6 +55,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -1061,5 +1062,79 @@ public abstract class ESRestTestCase extends ESTestCase {
         default:
             return false;
         }
+    }
+
+    public void flush(String index, boolean force) throws IOException {
+        logger.info("flushing index {} force={}", index, force);
+        final Request flushRequest = new Request("POST", "/" + index + "/_flush");
+        flushRequest.addParameter("force", Boolean.toString(force));
+        flushRequest.addParameter("wait_if_ongoing", "true");
+        assertOK(client().performRequest(flushRequest));
+    }
+
+    /**
+     * Asserts that replicas on nodes satisfying the {@code targetNode} should have perform operation-based recoveries.
+     */
+    public void assertNoFileBasedRecovery(String indexName, Predicate<String> targetNode) throws IOException {
+        Map<String, Object> recoveries = entityAsMap(client().performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> shards = (List<Map<String, ?>>) XContentMapValues.extractValue(indexName + ".shards", recoveries);
+        assertNotNull(shards);
+        boolean foundReplica = false;
+        logger.info("index {} recovery stats {}", indexName, shards);
+        for (Map<String, ?> shard : shards) {
+            if (shard.get("primary") == Boolean.FALSE && targetNode.test((String) XContentMapValues.extractValue("target.name", shard))) {
+                List<?> details = (List<?>) XContentMapValues.extractValue("index.files.details", shard);
+                // once detailed recoveries works, remove this if.
+                if (details == null) {
+                    long totalFiles = ((Number) XContentMapValues.extractValue("index.files.total", shard)).longValue();
+                    long reusedFiles = ((Number) XContentMapValues.extractValue("index.files.reused", shard)).longValue();
+                    logger.info("total [{}] reused [{}]", totalFiles, reusedFiles);
+                    assertThat("must reuse all files, recoveries [" + recoveries + "]", totalFiles, equalTo(reusedFiles));
+                } else {
+                    assertNotNull(details);
+                    assertThat(details, Matchers.empty());
+                }
+                foundReplica = true;
+            }
+        }
+        assertTrue("must find replica", foundReplica);
+    }
+
+    /**
+     * Asserts that we do not retain any extra translog for the given index (i.e., turn off the translog retention)
+     */
+    public void assertEmptyTranslog(String index) throws Exception {
+        Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+        assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.operations", stats), equalTo(0));
+    }
+
+    /**
+     * Peer recovery retention leases are renewed and synced to replicas periodically (every 30 seconds). This ensures
+     * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
+     */
+    public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            @SuppressWarnings("unchecked") Map<String, List<Map<String, ?>>> shards =
+                (Map<String, List<Map<String, ?>>>) XContentMapValues.extractValue("indices." + index + ".shards", stats);
+            for (List<Map<String, ?>> shard : shards.values()) {
+                for (Map<String, ?> copy : shard) {
+                    Integer globalCheckpoint = (Integer) XContentMapValues.extractValue("seq_no.global_checkpoint", copy);
+                    assertNotNull(globalCheckpoint);
+                    @SuppressWarnings("unchecked") List<Map<String, ?>> retentionLeases =
+                        (List<Map<String, ?>>) XContentMapValues.extractValue("retention_leases.leases", copy);
+                    if (retentionLeases == null) {
+                        continue;
+                    }
+                    for (Map<String, ?> retentionLease : retentionLeases) {
+                        if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
+                            assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
+                        }
+                    }
+                }
+            }
+        }, 60, TimeUnit.SECONDS);
     }
 }

@@ -59,7 +59,7 @@ quantity. The result is an entity-centric index that shows the number of sold
 items in every product category in the last year.
 
 [role="screenshot"]
-image::images/ml-dataframepivot.jpg["Example of a data frame pivot in {kib}"]
+image::images/pivot-preview.jpg["Example of a {transform} pivot in {kib}"]
 
 IMPORTANT: The {transform} leaves your source index intact. It
 creates a new index that is dedicated to the transformed data.

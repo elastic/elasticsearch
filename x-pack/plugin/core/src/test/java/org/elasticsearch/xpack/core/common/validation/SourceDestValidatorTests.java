@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.common.validation;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.Client;
@@ -33,7 +34,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Context;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteSourceEnabledAndRemoteLicenseValidation;
 import org.junit.After;
@@ -674,7 +674,37 @@ public class SourceDestValidatorTests extends ESTestCase {
         RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
 
         validator.validate(context);
+        assertNotNull(context.getValidationException());
         assertEquals(1, context.getValidationException().validationErrors().size());
         assertThat(context.getValidationException().validationErrors().get(0), equalTo("no such remote cluster: [non_existing_remote]"));
+    }
+
+    public void testRequestValidation() {
+        ActionRequestValidationException validationException = SourceDestValidator.validateRequest(null, "UPPERCASE");
+        assertNotNull(validationException);
+        assertEquals(1, validationException.validationErrors().size());
+        assertThat(validationException.validationErrors().get(0), equalTo("Destination index [UPPERCASE] must be lowercase"));
+
+        validationException = SourceDestValidator.validateRequest(null, "remote:dest");
+        assertNotNull(validationException);
+        assertEquals(1, validationException.validationErrors().size());
+        assertThat(validationException.validationErrors().get(0), equalTo("Invalid index name [remote:dest], must not contain ':'"));
+
+        validationException = SourceDestValidator.validateRequest(null, "dest");
+        assertNull(validationException);
+
+        validationException = new ActionRequestValidationException();
+        validationException.addValidationError("error1");
+        validationException.addValidationError("error2");
+        validationException = SourceDestValidator.validateRequest(validationException, "dest");
+        assertNotNull(validationException);
+        assertEquals(2, validationException.validationErrors().size());
+        assertEquals(validationException.validationErrors().get(0), "error1");
+        assertEquals(validationException.validationErrors().get(1), "error2");
+
+        validationException = SourceDestValidator.validateRequest(validationException, "UPPERCASE");
+        assertNotNull(validationException);
+        assertEquals(3, validationException.validationErrors().size());
+        assertThat(validationException.validationErrors().get(2), equalTo("Destination index [UPPERCASE] must be lowercase"));
     }
 }

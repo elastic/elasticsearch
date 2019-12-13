@@ -7,15 +7,19 @@
 package org.elasticsearch.xpack.core.common.validation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -30,6 +34,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
+
 /**
  * Validation of source indexes and destination index in different situations (preview, put)
  */
@@ -37,7 +44,9 @@ public final class SourceDestValidator {
 
     // messages
     public static final String SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
+    public static final String SOURCE_LOWERCASE = "Source index [{0}] must be lowercase";
     public static final String DEST_IN_SOURCE = "Destination index [{0}] is included in source expression [{1}]";
+    public static final String DEST_LOWERCASE = "Destination index [{0}] must be lowercase";
     public static final String NEEDS_REMOTE_CLUSTER_SEARCH = "Source index is configured with a remote index pattern(s) [{0}]"
         + " but the current node [{1}] is not allowed to connect to remote clusters."
         + " Please enable cluster.remote.connect for all data nodes.";
@@ -166,7 +175,7 @@ public final class SourceDestValidator {
                 validationException = new ValidationException();
             }
 
-            validationException.addValidationError(new MessageFormat(error, Locale.ROOT).format(args));
+            validationException.addValidationError(getMessage(error, args));
             if (continueValidation == false) {
                 throw validationException;
             }
@@ -227,6 +236,35 @@ public final class SourceDestValidator {
         new DestinationInSourceValidation(),
         new DestinationSingleIndexValidation()
     );
+
+    /**
+     * Validate dest request.
+     *
+     * This runs a couple of simple validations at request time, to be executed from a {@link ActionRequest}}
+     * implementation.
+     *
+     * Note: Source can not be validated at request time as it might contain expressions.
+     *
+     * @param validationException an ActionRequestValidationException for collection validation problem, can be null
+     * @param dest destination index, null if validation shall be skipped
+     */
+    public static ActionRequestValidationException validateRequest(
+        @Nullable ActionRequestValidationException validationException,
+        @Nullable String dest
+    ) {
+        try {
+            if (dest != null) {
+                validateIndexOrAliasName(dest, InvalidIndexNameException::new);
+                if (dest.toLowerCase(Locale.ROOT).equals(dest) == false) {
+                    validationException = addValidationError(getMessage(DEST_LOWERCASE, dest), validationException);
+                }
+            }
+        } catch (InvalidIndexNameException ex) {
+            validationException = addValidationError(ex.getMessage(), validationException);
+        }
+
+        return validationException;
+    }
 
     /**
      * Validates source and dest indices for preview.
@@ -466,5 +504,9 @@ public final class SourceDestValidator {
         public void validate(Context context) {
             context.resolveDest();
         }
+    }
+
+    private static String getMessage(String message, Object... args) {
+        return new MessageFormat(message, Locale.ROOT).format(args);
     }
 }

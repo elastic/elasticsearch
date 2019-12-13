@@ -16,17 +16,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
 
 public class UpdateTransformAction extends ActionType<UpdateTransformAction.Response> {
 
@@ -46,7 +44,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         private final String id;
         private final boolean deferValidation;
 
-        public Request(TransformConfigUpdate update, String id, boolean deferValidation)  {
+        public Request(TransformConfigUpdate update, String id, boolean deferValidation) {
             this.update = update;
             this.id = id;
             this.deferValidation = deferValidation;
@@ -70,27 +68,24 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
+
             if (update.getDestination() != null && update.getDestination().getIndex() != null) {
-                String destIndex = update.getDestination().getIndex();
-                try {
-                    validateIndexOrAliasName(destIndex, InvalidIndexNameException::new);
-                    if (!destIndex.toLowerCase(Locale.ROOT).equals(destIndex)) {
-                        validationException = addValidationError("dest.index [" + destIndex + "] must be lowercase", validationException);
-                    }
-                } catch (InvalidIndexNameException ex) {
-                    validationException = addValidationError(ex.getMessage(), validationException);
-                }
+
+                validationException = SourceDestValidator.validateRequest(validationException, update.getDestination().getIndex());
             }
+
             TimeValue frequency = update.getFrequency();
             if (frequency != null) {
                 if (frequency.compareTo(MIN_FREQUENCY) < 0) {
                     validationException = addValidationError(
                         "minimum permitted [" + TransformField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
-                        validationException);
+                        validationException
+                    );
                 } else if (frequency.compareTo(MAX_FREQUENCY) > 0) {
                     validationException = addValidationError(
                         "highest permitted [" + TransformField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
-                        validationException);
+                        validationException
+                    );
                 }
             }
 
@@ -131,9 +126,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(update, other.update) &&
-                this.deferValidation == other.deferValidation &&
-                this.id.equals(other.id);
+            return Objects.equals(update, other.update) && this.deferValidation == other.deferValidation && this.id.equals(other.id);
         }
     }
 

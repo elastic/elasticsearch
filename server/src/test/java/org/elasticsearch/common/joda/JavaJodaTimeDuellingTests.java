@@ -55,19 +55,25 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
     }
 
-//    public void testTimezoneParsing() {
-//        //with Timezone
-//        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-//        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-//        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-//        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-//        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-//
-//    }
+    public void testTimezoneParsing() {
+        //with Timezone
+//      assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+0100", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+01:00", "strict_date_optional_time", "strict_date_optional_time");
+    }
 
     public void testPartialTimeParsing() {
-        //with Timezone
-        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+
+        // This does not work in Joda as it reports 2016-11-30T01:00:00Z
+        // because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
+//        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+        // However java.time implementation does not suffer from this
+        ZonedDateTime zonedDateTime = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time")
+                                                                       .parse("2016-11-30T+01"));
+        assertEquals(ZonedDateTime.of(2016,11,29,23,00,00,00,ZoneOffset.UTC),
+            zonedDateTime.withZoneSameInstant(ZoneOffset.UTC));
+
         assertSameDateAs("2016-11-30T12+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00:00+01", "strict_date_optional_time", "strict_date_optional_time");
@@ -202,12 +208,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testCustomLocales() {
-//
         // also ensure that locale based dates are the same
-        assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-        assertSameDate("Mi., 06 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-        assertSameDate("Do., 07 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-        assertSameDate("Fr., 08 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Di, 05 Dez 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Mi, 06 Dez 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Do, 07 Dez 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Fr, 08 Dez 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
 
         DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
         ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);

@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParsingException;
@@ -102,28 +103,34 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     /**
      * Wait the removal of the document decoded from the provided {@link AsyncSearchId}.
      */
-    protected void waitTaskRemoval(String id) throws InterruptedException, IOException {
+    protected void waitTaskRemoval(String id) throws Exception {
         AsyncSearchId searchId = AsyncSearchId.decode(id);
-        assertTrue(waitUntil(() -> client().prepareGet().setRouting(searchId.getDocId())
-            .setIndex(searchId.getIndexName()).setId(searchId.getDocId()).get().isExists() == false)
-        );
+        assertBusy(() -> {
+            GetResponse resp = client().prepareGet()
+                .setRouting(searchId.getDocId())
+                .setIndex(searchId.getIndexName())
+                .setId(searchId.getDocId())
+                .get();
+            assertFalse(resp.isExists());
+        });
     }
 
     /**
      * Wait the completion of the {@link TaskId} decoded from the provided {@link AsyncSearchId}.
      */
-    protected void waitTaskCompletion(String id) throws InterruptedException {
-        assertTrue(waitUntil(
-            () -> {
-                try {
-                    TaskId taskId = AsyncSearchId.decode(id).getTaskId();
-                    GetTaskResponse resp = client().admin().cluster()
-                        .prepareGetTask(taskId).get();
-                    return resp.getTask() == null;
-                } catch (Exception e) {
-                    return true;
+    protected void waitTaskCompletion(String id) throws Exception {
+        assertBusy(() -> {
+            TaskId taskId = AsyncSearchId.decode(id).getTaskId();
+            try {
+                GetTaskResponse resp = client().admin().cluster()
+                    .prepareGetTask(taskId).get();
+                assertNull(resp.getTask());
+            } catch (Exception exc) {
+                if (exc.getCause() instanceof ResourceNotFoundException == false) {
+                    throw exc;
                 }
-            }));
+            }
+        });
     }
 
     protected SearchResponseIterator assertBlockingIterator(String indexName,
@@ -179,6 +186,14 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
             @Override
             public AsyncSearchResponse next() {
+                try {
+                    return doNext();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            private AsyncSearchResponse doNext() throws Exception {
                 if (isFirst) {
                     isFirst = false;
                     return response;
@@ -189,31 +204,19 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 int index = 0;
                 while (index < step && shardIndex < shardLatchArray.length) {
                     if (shardLatchArray[shardIndex].shouldFail == false) {
-                        ++ index;
+                        ++index;
                     } else {
-                        ++ shardFailures;
+                        ++shardFailures;
                     }
                     shardLatchArray[shardIndex++].countDown();
-                 }
-                try {
-                    assertTrue(waitUntil(() -> {
-                        try {
-                            AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
-                                new GetAsyncSearchAction.Request(response.id(), TimeValue.timeValueMillis(10), lastVersion)
-                            ).get();
-                            atomic.set(newResp);
-                            return newResp.status() != RestStatus.NOT_MODIFIED;
-                        } catch (Exception e) {
-                            exc.set(e);
-                            return true;
-                        }
-                    }));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
                 }
-                if (exc.get() != null) {
-                    throw new ElasticsearchException(exc.get());
-                }
+                assertBusy(() -> {
+                    AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
+                        new GetAsyncSearchAction.Request(response.id(), TimeValue.timeValueMillis(10), lastVersion)
+                    ).get();
+                    atomic.set(newResp);
+                    assertNotEquals(RestStatus.NOT_MODIFIED, newResp.status());
+                });
                 AsyncSearchResponse newResponse = atomic.get();
                 lastVersion = newResponse.getVersion();
 

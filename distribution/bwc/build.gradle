@@ -45,6 +45,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
     assemble.enabled = false
 
     File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
+    project.ext.checkoutDir = checkoutDir
 
     final String remote = System.getProperty("bwc.remote", "elastic")
 

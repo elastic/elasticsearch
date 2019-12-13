@@ -1,0 +1,61 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BwcVersions
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.rest-test'
+
+System.out.println("===================>"  + project.getTasks())
+//TODO: do this for every minor version
+
+tasks.register("compatTests") {
+  description = 'Runs the tests from the latest minor of the last major version against the current version using the versioned API'
+  group = 'verification'
+  dependsOn integTestRunner
+  doLast {
+   System.out.println("*******---------> " +     bwcVersions.getUnreleased());
+   System.out.println("*******--------->2 " +     new File(project(':distribution:bwc:minor').checkoutDir, "qa"));
+  }
+}
+
+integTest.runner {
+  //TODO: make pass in the parent path for the .yml files we want to run.
+  systemProperty 'foo', new File(project(':distribution:bwc:minor').checkoutDir, "modules/ingest-common/src/test/resources")
+}
+
+
+
+
+///**
+// * copies the rest specs from the last minor so we can run them against the current cluster
+// */
+//task copyFromBwc(type: Copy) {
+//  dependsOn ':distribution:bwc:minor:checkoutBwcBranch'
+//  from (project(':distribution:bwc:minor').checkoutDir){
+//    include 'rest-api-spec/**/*.yml'
+//    include 'modules/**/rest-api-spec/**/*.yml'
+//    include 'plugins/**/rest-api-spec/**/*.yml'
+//  }
+//  into new File(project.buildDir, 'oldQA')
+//
+//  includeEmptyDirs = false
+//}
+
+dependencies {
+  testCompile project(':client:test')
+  testCompile project(':test:framework')
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile project(":rest-api-spec")
+}
+
+
+

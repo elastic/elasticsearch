@@ -49,6 +49,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -177,20 +178,21 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     /**
-     * Create parameters for this parameterized test. Uses the
+     * Create parameters for this parameterized test with optional custom paths. Uses the
      * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
      * defined in {@link ExecutableSection}.
      */
-    public static Iterable<Object[]> createParameters() throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY);
+    public static Iterable<Object[]> createParameters(String... paths) throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, paths);
     }
 
     /**
      * Create parameters for this parameterized test.
      */
-    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
-        Map<String, Set<Path>> yamlSuites = loadSuites(paths);
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... providedRoots) throws Exception {
+        //TODO: support providedRoots to run only specific tests
+
+        Map<String, Set<Path>> yamlSuites = providedRoots == null ? loadSuites( resolvePathsProperty(REST_TESTS_SUITE, "") ) : loadSuitesFromMultipleRoots(providedRoots);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
         // yaml suites are grouped by directory (effectively by api)
@@ -231,6 +233,32 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         //sort the candidates so they will always be in the same order before being shuffled, for repeatability
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
+    }
+
+    //TODO: DRY and support individual tests
+    static Map<String, Set<Path>> loadSuitesFromMultipleRoots(String... roots) throws Exception {
+        Map<String, Set<Path>> files = new HashMap<>();
+        for (String r : roots) {
+            Path root = Paths.get(r);
+            Path path = root.resolve(TESTS_PATH.substring(1));
+            System.out.println("******************************" + path);
+
+            if (Files.isDirectory(path)) {
+                Files.walk(path).forEach(file -> {
+                    if (file.toString().endsWith(".yml")) {
+                        addSuite(root, file, files);
+                    } else if (file.toString().endsWith(".yaml")) {
+                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
+                    }
+                });
+            }
+//            else {
+//                path = root.resolve(strPath + ".yml");
+//                assert Files.exists(path);
+//                addSuite(root, path, files);
+//            }
+        }
+        return files;
     }
 
     /** Find all yaml suites that match the given list of paths from the root test path. */

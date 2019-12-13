@@ -20,11 +20,7 @@
 package org.elasticsearch.packaging.util;
 
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
 
 public class Distribution {
 
@@ -86,46 +82,6 @@ public class Distribution {
             this.extension = extension;
             this.compatible = compatible;
         }
-    }
-
-    public static class PackagingConditional {
-        Distribution distribution;
-
-        public PackagingConditional(Distribution distribution) {
-            this.distribution = distribution;
-        }
-
-        private final Map<Packaging, Platforms.PlatformAction> conditions = new HashMap<>();
-
-        public PackagingConditional forArchive(Platforms.PlatformAction action) {
-            conditions.put(Packaging.TAR, action);
-            conditions.put(Packaging.ZIP, action);
-            return this;
-        }
-
-        public PackagingConditional forPackage(Platforms.PlatformAction action) {
-            conditions.put(Packaging.RPM, action);
-            conditions.put(Packaging.DEB, action);
-            return this;
-        }
-
-        public PackagingConditional forDocker(Platforms.PlatformAction action) {
-            conditions.put(Packaging.DOCKER, action);
-            return this;
-        }
-
-        public void run() throws Exception {
-            HashSet<Packaging> missingPackaging = new HashSet<>(Arrays.asList(Packaging.values()));
-            missingPackaging.removeAll(conditions.keySet());
-            if (missingPackaging.isEmpty() == false) {
-                throw new IllegalArgumentException("No condition specified for " + missingPackaging);
-            }
-            conditions.get(this.distribution.packaging).run();
-        }
-    }
-
-    public PackagingConditional packagingConditional() {
-        return new PackagingConditional(this);
     }
 
     public enum Platform {

@@ -58,11 +58,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test10InstallArchiveDistribution() throws Exception {
         assumeTrue(distribution().isArchive());
 
-        installation = installArchive(distribution);
+        installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.elasticsearchKeystore + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
         assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
     }
@@ -72,12 +72,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue(distribution().isPackage());
 
         assertRemoved(distribution);
-        installation = installPackage(distribution);
+        installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.elasticsearchKeystore + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
         assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password-protected"));
     }
@@ -90,10 +90,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         verifyKeystorePermissions();
 
-        String possibleSudo = distribution().isArchive() && Platforms.LINUX
-            ? "sudo -u " + ARCHIVE_OWNER + " "
-            : "";
-        Shell.Result r = sh.run(possibleSudo + bin.elasticsearchKeystore + " list");
+        Shell.Result r = bin.keystoreTool.run("list");
         assertThat(r.stdout, containsString("keystore.seed"));
     }
 
@@ -109,10 +106,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         verifyKeystorePermissions();
 
         final Installation.Executables bin = installation.executables();
-        String possibleSudo = distribution().isArchive() && Platforms.LINUX
-            ? "sudo -u " + ARCHIVE_OWNER + " "
-            : "";
-        Shell.Result r = sh.run(possibleSudo + bin.elasticsearchKeystore + " list");
+        Shell.Result r = bin.keystoreTool.run("list");
         assertThat(r.stdout, containsString("keystore.seed"));
     }
 
@@ -192,87 +186,57 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
-        distribution().packagingConditional()
-            .forPackage(
-                () -> sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE")
-            )
-            .forArchive(Platforms.NO_ACTION)
-            .forDocker(/* TODO */ Platforms.NO_ACTION)
-            .run();
+        try {
+            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
-        Files.createFile(esKeystorePassphraseFile);
-        Files.write(esKeystorePassphraseFile,
-            (password + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
-            StandardOpenOption.WRITE);
+            Files.createFile(esKeystorePassphraseFile);
+            Files.write(esKeystorePassphraseFile,
+                (password + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.WRITE);
 
-        startElasticsearch();
-        ServerUtils.runElasticsearchTests();
-        stopElasticsearch();
-
-        distribution().packagingConditional()
-            .forPackage(
-                () -> sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE")
-            )
-            .forArchive(Platforms.NO_ACTION)
-            .forDocker(/* TODO */ Platforms.NO_ACTION)
-            .run();
+            startElasticsearch();
+            ServerUtils.runElasticsearchTests();
+            stopElasticsearch();
+        } finally {
+            sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
+        }
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/50079 */
     public void test51WrongKeystorePasswordFromFile() throws Exception {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
         assertPasswordProtectedKeystore();
 
-        sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
-        distribution().packagingConditional()
-            .forPackage(
-                () -> sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE")
-            )
-            .forArchive(Platforms.NO_ACTION)
-            .forDocker(/* TODO */ Platforms.NO_ACTION)
-            .run();
+        try {
+            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
-        if (Files.exists(esKeystorePassphraseFile)) {
-            rm(esKeystorePassphraseFile);
+            if (Files.exists(esKeystorePassphraseFile)) {
+                rm(esKeystorePassphraseFile);
+            }
+
+            Files.createFile(esKeystorePassphraseFile);
+            Files.write(esKeystorePassphraseFile,
+                ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.WRITE);
+
+            Shell.Result result = runElasticsearchStartCommand();
+            assertElasticsearchFailure(result, PASSWORD_ERROR_MESSAGE);
+        } finally {
+            sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }
-
-        Files.createFile(esKeystorePassphraseFile);
-        Files.write(esKeystorePassphraseFile,
-            ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
-            StandardOpenOption.WRITE);
-
-        Shell.Result result = runElasticsearchStartCommand();
-        assertElasticsearchFailure(result, PASSWORD_ERROR_MESSAGE);
-
-        distribution().packagingConditional()
-            .forPackage(
-                () -> sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE")
-            )
-            .forArchive(Platforms.NO_ACTION)
-            .forDocker(/* TODO */ Platforms.NO_ACTION)
-            .run();
     }
 
     private void createKeystore() throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
-        Platforms.onLinux(() -> {
-            distribution().packagingConditional()
-                .forPackage(() -> sh.run(bin.elasticsearchKeystore + " create"))
-                .forArchive(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"))
-                .forDocker(/* TODO */ Platforms.NO_ACTION)
-                .run();
-        });
+        bin.keystoreTool.run("create");
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
         Platforms.onWindows(() -> {
-            sh.run(bin.elasticsearchKeystore + " create");
             sh.chown(keystore);
         });
     }
@@ -288,31 +252,37 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         // set the password by passing it to stdin twice
-        Platforms.onLinux(() -> distribution().packagingConditional()
-            .forPackage(() -> sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | " +
-                bin.elasticsearchKeystore + " passwd"))
-            .forArchive(() -> sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | " +
-                "sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " passwd"))
-            .forDocker(/* TODO */ Platforms.NO_ACTION)
-            .run()
-        );
+        Platforms.onLinux(() -> {
+            bin.keystoreTool.run("passwd", password + "\n" + password + "\n");
+        });
+
         Platforms.onWindows(() -> {
             sh.run("Invoke-Command -ScriptBlock {echo \'" + password + "\'; echo \'" + password + "\'} | "
-                + bin.elasticsearchKeystore + " passwd");
+                + bin.keystoreTool + " passwd");
         });
     }
 
     private void assertPasswordProtectedKeystore() {
-        Shell.Result r = sh.runIgnoreExitCode(installation.executables().elasticsearchKeystore.toString() + " has-passwd");
+        Shell.Result r = installation.executables().keystoreTool.run("has-passwd");
         assertThat("keystore should be password protected", r.exitCode, is(0));
     }
 
     private void verifyKeystorePermissions() throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
-        distribution().packagingConditional()
-            .forPackage(() -> assertThat(keystore, file(File, "root", "elasticsearch", p660)))
-            .forArchive(() -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)))
-            .forDocker(/* TODO */ Platforms.NO_ACTION)
-            .run();
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
+                break;
+            case DEB:
+            case RPM:
+                assertThat(keystore, file(File, "root", "elasticsearch", p660));
+                break;
+            case DOCKER:
+                // TODO #49469
+                break;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        }
     }
 }

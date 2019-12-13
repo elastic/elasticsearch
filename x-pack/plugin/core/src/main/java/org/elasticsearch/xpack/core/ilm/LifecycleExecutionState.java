@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,6 +78,31 @@ public class LifecycleExecutionState {
         Map<String, String> customData = indexMetaData.getCustomData(ILM_CUSTOM_METADATA_KEY);
         customData = customData == null ? new HashMap<>() : customData;
         return fromCustomMetadata(customData);
+    }
+
+    /**
+     * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
+     * it is illegal for the step to be set with the phase and/or action unset,
+     * or for the step to be unset with the phase and/or action set. All three
+     * settings must be either present or missing.
+     *
+     * @param lifecycleState the index custom data to extract the {@link Step.StepKey} from.
+     */
+    @Nullable
+    public static Step.StepKey getCurrentStepKey(LifecycleExecutionState lifecycleState) {
+        Objects.requireNonNull(lifecycleState, "cannot determine current step key as lifecycle state is null");
+        String currentPhase = lifecycleState.getPhase();
+        String currentAction = lifecycleState.getAction();
+        String currentStep = lifecycleState.getStep();
+        if (Strings.isNullOrEmpty(currentStep)) {
+            assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
+            assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
+            return null;
+        } else {
+            assert Strings.isNullOrEmpty(currentPhase) == false;
+            assert Strings.isNullOrEmpty(currentAction) == false;
+            return new Step.StepKey(currentPhase, currentAction, currentStep);
+        }
     }
 
     public static Builder builder() {
@@ -276,6 +303,11 @@ public class LifecycleExecutionState {
     public int hashCode() {
         return Objects.hash(getPhase(), getAction(), getStep(), getFailedStep(), isAutoRetryableError(), getFailedStepRetryCount(),
             getStepInfo(), getPhaseDefinition(), getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime());
+    }
+
+    @Override
+    public String toString() {
+        return asMap().toString();
     }
 
     public static class Builder {

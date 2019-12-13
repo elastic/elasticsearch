@@ -53,12 +53,13 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("categorical", "only-one"))))
+                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("categorical", "only-one")),
+                null))
             .setAnalysis(new Classification("categorical"))
             .buildForExplain();
 
         ExplainDataFrameAnalyticsAction.Response explainResponse = explainDataFrame(config);
 
-        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk().getKb(), lessThanOrEqualTo(500L));
+        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk().getKb(), lessThanOrEqualTo(1024L));
     }
 }

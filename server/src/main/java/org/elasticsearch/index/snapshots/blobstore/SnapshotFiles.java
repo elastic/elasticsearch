@@ -35,10 +35,19 @@ public class SnapshotFiles {
 
     private Map<String, FileInfo> physicalFiles = null;
 
+    /**
+     * Returns snapshot name
+     *
+     * @return snapshot name
+     */
     public String snapshot() {
         return snapshot;
     }
 
+    /**
+     * @param snapshot   snapshot name
+     * @param indexFiles index files
+     */
     public SnapshotFiles(String snapshot, List<FileInfo> indexFiles ) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;

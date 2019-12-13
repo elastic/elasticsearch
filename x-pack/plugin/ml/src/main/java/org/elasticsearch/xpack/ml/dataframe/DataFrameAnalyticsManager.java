@@ -179,6 +179,7 @@ public class DataFrameAnalyticsManager {
                 ReindexRequest reindexRequest = new ReindexRequest();
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
+                reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
                 reindexRequest.setDestIndex(config.getDest().getIndex());
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsIndex.ID_COPY + " = ctx._id"));
 
@@ -232,15 +233,7 @@ public class DataFrameAnalyticsManager {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
                     task.getAllocationId(), null);
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
-                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
-                        error -> {
-                            if (error != null) {
-                                task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
-                            } else {
-                                auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
-                                task.markAsCompleted();
-                            }
-                        }),
+                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory),
                     error -> {
                         if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                             // Task has stopped

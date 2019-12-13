@@ -605,7 +605,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
-            if (getPeerRecoveryRetentionLeases().size() >= routingTable.size()) {
+            final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
+            if (StreamSupport.stream(routingTable.spliterator(), false).allMatch(
+                shr -> shr.assignedToNode() && retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shr)))) {
                 useRetentionLeasesInPeerRecovery = true;
                 turnOffTranslogRetention();
             }

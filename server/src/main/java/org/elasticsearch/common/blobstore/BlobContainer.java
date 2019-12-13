@@ -50,6 +50,22 @@ public interface BlobContainer {
     InputStream readBlob(String blobName) throws IOException;
 
     /**
+     * Creates a new {@link InputStream} that can be used to read the given blob starting from
+     * a specific {@code position} in the blob. The {@code length} is an indication of the
+     * number of bytes that are expected to be read from the {@link InputStream}.
+     *
+     * @param blobName The name of the blob to get an {@link InputStream} for.
+     * @param position The position in the blob where the next byte will be read.
+     * @param length   An indication of the number of bytes to be read.
+     * @return The {@code InputStream} to read the blob.
+     * @throws NoSuchFileException if the blob does not exist
+     * @throws IOException         if the blob can not be read.
+     */
+    default InputStream readBlob(final String blobName, final long position, final int length) throws IOException {
+        throw new UnsupportedOperationException(); // NORELEASE
+    }
+
+    /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name.
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.

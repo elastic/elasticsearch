@@ -81,7 +81,7 @@ public final class FeatureUtils {
         newText += text.endsWith(" ") ? "" : " ";
 
         // 4. Remove multiple spaces (2 or more) with a single space
-        newText = newText.replaceAll("\\s\\s+", " ");
+        newText = newText.replaceAll("\\p{IsWhiteSpace}+", " ");
 
         // 5. Replace Turkish İ with I (TODO - check this out better...)
         newText = newText.replaceAll("\\u0130", "I");

@@ -14,8 +14,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class FeatureUtilsTests extends ESTestCase {
 
-
-
     public void testValidUTF8Length() {
         {
             // Truncate to UTF8 boundary (no cut)

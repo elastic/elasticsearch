@@ -16,63 +16,63 @@ public class ScriptDetectorTests extends ESTestCase {
     public void testGreekScript() {
         // The first two conditions check first / last character from the Greek and
         // Coptic script. The last two ones are negative tests.
-        assertThat(ScriptDetector.Script.kScriptGreek, is(ScriptDetector.getScript("Ͱ")));
-        assertThat(ScriptDetector.Script.kScriptGreek, is(ScriptDetector.getScript("Ͽ")));
-        assertThat(ScriptDetector.Script.kScriptGreek, is(ScriptDetector.getScript("δ")));
-        assertThat(ScriptDetector.Script.kScriptGreek, is(ScriptDetector.getScript("Θ")));
-        assertThat(ScriptDetector.Script.kScriptGreek, is(ScriptDetector.getScript("Δ")));
-        assertThat(ScriptDetector.Script.kScriptGreek, is(not(ScriptDetector.getScript("a"))));
-        assertThat(ScriptDetector.Script.kScriptGreek, is(not(ScriptDetector.getScript("a"))));
+        assertThat(ScriptDetector.Script.fromCodePoint("Ͱ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
+        assertThat(ScriptDetector.Script.fromCodePoint("Ͽ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
+        assertThat(ScriptDetector.Script.fromCodePoint("δ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
+        assertThat(ScriptDetector.Script.fromCodePoint("Θ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
+        assertThat(ScriptDetector.Script.fromCodePoint("Δ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
+        assertThat(ScriptDetector.Script.fromCodePoint("a".codePointAt(0)), is(not(ScriptDetector.Script.kScriptGreek)));
+        assertThat(ScriptDetector.Script.fromCodePoint("a".codePointAt(0)), is(not(ScriptDetector.Script.kScriptGreek)));
     }
 
     public void testCyrillicScript() {
-        assertThat(ScriptDetector.Script.kScriptCyrillic, is(ScriptDetector.getScript("Ѐ")));
-        assertThat(ScriptDetector.Script.kScriptCyrillic, is(ScriptDetector.getScript("ӿ")));
-        assertThat(ScriptDetector.Script.kScriptCyrillic, is(ScriptDetector.getScript("ш")));
-        assertThat(ScriptDetector.Script.kScriptCyrillic, is(ScriptDetector.getScript("Б")));
-        assertThat(ScriptDetector.Script.kScriptCyrillic, is(ScriptDetector.getScript("Ӱ")));
+        assertThat(ScriptDetector.Script.fromCodePoint("Ѐ".codePointAt(0)), is(ScriptDetector.Script.kScriptCyrillic));
+        assertThat(ScriptDetector.Script.fromCodePoint("ӿ".codePointAt(0)), is(ScriptDetector.Script.kScriptCyrillic));
+        assertThat(ScriptDetector.Script.fromCodePoint("ш".codePointAt(0)), is(ScriptDetector.Script.kScriptCyrillic));
+        assertThat(ScriptDetector.Script.fromCodePoint("Б".codePointAt(0)), is(ScriptDetector.Script.kScriptCyrillic));
+        assertThat(ScriptDetector.Script.fromCodePoint("Ӱ".codePointAt(0)), is(ScriptDetector.Script.kScriptCyrillic));
     }
 
     public void testHebrewScript() {
-        assertThat(ScriptDetector.Script.kScriptHebrew, is(ScriptDetector.getScript("֑")));
-        assertThat(ScriptDetector.Script.kScriptHebrew, is(ScriptDetector.getScript("״")));
-        assertThat(ScriptDetector.Script.kScriptHebrew, is(ScriptDetector.getScript("ד")));
-        assertThat(ScriptDetector.Script.kScriptHebrew, is(ScriptDetector.getScript("ה")));
-        assertThat(ScriptDetector.Script.kScriptHebrew, is(ScriptDetector.getScript("צ")));
+        assertThat(ScriptDetector.Script.fromCodePoint("֑".codePointAt(0)), is(ScriptDetector.Script.kScriptHebrew));
+        assertThat(ScriptDetector.Script.fromCodePoint("״".codePointAt(0)), is(ScriptDetector.Script.kScriptHebrew));
+        assertThat(ScriptDetector.Script.fromCodePoint("ד".codePointAt(0)), is(ScriptDetector.Script.kScriptHebrew));
+        assertThat(ScriptDetector.Script.fromCodePoint("ה".codePointAt(0)), is(ScriptDetector.Script.kScriptHebrew));
+        assertThat(ScriptDetector.Script.fromCodePoint("צ".codePointAt(0)), is(ScriptDetector.Script.kScriptHebrew));
     }
 
     public void testArabicScript() {
-        assertThat(ScriptDetector.getScript("م"), is(ScriptDetector.Script.kScriptArabic));
-        assertThat(ScriptDetector.getScript("خ"), is(ScriptDetector.Script.kScriptArabic));
+        assertThat(ScriptDetector.Script.fromCodePoint("م".codePointAt(0)), is(ScriptDetector.Script.kScriptArabic));
+        assertThat(ScriptDetector.Script.fromCodePoint("خ".codePointAt(0)), is(ScriptDetector.Script.kScriptArabic));
     }
 
     public void testHangulJamoScript() {
-        assertThat(ScriptDetector.getScript("ᄀ"), is(ScriptDetector.Script.kScriptHangulJamo));
-        assertThat(ScriptDetector.getScript("ᇿ"), is(ScriptDetector.Script.kScriptHangulJamo));
-        assertThat(ScriptDetector.getScript("ᄡ"), is(ScriptDetector.Script.kScriptHangulJamo));
-        assertThat(ScriptDetector.getScript("ᆅ"), is(ScriptDetector.Script.kScriptHangulJamo));
-        assertThat(ScriptDetector.getScript("ᅘ"), is(ScriptDetector.Script.kScriptHangulJamo));
+        assertThat(ScriptDetector.Script.fromCodePoint("ᄀ".codePointAt(0)), is(ScriptDetector.Script.kScriptHangulJamo));
+        assertThat(ScriptDetector.Script.fromCodePoint("ᇿ".codePointAt(0)), is(ScriptDetector.Script.kScriptHangulJamo));
+        assertThat(ScriptDetector.Script.fromCodePoint("ᄡ".codePointAt(0)), is(ScriptDetector.Script.kScriptHangulJamo));
+        assertThat(ScriptDetector.Script.fromCodePoint("ᆅ".codePointAt(0)), is(ScriptDetector.Script.kScriptHangulJamo));
+        assertThat(ScriptDetector.Script.fromCodePoint("ᅘ".codePointAt(0)), is(ScriptDetector.Script.kScriptHangulJamo));
     }
 
     public void testHiraganaScript() {
-        assertThat(ScriptDetector.getScript("ぁ"), is(ScriptDetector.Script.kScriptHiragana));
-        assertThat(ScriptDetector.getScript("ゟ"), is(ScriptDetector.Script.kScriptHiragana));
-        assertThat(ScriptDetector.getScript("こ"), is(ScriptDetector.Script.kScriptHiragana));
-        assertThat(ScriptDetector.getScript("や"), is(ScriptDetector.Script.kScriptHiragana));
-        assertThat(ScriptDetector.getScript("ぜ"), is(ScriptDetector.Script.kScriptHiragana));
+        assertThat(ScriptDetector.Script.fromCodePoint("ぁ".codePointAt(0)), is(ScriptDetector.Script.kScriptHiragana));
+        assertThat(ScriptDetector.Script.fromCodePoint("ゟ".codePointAt(0)), is(ScriptDetector.Script.kScriptHiragana));
+        assertThat(ScriptDetector.Script.fromCodePoint("こ".codePointAt(0)), is(ScriptDetector.Script.kScriptHiragana));
+        assertThat(ScriptDetector.Script.fromCodePoint("や".codePointAt(0)), is(ScriptDetector.Script.kScriptHiragana));
+        assertThat(ScriptDetector.Script.fromCodePoint("ぜ".codePointAt(0)), is(ScriptDetector.Script.kScriptHiragana));
     }
 
     public void testKatakanaScript() {
-        assertThat(ScriptDetector.getScript("゠"), is(ScriptDetector.Script.kScriptKatakana));
-        assertThat(ScriptDetector.getScript("ヿ"), is(ScriptDetector.Script.kScriptKatakana));
-        assertThat(ScriptDetector.getScript("ヂ"), is(ScriptDetector.Script.kScriptKatakana));
-        assertThat(ScriptDetector.getScript("ザ"), is(ScriptDetector.Script.kScriptKatakana));
-        assertThat(ScriptDetector.getScript("ヸ"), is(ScriptDetector.Script.kScriptKatakana));
+        assertThat(ScriptDetector.Script.fromCodePoint("゠".codePointAt(0)), is(ScriptDetector.Script.kScriptKatakana));
+        assertThat(ScriptDetector.Script.fromCodePoint("ヿ".codePointAt(0)), is(ScriptDetector.Script.kScriptKatakana));
+        assertThat(ScriptDetector.Script.fromCodePoint("ヂ".codePointAt(0)), is(ScriptDetector.Script.kScriptKatakana));
+        assertThat(ScriptDetector.Script.fromCodePoint("ザ".codePointAt(0)), is(ScriptDetector.Script.kScriptKatakana));
+        assertThat(ScriptDetector.Script.fromCodePoint("ヸ".codePointAt(0)), is(ScriptDetector.Script.kScriptKatakana));
     }
 
     public void testOtherScripts() {
-        assertThat(ScriptDetector.getScript("^"), is(ScriptDetector.Script.kScriptOtherUtf8OneByte));
-        assertThat(ScriptDetector.getScript("$"), is(ScriptDetector.Script.kScriptOtherUtf8OneByte));
+        assertThat(ScriptDetector.Script.fromCodePoint("^".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8OneByte));
+        assertThat(ScriptDetector.Script.fromCodePoint("$".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8OneByte));
 
         // Unrecognized 2-byte scripts.  For info on the scripts mentioned below, see
         // http://www.unicode.org/charts/#scripts Note: the scripts below are uniquely
@@ -81,24 +81,24 @@ public class ScriptDetectorTests extends ESTestCase {
         // latency, so (at least for now) we do not treat them specially.
         // The following three tests are, respectively, for Armenian, Syriac and
         // Thaana.
-        assertThat(ScriptDetector.getScript("Ձ"), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
-        assertThat(ScriptDetector.getScript("ܔ"), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
-        assertThat(ScriptDetector.getScript("ށ"), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
+        assertThat(ScriptDetector.Script.fromCodePoint("Ձ".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
+        assertThat(ScriptDetector.Script.fromCodePoint("ܔ".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
+        assertThat(ScriptDetector.Script.fromCodePoint("ށ".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
 
         // Unrecognized 3-byte script: CJK Unified Ideographs: not uniquely associated
         // with a language.
-        assertThat(ScriptDetector.getScript("万"), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
-        assertThat(ScriptDetector.getScript("両"), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
+        assertThat(ScriptDetector.Script.fromCodePoint("万".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
+        assertThat(ScriptDetector.Script.fromCodePoint("両".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
 
         // TODO - investigate these
         /*
         // Unrecognized 4-byte script: CJK Unified Ideographs Extension C.  Note:
         // there is a nice UTF-8 encoder / decoder at https://mothereff.in/utf-8
-        assertFalse(ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.getScript("\u00F0\u00AA\u009C\u0094"));
+        assertFalse(ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.Script.fromCodePoint("\u00F0\u00AA\u009C\u0094".codePointAt(0)));
 
         // Unrecognized 4-byte script: CJK Unified Ideographs Extension E
-        assertFalse(ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.getScript("\u00F0\u00AB\u00A0\u00B5") ||
-            ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.getScript("\u00F0\u00AC\u00BA\u00A1"));
+        assertFalse(ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.Script.fromCodePoint("\u00F0\u00AB\u00A0\u00B5".codePointAt(0)) ||
+            ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.Script.fromCodePoint("\u00F0\u00AC\u00BA\u00A1".codePointAt(0)));
             */
     }
 }

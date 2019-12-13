@@ -76,10 +76,6 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         }
     }
 
-    public void testExamples() {
-        assertThat(ContinuousNGramExtractionExamples.GOLDEN_NGRAMS.length, equalTo(360));
-    }
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());

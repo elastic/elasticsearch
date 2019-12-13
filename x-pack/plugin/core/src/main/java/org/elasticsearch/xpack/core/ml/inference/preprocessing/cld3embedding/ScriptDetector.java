@@ -2,12 +2,20 @@
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
+ * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
 
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+
+import static java.lang.Character.UnicodeBlock.ARABIC;
+import static java.lang.Character.UnicodeBlock.CYRILLIC;
+import static java.lang.Character.UnicodeBlock.GREEK;
+import static java.lang.Character.UnicodeBlock.HANGUL_JAMO;
+import static java.lang.Character.UnicodeBlock.HEBREW;
+import static java.lang.Character.UnicodeBlock.HIRAGANA;
+import static java.lang.Character.UnicodeBlock.KATAKANA;
 
 /**
  * Derived from https://github.com/google/cld3/blob/master/src/script_detector.h
@@ -56,109 +64,48 @@ public final class ScriptDetector {
         public int toInt() {
             return code;
         }
-    }
 
-    // Returns Script for the UTF8 character that is the first UTF8 character in p
-    // TODO - investigate if java String codepoints could be used whilst retaining same
-    // TODO - feature space as cld3
-    public static Script getScript(String p) {
-        if (p.isEmpty()){
-            return Script.kScriptError;
-        }
-
-        int numBytes;
-        byte[] bytes;
-
-        // TODO Java is UTF16 So, if we actually care about accuracy here we need to dig further
-        // Derived from: https://github.com/google/cld3/blob/484afe9ba7438d078e60b3a26e7fb590213c0e17/src/utils.cc#L228
-        bytes = p.substring(0, 1).getBytes(StandardCharsets.UTF_8);
-        numBytes = bytes.length;
-
-        switch (numBytes) {
-            case 1:
-                return Script.kScriptOtherUtf8OneByte;
-
-            case 2: {
-                // 2-byte UTF8 characters have 11 bits of information.  unsigned int has
-                // at least 16 bits (http://en.cppreference.com/w/cpp/language/types) so
-                // it's enough.  It's also usually the fastest int type on the current
-                // CPU, so it's better to use than int32.
-                final int kGreekStart = 0x370;
-
-                // Commented out (unsued in the code): kGreekEnd = 0x3FF;
-                final int kCyrillicStart = 0x400;
-                final int kCyrillicEnd = 0x4FF;
-                final int kHebrewStart = 0x590;
-
-                // Commented out (unsued in the code): kHebrewEnd = 0x5FF;
-                final int kArabicStart = 0x600;
-                final int kArabicEnd = 0x6FF;
-                int codepoint = ((bytes[0] & 0x1F) << 6) | (bytes[1] & 0x3F);
-                if (codepoint > kCyrillicEnd) {
-                    if (codepoint >= kArabicStart) {
-                        if (codepoint <= kArabicEnd) {
-                            return Script.kScriptArabic;
-                        }
-                    } else {
-                        // At this point, codepoint < kArabicStart = kHebrewEnd + 1, so
-                        // codepoint <= kHebrewEnd.
-                        if (codepoint >= kHebrewStart) {
-                            return Script.kScriptHebrew;
-                        }
-                    }
-                } else {
-                    if (codepoint >= kCyrillicStart) {
-                        return Script.kScriptCyrillic;
-                    } else {
-                        // At this point, codepoint < kCyrillicStart = kGreekEnd + 1, so
-                        // codepoint <= kGreekEnd.
-                        if (codepoint >= kGreekStart) {
-                            return Script.kScriptGreek;
-                        }
-                    }
-                }
-                return Script.kScriptOtherUtf8TwoBytes;
+        public static Script fromCodePoint(int codePoint) {
+            // Using blocks for the HANGUL vs HANGUL_JANO distinctions
+            // If one exists. Needs investigated
+            Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+            if (block.equals(GREEK)) {
+                return kScriptGreek;
+            }
+            if (block.equals(CYRILLIC)) {
+                return kScriptCyrillic;
+            }
+            if (block.equals(ARABIC)) {
+                return kScriptArabic;
+            }
+            if (block.equals(HEBREW)) {
+                return kScriptHebrew;
+            }
+            if (block.equals(KATAKANA)) {
+                return kScriptKatakana;
+            }
+            if (block.equals(HIRAGANA)) {
+                return kScriptHiragana;
+            }
+            if (block.equals(HANGUL_JAMO)) {
+                return kScriptHangulJamo;
             }
 
-            case 3: {
-                // 3-byte UTF8 characters have 16 bits of information.  unsigned int has
-                // at least 16 bits.
-                final int kHangulJamoStart = 0x1100;
-                final int kHangulJamoEnd = 0x11FF;
-                final int kHiraganaStart = 0x3041;
-                final int kHiraganaEnd = 0x309F;
-
-                // Commented out (unsued in the code): kKatakanaStart = 0x30A0;
-                final int kKatakanaEnd = 0x30FF;
-                int codepoint =
-                    ((bytes[0] & 0x0F) << 12) | ((bytes[1] & 0x3F) << 6) | (bytes[2] & 0x3F);
-                if (codepoint > kHiraganaEnd) {
-                    // On this branch, codepoint > kHiraganaEnd = kKatakanaStart - 1, so
-                    // codepoint >= kKatakanaStart.
-                    if (codepoint <= kKatakanaEnd) {
-                        return Script.kScriptKatakana;
-                    }
-                } else {
-                    if (codepoint >= kHiraganaStart) {
-                        return Script.kScriptHiragana;
-                    } else {
-                        if (InRange(codepoint, kHangulJamoStart, kHangulJamoEnd)) {
-                            return Script.kScriptHangulJamo;
-                        }
-                    }
-                }
-                return Script.kScriptOtherUtf8ThreeBytes;
+            // Not one of our special cases, need to determine the utf8 byte size
+            String str = new String(Character.toChars(codePoint));
+            byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
+            switch (utf8Bytes.length) {
+                case 1:
+                    return kScriptOtherUtf8OneByte;
+                case 2:
+                    return kScriptOtherUtf8TwoBytes;
+                case 3:
+                    return kScriptOtherUtf8ThreeBytes;
+                case 4:
+                    return kScriptOtherUtf8FourBytes;
+                default:
+                    return kScriptError;
             }
-
-            case 4:
-                return Script.kScriptOtherUtf8FourBytes;
-
-            default:
-                return Script.kScriptError;
         }
-    }
-
-    private static boolean InRange(int value, int low, int hi) {
-        return (value >= low) && (value <= hi);
     }
 }

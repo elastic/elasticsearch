@@ -41,6 +41,7 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.cert.X509Certificate;
 import java.nio.file.Path;
 import java.security.AccessController;

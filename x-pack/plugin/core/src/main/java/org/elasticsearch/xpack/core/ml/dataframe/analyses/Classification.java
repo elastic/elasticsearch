@@ -253,12 +253,12 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public boolean persistsState() {
-        return false;
+        return true;
     }
 
     @Override
     public String getStateDocId(String jobId) {
-        throw new UnsupportedOperationException();
+        return jobId + "_classification_state#1";
     }
 
     @Override

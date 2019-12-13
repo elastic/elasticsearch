@@ -12,14 +12,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -82,7 +80,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertModelStatePersisted(jobId);
+        assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -119,7 +117,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertModelStatePersisted(jobId);
+        assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -171,7 +169,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertModelStatePersisted(jobId);
+        assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -233,7 +231,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertModelStatePersisted(jobId);
+        assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
     }
 
@@ -324,11 +322,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         return resultsObject;
     }
 
-    private static void assertModelStatePersisted(String jobId) {
-        String docId = jobId + "_regression_state#1";
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(QueryBuilders.idsQuery().addIds(docId))
-            .get();
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+    protected String stateDocId() {
+        return jobId + "_regression_state#1";
     }
 }

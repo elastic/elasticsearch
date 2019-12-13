@@ -286,7 +286,7 @@ public class Packages {
      */
     public static void clearJournal(Shell sh) {
         if (isSystemd()) {
-            sh.run("rm -rf /run/log/journal/*");
+            sh.run("rm -rf /run/log/journal/* /var/log/journal/*");
             final Result result = sh.runIgnoreExitCode("systemctl restart systemd-journald");
 
             // Sometimes the restart fails on Debian 10 with:

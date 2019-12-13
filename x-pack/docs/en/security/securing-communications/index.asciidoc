@@ -8,8 +8,6 @@ manipulation of the data, and attempts to gain access to the server and thus the
 files storing the data. Securing your nodes helps reduce the risk from
 network-based attacks.
 
-WARNING: A full description of TLS/SSL, PKI (Public Key Infrastructure) certificates, and Certificate Authority is beyond the scope of this document. This page assumes prior knowledge of TLS/SSL as well as access to valid certificates.
-
 This section shows how to:
 
 * Encrypt traffic to, from and within an Elasticsearch cluster using SSL/TLS,

@@ -117,7 +117,7 @@ reclaim space.
 (long) The number of bytes over the high limit for memory usage at the last allocation failure.
 
 `model_size_stats`.`model_bytes_memory_limit`:::
-TBD
+(long) The upper limit for memory usage, checked on increasing values.
 
 `model_size_stats`.`result_type`:::
 (string) Internal. This value is always `model_size_stats`.

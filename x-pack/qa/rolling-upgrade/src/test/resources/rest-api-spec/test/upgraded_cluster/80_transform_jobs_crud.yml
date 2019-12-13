@@ -258,7 +258,7 @@ setup:
       transform.delete_transform:
         transform_id: "mixed-simple-continuous-transform"
 ---
-"Test index mappings for latest internal index":
+"Test index mappings for latest internal index and audit index":
   - do:
       transform.put_transform:
         transform_id: "upgraded-simple-transform"

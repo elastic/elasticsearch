@@ -20,7 +20,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +77,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
@@ -97,7 +97,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         searchContext.getQueryShardContext().setTypes("type1", "type2");
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
@@ -118,7 +118,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index,"group1");
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
 
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
@@ -127,7 +127,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext = createSearchContext(index, "group1", "group2");
         source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
@@ -138,7 +138,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));

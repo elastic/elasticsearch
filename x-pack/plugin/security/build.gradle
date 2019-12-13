@@ -26,36 +26,36 @@ dependencies {
 
     compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
 
-    // the following are all SAML dependencies - might as well download the whole internet
-    compile "org.opensaml:opensaml-core:3.3.0"
-    compile "org.opensaml:opensaml-saml-api:3.3.0"
-    compile "org.opensaml:opensaml-saml-impl:3.3.0"
-    compile "org.opensaml:opensaml-messaging-api:3.3.0"
-    compile "org.opensaml:opensaml-messaging-impl:3.3.0"
-    compile "org.opensaml:opensaml-security-api:3.3.0"
-    compile "org.opensaml:opensaml-security-impl:3.3.0"
-    compile "org.opensaml:opensaml-profile-api:3.3.0"
-    compile "org.opensaml:opensaml-profile-impl:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-api:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-impl:3.3.0"
-    compile "org.opensaml:opensaml-soap-api:3.3.0"
-    compile "org.opensaml:opensaml-soap-impl:3.3.0"
-    compile "org.opensaml:opensaml-storage-api:3.3.0"
-    compile "org.opensaml:opensaml-storage-impl:3.3.0"
-    compile "net.shibboleth.utilities:java-support:7.3.0"
-    compile "org.apache.santuario:xmlsec:2.0.8"
-    compile "io.dropwizard.metrics:metrics-core:3.2.2"
-    compile ("org.cryptacular:cryptacular:1.2.0") {
-        exclude group: 'org.bouncycastle'
-    }
-    compile "org.slf4j:slf4j-api:${versions.slf4j}"
-    compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-    compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-    compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-    compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-    compile 'com.google.guava:guava:19.0'
+  // the following are all SAML dependencies - might as well download the whole internet
+  compile "org.opensaml:opensaml-core:3.4.5"
+  compile "org.opensaml:opensaml-saml-api:3.4.5"
+  compile "org.opensaml:opensaml-saml-impl:3.4.5"
+  compile "org.opensaml:opensaml-messaging-api:3.4.5"
+  compile "org.opensaml:opensaml-messaging-impl:3.4.5"
+  compile "org.opensaml:opensaml-security-api:3.4.5"
+  compile "org.opensaml:opensaml-security-impl:3.4.5"
+  compile "org.opensaml:opensaml-profile-api:3.4.5"
+  compile "org.opensaml:opensaml-profile-impl:3.4.5"
+  compile "org.opensaml:opensaml-xmlsec-api:3.4.5"
+  compile "org.opensaml:opensaml-xmlsec-impl:3.4.5"
+  compile "org.opensaml:opensaml-soap-api:3.4.5"
+  compile "org.opensaml:opensaml-soap-impl:3.4.5"
+  compile "org.opensaml:opensaml-storage-api:3.4.5"
+  compile "org.opensaml:opensaml-storage-impl:3.4.5"
+  compile "net.shibboleth.utilities:java-support:7.5.1"
+  compile "org.apache.santuario:xmlsec:2.1.4"
+  compile "io.dropwizard.metrics:metrics-core:3.2.2"
+  compile ("org.cryptacular:cryptacular:1.2.3") {
+    exclude group: 'org.bouncycastle'
+  }
+  compile "org.slf4j:slf4j-api:${versions.slf4j}"
+  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
+  compile 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
   compile "com.nimbusds:oauth2-oidc-sdk:6.16.5"
@@ -345,7 +345,6 @@ thirdPartyAudit {
         'org.bouncycastle.crypto.digests.TigerDigest',
         'org.bouncycastle.crypto.digests.WhirlpoolDigest',
         'org.bouncycastle.crypto.engines.AESEngine',
-        'org.bouncycastle.crypto.engines.AESFastEngine',
         'org.bouncycastle.crypto.engines.BlowfishEngine',
         'org.bouncycastle.crypto.engines.CAST5Engine',
         'org.bouncycastle.crypto.engines.CAST6Engine',
@@ -371,6 +370,7 @@ thirdPartyAudit {
         'org.bouncycastle.crypto.engines.TwofishEngine',
         'org.bouncycastle.crypto.engines.VMPCEngine',
         'org.bouncycastle.crypto.engines.XTEAEngine',
+        'org.bouncycastle.crypto.generators.BCrypt',
         'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
         'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
         'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',

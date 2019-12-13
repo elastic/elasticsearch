@@ -40,7 +40,7 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
      * ever existed in the cluster state
      */
     public static final License LICENSE_TOMBSTONE = License.builder()
-            .type("trial")
+            .type(License.LicenseType.TRIAL)
             .issuer("elasticsearch")
             .uid("TOMBSTONE")
             .issuedTo("")

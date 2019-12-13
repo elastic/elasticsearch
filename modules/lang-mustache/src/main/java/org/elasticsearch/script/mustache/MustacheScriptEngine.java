@@ -32,6 +32,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
@@ -41,6 +42,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -63,7 +65,12 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
+    public <T extends ScriptFactory> T compile(
+        String templateName,
+        String templateSource,
+        ScriptContext<T> context,
+        Map<String, String> options
+    ) {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }
@@ -77,6 +84,11 @@ public final class MustacheScriptEngine implements ScriptEngine {
             throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
         }
 
+    }
+
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return Collections.singleton(TemplateScript.CONTEXT);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {

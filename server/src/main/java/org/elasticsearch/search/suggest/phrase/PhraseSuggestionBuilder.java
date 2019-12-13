@@ -634,7 +634,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            TemplateScript.Factory scriptFactory = context.getScriptService().compile(this.collateQuery, TemplateScript.CONTEXT);
+            TemplateScript.Factory scriptFactory = context.compile(this.collateQuery, TemplateScript.CONTEXT);
             suggestionContext.setCollateQueryScript(scriptFactory);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);

@@ -76,7 +76,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
                 "      field_security:\n" +
-                "         grant: [ field1 ]\n" +
+                "         grant: [ field1, id ]\n" +
                 "      query: '{\"term\" : {\"field1\" : \"value1\"}}'\n" +
                 "role3:\n" +
                 "  cluster: [ all ]\n" +
@@ -84,7 +84,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
                 "      field_security:\n" +
-                "         grant: [ field2 ]\n" +
+                "         grant: [ field2, id ]\n" +
                 "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n" +
                 "role4:\n" +
                 "  cluster: [ all ]\n" +
@@ -92,7 +92,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
                 "      field_security:\n" +
-                "         grant: [ field1 ]\n" +
+                "         grant: [ field1, id ]\n" +
                 "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n";
     }
 
@@ -106,12 +106,12 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .addMapping("type1", "id", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+        client().prepareIndex("test", "type1", "1").setSource("id", "1", "field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
+        client().prepareIndex("test", "type1", "2").setSource("id", "2", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -121,20 +121,22 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
-        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("1"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "2");
-        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("2"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "2");
@@ -172,12 +174,12 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testQueryCache() {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .addMapping("type1", "id", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+        client().prepareIndex("test", "type1", "1").setSource("id", "1", "field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
+        client().prepareIndex("test", "type1", "2").setSource("id", "2", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -190,15 +192,17 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("1"));
             response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .prepareSearch("test")
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2"), equalTo("value2"));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("2"));
 
             // this is a bit weird the document level permission (all docs with field2:value2) don't match with the field level
             // permissions (field1),
@@ -208,21 +212,24 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(0));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("2"));
 
             // user4 has all roles
             response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                     .prepareSearch("test")
-                    .addSort("_id", SortOrder.ASC)
+                    .addSort("id", SortOrder.ASC)
                     .get();
             assertHitCount(response, 2);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("1"));
             assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-            assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(2));
             assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2"), equalTo("value2"));
+            assertThat(response.getHits().getAt(1).getSourceAsMap().get("id"), equalTo("2"));
         }
     }
 

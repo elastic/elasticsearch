@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -112,8 +111,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new ActionFilters(Collections.emptySet()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.shardOperationOnPrimary(request, indexShard,
@@ -149,8 +147,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new ActionFilters(Collections.emptySet()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -162,7 +159,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
-        result.respond(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
+        result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
         assertTrue(success.get());
     }
 
@@ -191,8 +188,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver()) {
+                new ActionFilters(Collections.emptySet())) {
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
@@ -251,8 +247,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new ActionFilters(Collections.emptySet()));
 
         assertNull(action.indexBlockLevel());
     }

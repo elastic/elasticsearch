@@ -88,6 +88,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(DissectProcessor.TYPE, new DissectProcessor.Factory());
         processors.put(DropProcessor.TYPE, new DropProcessor.Factory());
         processors.put(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory());
+        processors.put(CsvProcessor.TYPE, new CsvProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 

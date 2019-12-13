@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.http.HttpHost;
+import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.http.nio.reactor.IOSession;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -15,7 +18,11 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -25,19 +32,24 @@ import org.elasticsearch.xpack.core.watcher.WatcherField;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -88,7 +100,11 @@ public class SSLService {
         ORDERED_PROTOCOL_ALGORITHM_MAP = Collections.unmodifiableMap(protocolAlgorithmMap);
     }
 
+    private static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS_SETTING = Setting.boolSetting(
+        "xpack.security.ssl.diagnose.trust", true, Setting.Property.NodeScope);
+
     private final Settings settings;
+    private final boolean diagnoseTrustExceptions;
 
     /**
      * This is a mapping from "context name" (in general use, the name of a setting key)
@@ -116,6 +132,7 @@ public class SSLService {
     public SSLService(Settings settings, Environment environment) {
         this.settings = settings;
         this.env = environment;
+        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
         this.sslConfigurations = new HashMap<>();
         this.sslContexts = loadSSLConfigurations();
     }
@@ -124,6 +141,7 @@ public class SSLService {
                        Map<SSLConfiguration, SSLContextHolder> sslContexts) {
         this.settings = settings;
         this.env = environment;
+        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
         this.sslConfigurations = sslConfigurations;
         this.sslContexts = sslContexts;
     }
@@ -158,6 +176,10 @@ public class SSLService {
         };
     }
 
+    public static void registerSettings(List<Setting<?>> settingList) {
+        settingList.add(DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
+    }
+
     /**
      * Create a new {@link SSLIOSessionStrategy} based on the provided settings. The settings are used to identify the SSL configuration
      * that should be used to create the context.
@@ -190,6 +212,14 @@ public class SSLService {
         return sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
     }
 
+    public static HostnameVerifier getHostnameVerifier(SSLConfiguration sslConfiguration) {
+        if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
+            return new DefaultHostnameVerifier();
+        } else {
+            return NoopHostnameVerifier.INSTANCE;
+        }
+    }
+
     /**
      * The {@link SSLParameters} that are associated with the {@code sslContext}.
      * <p>
@@ -213,7 +243,20 @@ public class SSLService {
      * @return Never {@code null}.
      */
     SSLIOSessionStrategy sslIOSessionStrategy(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
-        return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier);
+        return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier) {
+            @Override
+            protected void verifySession(HttpHost host, IOSession iosession, SSLSession session) throws SSLException {
+                if (verifier.verify(host.getHostName(), session) == false) {
+                    final Certificate[] certs = session.getPeerCertificates();
+                    final X509Certificate x509 = (X509Certificate) certs[0];
+                    final X500Principal x500Principal = x509.getSubjectX500Principal();
+                    final String altNames = Strings.collectionToCommaDelimitedString(SslDiagnostics.describeValidHostnames(x509));
+                    throw new SSLPeerUnverifiedException(LoggerMessageFormat.format("Expected SSL certificate to be valid for host [{}]," +
+                            " but it is only valid for subject alternative names [{}] and subject [{}]",
+                        new Object[] { host.getHostName(), altNames, x500Principal.toString() }));
+                }
+            }
+        };
     }
 
     /**
@@ -395,6 +438,7 @@ public class SSLService {
      */
     private SSLContextHolder createSslContext(X509ExtendedKeyManager keyManager, X509ExtendedTrustManager trustManager,
                                               SSLConfiguration sslConfiguration) {
+        trustManager = wrapWithDiagnostics(trustManager, sslConfiguration);
         // Initialize sslContext
         try {
             SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
@@ -407,6 +451,33 @@ public class SSLService {
         } catch (NoSuchAlgorithmException | KeyManagementException e) {
             throw new ElasticsearchException("failed to initialize the SSLContext", e);
         }
+    }
+
+    X509ExtendedTrustManager wrapWithDiagnostics(X509ExtendedTrustManager trustManager, SSLConfiguration configuration) {
+        if (diagnoseTrustExceptions && trustManager instanceof DiagnosticTrustManager == false) {
+            final Logger diagnosticLogger = LogManager.getLogger(DiagnosticTrustManager.class);
+            // A single configuration might be used in many place, if there are multiple, we just list "shared" because
+            // that is better than the alternatives. Just listing would be misleading (it might not be the right one)
+            // but listing all of them would be confusing (e.g. some might be the default realms)
+            // This needs to be a supplier (deferred evaluation) because we might load more configurations after this context is built.
+            final Supplier<String> contextName = () -> {
+                final List<String> names = sslConfigurations.entrySet().stream()
+                    .filter(e -> e.getValue().equals(configuration))
+                    .limit(2) // we only need to distinguishing between 0/1/many
+                    .map(Entry::getKey)
+                    .collect(Collectors.toList());
+                switch (names.size()) {
+                    case 0:
+                        return "(unknown)";
+                    case 1:
+                        return names.get(0);
+                    default:
+                        return "(shared)";
+                }
+            };
+            trustManager = new DiagnosticTrustManager(trustManager, contextName, diagnosticLogger::warn);
+        }
+        return trustManager;
     }
 
     /**
@@ -625,6 +696,8 @@ public class SSLService {
             try {
                 X509ExtendedKeyManager loadedKeyManager = keyConfig.createKeyManager(env);
                 X509ExtendedTrustManager loadedTrustManager = trustConfig.createTrustManager(env);
+                loadedTrustManager = wrapWithDiagnostics(loadedTrustManager, sslConfiguration);
+
                 SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
                 loadedSslContext.init(new X509ExtendedKeyManager[]{loadedKeyManager},
                     new X509ExtendedTrustManager[]{loadedTrustManager}, null);

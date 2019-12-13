@@ -211,8 +211,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
         root.extractVariables(extractedVariables);
-        root.storeSettings(settings);
-        root.analyze(painlessLookup);
+        root.analyze(painlessLookup, settings);
         Map<String, Object> statics = root.write();
 
         try {
@@ -243,8 +242,7 @@ final class Compiler {
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
                 debugStream);
         root.extractVariables(new HashSet<>());
-        root.storeSettings(settings);
-        root.analyze(painlessLookup);
+        root.analyze(painlessLookup, settings);
         root.write();
 
         return root.getBytes();

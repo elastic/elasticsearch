@@ -6,15 +6,31 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClassificationTests extends AbstractSerializingTestCase<Classification> {
@@ -37,7 +53,9 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);
         Integer numTopClasses = randomBoolean() ? null : randomIntBetween(0, 1000);
         Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true);
-        return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, numTopClasses, trainingPercent);
+        Long randomizeSeed = randomBoolean() ? null : randomLong();
+        return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, numTopClasses, trainingPercent,
+            randomizeSeed);
     }
 
     @Override
@@ -47,75 +65,147 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
     public void testConstructor_GivenTrainingPercentIsLessThanOne() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 0.999));
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 0.999, randomLong()));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsGreaterThan100() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 100.0001));
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 100.0001, randomLong()));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
     }
 
     public void testConstructor_GivenNumTopClassesIsLessThanZero() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", -1, 1.0));
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", -1, 1.0, randomLong()));
 
         assertThat(e.getMessage(), equalTo("[num_top_classes] must be an integer in [0, 1000]"));
     }
 
     public void testConstructor_GivenNumTopClassesIsGreaterThan1000() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", 1001, 1.0));
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", 1001, 1.0, randomLong()));
 
         assertThat(e.getMessage(), equalTo("[num_top_classes] must be an integer in [0, 1000]"));
     }
 
     public void testGetPredictionFieldName() {
-        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 50.0);
+        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 50.0, randomLong());
         assertThat(classification.getPredictionFieldName(), equalTo("result"));
 
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, null, 3, 50.0);
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, null, 3, 50.0, randomLong());
         assertThat(classification.getPredictionFieldName(), equalTo("foo_prediction"));
     }
 
     public void testGetNumTopClasses() {
-        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 7, 1.0);
+        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 7, 1.0, randomLong());
         assertThat(classification.getNumTopClasses(), equalTo(7));
 
         // Boundary condition: num_top_classes == 0
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 0, 1.0);
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 0, 1.0, randomLong());
         assertThat(classification.getNumTopClasses(), equalTo(0));
 
         // Boundary condition: num_top_classes == 1000
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 1000, 1.0);
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 1000, 1.0, randomLong());
         assertThat(classification.getNumTopClasses(), equalTo(1000));
 
         // num_top_classes == null, default applied
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 1.0);
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 1.0, randomLong());
         assertThat(classification.getNumTopClasses(), equalTo(2));
     }
 
     public void testGetTrainingPercent() {
-        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 50.0);
+        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 50.0, randomLong());
         assertThat(classification.getTrainingPercent(), equalTo(50.0));
 
         // Boundary condition: training_percent == 1.0
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 1.0);
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 1.0, randomLong());
         assertThat(classification.getTrainingPercent(), equalTo(1.0));
 
         // Boundary condition: training_percent == 100.0
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 100.0);
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 100.0, randomLong());
         assertThat(classification.getTrainingPercent(), equalTo(100.0));
 
         // training_percent == null, default applied
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, null);
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, null, randomLong());
         assertThat(classification.getTrainingPercent(), equalTo(100.0));
+    }
+
+    public void testGetParams() {
+        Map<String, Set<String>> extractedFields = new HashMap<>(3);
+        extractedFields.put("foo", Collections.singleton(BooleanFieldMapper.CONTENT_TYPE));
+        extractedFields.put("bar", Collections.singleton(NumberFieldMapper.NumberType.LONG.typeName()));
+        extractedFields.put("baz", Collections.singleton(KeywordFieldMapper.CONTENT_TYPE));
+        assertThat(
+            new Classification("foo").getParams(extractedFields),
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "foo"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "foo_prediction"),
+                hasEntry("prediction_field_type", "bool")));
+        assertThat(
+            new Classification("bar").getParams(extractedFields),
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "bar"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "bar_prediction"),
+                hasEntry("prediction_field_type", "int")));
+        assertThat(
+            new Classification("baz").getParams(extractedFields),
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "baz"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "baz_prediction"),
+                hasEntry("prediction_field_type", "string")));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {
         assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
+    }
+
+    public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {
+        Classification classification = createRandom();
+        assertThat(classification.getRandomizeSeed(), is(notNullValue()));
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            classification.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", "7.5.0")));
+            String json = Strings.toString(builder);
+            assertThat(json, not(containsString("randomize_seed")));
+        }
+    }
+
+    public void testToXContent_GivenVersionAfterRandomizeSeedWasIntroduced() throws IOException {
+        Classification classification = createRandom();
+        assertThat(classification.getRandomizeSeed(), is(notNullValue()));
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            classification.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", Version.CURRENT.toString())));
+            String json = Strings.toString(builder);
+            assertThat(json, containsString("randomize_seed"));
+        }
+    }
+
+    public void testToXContent_GivenVersionIsNull() throws IOException {
+        Classification classification = createRandom();
+        assertThat(classification.getRandomizeSeed(), is(notNullValue()));
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            classification.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", null)));
+            String json = Strings.toString(builder);
+            assertThat(json, containsString("randomize_seed"));
+        }
+    }
+
+    public void testToXContent_GivenEmptyParams() throws IOException {
+        Classification classification = createRandom();
+        assertThat(classification.getRandomizeSeed(), is(notNullValue()));
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            classification.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String json = Strings.toString(builder);
+            assertThat(json, containsString("randomize_seed"));
+        }
     }
 }

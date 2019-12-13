@@ -122,9 +122,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
-                                // .code_internal-* is for Code's internal worker queue index creation.
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".code-*", ".code_internal-*").privileges("all").build(),
                                 // .apm-* is for APM's agent configuration index creation
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".apm-agent-configuration").privileges("all").build(),
@@ -148,7 +145,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.APM_ROLE, new RoleDescriptor(UsernamesField.APM_ROLE,
-                        new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                        new String[] { "monitor", MonitoringBulkAction.NAME},
+                        new RoleDescriptor.IndicesPrivileges[]{
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(".monitoring-beats-*").privileges("create_index", "create_doc").build()
+                        },
+                    null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("apm_user", new RoleDescriptor("apm_user",
                     null, new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices("apm-*")
@@ -248,16 +250,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_admin", new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("code_admin", new RoleDescriptor("code_admin", new String[] {},
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".code-*").privileges("all").build()
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("code_user", new RoleDescriptor("code_user", new String[] {},
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".code-*").privileges("read").build()
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("snapshot_user", new RoleDescriptor("snapshot_user", new String[] { "create_snapshot", GetRepositoriesAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("*")

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -119,7 +118,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
         action = new TransportVerifyShardBeforeCloseAction(Settings.EMPTY, transportService, clusterService, mock(IndicesService.class),
-            mock(ThreadPool.class), shardStateAction, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class));
+            mock(ThreadPool.class), shardStateAction, mock(ActionFilters.class));
     }
 
     @Override
@@ -348,6 +347,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         @Override
         public void setShardInfo(ReplicationResponse.ShardInfo shardInfo) {
             this.shardInfo.set(shardInfo);
+        }
+
+        @Override
+        public void runPostReplicationActions(ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
 
         public ReplicationResponse.ShardInfo getShardInfo() {

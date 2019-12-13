@@ -49,6 +49,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -81,6 +82,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -114,6 +116,7 @@ setup:
         - The [sparse_vector] field type is deprecated and will be removed in 8.0.
         - The vector functions of the form function(query, doc['field']) are deprecated, and the form function(query, 'field') should be used instead. For example, cosineSimilarity(query, doc['field']) is replaced by cosineSimilarity(query, 'field').
       search:
+        index: test-index
         rest_total_hits_as_int: true
         body:
           query:

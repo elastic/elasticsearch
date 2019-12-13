@@ -111,7 +111,17 @@ final class StartupException extends RuntimeException {
         // if its a guice exception, the whole thing really will not be in the log, its megabytes.
         // refer to the hack in bootstrap, where we don't log it
         if (originalCause instanceof CreationException == false) {
-            consumer.accept("Refer to the log for complete error details.");
+            final String basePath = System.getProperty("es.logs.base_path");
+            // It's possible to fail before logging has been configured, in which case there's no point
+            // suggested that the user look in the log file.
+            if (basePath != null) {
+                final String logPath = System.getProperty("es.logs.base_path")
+                    + System.getProperty("file.separator")
+                    + System.getProperty("es.logs.cluster_name")
+                    + ".log";
+
+                consumer.accept("For complete error details, refer to the log at " + logPath);
+            }
         }
     }
 

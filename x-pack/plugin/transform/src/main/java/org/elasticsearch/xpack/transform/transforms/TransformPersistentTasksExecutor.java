@@ -283,8 +283,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <1> Check the internal index template is installed
-        TransformInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
+        // <1> Check the index templates are installed
+        TransformInternalIndex.installLatestIndexTemplatesIfRequired(clusterService, client, templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -44,8 +43,7 @@ public class TransportBulkShardOperationsAction
             final IndicesService indicesService,
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final ActionFilters actionFilters) {
         super(
                 settings,
                 BulkShardOperationsAction.NAME,
@@ -55,7 +53,6 @@ public class TransportBulkShardOperationsAction
                 threadPool,
                 shardStateAction,
                 actionFilters,
-                indexNameExpressionResolver,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
                 ThreadPool.Names.WRITE, false);
@@ -107,7 +104,7 @@ public class TransportBulkShardOperationsAction
     }
 
     // public for testing purposes only
-    public static CcrWritePrimaryResult shardOperationOnPrimary(
+    public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
             final String historyUUID,
             final List<Translog.Operation> sourceOperations,
@@ -159,7 +156,7 @@ public class TransportBulkShardOperationsAction
         }
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
             shardId, historyUUID, appliedOperations, maxSeqNoOfUpdatesOrDeletes);
-        return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
     }
 
     @Override
@@ -195,26 +192,16 @@ public class TransportBulkShardOperationsAction
         return new BulkShardOperationsResponse(in);
     }
 
-    /**
-     * Custom write result to include global checkpoint after ops have been replicated.
-     */
-    static final class CcrWritePrimaryResult extends WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> {
-        CcrWritePrimaryResult(BulkShardOperationsRequest request, Translog.Location location, IndexShard primary, Logger logger) {
-            super(request, new BulkShardOperationsResponse(), location, null, primary, logger);
-        }
+    @Override
+    protected void adaptResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+        adaptBulkShardOperationsResponse(response, indexShard);
+    }
 
-        @Override
-        public synchronized void respond(ActionListener<BulkShardOperationsResponse> listener) {
-            final ActionListener<BulkShardOperationsResponse> wrappedListener = ActionListener.wrap(response -> {
-                final SeqNoStats seqNoStats = primary.seqNoStats();
-                // return a fresh global checkpoint after the operations have been replicated for the shard follow task
-                response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
-                response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
-                listener.onResponse(response);
-            }, listener::onFailure);
-            super.respond(wrappedListener);
-        }
-
+    public static void adaptBulkShardOperationsResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+        final SeqNoStats seqNoStats = indexShard.seqNoStats();
+        // return a fresh global checkpoint after the operations have been replicated for the shard follow task
+        response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
+        response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
     }
 
 }

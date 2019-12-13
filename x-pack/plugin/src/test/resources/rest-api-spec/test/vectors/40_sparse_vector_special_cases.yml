@@ -55,6 +55,7 @@ setup:
       warnings:
         - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       search:
+        index: test-index
         rest_total_hits_as_int: true
         body:
           query:
@@ -77,6 +78,7 @@ setup:
       warnings:
         - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       search:
+        index: test-index
         rest_total_hits_as_int: true
         body:
           query:
@@ -121,6 +123,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -139,6 +142,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -188,6 +192,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -224,6 +229,7 @@ setup:
     headers:
       Content-Type: application/json
     search:
+      index: test-index
       body:
         query:
           script_score:
@@ -266,6 +272,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -297,6 +304,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -327,6 +335,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:
@@ -354,6 +363,7 @@ setup:
     warnings:
       - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
+      index: test-index
       rest_total_hits_as_int: true
       body:
         query:

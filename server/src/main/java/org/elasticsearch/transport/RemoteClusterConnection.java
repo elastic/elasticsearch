@@ -47,7 +47,7 @@ import java.util.function.Function;
  * in the remote cluster and connects to all eligible nodes, for details see {@link RemoteClusterService#REMOTE_NODE_ATTRIBUTE}.
  *
  * In the case of a disconnection, this class will issue a re-connect task to establish at most
- * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
+ * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
 final class RemoteClusterConnection implements Closeable {
@@ -68,7 +68,7 @@ final class RemoteClusterConnection implements Closeable {
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
         this(settings, clusterAlias, transportService,
-            createConnectionManager(buildConnectionProfileFromSettings(settings, clusterAlias), transportService));
+            createConnectionManager(RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings), transportService));
     }
 
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService,
@@ -76,7 +76,7 @@ final class RemoteClusterConnection implements Closeable {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-        this.connectionStrategy = new SniffConnectionStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
+        this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         connectionManager.addListener(transportService);
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
@@ -238,21 +238,7 @@ final class RemoteClusterConnection implements Closeable {
         return remoteConnectionManager.getConnectionManager();
     }
 
-    public boolean shouldRebuildConnection(Settings newSettings) {
+    boolean shouldRebuildConnection(Settings newSettings) {
         return connectionStrategy.shouldRebuildConnection(newSettings);
-    }
-
-    static ConnectionProfile buildConnectionProfileFromSettings(Settings settings, String clusterName) {
-        return new ConnectionProfile.Builder()
-            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
-            // we don't want this to be used for anything else but search
-            .addConnections(0, TransportRequestOptions.Type.BULK,
-                TransportRequestOptions.Type.STATE,
-                TransportRequestOptions.Type.RECOVERY)
-            .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))
-            .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings))
-            .build();
     }
 }

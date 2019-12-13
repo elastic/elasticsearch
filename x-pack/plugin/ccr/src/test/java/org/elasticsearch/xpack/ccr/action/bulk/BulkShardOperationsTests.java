@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -75,7 +76,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     operations,
                 numOps - 1, followerPrimary, logger);
 
-        try (Translog.Snapshot snapshot = followerPrimary.getHistoryOperations("test", 0)) {
+        try (Translog.Snapshot snapshot = followerPrimary.getHistoryOperations("test", Engine.HistorySource.INDEX, 0)) {
             assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {

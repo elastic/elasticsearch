@@ -27,12 +27,16 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.concurrent.TimeUnit;
 
 public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Response> {
 
@@ -75,35 +79,87 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
     public static class Response extends ActionResponse implements ToXContentObject {
 
         public static final ConstructingObjectParser<Response, Void> PARSER =
-            new ConstructingObjectParser<>("reindex/get_task", a -> new Response((BulkByScrollResponse) a[0],
-                (ElasticsearchException) a[1]);
+            new ConstructingObjectParser<>("reindex/get_task", a -> new Response(
+                (String) a[0],
+                (String) a[1],
+                (Long) a[2],
+                (Long) a[3],
+                (BulkByScrollResponse) a[4],
+                (ElasticsearchException) a[5]));
 
-        private static final String REINDEX_RESPONSE = "response";
-        private static final String REINDEX_EXCEPTION = "exception";
+        private static final String PERSISTENT_TASK_ID = "persistent_task_id";
+        private static final String STATE = "state";
+        private static final String START_TIME = "start_time";
+        private static final String END_TIME = "end_time";
+        private static final String DURATION = "duration";
+        private static final String DURATION_IN_MILLIS = "duration_in_millis";
+        private static final String REINDEX_RESULT = "result";
+        private static final String REINDEX_EXCEPTION = "failure";
+
+        private static final String RUNNING_STATE = "running";
+        private static final String DONE_STATE = "done";
+        private static final String FAILED_STATE = "failed";
 
         static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(PERSISTENT_TASK_ID));
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(STATE));
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(START_TIME)); // Fix millis
+            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_TIME)); // Fix millis
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
-                new ParseField(REINDEX_RESPONSE));
+                new ParseField(REINDEX_RESULT));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
                 new ParseField(REINDEX_EXCEPTION));
         }
 
+        private final String persistentTaskId;
+        private final String state;
+        private final long startMillis;
+        private final Long endMillis;
         private final BulkByScrollResponse reindexResponse;
         private final ElasticsearchException exception;
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            this.persistentTaskId = in.readString();
+            this.state = in.readString();
+            this.startMillis = in.readLong();
+            this.endMillis = in.readOptionalLong();
             this.reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
             this.exception = in.readOptionalWriteable(ElasticsearchException::new);
         }
 
-        public Response(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+        public Response(String persistentTaskId, long startMillis, @Nullable Long endMillis,
+                        @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+            this(persistentTaskId, getState(reindexResponse, exception), startMillis, endMillis, reindexResponse, exception);
+        }
+
+        public Response(String persistentTaskId, String state, long startMillis, @Nullable Long endMillis,
+                        @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+            this.persistentTaskId = persistentTaskId;
+            this.state = state;
+            this.startMillis = startMillis;
+            this.endMillis = endMillis;
             this.reindexResponse = reindexResponse;
             this.exception = exception;
         }
 
+        private static String getState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+            assert reindexResponse == null || exception == null;
+            if (reindexResponse != null) {
+                return DONE_STATE;
+            } else if (exception != null) {
+                return FAILED_STATE;
+            } else {
+                return RUNNING_STATE;
+            }
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(persistentTaskId);
+            out.writeString(state);
+            out.writeLong(startMillis);
+            out.writeOptionalLong(endMillis);
             out.writeOptionalWriteable(reindexResponse);
             out.writeOptionalWriteable(exception);
         }
@@ -111,18 +167,27 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            assert reindexResponse == null || exception == null;
+            builder.field(STATE, state);
+            builder.field(START_TIME, Instant.ofEpochMilli(startMillis).atZone(ZoneOffset.UTC));
+            if (endMillis != null) {
+                builder.field(END_TIME, Instant.ofEpochMilli(endMillis).atZone(ZoneOffset.UTC));
+                builder.field(DURATION_IN_MILLIS, endMillis - startMillis);
+                builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endMillis - startMillis, TimeUnit.MILLISECONDS));
+            }
             if (reindexResponse != null) {
-                builder.field(REINDEX_RESPONSE);
+                builder.field(REINDEX_RESULT);
                 builder.startObject();
                 reindexResponse.toXContent(builder, params);
                 builder.endObject();
-            }
-            if (exception != null) {
+            } else if (exception != null) {
+                builder.field(STATE, FAILED_STATE);
                 builder.field(REINDEX_EXCEPTION);
                 builder.startObject();
                 ElasticsearchException.generateThrowableXContent(builder, params, exception);
                 builder.endObject();
             }
+
             return builder.endObject();
         }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.reindex.ReindexIndexClient.REINDEX_ALIAS;
@@ -36,7 +37,8 @@ public class ReindexIndexClientTests extends ESSingleNodeTestCase {
         ReindexIndexClient client = new ReindexIndexClient(client(), getInstanceFromNode(ClusterService.class), null);
 
         PlainActionFuture<ReindexTaskState> future = new PlainActionFuture<>();
-        client.createReindexTaskDoc(randomAlphaOfLength(5), new ReindexTaskStateDoc(new ReindexRequest()), future);
+        long startTimeMillis = Instant.now().toEpochMilli();
+        client.createReindexTaskDoc(randomAlphaOfLength(5), new ReindexTaskStateDoc(new ReindexRequest(), startTimeMillis), future);
         future.actionGet(10, TimeUnit.SECONDS);
 
         GetAliasesResponse aliases = client().admin().indices().prepareGetAliases(REINDEX_ALIAS).get();

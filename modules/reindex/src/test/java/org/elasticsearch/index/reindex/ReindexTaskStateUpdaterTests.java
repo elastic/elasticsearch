@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -266,7 +267,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
             reindex().source("source").destination("dest").refresh(true).request().setCheckpointInterval(TimeValue.ZERO);
 
         PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
-        client.createReindexTaskDoc(taskId, new ReindexTaskStateDoc(request), future);
+        client.createReindexTaskDoc(taskId, new ReindexTaskStateDoc(request, Instant.now().toEpochMilli()), future);
         future.actionGet();
     }
 

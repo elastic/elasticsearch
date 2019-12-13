@@ -33,9 +33,12 @@ import java.io.IOException;
 public class ReindexTaskStateDoc implements ToXContentObject {
 
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =
-        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (Long) a[1],
-            (BulkByScrollResponse) a[2], (ElasticsearchException) a[3], (Integer) a[4], (ScrollableHitSource.Checkpoint) a[5]));
+        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (Long) a[1], (Long) a[2],
+            (Long) a[3], (BulkByScrollResponse) a[4], (ElasticsearchException) a[5], (Integer) a[6],
+            (ScrollableHitSource.Checkpoint) a[7]));
 
+    private static final String STATE_TIME_MILLIS = "start_time_epoch_millis";
+    private static final String END_TIME_MILLIS = "end_time_epoch_millis";
     private static final String REINDEX_REQUEST = "request";
     private static final String ALLOCATION = "allocation";
     private static final String REINDEX_RESPONSE = "response";
@@ -46,7 +49,9 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
             new ParseField(REINDEX_REQUEST));
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(STATE_TIME_MILLIS));
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ALLOCATION));
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_TIME_MILLIS));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
             new ParseField(REINDEX_RESPONSE));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
@@ -56,34 +61,41 @@ public class ReindexTaskStateDoc implements ToXContentObject {
             new ParseField(REINDEX_CHECKPOINT));
     }
 
+    private final long startTimeMillis;
     private final ReindexRequest reindexRequest;
     private final Long allocationId;
+    private final Long endTimeMillis;
     private final BulkByScrollResponse reindexResponse;
     private final ElasticsearchException exception;
     private final RestStatus failureStatusCode;
     private final ScrollableHitSource.Checkpoint checkpoint;
 
-    public ReindexTaskStateDoc(ReindexRequest reindexRequest) {
-        this(reindexRequest, null, null, null, (RestStatus) null, null);
+    public ReindexTaskStateDoc(ReindexRequest reindexRequest, long startTimeMillis) {
+        this(reindexRequest, startTimeMillis, null, null, null, null, (RestStatus) null, null);
     }
 
-    public ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
-                               @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                               @Nullable Integer failureStatusCode, ScrollableHitSource.Checkpoint checkpoint) {
-        this(reindexRequest, allocationId, reindexResponse, exception,
+    public ReindexTaskStateDoc(ReindexRequest reindexRequest, long startTimeMillis, @Nullable Long allocationId,
+                               @Nullable Long endTimeMillis, @Nullable BulkByScrollResponse reindexResponse,
+                               @Nullable ElasticsearchException exception, @Nullable Integer failureStatusCode,
+                               ScrollableHitSource.Checkpoint checkpoint) {
+        this(reindexRequest, startTimeMillis, allocationId, endTimeMillis, reindexResponse, exception,
             failureStatusCode == null ? null : RestStatus.fromCode(failureStatusCode), checkpoint);
     }
 
-    public ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
-                               @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                               @Nullable ScrollableHitSource.Checkpoint checkpoint) {
-        this(reindexRequest, allocationId, reindexResponse, exception, exception != null ? exception.status() : null, checkpoint);
+    public ReindexTaskStateDoc(ReindexRequest reindexRequest, long startTimeMillis, @Nullable Long allocationId,
+                               @Nullable Long endTimeMillis, @Nullable BulkByScrollResponse reindexResponse,
+                               @Nullable ElasticsearchException exception, @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+        this(reindexRequest, startTimeMillis, allocationId, endTimeMillis, reindexResponse, exception,
+            exception != null ? exception.status() : null, checkpoint);
     }
 
-    private ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
-                                @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                                @Nullable RestStatus failureStatusCode, @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+    private ReindexTaskStateDoc(ReindexRequest reindexRequest, long startTimeMillis, @Nullable Long allocationId,
+                                @Nullable Long endTimeMillis, @Nullable BulkByScrollResponse reindexResponse,
+                                @Nullable ElasticsearchException exception, @Nullable RestStatus failureStatusCode,
+                                @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+        this.startTimeMillis = startTimeMillis;
         this.allocationId = allocationId;
+        this.endTimeMillis = endTimeMillis;
         assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
         this.reindexRequest = reindexRequest;
         this.reindexResponse = reindexResponse;
@@ -97,8 +109,12 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         builder.startObject();
         builder.field(REINDEX_REQUEST);
         reindexRequest.toXContent(builder, params, true);
+        builder.field(STATE_TIME_MILLIS, startTimeMillis);
         if (allocationId != null) {
             builder.field(ALLOCATION, allocationId);
+        }
+        if (endTimeMillis != null) {
+            builder.field(END_TIME_MILLIS, endTimeMillis);
         }
         if (reindexResponse != null) {
             builder.field(REINDEX_RESPONSE);
@@ -148,17 +164,28 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         return allocationId;
     }
 
+    public long getStartTimeMillis() {
+        return startTimeMillis;
+    }
+
+    public Long getEndTimeMillis() {
+        return endTimeMillis;
+    }
+
     public ReindexTaskStateDoc withCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
         // todo: also store and resume from status.
-        return new ReindexTaskStateDoc(reindexRequest, allocationId, reindexResponse, exception, failureStatusCode, checkpoint);
+        return new ReindexTaskStateDoc(reindexRequest, startTimeMillis, allocationId, endTimeMillis, reindexResponse, exception,
+            failureStatusCode, checkpoint);
     }
 
     public ReindexTaskStateDoc withNewAllocation(long newAllocationId) {
-        return new ReindexTaskStateDoc(reindexRequest, newAllocationId, reindexResponse, exception, failureStatusCode, checkpoint);
+        return new ReindexTaskStateDoc(reindexRequest, startTimeMillis, newAllocationId, endTimeMillis, reindexResponse, exception,
+            failureStatusCode, checkpoint);
     }
 
-    public ReindexTaskStateDoc withFinishedState(@Nullable BulkByScrollResponse reindexResponse,
+    public ReindexTaskStateDoc withFinishedState(long endTimeMillis, @Nullable BulkByScrollResponse reindexResponse,
                                                  @Nullable ElasticsearchException exception) {
-        return new ReindexTaskStateDoc(reindexRequest, allocationId, reindexResponse, exception, checkpoint);
+        return new ReindexTaskStateDoc(reindexRequest, startTimeMillis, allocationId, endTimeMillis, reindexResponse, exception,
+            checkpoint);
     }
 }

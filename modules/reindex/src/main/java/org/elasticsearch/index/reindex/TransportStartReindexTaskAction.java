@@ -42,6 +42,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +100,7 @@ public class TransportStartReindexTaskAction
         }
 
         String generatedId = UUIDs.randomBase64UUID();
+        long startTimeMillis = Instant.now().toEpochMilli();
 
         ThreadContext threadContext = threadPool.getThreadContext();
         Map<String, String> included = headersToInclude.stream()
@@ -110,7 +112,7 @@ public class TransportStartReindexTaskAction
         boolean storeTaskResult = request.getWaitForCompletion() == false;
         ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, included);
 
-        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
+        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest(), startTimeMillis);
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {

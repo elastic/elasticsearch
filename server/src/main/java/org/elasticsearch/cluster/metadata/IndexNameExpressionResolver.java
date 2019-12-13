@@ -144,8 +144,11 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
+        final List<String> expressions;
         if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[]{MetaData.ALL};
+            expressions = List.of(MetaData.ALL);
+        } else {
+            expressions = List.of(indexExpressions);
         }
         MetaData metaData = context.getState().metaData();
         IndicesOptions options = context.getOptions();
@@ -153,17 +156,17 @@ public class IndexNameExpressionResolver {
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
-        final boolean failNoIndices = indexExpressions.length == 1 ? !options.allowNoIndices() : !options.ignoreUnavailable();
-        List<String> expressions = Arrays.asList(indexExpressions);
+        final boolean failNoIndices = expressions.size() == 1 ? !options.allowNoIndices() : !options.ignoreUnavailable();
+        List<String> resolvedExpressions = expressions;
         for (ExpressionResolver expressionResolver : expressionResolvers) {
-            expressions = expressionResolver.resolve(context, expressions);
+            resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
-        
-        if (expressions.isEmpty()) {
+
+        if (resolvedExpressions.isEmpty()) {
             if (!options.allowNoIndices()) {
                 IndexNotFoundException infe;
-                if (indexExpressions.length == 1) {
-                    if (indexExpressions[0].equals(MetaData.ALL)) {
+                if (expressions.size() == 1) {
+                    if (MetaData.ALL.equals(expressions.get(0))) {
                         infe = new IndexNotFoundException("no indices exist", (String)null);
                     } else {
                         infe = new IndexNotFoundException((String)null);
@@ -179,7 +182,7 @@ public class IndexNameExpressionResolver {
         }
 
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
-        for (String expression : expressions) {
+        for (String expression : resolvedExpressions) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             if (aliasOrIndex == null ) {
                 if (failNoIndices) {
@@ -187,7 +190,7 @@ public class IndexNameExpressionResolver {
                     if (expression.equals(MetaData.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", expression);
                     } else {
-                        infe = new IndexNotFoundException(expression);  
+                        infe = new IndexNotFoundException(expression);
                     }
                     infe.setResources("index_expression", expression);
                     throw infe;
@@ -345,7 +348,7 @@ public class IndexNameExpressionResolver {
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false);
-        List<String> resolvedExpressions = Arrays.asList(expressions);
+        List<String> resolvedExpressions = List.of(expressions);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
@@ -427,7 +430,7 @@ public class IndexNameExpressionResolver {
         if (aliases == null) {
             return null;
         }
-        return aliases.toArray(new String[aliases.size()]);
+        return aliases.toArray(Strings.EMPTY_ARRAY);
     }
 
     /**
@@ -670,7 +673,8 @@ public class IndexNameExpressionResolver {
         public List<String> resolve(Context context, List<String> expressions) {
             IndicesOptions options = context.getOptions();
             MetaData metaData = context.getState().metaData();
-            if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
+            if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false &&
+                options.expandWildcardsHidden() == false) {
                 return expressions;
             }
 
@@ -678,26 +682,24 @@ public class IndexNameExpressionResolver {
                 return resolveEmptyOrTrivialWildcard(options, metaData);
             }
 
-            // TODO: Fix API to work with sets rather than lists since we need to convert to sets
-            // internally anyway.
-            Set<String> result = innerResolve(context, expressions, options, metaData);
+            final Set<String> result = innerResolve(context, expressions, options, metaData);
 
             if (result == null) {
                 return expressions;
             }
             if (result.isEmpty() && !options.allowNoIndices()) {
                 IndexNotFoundException infe = new IndexNotFoundException((String)null);
-                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
+                infe.setResources("index_or_alias", expressions.toArray(Strings.EMPTY_ARRAY));
                 throw infe;
             }
-            return new ArrayList<>(result);
+            return List.copyOf(result);
         }
 
         private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(i);
+                String expression = expressions.get(0);
                 if (Strings.isEmpty(expression)) {
                     throw indexNotFoundException(expression);
                 }
@@ -739,7 +741,7 @@ public class IndexNameExpressionResolver {
 
                 final IndexMetaData.State excludeState = excludeState(options);
                 final Map<String, AliasOrIndex> matches = matches(context, metaData, expression);
-                Set<String> expand = expand(context, excludeState, matches);
+                Set<String> expand = expand(context, excludeState, matches, options.expandWildcardsHidden());
                 if (add) {
                     result.addAll(expand);
                 } else {
@@ -834,7 +836,8 @@ public class IndexNameExpressionResolver {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
-        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches) {
+        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches,
+                                          boolean includeHidden) {
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
                 AliasOrIndex aliasOrIndex = entry.getValue();
@@ -843,7 +846,9 @@ public class IndexNameExpressionResolver {
                 } else {
                     for (IndexMetaData meta : aliasOrIndex.getIndices()) {
                         if (excludeState == null || meta.getState() != excludeState) {
-                            expand.add(meta.getIndex().getName());
+                            if (includeHidden || IndexMetaData.INDEX_HIDDEN_SETTING.get(meta.getSettings()) == false) {
+                                expand.add(meta.getIndex().getName());
+                            }
                         }
                     }
                 }
@@ -852,19 +857,31 @@ public class IndexNameExpressionResolver {
         }
 
         private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
-            return expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0)) ||
-                Regex.isMatchAllPattern(expressions.get(0))));
+            if (expressions.isEmpty()) {
+                return true;
+            } else if (expressions.size() == 1) {
+                final String expression = expressions.get(0);
+                return MetaData.ALL.equals(expression) || Regex.isMatchAllPattern(expression);
+            } else {
+                return false;
+            }
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData) {
-            if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.getConcreteAllIndices());
+            if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
+                return List.of(metaData.getConcreteAllIndices());
+            } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+                return List.of(metaData.getConcreteVisibleIndices());
+            } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
+                return List.of(metaData.getConcreteAllOpenIndices());
             } else if (options.expandWildcardsOpen()) {
-                return Arrays.asList(metaData.getConcreteAllOpenIndices());
+                return List.of(metaData.getConcreteVisibleOpenIndices());
+            } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
+                return List.of(metaData.getConcreteAllClosedIndices());
             } else if (options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.getConcreteAllClosedIndices());
+                return List.of(metaData.getConcreteVisibleClosedIndices());
             } else {
-                return Collections.emptyList();
+                return List.of();
             }
         }
     }

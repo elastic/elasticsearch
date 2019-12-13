@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -45,7 +46,8 @@ public class IndicesOptions implements ToXContentFragment {
 
     public enum WildcardStates {
         OPEN,
-        CLOSED;
+        CLOSED,
+        HIDDEN;
 
         public static final EnumSet<WildcardStates> NONE = EnumSet.noneOf(WildcardStates.class);
 
@@ -56,18 +58,24 @@ public class IndicesOptions implements ToXContentFragment {
 
             Set<WildcardStates> states = new HashSet<>();
             String[] wildcards = nodeStringArrayValue(value);
+            // TODO why do we let patterns like "none,all" or "open,none,closed" get used. The location of 'none' in the array changes the
+            // meaning of the resulting value
             for (String wildcard : wildcards) {
-                if ("open".equals(wildcard)) {
-                    states.add(OPEN);
-                } else if ("closed".equals(wildcard)) {
-                    states.add(CLOSED);
-                } else if ("none".equals(wildcard)) {
-                    states.clear();
-                } else if ("all".equals(wildcard)) {
-                    states.add(OPEN);
-                    states.add(CLOSED);
-                } else {
-                    throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                switch (wildcard) {
+                    case "open":
+                        states.add(OPEN);
+                        break;
+                    case "closed":
+                        states.add(CLOSED);
+                        break;
+                    case "none":
+                        states.clear();
+                        break;
+                    case "all":
+                        states.addAll(EnumSet.allOf(WildcardStates.class));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                 }
             }
 
@@ -91,9 +99,15 @@ public class IndicesOptions implements ToXContentFragment {
     public static final IndicesOptions LENIENT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
             EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+            EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN));
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
             EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED));
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+            EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED, WildcardStates.HIDDEN));
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED));
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED =
@@ -116,42 +130,6 @@ public class IndicesOptions implements ToXContentFragment {
     private IndicesOptions(Collection<Option> options, Collection<WildcardStates> expandWildcards) {
         this(options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
             expandWildcards.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(expandWildcards));
-    }
-
-    // Package visible for testing
-    static IndicesOptions fromByte(final byte id) {
-        // IGNORE_UNAVAILABLE = 1;
-        // ALLOW_NO_INDICES = 2;
-        // EXPAND_WILDCARDS_OPEN = 4;
-        // EXPAND_WILDCARDS_CLOSED = 8;
-        // FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
-        // FORBID_CLOSED_INDICES = 32;
-        // IGNORE_ALIASES = 64;
-
-        Set<Option> opts = new HashSet<>();
-        Set<WildcardStates> wildcards = new HashSet<>();
-        if ((id & 1) != 0) {
-            opts.add(Option.IGNORE_UNAVAILABLE);
-        }
-        if ((id & 2) != 0) {
-            opts.add(Option.ALLOW_NO_INDICES);
-        }
-        if ((id & 4) != 0) {
-            wildcards.add(WildcardStates.OPEN);
-        }
-        if ((id & 8) != 0) {
-            wildcards.add(WildcardStates.CLOSED);
-        }
-        if ((id & 16) != 0) {
-            opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
-        }
-        if ((id & 32) != 0) {
-            opts.add(Option.FORBID_CLOSED_INDICES);
-        }
-        if ((id & 64) != 0) {
-            opts.add(Option.IGNORE_ALIASES);
-        }
-        return new IndicesOptions(opts, wildcards);
     }
 
     /**
@@ -183,6 +161,13 @@ public class IndicesOptions implements ToXContentFragment {
      */
     public boolean expandWildcardsClosed() {
         return expandWildcards.contains(WildcardStates.CLOSED);
+    }
+
+    /**
+     * @return Whether wildcard expressions should get expanded to hidden indices
+     */
+    public boolean expandWildcardsHidden() {
+        return expandWildcards.contains(WildcardStates.HIDDEN);
     }
 
     /**
@@ -218,7 +203,17 @@ public class IndicesOptions implements ToXContentFragment {
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         out.writeEnumSet(options);
-        out.writeEnumSet(expandWildcards);
+        if (out.getVersion().before(Version.V_8_0_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
+            Set<WildcardStates> states = new HashSet<>();
+            for (WildcardStates state : expandWildcards) {
+                if (state != WildcardStates.HIDDEN) {
+                    states.add(state);
+                }
+            }
+            out.writeEnumSet(EnumSet.copyOf(states));
+        } else {
+            out.writeEnumSet(expandWildcards);
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -227,18 +222,27 @@ public class IndicesOptions implements ToXContentFragment {
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true, false, false, false);
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, false, true, false, false, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, IndicesOptions defaultOptions) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices,
-            defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases(),
-            defaultOptions.ignoreThrottled());
+            defaultOptions.expandWildcardsHidden(), defaultOptions.allowAliasesToMultipleIndices(),
+            defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases(), defaultOptions.ignoreThrottled());
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
-            boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases,
+                                             boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices,
+                                             boolean forbidClosedIndices, boolean ignoreAliases,
+                                             boolean ignoreThrottled) {
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, false,
+            allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled);
+    }
+
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
+                                             boolean expandToClosedIndices, boolean expandToHiddenIndices,
+                                             boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases,
                                              boolean ignoreThrottled) {
         final Set<Option> opts = new HashSet<>();
         final Set<WildcardStates> wildcards = new HashSet<>();
@@ -254,6 +258,9 @@ public class IndicesOptions implements ToXContentFragment {
         }
         if (expandToClosedIndices) {
             wildcards.add(WildcardStates.CLOSED);
+        }
+        if (expandToHiddenIndices) {
+            wildcards.add(WildcardStates.HIDDEN);
         }
         if (allowAliasesToMultipleIndices == false) {
             opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
@@ -314,6 +321,7 @@ public class IndicesOptions implements ToXContentFragment {
                 nodeBooleanValue(allowNoIndicesString, "allow_no_indices", defaultSettings.allowNoIndices()),
                 wildcards.contains(WildcardStates.OPEN),
                 wildcards.contains(WildcardStates.CLOSED),
+                wildcards.contains(WildcardStates.HIDDEN),
                 defaultSettings.allowAliasesToMultipleIndices(),
                 defaultSettings.forbidClosedIndices(),
                 defaultSettings.ignoreAliases(),
@@ -385,11 +393,27 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
+     * @return indices options that ignores unavailable indices, expands wildcards to open and hidden indices, and
+     *         allows that no indices are resolved from wildcard expressions (not returning an error).
+     */
+    public static IndicesOptions lenientExpandOpenHidden() {
+        return LENIENT_EXPAND_OPEN_HIDDEN;
+    }
+
+    /**
      * @return indices options that ignores unavailable indices,  expands wildcards to both open and closed
      * indices and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpand() {
         return LENIENT_EXPAND_OPEN_CLOSED;
+    }
+
+    /**
+     * @return indices options that ignores unavailable indices,  expands wildcards to all open and closed
+     * indices and allows that no indices are resolved from wildcard expressions (not returning an error).
+     */
+    public static IndicesOptions lenientExpandHidden() {
+        return LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
     }
 
     @Override
@@ -419,6 +443,7 @@ public class IndicesOptions implements ToXContentFragment {
                 ", allow_no_indices=" + allowNoIndices() +
                 ", expand_wildcards_open=" + expandWildcardsOpen() +
                 ", expand_wildcards_closed=" + expandWildcardsClosed() +
+                ", expand_wildcards_hidden=" + expandWildcardsHidden() +
                 ", allow_aliases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
                 ", forbid_closed_indices=" + forbidClosedIndices() +
                 ", ignore_aliases=" + ignoreAliases() +

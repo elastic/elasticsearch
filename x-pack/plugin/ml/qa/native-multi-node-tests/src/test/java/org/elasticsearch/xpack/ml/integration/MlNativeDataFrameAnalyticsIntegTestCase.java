@@ -259,7 +259,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected static Set<String> getTrainingRowsIds(String index) {
         Set<String> trainingRowsIds = new HashSet<>();
-        SearchResponse hits = client().prepareSearch(index).get();
+        SearchResponse hits = client().prepareSearch(index).setSize(10000).get();
         for (SearchHit hit : hits.getHits()) {
             Map<String, Object> sourceAsMap = hit.getSourceAsMap();
             assertThat(sourceAsMap.containsKey("ml"), is(true));
@@ -273,5 +273,12 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }
         assertThat(trainingRowsIds.isEmpty(), is(false));
         return trainingRowsIds;
+    }
+
+    protected static void assertModelStatePersisted(String stateDocId) {
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
+            .get();
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
     }
 }

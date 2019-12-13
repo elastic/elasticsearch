@@ -16,13 +16,13 @@ with links to default stop words.
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/eu/BasqueAnalyzer.java[Lucene]
 
 |Bengali
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/bn/BengaliAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/bn/BengaliAnalyzer.java#L45[Lucene]
 
 |Brazilian
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/br/BrazilianAnalyzer.java[Lucene]
 
 |Bulgarian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/bg/BulgarianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/bg/BulgarianAnalyzer.java#[Lucene]
 
 |Catalan
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ca/CatalanAnalyzer.java[Lucene]
@@ -34,79 +34,79 @@ with links to default stop words.
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/cz/CzechAnalyzer.java[Lucene]
 
 |Danish
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/da/DanishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/danish_stop.txt[Lucene]
 
 |Dutch
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/da/DanishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/dutch_stop.txt[Lucene]
 
 |English
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L46[Lucene]
 
 |Finnish
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/fi/FinnishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/finnish_stop.txt[Lucene]
 
 |French
-|link:https://github.com/apache/lucene-solr/tree/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/fr[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/french_stop.txt[Lucene]
 
 |Galician
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/gl/GalicianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_gl.txt[Lucene]
 
 |German
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/de/GermanAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/german_stop.txt[Lucene]
 
 |Greek
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/el/GreekAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_el.txt[Lucene]
 
 |Hindi
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/hi/HindiAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/hi/HindiAnalyzer.java#L45[Lucene]
 
 |Hungarian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/hu/HungarianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/hungarian_stop.txt[Lucene]
 
 |Indonesian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/id/IndonesianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_id.txt[Lucene]
 
 |Irish
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ga/IrishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_ga.txt[Lucene]
 
 |Italian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/it/ItalianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/italian_stop.txt[Lucene]
 
 |Latvian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/lv/LatvianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_lv.txt[Lucene]
 
 |Lithuanian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/lt/LithuanianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/example-DIH/solr/db/conf/lang/stopwords_lv.txt[Lucene]
 
 |Norwegian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/no/NorwegianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/norwegian_stop.txt[Lucene]
 
 |Persian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/fa/PersianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/fa/PersianAnalyzer.java#L50[Lucene]
 
 |Portuguese
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/pt/PortugueseAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/portuguese_stop.txt[Lucene]
 
 |Romanian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ro/RomanianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_ro.txt[Lucene]
 
 |Russian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ru/RussianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/russian_stop.txt[Lucene]
 
 |Sorani
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ckb/SoraniAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/example-DIH/solr/db/conf/lang/stopwords_ckb.txt[Lucene]
 
 |Spanish
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/es/SpanishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/spanish_stop.txt[Lucene]
 
 |Swedish
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/sv/SwedishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/swedish_stop.txt[Lucene]
 
 |Thai
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/th/ThaiAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_th.txt[Lucene]
 
 |Turkish
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/tr/TurkishAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_tr.txt[Lucene]
 |=======
 
 

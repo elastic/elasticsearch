@@ -356,6 +356,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetaData);
         final Repository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(), clusterService);
         clusterService.addStateApplier(e -> repository.updateState(e.state()));
+        // Apply state once to initialize repo properly like RepositoriesService would
+        repository.updateState(clusterService.state());
         return repository;
     }
 

@@ -54,8 +54,23 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
         assertThat(
-            evaluateDataFrameResponse.getMetrics().get(0).getMetricName(),
-            equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
+            evaluateDataFrameResponse.getMetrics().get(0).getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
+    }
+
+    public void testEvaluate_AllMetrics() {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX,
+                new Classification(
+                    ANIMAL_NAME_FIELD,
+                    ANIMAL_NAME_PREDICTION_FIELD,
+                    List.of(new Accuracy(), new MulticlassConfusionMatrix())));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(2));
+        assertThat(evaluateDataFrameResponse.getMetrics().get(0).getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
+        assertThat(
+            evaluateDataFrameResponse.getMetrics().get(1).getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
     }
 
     public void testEvaluate_Accuracy_KeywordField() {
@@ -69,14 +84,14 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
         assertThat(
-            accuracyResult.getActualClasses(),
+            accuracyResult.getClasses(),
             equalTo(
                 List.of(
-                    new Accuracy.ActualClass("ant", 15, 1.0 / 15),
-                    new Accuracy.ActualClass("cat", 15, 1.0 / 15),
-                    new Accuracy.ActualClass("dog", 15, 1.0 / 15),
-                    new Accuracy.ActualClass("fox", 15, 1.0 / 15),
-                    new Accuracy.ActualClass("mouse", 15, 1.0 / 15))));
+                    new Accuracy.PerClassResult("ant", 47.0 / 75),
+                    new Accuracy.PerClassResult("cat", 47.0 / 75),
+                    new Accuracy.PerClassResult("dog", 47.0 / 75),
+                    new Accuracy.PerClassResult("fox", 47.0 / 75),
+                    new Accuracy.PerClassResult("mouse", 47.0 / 75))));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(5.0 / 75));
     }
 
@@ -91,13 +106,14 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
         assertThat(
-            accuracyResult.getActualClasses(),
-            equalTo(List.of(
-                new Accuracy.ActualClass("1", 15, 1.0 / 15),
-                new Accuracy.ActualClass("2", 15, 2.0 / 15),
-                new Accuracy.ActualClass("3", 15, 3.0 / 15),
-                new Accuracy.ActualClass("4", 15, 4.0 / 15),
-                new Accuracy.ActualClass("5", 15, 5.0 / 15))));
+            accuracyResult.getClasses(),
+            equalTo(
+                List.of(
+                    new Accuracy.PerClassResult("1", 57.0 / 75),
+                    new Accuracy.PerClassResult("2", 54.0 / 75),
+                    new Accuracy.PerClassResult("3", 51.0 / 75),
+                    new Accuracy.PerClassResult("4", 48.0 / 75),
+                    new Accuracy.PerClassResult("5", 45.0 / 75))));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(15.0 / 75));
     }
 
@@ -112,11 +128,21 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
         assertThat(
-            accuracyResult.getActualClasses(),
-            equalTo(List.of(
-                new Accuracy.ActualClass("true", 45, 27.0 / 45),
-                new Accuracy.ActualClass("false", 30, 18.0 / 30))));
+            accuracyResult.getClasses(),
+            equalTo(
+                List.of(
+                    new Accuracy.PerClassResult("false", 18.0 / 30),
+                    new Accuracy.PerClassResult("true", 27.0 / 45))));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(45.0 / 75));
+    }
+
+    public void testEvaluate_Accuracy_CardinalityTooHigh() {
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> evaluateDataFrame(
+                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Accuracy(4)))));
+        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
     }
 
     public void testEvaluate_Precision() {
@@ -250,7 +276,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
-                new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new MulticlassConfusionMatrix(3))));
+                new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new MulticlassConfusionMatrix(3, null))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));

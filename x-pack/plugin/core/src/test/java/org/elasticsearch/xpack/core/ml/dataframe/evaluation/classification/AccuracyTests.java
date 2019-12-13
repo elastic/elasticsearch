@@ -7,15 +7,11 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
@@ -44,54 +40,36 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
         return new Accuracy();
     }
 
-    public void testProcess() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockTerms("classification_classes"),
-            mockSingleValue("classification_overall_accuracy", 0.8123),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
-
-        Accuracy accuracy = new Accuracy();
-        accuracy.process(aggs);
-
-        assertThat(accuracy.getResult().get(), equalTo(new Accuracy.Result(List.of(), 0.8123)));
+    public void testComputePerClassAccuracy() {
+        assertThat(
+            Accuracy.computePerClassAccuracy(
+                new MulticlassConfusionMatrix.Result(
+                    List.of(
+                        new MulticlassConfusionMatrix.ActualClass("A", 14, List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("A", 1),
+                            new MulticlassConfusionMatrix.PredictedClass("B", 6),
+                            new MulticlassConfusionMatrix.PredictedClass("C", 4)
+                        ), 3L),
+                        new MulticlassConfusionMatrix.ActualClass("B", 20, List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("A", 5),
+                            new MulticlassConfusionMatrix.PredictedClass("B", 3),
+                            new MulticlassConfusionMatrix.PredictedClass("C", 9)
+                        ), 3L),
+                        new MulticlassConfusionMatrix.ActualClass("C", 17, List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("A", 8),
+                            new MulticlassConfusionMatrix.PredictedClass("B", 2),
+                            new MulticlassConfusionMatrix.PredictedClass("C", 7)
+                        ), 0L)),
+                    0)),
+            equalTo(
+                List.of(
+                    new Accuracy.PerClassResult("A", 25.0 / 51),  // 13 false positives, 13 false negatives
+                    new Accuracy.PerClassResult("B", 26.0 / 51),  //  8 false positives, 17 false negatives
+                    new Accuracy.PerClassResult("C", 28.0 / 51))) // 13 false positives, 10 false negatives
+        );
     }
 
-    public void testProcess_GivenMissingAgg() {
-        {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockTerms("classification_classes"),
-                mockSingleValue("some_other_single_metric_agg", 0.2377)
-            ));
-            Accuracy accuracy = new Accuracy();
-            expectThrows(NullPointerException.class, () -> accuracy.process(aggs));
-        }
-        {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue("classification_overall_accuracy", 0.8123),
-                mockSingleValue("some_other_single_metric_agg", 0.2377)
-            ));
-            Accuracy accuracy = new Accuracy();
-            expectThrows(NullPointerException.class, () -> accuracy.process(aggs));
-        }
-    }
-
-    public void testProcess_GivenAggOfWrongType() {
-        {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockTerms("classification_classes"),
-                mockTerms("classification_overall_accuracy")
-            ));
-            Accuracy accuracy = new Accuracy();
-            expectThrows(ClassCastException.class, () -> accuracy.process(aggs));
-        }
-        {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue("classification_classes", 1.0),
-                mockSingleValue("classification_overall_accuracy", 0.8123)
-            ));
-            Accuracy accuracy = new Accuracy();
-            expectThrows(ClassCastException.class, () -> accuracy.process(aggs));
-        }
+    public void testComputePerClassAccuracy_OtherActualClassCountIsNonZero() {
+        expectThrows(AssertionError.class, () -> Accuracy.computePerClassAccuracy(new MulticlassConfusionMatrix.Result(List.of(), 1)));
     }
 }

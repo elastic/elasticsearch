@@ -178,6 +178,8 @@ class BuildPlugin implements Plugin<Project> {
                         cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
                         cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
                         cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
+                        // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
+                        cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                     }
                 }
             }

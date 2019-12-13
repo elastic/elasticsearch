@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 @ThreadLeakFilters(filters = HdfsClientThreadLeakFilter.class)
+// Ony using a single node here since the TestingFs only supports the single-node case
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, supportsDedicatedMasters = false)
 public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 

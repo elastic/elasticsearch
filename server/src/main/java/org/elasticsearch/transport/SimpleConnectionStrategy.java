@@ -26,14 +26,21 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -131,6 +138,10 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         return Stream.of(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES);
     }
 
+    static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
+        return SimpleModeInfo::new;
+    }
+
     @Override
     protected boolean shouldOpenMoreConnections() {
         return connectionManager.size() < maxNumConnections;
@@ -151,6 +162,11 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     @Override
     protected void connectImpl(ActionListener<Void> listener) {
         performSimpleConnectionProcess(listener);
+    }
+
+    @Override
+    public RemoteConnectionInfo.ModeInfo getModeInfo() {
+        return new SimpleModeInfo(configuredAddresses, maxNumConnections, connectionManager.size());
     }
 
     private void performSimpleConnectionProcess(ActionListener<Void> listener) {
@@ -237,5 +253,73 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         Set<String> oldSeeds = new HashSet<>(oldAddresses);
         Set<String> newSeeds = new HashSet<>(newAddresses);
         return oldSeeds.equals(newSeeds) == false;
+    }
+
+    static class SimpleModeInfo implements RemoteConnectionInfo.ModeInfo {
+
+        private final List<String> addresses;
+        private final int maxSocketConnections;
+        private final int numSocketsConnected;
+
+        SimpleModeInfo(List<String> addresses, int maxSocketConnections, int numSocketsConnected) {
+            this.addresses = addresses;
+            this.maxSocketConnections = maxSocketConnections;
+            this.numSocketsConnected = numSocketsConnected;
+        }
+
+        private SimpleModeInfo(StreamInput input) throws IOException {
+            addresses = Arrays.asList(input.readStringArray());
+            maxSocketConnections = input.readVInt();
+            numSocketsConnected = input.readVInt();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startArray("addresses");
+            for (String address : addresses) {
+                builder.value(address);
+            }
+            builder.endArray();
+            builder.field("num_sockets_connected", numSocketsConnected);
+            builder.field("max_socket_connections", maxSocketConnections);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringArray(addresses.toArray(new String[0]));
+            out.writeVInt(maxSocketConnections);
+            out.writeVInt(numSocketsConnected);
+        }
+
+        @Override
+        public boolean isConnected() {
+            return numSocketsConnected > 0;
+        }
+
+        @Override
+        public String modeName() {
+            return "simple";
+        }
+
+        @Override
+        public RemoteConnectionStrategy.ConnectionStrategy modeType() {
+            return RemoteConnectionStrategy.ConnectionStrategy.SIMPLE;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SimpleModeInfo simple = (SimpleModeInfo) o;
+            return maxSocketConnections == simple.maxSocketConnections &&
+                numSocketsConnected == simple.numSocketsConnected &&
+                Objects.equals(addresses, simple.addresses);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(addresses, maxSocketConnections, numSocketsConnected);
+        }
     }
 }

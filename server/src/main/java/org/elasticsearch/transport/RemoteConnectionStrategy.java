@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -57,19 +58,38 @@ import java.util.stream.Stream;
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {
-        SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::enablementSettings),
-        SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings);
+        SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::enablementSettings,
+            SniffConnectionStrategy::infoReader) {
+            @Override
+            public String toString() {
+                return "sniff";
+            }
+        },
+        SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings,
+            SimpleConnectionStrategy::infoReader) {
+            @Override
+            public String toString() {
+                return "simple";
+            }
+        };
 
         private final int numberOfChannels;
         private final Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings;
+        private final Supplier<Writeable.Reader<RemoteConnectionInfo.ModeInfo>> reader;
 
-        ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings) {
+        ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings,
+                           Supplier<Writeable.Reader<RemoteConnectionInfo.ModeInfo>> reader) {
             this.numberOfChannels = numberOfChannels;
             this.enablementSettings = enablementSettings;
+            this.reader = reader;
         }
 
         public int getNumberOfChannels() {
             return numberOfChannels;
+        }
+
+        public Writeable.Reader<RemoteConnectionInfo.ModeInfo> getReader() {
+            return reader.get();
         }
     }
 
@@ -309,6 +329,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract boolean shouldOpenMoreConnections();
 
     protected abstract void connectImpl(ActionListener<Void> listener);
+
+    protected abstract RemoteConnectionInfo.ModeInfo getModeInfo();
 
     private List<ActionListener<Void>> getAndClearListeners() {
         final List<ActionListener<Void>> result;

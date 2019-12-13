@@ -40,7 +40,7 @@ of a word. For example, if `foxes` is stemmed to `fox`, searches for the term
 Stemming is handled by a <<analysis-tokenfilters,token filter>> in
 the <<analyzer-anatomy,analyzer>>.
 
-If you're unsure of which stemming token filter to use, start out with the
+If you're unsure of which stemming token filter to use, start with the
 <<analysis-stemmer-tokenfilter,`stemmer`>> filter, which supports multiple
 languages and stemmer types. The <<analysis-stemmer-tokenfilter,`stemmer` filter
 documentation>> page highlights the recommended stemmer for each language in

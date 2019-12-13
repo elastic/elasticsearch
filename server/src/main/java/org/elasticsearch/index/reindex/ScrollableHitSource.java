@@ -556,7 +556,7 @@ public abstract class ScrollableHitSource {
     /**
      * An opaque object representing the checkpoint state to resume from.
      */
-    public static class Checkpoint implements ToXContentObject, Writeable {
+    public static class Checkpoint implements ToXContentObject {
         private static final String RESTART_FROM_VALUE = "restartFromValue";
 
         private static final ConstructingObjectParser<Checkpoint, Void> PARSER =
@@ -569,17 +569,8 @@ public abstract class ScrollableHitSource {
         // package-private for testing.
         final long restartFromValue;
 
-        public Checkpoint(StreamInput in) throws IOException {
-            restartFromValue = in.readLong();
-        }
-
         protected Checkpoint(long restartFromValue) {
             this.restartFromValue = restartFromValue;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(restartFromValue);
         }
 
         @Override

@@ -48,6 +48,6 @@ public class TransportGetReindexTaskAction extends HandledTransportAction<GetRei
 
     private static GetReindexTaskAction.Response toResponse(ReindexTaskState taskState) {
         ReindexTaskStateDoc stateDoc = taskState.getStateDoc();
-        return new GetReindexTaskAction.Response(stateDoc.getReindexResponse(), stateDoc.getException(), stateDoc.getCheckpoint());
+        return new GetReindexTaskAction.Response(stateDoc.getReindexResponse(), stateDoc.getException());
     }
 }

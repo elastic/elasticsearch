@@ -76,44 +76,36 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
 
         public static final ConstructingObjectParser<Response, Void> PARSER =
             new ConstructingObjectParser<>("reindex/get_task", a -> new Response((BulkByScrollResponse) a[0],
-                (ElasticsearchException) a[1], (ScrollableHitSource.Checkpoint) a[2]));
+                (ElasticsearchException) a[1]);
 
         private static final String REINDEX_RESPONSE = "response";
         private static final String REINDEX_EXCEPTION = "exception";
-        private static final String REINDEX_CHECKPOINT = "checkpoint";
 
         static {
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
                 new ParseField(REINDEX_RESPONSE));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
                 new ParseField(REINDEX_EXCEPTION));
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ScrollableHitSource.Checkpoint.fromXContent(p), new ParseField(REINDEX_CHECKPOINT));
         }
 
         private final BulkByScrollResponse reindexResponse;
         private final ElasticsearchException exception;
-        private final ScrollableHitSource.Checkpoint checkpoint;
 
         public Response(StreamInput in) throws IOException {
             super(in);
             this.reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
             this.exception = in.readOptionalWriteable(ElasticsearchException::new);
-            this.checkpoint = in.readOptionalWriteable(ScrollableHitSource.Checkpoint::new);
         }
 
-        public Response(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                        @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+        public Response(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
             this.reindexResponse = reindexResponse;
             this.exception = exception;
-            this.checkpoint = checkpoint;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(reindexResponse);
             out.writeOptionalWriteable(exception);
-            out.writeOptionalWriteable(checkpoint);
         }
 
         @Override
@@ -130,10 +122,6 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
                 builder.startObject();
                 ElasticsearchException.generateThrowableXContent(builder, params, exception);
                 builder.endObject();
-            }
-            if (checkpoint != null) {
-                builder.field(REINDEX_CHECKPOINT);
-                checkpoint.toXContent(builder, params);
             }
             return builder.endObject();
         }

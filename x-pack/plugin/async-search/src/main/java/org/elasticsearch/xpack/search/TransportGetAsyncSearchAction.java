@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -58,12 +57,12 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
             listener = wrapCleanupListener(searchId, listener);
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId())) {
-                getSearchResponseFromTask(task, request, searchId, listener);
+                getSearchResponseFromTask(request, searchId, listener);
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
                 DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
                 if (node == null) {
-                    getSearchResponseFromIndex(task, request, searchId, listener);
+                    getSearchResponseFromIndex(request, searchId, listener);
                 } else {
                     transportService.sendRequest(node, GetAsyncSearchAction.NAME, request, builder.build(),
                         new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME));
@@ -74,34 +73,30 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-    private void getSearchResponseFromTask(Task thisTask, GetAsyncSearchAction.Request request, AsyncSearchId searchId,
+    private void getSearchResponseFromTask(GetAsyncSearchAction.Request request, AsyncSearchId searchId,
                                            ActionListener<AsyncSearchResponse> listener) {
         Task runningTask = taskManager.getTask(searchId.getTaskId().getId());
         if (runningTask == null) {
             // Task isn't running
-            getSearchResponseFromIndex(thisTask, request, searchId, listener);
+            getSearchResponseFromIndex(request, searchId, listener);
             return;
         }
         if (runningTask instanceof AsyncSearchTask) {
             AsyncSearchTask searchTask = (AsyncSearchTask) runningTask;
             if (searchTask.getSearchId().equals(request.getId()) == false) {
                 // Task id has been reused by another task due to a node restart
-                getSearchResponseFromIndex(thisTask, request, searchId, listener);
+                getSearchResponseFromIndex(request, searchId, listener);
                 return;
             }
             waitForCompletion(request, searchTask, searchId, threadPool.relativeTimeInMillis(), listener);
         } else {
             // Task id has been reused by another task due to a node restart
-            getSearchResponseFromIndex(thisTask, request, searchId, listener);
+            getSearchResponseFromIndex(request, searchId, listener);
         }
     }
 
-   private void getSearchResponseFromIndex(Task task, GetAsyncSearchAction.Request request, AsyncSearchId searchId,
+   private void getSearchResponseFromIndex(GetAsyncSearchAction.Request request, AsyncSearchId searchId,
                                            ActionListener<AsyncSearchResponse> listener) {
-        GetRequest get = new GetRequest(searchId.getIndexName(), searchId.getDocId())
-            .routing(searchId.getDocId())
-            .storedFields("response");
-        get.setParentTask(clusterService.localNode().getId(), task.getId());
         store.getResponse(request, searchId,
             wrap(
                 resp -> {

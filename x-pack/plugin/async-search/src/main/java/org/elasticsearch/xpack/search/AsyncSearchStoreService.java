@@ -58,7 +58,7 @@ class AsyncSearchStoreService {
      */
     void storeInitialResponse(ActionListener<IndexResponse> next) {
         IndexRequest request = new IndexRequest(ASYNC_SEARCH_ALIAS)
-            .id(UUIDs.randomBase64UUID())
+            .id(UUIDs.randomBase64UUID(random))
             .source(Collections.emptyMap(), XContentType.JSON);
         client.index(request, next);
     }
@@ -79,7 +79,9 @@ class AsyncSearchStoreService {
      * failure to the provided listener if not.
      */
     void getResponse(GetAsyncSearchAction.Request request, AsyncSearchId searchId, ActionListener<AsyncSearchResponse> next) {
-        GetRequest internalGet = new GetRequest(searchId.getIndexName()).id(searchId.getDocId());
+        GetRequest internalGet = new GetRequest(searchId.getIndexName())
+            .id(searchId.getDocId())
+            .routing(searchId.getDocId());
         client.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {

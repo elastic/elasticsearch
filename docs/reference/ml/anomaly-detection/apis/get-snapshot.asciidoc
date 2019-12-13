@@ -114,7 +114,7 @@ reclaim space.
 (long) An approximation of the memory resources required for this analysis.
 
 `model_size_stats`.`model_bytes_exceeded`:::
-TBD
+(long) The number of bytes over the high limit for memory usage at the last allocation failure.
 
 `model_size_stats`.`model_bytes_memory_limit`:::
 TBD

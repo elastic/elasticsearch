@@ -290,7 +290,7 @@ setup:
 ---
 "Test invalid destination index name":
   - do:
-      catch: /.*reason=Validation Failed.* dest\.index \[DeStInAtIoN\] must be lowercase/
+      catch: /.*reason=Validation Failed.* Destination index \[DeStInAtIoN\] must be lowercase/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >

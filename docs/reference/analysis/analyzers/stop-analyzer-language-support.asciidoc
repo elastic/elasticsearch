@@ -10,28 +10,28 @@ with links to default stop words.
 | link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ar/ArabicAnalyzer.java#L57[Lucene]
 
 |Armenian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/hy/ArmenianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_hy.txt[Lucene]
 
 |Basque
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/eu/BasqueAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_eu.txt[Lucene]
 
 |Bengali
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/bn/BengaliAnalyzer.java#L45[Lucene]
 
 |Brazilian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/br/BrazilianAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_pt.txt[Lucene]
 
 |Bulgarian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/bg/BulgarianAnalyzer.java#[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_bg.txt[Lucene]
 
 |Catalan
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/ca/CatalanAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_ca.txt[Lucene]
 
 |CJK
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/cjk/CJKAnalyzer.java[Lucene]
 
 |Czech
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/cz/CzechAnalyzer.java[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/example-DIH/solr/db/conf/lang/stopwords_cz.txt[Lucene]
 
 |Danish
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/danish_stop.txt[Lucene]
@@ -58,7 +58,7 @@ with links to default stop words.
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_el.txt[Lucene]
 
 |Hindi
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/hi/HindiAnalyzer.java#L45[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_hi.txt[Lucene]
 
 |Hungarian
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/hungarian_stop.txt[Lucene]
@@ -82,7 +82,7 @@ with links to default stop words.
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/norwegian_stop.txt[Lucene]
 
 |Persian
-|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/java/org/apache/lucene/analysis/fa/PersianAnalyzer.java#L50[Lucene]
+|link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/solr/example/files/conf/lang/stopwords_fa.txt[Lucene]
 
 |Portuguese
 |link:https://github.com/apache/lucene-solr/blob/2e1a470c90e9293a42160280c5c39afb33bb5db0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/portuguese_stop.txt[Lucene]

@@ -50,10 +50,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
@@ -81,7 +79,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.IntPredicate;
 
 /**
@@ -124,58 +121,35 @@ public class LucenePersistedStateFactory {
 
     public static final String METADATA_DIRECTORY_NAME = "_metadata";
 
-    private final NodeEnvironment nodeEnvironment;
+    private final Path[] dataPaths;
+    private final String nodeId;
+    private final boolean preserveUnknownCustoms;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
-    private final LegacyLoader legacyLoader;
 
-    /**
-     * Allows interacting with legacy metadata
-     */
-    public interface LegacyLoader {
-        /**
-         * Loads legacy state
-         */
-        Tuple<Manifest, MetaData> loadClusterState() throws IOException;
-
-        /**
-         * Cleans legacy state
-         */
-        void clean() throws IOException;
+    public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays);
     }
 
-    LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
-        this(nodeEnvironment, namedXContentRegistry, bigArrays, new LegacyLoader() {
-            @Override
-            public Tuple<Manifest, MetaData> loadClusterState() {
-                return new Tuple<>(Manifest.empty(), MetaData.EMPTY_META_DATA);
-            }
-
-            @Override
-            public void clean() {
-
-            }
-        });
-    }
-
-    public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
-                                       LegacyLoader legacyLoader) {
-        this.nodeEnvironment = nodeEnvironment;
+    public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, boolean preserveUnknownCustoms,
+                                       NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
+        this.dataPaths = dataPaths;
+        this.nodeId = nodeId;
+        this.preserveUnknownCustoms = preserveUnknownCustoms;
         this.namedXContentRegistry = namedXContentRegistry;
         this.bigArrays = bigArrays;
-        this.legacyLoader = legacyLoader;
     }
 
-    CoordinationState.PersistedState loadPersistedState(BiFunction<Long, MetaData, ClusterState> clusterStateFromMetaData)
-        throws IOException {
+    public String getNodeId() {
+        return nodeId;
+    }
 
-        final OnDiskState onDiskState = loadBestOnDiskState();
-
+    public Writer createWriter() throws IOException {
         final List<MetaDataIndexWriter> metaDataIndexWriters = new ArrayList<>();
         final List<Closeable> closeables = new ArrayList<>();
         boolean success = false;
         try {
-            for (final Path path : nodeEnvironment.nodeDataPaths()) {
+            for (final Path path : dataPaths) {
                 final Directory directory = createDirectory(path.resolve(METADATA_DIRECTORY_NAME));
                 closeables.add(directory);
 
@@ -199,21 +173,7 @@ public class LucenePersistedStateFactory {
                 IOUtils.closeWhileHandlingException(closeables);
             }
         }
-
-        final ClusterState clusterState = clusterStateFromMetaData.apply(onDiskState.lastAcceptedVersion, onDiskState.metaData);
-        final LucenePersistedState lucenePersistedState
-            = new LucenePersistedState(nodeEnvironment.nodeId(), metaDataIndexWriters, onDiskState.currentTerm, clusterState, bigArrays);
-        success = false;
-        try {
-            lucenePersistedState.persistInitialState();
-            legacyLoader.clean();
-            success = true;
-            return lucenePersistedState;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(lucenePersistedState);
-            }
-        }
+        return new Writer(metaDataIndexWriters, nodeId, bigArrays);
     }
 
     // exposed for tests
@@ -224,14 +184,14 @@ public class LucenePersistedStateFactory {
         return new SimpleFSDirectory(path);
     }
 
-    private static class OnDiskState {
-        final String nodeId;
-        final Path dataPath;
-        final long currentTerm;
-        final long lastAcceptedVersion;
-        final MetaData metaData;
+    public static class OnDiskState {
+        public final String nodeId;
+        public final Path dataPath;
+        public final long currentTerm;
+        public final long lastAcceptedVersion;
+        public final MetaData metaData;
 
-        private OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, MetaData metaData) {
+        public OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, MetaData metaData) {
             this.nodeId = nodeId;
             this.dataPath = dataPath;
             this.currentTerm = currentTerm;
@@ -240,9 +200,9 @@ public class LucenePersistedStateFactory {
         }
     }
 
-    private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
+    public static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
 
-    private OnDiskState loadBestOnDiskState() throws IOException {
+    public OnDiskState loadBestOnDiskState() throws IOException {
         String committedClusterUuid = null;
         Path committedClusterUuidPath = null;
         OnDiskState bestOnDiskState = NO_ON_DISK_STATE;
@@ -251,16 +211,16 @@ public class LucenePersistedStateFactory {
         // We use a write-all-read-one strategy: metadata is written to every data path when accepting it, which means it is mostly
         // sufficient to read _any_ copy. "Mostly" sufficient because the user can change the set of data paths when restarting, and may
         // add a data path containing a stale copy of the metadata. We deal with this by using the freshest copy we can find.
-        for (final Path dataPath : nodeEnvironment.nodeDataPaths()) {
+        for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
                 try (Directory directory = createDirectory(indexPath);
                      DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                     final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
-                    if (nodeEnvironment.nodeId().equals(onDiskState.nodeId) == false) {
+                    if (nodeId.equals(onDiskState.nodeId) == false) {
                         throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                            "] in [" + dataPath + "] but expected [" + nodeEnvironment.nodeId() + "]");
+                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
                     }
 
                     if (onDiskState.metaData.clusterUUIDCommitted()) {
@@ -300,15 +260,6 @@ public class LucenePersistedStateFactory {
                 "] with greater term [" + maxCurrentTermOnDiskState.currentTerm + "]");
         }
 
-        if (bestOnDiskState == NO_ON_DISK_STATE) {
-            assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "legacy metadata loader is not needed anymore from v9 onwards";
-            final Tuple<Manifest, MetaData> legacyState = legacyLoader.loadClusterState();
-            if (legacyState.v1().isEmpty() == false) {
-                return new OnDiskState(nodeEnvironment.nodeId(), null, legacyState.v1().getCurrentTerm(),
-                    legacyState.v1().getClusterStateVersion(), legacyState.v2());
-            }
-        }
-
         return bestOnDiskState;
     }
 
@@ -319,8 +270,9 @@ public class LucenePersistedStateFactory {
         final SetOnce<MetaData.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
         {
-            final MetaData metaData = MetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
+            final MetaData metaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.SMILE)
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length),
+                preserveUnknownCustoms);
             logger.trace("found global metadata with last-accepted term [{}]", metaData.coordinationMetaData().term());
             if (builderReference.get() != null) {
                 throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
@@ -475,21 +427,17 @@ public class LucenePersistedStateFactory {
     /**
      * Encapsulates the incremental writing of metadata to a collection of {@link MetaDataIndexWriter}s.
      */
-    private static class LucenePersistedState implements CoordinationState.PersistedState, Closeable {
+    public static class LucenePersistedState implements CoordinationState.PersistedState, Closeable {
 
         private long currentTerm;
         private ClusterState lastAcceptedState;
-        private final List<MetaDataIndexWriter> metaDataIndexWriters;
-        private final String nodeId;
-        private final BigArrays bigArrays;
+        private final Writer persistenceWriter;
 
-        LucenePersistedState(String nodeId, List<MetaDataIndexWriter> metaDataIndexWriters, long currentTerm,
-                             ClusterState lastAcceptedState, BigArrays bigArrays) {
+        LucenePersistedState(Writer persistenceWriter, long currentTerm,
+                             ClusterState lastAcceptedState) {
+            this.persistenceWriter = persistenceWriter;
             this.currentTerm = currentTerm;
             this.lastAcceptedState = lastAcceptedState;
-            this.metaDataIndexWriters = metaDataIndexWriters;
-            this.nodeId = nodeId;
-            this.bigArrays = bigArrays;
         }
 
         @Override
@@ -502,21 +450,9 @@ public class LucenePersistedStateFactory {
             return lastAcceptedState;
         }
 
-        void persistInitialState() throws IOException {
-            // Write the whole state out to be sure it's fresh and using the latest format. Called during initialisation, so that
-            // (1) throwing an IOException is enough to halt the node, and
-            // (2) the index is currently empty since it was opened with IndexWriterConfig.OpenMode.CREATE
-
-            // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance, this is
-            // true if there's only one data path on this master node, and the commit we just loaded was already written out by this
-            // version of Elasticsearch. TODO TBD should we avoid indexing when possible?
-            addMetaData(lastAcceptedState);
-            commit(currentTerm, lastAcceptedState.getVersion());
-        }
-
         @Override
         public void setCurrentTerm(long currentTerm) {
-            commit(currentTerm, lastAcceptedState.version());
+            persistenceWriter.commit(currentTerm, lastAcceptedState.version());
             this.currentTerm = currentTerm;
         }
 
@@ -524,44 +460,72 @@ public class LucenePersistedStateFactory {
         public void setLastAcceptedState(ClusterState clusterState) {
             try {
                 if (clusterState.term() != lastAcceptedState.term()) {
-                    assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
+                    // TODO: Node tool violates this: assert clusterState.term() > lastAcceptedState.term() :
+                    //  clusterState.term() + " vs " + lastAcceptedState.term();
                     // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state, so
                     // it's simplest to write everything again.
-                    overwriteMetaData(clusterState);
+                    persistenceWriter.overwriteMetaData(clusterState.metaData());
                 } else {
                     // Within the same currentTerm, we _can_ use metadata versions to skip unnecessary writing.
-                    updateMetaData(clusterState);
+                    persistenceWriter.updateMetaData(lastAcceptedState.metaData(), clusterState.metaData());
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
 
-            commit(currentTerm, clusterState.version());
+            persistenceWriter.commit(currentTerm, clusterState.version());
             lastAcceptedState = clusterState;
+        }
+
+        @Override
+        public void close() throws IOException {
+            persistenceWriter.close();
+        }
+    }
+
+    public static class Writer implements Closeable {
+
+        private final List<MetaDataIndexWriter> metaDataIndexWriters;
+        private final String nodeId;
+        private final BigArrays bigArrays;
+
+        public Writer(List<MetaDataIndexWriter> metaDataIndexWriters, String nodeId, BigArrays bigArrays) {
+            this.metaDataIndexWriters = metaDataIndexWriters;
+            this.nodeId = nodeId;
+            this.bigArrays = bigArrays;
+        }
+
+        /**
+         * Overrides and commits the given current term and cluster state
+         */
+        public void writeFullStateAndCommit(long currentTerm, ClusterState clusterState) throws IOException {
+            overwriteMetaData(clusterState.metaData());
+            commit(currentTerm, clusterState.version());
         }
 
         /**
          * Update the persisted metadata to match the given cluster state by removing any stale or unnecessary documents and adding any
          * updated documents.
          */
-        private void updateMetaData(ClusterState clusterState) throws IOException {
-            assert lastAcceptedState.term() == clusterState.term();
-            logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", clusterState.term());
+        void updateMetaData(MetaData previouslyWrittenMetaData, MetaData metaData) throws IOException {
+            assert previouslyWrittenMetaData.coordinationMetaData().term() == metaData.coordinationMetaData().term();
+            logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only",
+                metaData.coordinationMetaData().term());
 
-            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(clusterState)) {
+            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(metaData)) {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                     metaDataIndexWriter.updateGlobalMetaData(globalMetaDataDocument.getDocument());
                 }
             }
 
-            final Map<String, Long> indexMetaDataVersionByUUID = new HashMap<>(lastAcceptedState.metaData().indices().size());
-            for (ObjectCursor<IndexMetaData> cursor : lastAcceptedState.metaData().indices().values()) {
+            final Map<String, Long> indexMetaDataVersionByUUID = new HashMap<>(previouslyWrittenMetaData.indices().size());
+            for (ObjectCursor<IndexMetaData> cursor : previouslyWrittenMetaData.indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
                 final Long previousValue = indexMetaDataVersionByUUID.putIfAbsent(indexMetaData.getIndexUUID(), indexMetaData.getVersion());
                 assert previousValue == null : indexMetaData.getIndexUUID() + " already mapped to " + previousValue;
             }
 
-            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
+            for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
                 final Long previousVersion = indexMetaDataVersionByUUID.get(indexMetaData.getIndexUUID());
                 if (previousVersion == null || indexMetaData.getVersion() != previousVersion) {
@@ -594,24 +558,24 @@ public class LucenePersistedStateFactory {
         /**
          * Update the persisted metadata to match the given cluster state by removing all existing documents and then adding new documents.
          */
-        private void overwriteMetaData(ClusterState clusterState) throws IOException {
+        void overwriteMetaData(MetaData metaData) throws IOException {
             for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                 metaDataIndexWriter.deleteAll();
             }
-            addMetaData(clusterState);
+            addMetaData(metaData);
         }
 
         /**
          * Add documents for the metadata of the given cluster state, assuming that there are currently no documents.
          */
-        private void addMetaData(ClusterState clusterState) throws IOException {
-            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(clusterState)) {
+        void addMetaData(MetaData metaData) throws IOException {
+            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(metaData)) {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                     metaDataIndexWriter.updateGlobalMetaData(globalMetaDataDocument.getDocument());
                 }
             }
 
-            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
+            for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
                 try (ReleasableDocument indexMetaDataDocument = makeIndexMetaDataDocument(indexMetaData)) {
                     for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
@@ -662,8 +626,8 @@ public class LucenePersistedStateFactory {
             }
         }
 
-        private ReleasableDocument makeGlobalMetaDataDocument(ClusterState clusterState) throws IOException {
-            return makeDocument(GLOBAL_TYPE_NAME, clusterState.metaData());
+        private ReleasableDocument makeGlobalMetaDataDocument(MetaData metaData) throws IOException {
+            return makeDocument(GLOBAL_TYPE_NAME, metaData);
         }
 
         private ReleasableDocument makeDocument(String typeName, ToXContent metaData) throws IOException {

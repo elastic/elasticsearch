@@ -27,7 +27,6 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -383,7 +382,6 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    @Ignore("https://github.com/elastic/elasticsearch/issues/48701") // TODO unsafe bootstrapping
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);

@@ -29,11 +29,13 @@ import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.MetaDataUpgrader;
@@ -72,19 +74,53 @@ public class GatewayMetaState implements Closeable {
     }
 
     public void start(Settings settings, TransportService transportService, ClusterService clusterService,
-                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                      MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
                       MetaDataUpgrader metaDataUpgrader, LucenePersistedStateFactory lucenePersistedStateFactory) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
 
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
-                persistedState.set(lucenePersistedStateFactory.loadPersistedState((version, metadata) ->
-                    prepareInitialClusterState(transportService, clusterService,
+                LucenePersistedStateFactory.OnDiskState onDiskState = lucenePersistedStateFactory.loadBestOnDiskState();
+
+                if (onDiskState == LucenePersistedStateFactory.NO_ON_DISK_STATE) {
+                    assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 :
+                        "legacy metadata loader is not needed anymore from v9 onwards";
+                    final Tuple<Manifest, MetaData> legacyState = metaStateService.loadFullState();
+                    if (legacyState.v1().isEmpty() == false) {
+                        onDiskState = new LucenePersistedStateFactory.OnDiskState(lucenePersistedStateFactory.getNodeId(),
+                            null, legacyState.v1().getCurrentTerm(),
+                            legacyState.v1().getClusterStateVersion(), legacyState.v2());
+                    }
+                }
+
+                final LucenePersistedStateFactory.Writer persistenceWriter = lucenePersistedStateFactory.createWriter();
+                final LucenePersistedStateFactory.LucenePersistedState lucenePersistedState;
+                boolean success = false;
+                try {
+                    final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
                         ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                            .version(version)
-                            .metaData(upgradeMetaDataForNode(metadata, metaDataIndexUpgradeService, metaDataUpgrader))
-                            .build()))
-                );
+                            .version(onDiskState.lastAcceptedVersion)
+                            .metaData(upgradeMetaDataForNode(onDiskState.metaData, metaDataIndexUpgradeService, metaDataUpgrader))
+                            .build());
+                    lucenePersistedState = new LucenePersistedStateFactory.LucenePersistedState(
+                        persistenceWriter, onDiskState.currentTerm, clusterState);
+                    // Write the whole state out to be sure it's fresh and using the latest format. Called during initialisation, so that
+                    // (1) throwing an IOException is enough to halt the node, and
+                    // (2) the index is currently empty since it was opened with IndexWriterConfig.OpenMode.CREATE
+
+                    // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance,
+                    // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
+                    // by this version of Elasticsearch. TODO TBD should we avoid indexing when possible?
+                    persistenceWriter.writeFullStateAndCommit(onDiskState.currentTerm, clusterState);
+                    metaStateService.deleteAll(); // delete legacy files
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(persistenceWriter);
+                    }
+                }
+
+                persistedState.set(lucenePersistedState);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to load metadata", e);
             }

@@ -733,8 +733,11 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
     private static CoordinationState.PersistedState loadPersistedState(LucenePersistedStateFactory persistedStateFactory)
         throws IOException {
-
-        return persistedStateFactory.loadPersistedState(LucenePersistedStateFactoryTests::clusterStateFromMetadata);
+        final LucenePersistedStateFactory.OnDiskState onDiskState = persistedStateFactory.loadBestOnDiskState();
+        LucenePersistedStateFactory.Writer writer = persistedStateFactory.createWriter();
+        ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metaData);
+        writer.writeFullStateAndCommit(onDiskState.currentTerm, clusterState);
+        return new LucenePersistedStateFactory.LucenePersistedState(writer, onDiskState.currentTerm, clusterState);
     }
 
     private static ClusterState clusterStateFromMetadata(long version, MetaData metaData) {

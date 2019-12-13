@@ -27,13 +27,10 @@ import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.contains;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701") // TODO node repurposing
     public void testRepurpose() throws Exception {
         final String indexName = "test-repurpose";
 
@@ -46,7 +43,6 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
         ).get();
-        final String indexUUID = resolveIndex(indexName).getUUID();
 
         logger.info("--> indexing a simple document");
         client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
@@ -83,10 +79,10 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         );
 
         logger.info("--> Repurposing node 1");
-        executeRepurposeCommand(noMasterNoDataSettingsForDataNode, indexUUID, 1);
+        executeRepurposeCommand(noMasterNoDataSettingsForDataNode, 1, 1);
 
         ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
-            () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, indexUUID, 1)
+            () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 1)
         );
 
         assertThat(lockedException.getMessage(), containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
@@ -102,7 +98,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(s -> true);
         internalCluster().stopRandomNode(s -> true);
 
-        executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, indexUUID, 0);
+        executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 0);
 
         // by restarting as master and data node, we can check that the index definition was really deleted and also that the tool
         // does not mess things up so much that the nodes cannot boot as master or data node any longer.
@@ -115,14 +111,13 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         assertFalse(indexExists(indexName));
     }
 
-    private void executeRepurposeCommand(Settings settings, String indexUUID, int expectedShardCount) throws Exception {
+    private void executeRepurposeCommand(Settings settings, int expectedIndexCount,
+                                         int expectedShardCount) throws Exception {
         boolean verbose = randomBoolean();
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
-        int expectedIndexCount = TestEnvironment.newEnvironment(settingsWithPath).dataFiles().length;
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.noMasterMessage(1, expectedShardCount, expectedIndexCount)),
-            not(contains(NodeRepurposeCommand.PRE_V7_MESSAGE)),
-            NodeRepurposeCommandTests.conditionalNot(containsString(indexUUID), verbose == false));
+            containsString(NodeRepurposeCommand.noMasterMessage(expectedIndexCount, expectedShardCount, 0)),
+            NodeRepurposeCommandTests.conditionalNot(containsString("test-repurpose"), verbose == false));
         NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher,
             verbose);
     }

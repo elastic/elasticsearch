@@ -48,7 +48,6 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
@@ -61,7 +60,6 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -97,7 +95,6 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.LucenePersistedStateFactory;
-import org.elasticsearch.gateway.LucenePersistedStateFactory.LegacyLoader;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
@@ -411,17 +408,7 @@ public class Node implements Closeable {
                 .flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final LucenePersistedStateFactory lucenePersistedStateFactory
-                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry, bigArrays, new LegacyLoader() {
-                @Override
-                public Tuple<Manifest, MetaData> loadClusterState() throws IOException {
-                    return metaStateService.loadFullState();
-                }
-
-                @Override
-                public void clean() throws IOException {
-                    metaStateService.deleteAll();
-                }
-            });
+                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry, bigArrays);
 
             // collect engine factory providers from server and from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
@@ -705,7 +692,7 @@ public class Node implements Closeable {
 
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
-        gatewayMetaState.start(settings(), transportService, clusterService,
+        gatewayMetaState.start(settings(), transportService, clusterService, injector.getInstance(MetaStateService.class),
             injector.getInstance(MetaDataIndexUpgradeService.class), injector.getInstance(MetaDataUpgrader.class),
             injector.getInstance(LucenePersistedStateFactory.class));
         if (Assertions.ENABLED) {

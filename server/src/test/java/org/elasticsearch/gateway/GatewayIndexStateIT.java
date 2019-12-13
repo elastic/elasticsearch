@@ -29,9 +29,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -558,9 +556,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 final LucenePersistedStateFactory lucenePersistedStateFactory = lucenePersistedStateFactories.get(nodeName);
-                try (CoordinationState.PersistedState persistedState = lucenePersistedStateFactory.loadPersistedState(
-                    (v, m) -> ClusterState.builder(ClusterName.DEFAULT).version(v).metaData(m).build())) {
-                    persistedState.setLastAcceptedState(clusterState);
+                try (LucenePersistedStateFactory.Writer writer = lucenePersistedStateFactory.createWriter()) {
+                    writer.writeFullStateAndCommit(clusterState.term(), clusterState);
                 }
                 return super.onNodeStopped(nodeName);
             }

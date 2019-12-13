@@ -28,7 +28,6 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -102,7 +101,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701") // TODO remove corrupted shard tool
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
@@ -157,8 +155,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
             assertThat(e.getMessage(),
-                allOf(containsString("Failed to lock node's directory"),
-                    containsString("is Elasticsearch still running ?")));
+                allOf(containsString("failed to lock node's directory"),
+                    containsString("is Elasticsearch still running?")));
         }
 
         final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
@@ -575,8 +573,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (String nodeName : nodeNames) {
             final Path indexPath = indexPathByNodeName.get(nodeName);
             final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName),
-                shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName), environmentByNodeName.get(nodeName).dataFiles(),
+                state, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
         }
     }
 

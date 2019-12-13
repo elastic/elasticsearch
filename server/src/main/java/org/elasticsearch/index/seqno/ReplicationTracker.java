@@ -906,9 +906,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
-        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_6_0) ||
+        this.hasAllPeerRecoveryRetentionLeases = indexSettings.isSoftDeleteEnabled() &&
+            (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_6_0) ||
             (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0) &&
-                indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN);
+                    indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN));
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
@@ -1361,6 +1362,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private synchronized void setHasAllPeerRecoveryRetentionLeases() {
         hasAllPeerRecoveryRetentionLeases = true;
         assert invariant();
+    }
+
+    public synchronized boolean hasAllPeerRecoveryRetentionLeases() {
+        return hasAllPeerRecoveryRetentionLeases;
     }
 
     /**

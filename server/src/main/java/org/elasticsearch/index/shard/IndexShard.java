@@ -158,6 +158,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -606,7 +607,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-            if (StreamSupport.stream(routingTable.spliterator(), false).allMatch(
+            final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.getShards());
+            shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
+            if (shardRoutings.stream().allMatch(
                 shr -> shr.assignedToNode() && retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shr)))) {
                 useRetentionLeasesInPeerRecovery = true;
                 turnOffTranslogRetention();

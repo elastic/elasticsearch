@@ -62,7 +62,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         verifyArchiveInstallation(installation, distribution());
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = bin.keystoreTool.run("has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
         assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
     }
@@ -77,7 +77,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution, sh);
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = bin.keystoreTool.run("has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
         assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password-protected"));
     }
@@ -236,30 +236,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
     private void createKeystore() throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
-        Platforms.onLinux(() -> {
-            switch (distribution.packaging) {
-                case TAR:
-                case ZIP:
-                    sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.keystoreTool + " create");
-                    break;
-                case DEB:
-                case RPM:
-                    bin.keystoreTool.run("create");
-                    break;
-                case DOCKER:
-                    // TODO #49469
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown Elasticsearch packaging type.");
-            }
-        });
+        bin.keystoreTool.run("create");
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
         Platforms.onWindows(() -> {
-            bin.keystoreTool.run("create");
             sh.chown(keystore);
         });
     }
@@ -276,23 +259,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // set the password by passing it to stdin twice
         Platforms.onLinux(() -> {
-            switch (distribution.packaging) {
-                case TAR:
-                case ZIP:
-                    sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | "
-                        + "sudo -u " + ARCHIVE_OWNER + " " + bin.keystoreTool + " passwd");
-                    break;
-                case DEB:
-                case RPM:
-                    sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | "
-                        + bin.keystoreTool + " passwd");
-                    break;
-                case DOCKER:
-                    // TODO #49469
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown Elasticsearch packaging type.");
-            }
+            bin.keystoreTool.run("passwd", password + "\n" + password + "\n");
         });
 
         Platforms.onWindows(() -> {

@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 /**
  * {@link AccuracyMetric} is a metric that answers the question:
- *   "What fraction of documents have been classified correctly by the classifier?"
+ *   "What fraction of examples have been classified correctly by the classifier?"
  *
  * equation: accuracy = 1/n * Σ(y == y´)
  */
@@ -78,15 +78,15 @@ public class AccuracyMetric implements EvaluationMetric {
 
     public static class Result implements EvaluationMetric.Result {
 
-        private static final ParseField CLASSES = new ParseField("classes");
+        private static final ParseField ACTUAL_CLASSES = new ParseField("actual_classes");
         private static final ParseField OVERALL_ACCURACY = new ParseField("overall_accuracy");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<ActualClass>) a[0], (double) a[1]));
 
         static {
-            PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
+            PARSER.declareObjectArray(constructorArg(), ActualClass.PARSER, ACTUAL_CLASSES);
             PARSER.declareDouble(constructorArg(), OVERALL_ACCURACY);
         }
 
@@ -94,13 +94,13 @@ public class AccuracyMetric implements EvaluationMetric {
             return PARSER.apply(parser, null);
         }
 
-        /** List of per-class results. */
-        private final List<PerClassResult> classes;
+        /** List of actual classes. */
+        private final List<ActualClass> actualClasses;
         /** Fraction of documents predicted correctly. */
         private final double overallAccuracy;
 
-        public Result(List<PerClassResult> classes, double overallAccuracy) {
-            this.classes = Collections.unmodifiableList(Objects.requireNonNull(classes));
+        public Result(List<ActualClass> actualClasses, double overallAccuracy) {
+            this.actualClasses = Collections.unmodifiableList(Objects.requireNonNull(actualClasses));
             this.overallAccuracy = overallAccuracy;
         }
 
@@ -109,8 +109,8 @@ public class AccuracyMetric implements EvaluationMetric {
             return NAME;
         }
 
-        public List<PerClassResult> getClasses() {
-            return classes;
+        public List<ActualClass> getActualClasses() {
+            return actualClasses;
         }
 
         public double getOverallAccuracy() {
@@ -120,7 +120,7 @@ public class AccuracyMetric implements EvaluationMetric {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CLASSES.getPreferredName(), classes);
+            builder.field(ACTUAL_CLASSES.getPreferredName(), actualClasses);
             builder.field(OVERALL_ACCURACY.getPreferredName(), overallAccuracy);
             builder.endObject();
             return builder;
@@ -131,48 +131,48 @@ public class AccuracyMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.classes, that.classes)
+            return Objects.equals(this.actualClasses, that.actualClasses)
                 && this.overallAccuracy == that.overallAccuracy;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classes, overallAccuracy);
+            return Objects.hash(actualClasses, overallAccuracy);
         }
     }
 
-    public static class PerClassResult implements ToXContentObject {
+    public static class ActualClass implements ToXContentObject {
 
-        private static final ParseField CLASS_NAME = new ParseField("class_name");
+        private static final ParseField ACTUAL_CLASS = new ParseField("actual_class");
         private static final ParseField ACTUAL_CLASS_DOC_COUNT = new ParseField("actual_class_doc_count");
         private static final ParseField ACCURACY = new ParseField("accuracy");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<PerClassResult, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "accuracy_per_class_result", true, a -> new PerClassResult((String) a[0], (long) a[1], (double) a[2]));
+        private static final ConstructingObjectParser<ActualClass, Void> PARSER =
+            new ConstructingObjectParser<>("accuracy_actual_class", true, a -> new ActualClass((String) a[0], (long) a[1], (double) a[2]));
 
         static {
-            PARSER.declareString(constructorArg(), CLASS_NAME);
+            PARSER.declareString(constructorArg(), ACTUAL_CLASS);
             PARSER.declareLong(constructorArg(), ACTUAL_CLASS_DOC_COUNT);
             PARSER.declareDouble(constructorArg(), ACCURACY);
         }
 
-        /** Name of the class. */
-        private final String className;
-        /** Number of documents actually belonging to the {@code className} class. */
+        /** Name of the actual class. */
+        private final String actualClass;
+        /** Number of documents (examples) belonging to the {code actualClass} class. */
         private final long actualClassDocCount;
-        /** Fraction of documents actually belonging to the {@code className} class predicted correctly. */
+        /** Fraction of documents belonging to the {code actualClass} class predicted correctly. */
         private final double accuracy;
 
-        public PerClassResult(String className, long actualClassDocCount, double accuracy) {
-            this.className = Objects.requireNonNull(className);
+        public ActualClass(
+            String actualClass, long actualClassDocCount, double accuracy) {
+            this.actualClass = Objects.requireNonNull(actualClass);
             this.actualClassDocCount = actualClassDocCount;
             this.accuracy = accuracy;
         }
 
-        public String getClassName() {
-            return className;
+        public String getActualClass() {
+            return actualClass;
         }
 
         public long getActualClassDocCount() {
@@ -186,7 +186,7 @@ public class AccuracyMetric implements EvaluationMetric {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CLASS_NAME.getPreferredName(), className);
+            builder.field(ACTUAL_CLASS.getPreferredName(), actualClass);
             builder.field(ACTUAL_CLASS_DOC_COUNT.getPreferredName(), actualClassDocCount);
             builder.field(ACCURACY.getPreferredName(), accuracy);
             builder.endObject();
@@ -197,15 +197,15 @@ public class AccuracyMetric implements EvaluationMetric {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            PerClassResult that = (PerClassResult) o;
-            return Objects.equals(this.className, that.className)
+            ActualClass that = (ActualClass) o;
+            return Objects.equals(this.actualClass, that.actualClass)
                 && this.actualClassDocCount == that.actualClassDocCount
                 && this.accuracy == that.accuracy;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(className, actualClassDocCount, accuracy);
+            return Objects.hash(actualClass, actualClassDocCount, accuracy);
         }
     }
 }

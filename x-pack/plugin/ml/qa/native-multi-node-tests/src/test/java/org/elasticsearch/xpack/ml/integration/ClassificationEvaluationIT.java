@@ -66,14 +66,14 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
         assertThat(
-            accuracyResult.getClasses(),
+            accuracyResult.getActualClasses(),
             equalTo(
                 List.of(
-                    new Accuracy.PerClassResult("ant", 15, 1.0 / 15),
-                    new Accuracy.PerClassResult("cat", 15, 1.0 / 15),
-                    new Accuracy.PerClassResult("dog", 15, 1.0 / 15),
-                    new Accuracy.PerClassResult("fox", 15, 1.0 / 15),
-                    new Accuracy.PerClassResult("mouse", 15, 1.0 / 15))));
+                    new Accuracy.ActualClass("ant", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("cat", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("dog", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("fox", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("mouse", 15, 1.0 / 15))));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(5.0 / 75));
     }
 
@@ -88,13 +88,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
         assertThat(
-            accuracyResult.getClasses(),
+            accuracyResult.getActualClasses(),
             equalTo(List.of(
-                new Accuracy.PerClassResult("1", 15, 1.0 / 15),
-                new Accuracy.PerClassResult("2", 15, 2.0 / 15),
-                new Accuracy.PerClassResult("3", 15, 3.0 / 15),
-                new Accuracy.PerClassResult("4", 15, 4.0 / 15),
-                new Accuracy.PerClassResult("5", 15, 5.0 / 15))));
+                new Accuracy.ActualClass("1", 15, 1.0 / 15),
+                new Accuracy.ActualClass("2", 15, 2.0 / 15),
+                new Accuracy.ActualClass("3", 15, 3.0 / 15),
+                new Accuracy.ActualClass("4", 15, 4.0 / 15),
+                new Accuracy.ActualClass("5", 15, 5.0 / 15))));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(15.0 / 75));
     }
 
@@ -109,10 +109,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
         assertThat(
-            accuracyResult.getClasses(),
+            accuracyResult.getActualClasses(),
             equalTo(List.of(
-                new Accuracy.PerClassResult("true", 45, 27.0 / 45),
-                new Accuracy.PerClassResult("false", 30, 18.0 / 30))));
+                new Accuracy.ActualClass("true", 45, 27.0 / 45),
+                new Accuracy.ActualClass("false", 30, 18.0 / 30))));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(45.0 / 75));
     }
 

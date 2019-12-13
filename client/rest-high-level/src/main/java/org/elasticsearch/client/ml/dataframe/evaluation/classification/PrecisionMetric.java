@@ -36,9 +36,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * {@link PrecisionMetric} is a metric that answers the question:
  *   "What fraction of documents classified as X actually belongs to X?"
- * for any given class name X
+ * for any given class X
  *
- * equation: precision = 1/#{docs predicted as X} * Σ(y == y´)
+ * equation: precision(X) = TP(X) / (TP(X) + FP(X))
+ * where: TP(X) - number of true positives wrt X
+ *        FP(X) - number of false positives wrt X
  */
 public class PrecisionMetric implements EvaluationMetric {
 

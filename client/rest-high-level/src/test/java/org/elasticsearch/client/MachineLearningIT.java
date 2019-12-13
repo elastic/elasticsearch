@@ -1819,15 +1819,15 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             AccuracyMetric.Result accuracyResult = evaluateDataFrameResponse.getMetricByName(AccuracyMetric.NAME);
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
             assertThat(
-                accuracyResult.getClasses(),
+                accuracyResult.getActualClasses(),
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new AccuracyMetric.PerClassResult("cat", 5, 0.6),
+                        new AccuracyMetric.ActualClass("cat", 5, 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new AccuracyMetric.PerClassResult("dog", 4, 0.75),
+                        new AccuracyMetric.ActualClass("dog", 4, 0.75),
                         // no examples labeled as "ant" were classified correctly
-                        new AccuracyMetric.PerClassResult("ant", 1, 0.0))));
+                        new AccuracyMetric.ActualClass("ant", 1, 0.0))));
             assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
         }
         {  // Precision

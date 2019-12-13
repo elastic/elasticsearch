@@ -36,9 +36,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * {@link RecallMetric} is a metric that answers the question:
  *   "What fraction of documents belonging to X have been predicted as X by the classifier?"
- * for any given class name X
+ * for any given class X
  *
- * equation: recall = 1/#{docs belonging to X} * Σ(y == y´)
+ * equation: recall(X) = TP(X) / (TP(X) + FN(X))
+ * where: TP(X) - number of true positives wrt X
+ *        FN(X) - number of false negatives wrt X
  */
 public class RecallMetric implements EvaluationMetric {
 

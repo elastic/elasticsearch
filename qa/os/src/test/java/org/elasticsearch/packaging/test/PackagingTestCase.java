@@ -37,7 +37,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 import org.junit.rules.TestWatcher;
@@ -89,8 +88,8 @@ public abstract class PackagingTestCase extends Assert {
 
     private static boolean failed;
 
-    @ClassRule
-    public static final TestWatcher testFailureRule = new TestWatcher() {
+    @Rule
+    public final TestWatcher testFailureRule = new TestWatcher() {
         @Override
         protected void failed(Throwable e, Description description) {
             failed = true;
@@ -98,7 +97,7 @@ public abstract class PackagingTestCase extends Assert {
     };
 
     // a shell to run system commands with
-    protected Shell sh;
+    protected static Shell sh;
 
     @Rule
     public final TestName testNameRule = new TestName();
@@ -114,11 +113,24 @@ public abstract class PackagingTestCase extends Assert {
         cleanEverything();
     }
 
+    @BeforeClass
+    public static void createShell() throws Exception {
+        sh = new Shell();
+    }
+
     @Before
     public void setup() throws Exception {
         assumeFalse(failed); // skip rest of tests once one fails
 
-        sh = newShell();
+        sh.reset();
+        if (distribution().hasJdk == false) {
+            Platforms.onLinux(() -> {
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+            Platforms.onWindows(() -> {
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+        }
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -130,13 +142,13 @@ public abstract class PackagingTestCase extends Assert {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                installation = Archives.installArchive(distribution);
+                installation = Archives.installArchive(sh, distribution);
                 Archives.verifyArchiveInstallation(installation, distribution);
                 break;
             case DEB:
             case RPM:
-                installation = Packages.installPackage(distribution);
-                Packages.verifyPackageInstallation(installation, distribution, newShell());
+                installation = Packages.installPackage(sh, distribution);
+                Packages.verifyPackageInstallation(installation, distribution, sh);
                 break;
             case DOCKER:
                 installation = Docker.runContainer(distribution);
@@ -174,19 +186,6 @@ public abstract class PackagingTestCase extends Assert {
             throw e;
         }
         stopElasticsearch();
-    }
-
-    protected static Shell newShell() throws Exception {
-        Shell sh = new Shell();
-        if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
-            Platforms.onWindows(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
-        }
-        return sh;
     }
 
     /**
@@ -290,7 +289,6 @@ public abstract class PackagingTestCase extends Assert {
 
             // Otherwise, error should be on shell stderr
             assertThat(result.stderr, containsString(expectedMessage));
-
         }
     }
 }

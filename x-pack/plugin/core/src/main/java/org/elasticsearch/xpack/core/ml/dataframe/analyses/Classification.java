@@ -119,7 +119,7 @@ public class Classification implements DataFrameAnalysis {
         predictionFieldName = in.readOptionalString();
         numTopClasses = in.readOptionalVInt();
         trainingPercent = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             randomizeSeed = in.readOptionalLong();
         } else {
             randomizeSeed = Randomness.get().nextLong();
@@ -163,7 +163,7 @@ public class Classification implements DataFrameAnalysis {
         out.writeOptionalString(predictionFieldName);
         out.writeOptionalVInt(numTopClasses);
         out.writeDouble(trainingPercent);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalLong(randomizeSeed);
         }
     }
@@ -180,7 +180,7 @@ public class Classification implements DataFrameAnalysis {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
         builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
-        if (version.onOrAfter(Version.CURRENT)) {
+        if (version.onOrAfter(Version.V_7_6_0)) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
         builder.endObject();
@@ -251,12 +251,12 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public boolean persistsState() {
-        return false;
+        return true;
     }
 
     @Override
     public String getStateDocId(String jobId) {
-        throw new UnsupportedOperationException();
+        return jobId + "_classification_state#1";
     }
 
     @Override

@@ -6,28 +6,25 @@ within your {es} cluster. Connections are secured using Transport Layer Security
 (TLS), which is commonly referred to as "SSL".
 
 WARNING: Clusters that do not have encryption enabled send all data in plain text
-including passwords. If the {es} {security-features} are enabled, unless you have a trial license, you must configure SSL/TLS for internode-communication.
-
-The following steps describe how to enable encryption across the various
-components of the {stack}. 
+including passwords. If the {es} {security-features} are enabled, unless you
+have a trial license, you must configure SSL/TLS for internode-communication.
 
 . Generate a private key and X.509 certificate for each of your {es} nodes. See
 <<node-certificates>>.
 
 . Configure each node in the cluster to identify itself using its signed
-certificate and enable TLS on the transport layer. You can also optionally
-enable TLS on the HTTP layer. See
-<<tls-transport>> and
-<<tls-http>>. 
+certificate and enable TLS on the transport layer. See <<tls-transport>>. 
 
-* Configure the Java transport client to use encrypted communications.
-See <<java-clients>>.
-
+. Optionally enable TLS on the HTTP layer. See <<tls-http>>.
 +
-NOTE: <<tls-http[Encrypting HTTP client communications>> is strongly recommended
-if you want to enable TLS encryption for Kibana, Logstash and Beats.
+--
+NOTE: To enable {kib}, {ls}, and Beats to communicate securely with {es}, you
+must configure TLS for HTTP. Likewise, it enables your users to communicate
+securely with {es} via their browsers.
 
-Now you can proceed with the configurations that are applicable to your cluster.
+--
+
+Now you can proceed with the configurations that are applicable to your cluster:
 
 * Configure the {monitor-features} to use encrypted connections. See <<secure-monitoring>>.
 

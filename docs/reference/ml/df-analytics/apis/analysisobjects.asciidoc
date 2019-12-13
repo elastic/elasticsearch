@@ -104,7 +104,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 ===== Advanced parameters
 
 Advanced parameters are for fine-tuning {reganalysis}. They are set 
-automatically by <<ml-hyperparameter-optimization,hyperparameter optimization>> 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
 to give minimum validation error. It is highly recommended to use the default 
 values unless you fully understand the function of these parameters. If these 
 parameters are not supplied, their values are automatically tuned to give 
@@ -170,7 +170,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 ===== Advanced parameters
 
 Advanced parameters are for fine-tuning {classanalysis}. They are set 
-automatically by <<ml-hyperparameter-optimization,hyperparameter optimization>> 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
 to give minimum validation error. It is highly recommended to use the default 
 values unless you fully understand the function of these parameters. If these 
 parameters are not supplied, their values are automatically tuned to give 

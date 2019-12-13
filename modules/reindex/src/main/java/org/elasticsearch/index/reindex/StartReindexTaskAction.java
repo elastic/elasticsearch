@@ -46,11 +46,6 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
         private final ReindexRequest reindexRequest;
         private final boolean waitForCompletion;
 
-
-        public Request(ReindexRequest reindexRequest) {
-            this(reindexRequest, false);
-        }
-
         public Request(ReindexRequest reindexRequest, boolean waitForCompletion) {
             this.reindexRequest = reindexRequest;
             this.waitForCompletion = waitForCompletion;

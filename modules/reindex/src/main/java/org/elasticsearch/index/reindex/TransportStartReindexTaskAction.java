@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -41,6 +42,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -49,8 +51,13 @@ import java.util.stream.Collectors;
 public class TransportStartReindexTaskAction
     extends HandledTransportAction<StartReindexTaskAction.Request, StartReindexTaskAction.Response> {
 
+    public static final Setting<Integer> MAX_CONCURRENT_REINDEX_TASKS =
+        Setting.intSetting("reindex.tasks.max_concurrent", 10000, 1, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    private volatile int maxConcurrentTasks;
+
     private final List<String> headersToInclude;
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final ReindexValidator reindexValidator;
     private final ReindexIndexClient reindexIndexClient;
@@ -61,11 +68,14 @@ public class TransportStartReindexTaskAction
                                            ClusterService clusterService, PersistentTasksService persistentTasksService,
                                            AutoCreateIndex autoCreateIndex, NamedXContentRegistry xContentRegistry) {
         super(StartReindexTaskAction.NAME, transportService, actionFilters, StartReindexTaskAction.Request::new);
+        this.maxConcurrentTasks = MAX_CONCURRENT_REINDEX_TASKS.get(settings);
         this.headersToInclude = ReindexHeaders.REINDEX_INCLUDED_HEADERS.get(settings);
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
         this.reindexIndexClient = new ReindexIndexClient(client, clusterService, xContentRegistry);
+        this.clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_CONCURRENT_REINDEX_TASKS, (max) -> maxConcurrentTasks = max);
     }
 
     @Override
@@ -75,6 +85,17 @@ public class TransportStartReindexTaskAction
         } catch (Exception e) {
             listener.onFailure(e);
             return;
+        }
+
+        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+
+        if (tasks != null && tasks.count() >= maxConcurrentTasks) {
+            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> reindexTasks = tasks.findTasks(ReindexTask.NAME, (t) -> true);
+            if (reindexTasks != null && reindexTasks.size() >= maxConcurrentTasks) {
+                listener.onFailure(new IllegalStateException("Maximum concurrent reindex operations exceeded [max=" +
+                    maxConcurrentTasks + "]"));
+                return;
+            }
         }
 
         String generatedId = UUIDs.randomBase64UUID();

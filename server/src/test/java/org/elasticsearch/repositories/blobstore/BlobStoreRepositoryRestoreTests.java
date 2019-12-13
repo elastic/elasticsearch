@@ -202,6 +202,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             }
         };
         clusterService.addStateApplier(event -> repository.updateState(event.state()));
+        // Apply state once to initialize repo properly like RepositoriesService would
+        repository.updateState(clusterService.state());
         repository.start();
         return repository;
     }

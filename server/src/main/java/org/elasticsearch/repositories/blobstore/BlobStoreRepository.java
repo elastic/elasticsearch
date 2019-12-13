@@ -220,13 +220,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * This flag indicates that the repository can not exclusively rely on the value stored in {@link #latestKnownRepoGen} to determine the
      * latest repository generation but must inspect its physical contents as well via {@link #latestIndexBlobId()}.
-     * This flag is set in the following two situations:
+     * This flag is set in the following situations:
      * <ul>
      *     <li>All repositories that are read-only, i.e. for which {@link #isReadOnly()} returns {@code true} because there are no
      *     guarantees that another cluster is not writing to the repository at the same time</li>
      *     <li>The node finds itself in a mixed-version cluster containing nodes older than
      *     {@link RepositoryMetaData#REPO_GEN_IN_CS_VERSION} where the master node does not update the value of
      *     {@link RepositoryMetaData#generation()} when writing a new {@code index-N} blob</li>
+     *     <li>The value of {@link RepositoryMetaData#generation()} for this repository is {@link RepositoryData#UNKNOWN_REPO_GEN}
+     *     indicating that no consistent repository generation is tracked in the cluster state yet.</li>
      * </ul>
      */
     private volatile boolean bestEffortConsistency;
@@ -294,12 +296,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // #latestKnownRepoGen if a newer than currently known generation is found
     @Override
     public void updateState(ClusterState state) {
-        bestEffortConsistency = isReadOnly() || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION);
+        metadata = getRepoMetaData(state);
+        bestEffortConsistency = isReadOnly() || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION)
+            || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN;
         if (isReadOnly()) {
             // No need to waste cycles, no operations can run against a read-only repository
             return;
         }
-        metadata = getRepoMetaData(state);
         if (bestEffortConsistency) {
             long bestGenerationFromCS = RepositoryData.EMPTY_REPO_GEN;
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
@@ -320,11 +323,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
         } else {
-            if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN) {
-                // We break out here, assuming this was the result of moving from a mixed cluster that didn't track the generation in the
-                // cluster state to a cluster that does track the generation in the cluster state
-                return;
-            }
             final long previousBest = latestKnownRepoGen.getAndSet(metadata.generation());
             if (previousBest != metadata.generation()) {
                 assert metadata.generation() == RepositoryData.CORRUPTED_REPO_GEN || previousBest < metadata.generation() :
@@ -1026,18 +1024,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onFailure(corruptedStateException(null));
             return;
         }
-        if (bestEffortConsistency == false && latestKnownRepoGen.get() == RepositoryData.UNKNOWN_REPO_GEN) {
-            if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                // Non-master node does not load RepositoryData before master has at least loaded it once and thus initialized in the
-                // cluster state
-                listener.onFailure(new RepositoryException(metadata.name(), "Repository not initialized yet"));
-            } else {
-                // After initializing the repo in the cluster state we retry loading the latest RepositoryData on the generic pool
-                initializeRepoInClusterState(ActionListener.wrap(v ->
-                    threadPool.generic().execute(ActionRunnable.wrap(listener, this::getRepositoryData)), listener::onFailure));
-            }
-            return;
-        }
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
         while (true) {
             final long genToLoad;
@@ -1102,6 +1088,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param listener            listener to invoke once done
      */
     private void markRepoCorrupted(long corruptedGeneration, Exception originalException, ActionListener<Void> listener) {
+        assert corruptedGeneration != RepositoryData.UNKNOWN_REPO_GEN;
         clusterService.submitStateUpdateTask("mark repository corrupted [" + metadata.name() + "][" + corruptedGeneration + "]",
             new ClusterStateUpdateTask() {
                 @Override

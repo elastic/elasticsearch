@@ -3,70 +3,12 @@
 [[ml-results-resource]]
 === Results resources
 
-Several different result types are created for each job. You can query anomaly
-results for _buckets_, _influencers_, and _records_ by using the results API.
-Summarized bucket results over multiple jobs can be queried as well; those
-results are called _overall buckets_.
-
-Results are written for each `bucket_span`. The timestamp for the results is the
-start of the bucket time interval.
-
-The results include scores, which are calculated for each anomaly result type and
-each bucket interval. These scores are aggregated in order to reduce noise, and
-normalized in order to identify and rank the most mathematically significant
-anomalies.
-
-Bucket results provide the top level, overall view of the job and are ideal for
-alerts. For example, the bucket results might indicate that at 16:05 the system
-was unusual. This information is a summary of all the anomalies, pinpointing
-when they occurred.
-
-Influencer results show which entities were anomalous and when. For example,
-the influencer results might indicate that at 16:05 `user_name: Bob` was unusual.
-This information is a summary of all the anomalies for each entity, so there
-can be a lot of these results. Once you have identified a notable bucket time,
-you can look to see which entities were significant.
-
-Record results provide details about what the individual anomaly was, when it
-occurred and which entity was involved. For example, the record results might
-indicate that at 16:05 Bob sent 837262434 bytes, when the typical value was
-1067 bytes. Once you have identified a bucket time and perhaps a significant
-entity too, you can drill through to the record results in order to investigate
-the anomalous behavior.
-
-Categorization results contain the definitions of _categories_ that have been
-identified. These are only applicable for jobs that are configured to analyze
-unstructured log data using categorization. These results do not contain a
-timestamp or any calculated scores. For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
-
-* <<ml-results-buckets,Buckets>>
-* <<ml-results-influencers,Influencers>>
-* <<ml-results-records,Records>>
-* <<ml-results-categories,Categories>>
-* <<ml-results-overall-buckets,Overall Buckets>>
-
 NOTE: All of these resources and properties are informational; you cannot
 change their values.
 
 [float]
 [[ml-results-buckets]]
 ==== Buckets
-
-Bucket results provide the top level, overall view of the job and are best for
-alerting.
-
-Each bucket has an `anomaly_score`, which is a statistically aggregated and
-normalized view of the combined anomalousness of all the record results within
-each bucket.
-
-One bucket result is written for each `bucket_span` for each job, even if it is
-not considered to be anomalous. If the bucket is not anomalous, it has an
-`anomaly_score` of zero.
-
-When you identify an anomalous bucket, you can investigate further by expanding
-the bucket resource to show the records as nested objects. Alternatively, you
-can access the records resource directly and filter by the date range.
 
 A bucket resource has the following properties:
 

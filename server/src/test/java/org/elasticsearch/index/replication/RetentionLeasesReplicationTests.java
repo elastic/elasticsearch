@@ -163,9 +163,12 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             }
             group.syncGlobalCheckpoint();
             group.flush();
-            for (IndexShard shard : group) {
-                assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(0));
-            }
+            assertBusy(() -> {
+                // we turn off the translog retention policy using the generic threadPool
+                for (IndexShard shard : group) {
+                    assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(0));
+                }
+            });
         }
     }
 

@@ -44,6 +44,12 @@ public class RestGetAction extends BaseRestHandler {
     public RestGetAction(final RestController controller) {
         controller.registerHandler(GET, "/{index}/_doc/{id}", this);
         controller.registerHandler(HEAD, "/{index}/_doc/{id}", this);
+
+        // Deprecated typed endpoints.
+        controller.registerHandler(GET, "/{index}/{type}/{id}", this);
+        controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
+
+
     }
 
     @Override
@@ -54,6 +60,9 @@ public class RestGetAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
+
+        //consume the type type param
+        request.param("type");
 
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));

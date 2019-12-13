@@ -14,7 +14,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 
 System.out.println("===================>"  + project.getTasks())
-//TODO: do this for every minor version
+
 
 tasks.register("compatTests") {
   description = 'Runs the tests from the latest minor of the last major version against the current version using the versioned API'
@@ -27,6 +27,7 @@ tasks.register("compatTests") {
 }
 
 integTest.runner {
+  dependsOn ':distribution:bwc:minor:checkoutBwcBranch'
   //TODO: make pass in the parent path for the .yml files we want to run.
   systemProperty 'foo', new File(project(':distribution:bwc:minor').checkoutDir, "modules/ingest-common/src/test/resources")
 }
@@ -49,6 +50,7 @@ integTest.runner {
 //  includeEmptyDirs = false
 //}
 
+//why are these needed here but not in other projects ?
 dependencies {
   testCompile project(':client:test')
   testCompile project(':test:framework')

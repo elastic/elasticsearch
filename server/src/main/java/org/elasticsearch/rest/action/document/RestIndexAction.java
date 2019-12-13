@@ -52,6 +52,13 @@ public class RestIndexAction extends BaseRestHandler {
         CreateHandler createHandler = new CreateHandler();
         controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
         controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
+
+        // Deprecated typed endpoints.
+        controller.registerHandler(POST, "/{index}/{type}", autoIdHandler); // auto id creation
+        controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
+        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
     @Override
@@ -104,6 +111,10 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+
+        //consume the type type param
+        request.param("type");
+
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));

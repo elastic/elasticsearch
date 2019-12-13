@@ -19,17 +19,20 @@ public class ClassificationConfigTests extends AbstractWireSerializingTestCase<C
 
     public static ClassificationConfig randomClassificationConfig() {
         return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+            );
     }
 
     public void testFromMap() {
         ClassificationConfig expected = ClassificationConfig.EMPTY_PARAMS;
         assertThat(ClassificationConfig.fromMap(Collections.emptyMap()), equalTo(expected));
 
-        expected = new ClassificationConfig(3, "foo");
+        expected = new ClassificationConfig(3, "foo", "bar");
         Map<String, Object> configMap = new HashMap<>();
         configMap.put(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
-        configMap.put(ClassificationConfig.TOP_CLASSES_RESULT_FIELD.getPreferredName(), "foo");
+        configMap.put(ClassificationConfig.RESULTS_FIELD.getPreferredName(), "foo");
+        configMap.put(ClassificationConfig.TOP_CLASSES_RESULTS_FIELD.getPreferredName(), "bar");
         assertThat(ClassificationConfig.fromMap(configMap), equalTo(expected));
     }
 

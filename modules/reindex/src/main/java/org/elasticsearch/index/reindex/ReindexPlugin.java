@@ -105,7 +105,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
                 new RestReindexAction(restController, clusterService.get()),
                 new RestUpdateByQueryAction(restController),
                 new RestDeleteByQueryAction(restController),
-                new RestRethrottleAction(restController, nodesInCluster));
+                new RestRethrottleAction(restController, nodesInCluster)//,
+//                new RestGetReindexTaskAction(restController)
+        );
     }
 
     @Override

@@ -110,7 +110,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
         copy.source().setSize(10);
         copy.setRequestsPerSecond(1000);
         StartReindexTaskAction.Response response = client().execute(StartReindexTaskAction.INSTANCE, request).get();
-        TaskId taskId = new TaskId(response.getEphemeralTaskId());
+        TaskId taskId = new TaskId(response.getTaskId());
 
         String nodeId = taskId.getNodeId();
         String nodeName = nodeIdToName.get(nodeId);

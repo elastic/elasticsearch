@@ -85,23 +85,23 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
 
     public static class Response extends ActionResponse {
 
-        private final String taskId;
+        private final String persistentTaskId;
         private final String ephemeralTaskId;
         @Nullable private final BulkByScrollResponse reindexResponse;
 
-        public Response(String taskId, String ephemeralTaskId) {
-            this(taskId, ephemeralTaskId, null);
+        public Response(String persistentTaskId, String ephemeralTaskId) {
+            this(persistentTaskId, ephemeralTaskId, null);
         }
 
-        public Response(String taskId, String ephemeralTaskId, BulkByScrollResponse reindexResponse) {
-            this.taskId = taskId;
+        public Response(String persistentTaskId, String ephemeralTaskId, BulkByScrollResponse reindexResponse) {
+            this.persistentTaskId = persistentTaskId;
             this.ephemeralTaskId = ephemeralTaskId;
             this.reindexResponse = reindexResponse;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            taskId = in.readString();
+            persistentTaskId = in.readString();
             ephemeralTaskId = in.readString();
             reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
         }
@@ -113,11 +113,11 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
         }
 
         public String getTaskId() {
-            return taskId;
+            return ephemeralTaskId;
         }
 
-        public String getEphemeralTaskId() {
-            return ephemeralTaskId;
+        public String getPersistentTaskId() {
+            return persistentTaskId;
         }
 
         public BulkByScrollResponse getReindexResponse() {

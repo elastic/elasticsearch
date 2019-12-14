@@ -31,7 +31,7 @@ import java.io.IOException;
 public class RestGetReindexTaskAction extends BaseRestHandler {
 
     public RestGetReindexTaskAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_reindex/{task-id}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_reindex/{task_id}", this);
     }
 
     @Override
@@ -41,7 +41,7 @@ public class RestGetReindexTaskAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetReindexTaskAction.Request request = new GetReindexTaskAction.Request(restRequest.param("task-id"));
+        GetReindexTaskAction.Request request = new GetReindexTaskAction.Request(restRequest.param("task_id"));
         return channel -> client.execute(GetReindexTaskAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

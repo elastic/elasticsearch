@@ -30,6 +30,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -74,6 +76,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -839,8 +842,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // write the index metadata for each index in the snapshot
         for (IndexId index : indices) {
-            executor.execute(ActionRunnable.run(allMetaListener, () ->
-                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false)));
+            executor.execute(ActionRunnable.run(allMetaListener, () -> {
+                final IndexMetaData indexMetaData = clusterMetaData.index(index.getName());
+                final BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+                indexMetaData.writeTo(bytesStreamOutput);
+                final String hash =
+                    MessageDigests.toHexString(MessageDigests.sha256().digest(BytesReference.toBytes(bytesStreamOutput.bytes())));
+                if ()
+                    indexMetaDataFormat.write(indexMetaData, indexContainer(index), snapshotId.getUUID(), false);
+                }
+            ));
         }
 
         executor.execute(ActionRunnable.supply(allMetaListener, () -> {

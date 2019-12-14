@@ -85,6 +85,8 @@ public final class RepositoryData {
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
 
+    private final Map<String, String> indexMetaData;
+
     /**
      * Shard generations.
      */
@@ -99,6 +101,7 @@ public final class RepositoryData {
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
         this.shardGenerations = Objects.requireNonNull(shardGenerations);
+        this.indexMetaData = new HashMap<>();
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
             + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
     }
@@ -358,6 +361,15 @@ public final class RepositoryData {
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    public boolean containsMeta(String metaHash) {
+        return indexMetaData.containsValue(metaHash);
+    }
+
+    public String indexMetaBlobId(SnapshotId snapshotId, IndexId indexId) {
+        final String key = snapshotId.getUUID() + "-" + indexId.getId();
+        return indexMetaData.getOrDefault(key, snapshotId.getUUID());
     }
 
     /**

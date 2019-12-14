@@ -697,10 +697,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             "callers of readersAboveMinSeqNo must hold a lock: readLock ["
                 + readLock.isHeldByCurrentThread() + "], writeLock [" + readLock.isHeldByCurrentThread() + "]";
         return Stream.concat(readers.stream(), Stream.of(current))
-            .filter(reader -> {
-                final long maxSeqNo = reader.getCheckpoint().maxSeqNo;
-                return maxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo;
-            });
+            .filter(reader -> minSeqNo <= SequenceNumbers.min(reader.getCheckpoint().trimmedAboveSeqNo, reader.getCheckpoint().maxSeqNo));
     }
 
     /**
@@ -1629,7 +1626,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
              */
             long minTranslogFileGeneration = this.currentFileGeneration();
             for (final TranslogReader reader : readers) {
-                if (seqNo <= reader.getCheckpoint().maxSeqNo) {
+                if (seqNo <= SequenceNumbers.min(reader.getCheckpoint().trimmedAboveSeqNo, reader.getCheckpoint().maxSeqNo)) {
                     minTranslogFileGeneration = Math.min(minTranslogFileGeneration, reader.getGeneration());
                 }
             }

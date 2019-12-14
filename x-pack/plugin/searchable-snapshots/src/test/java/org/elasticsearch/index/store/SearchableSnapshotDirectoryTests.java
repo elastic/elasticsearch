@@ -45,9 +45,11 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -60,7 +62,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -68,7 +70,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -254,6 +258,10 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 if (randomBoolean()) {
                     writer.forceMerge(1, true);
                 }
+                final Map<String, String> userData = new HashMap<>(2);
+                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, "0");
+                userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID(random()));
+                writer.setLiveCommitData(userData.entrySet());
                 writer.commit();
             }
 
@@ -282,7 +290,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
                 final String repositoryName = randomAlphaOfLength(10);
                 final RepositoryMetaData repositoryMetaData =
-                    new RepositoryMetaData(repositoryName, FsRepository.TYPE, repositorySettings.build());
+                    new RepositoryMetaData(repositoryName, SearchableSnapshotRepository.TYPE, repositorySettings.build());
 
                 final BlobStoreRepository repository = new FsRepository(
                     repositoryMetaData,
@@ -306,22 +314,19 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 future.actionGet();
 
                 final RepositoriesService repositories = mock(RepositoriesService.class);
-                when(repositories.repository(eq(repositoryName))).thenReturn(repository);
+                when(repositories.repository(eq(repositoryName))).thenReturn(new SearchableSnapshotRepository(repository));
 
                 final IndexSettings tmpIndexSettings = IndexSettingsModule.newIndexSettings("_searchable_snapshot_index",
                     Settings.builder()
                         .put(indexSettings.getSettings())
-                        .put(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.getKey(), repositoryName)
-                        .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
-                        .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(), snapshotId.getUUID())
-                        .put(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey(), indexId.getId())
+                        .put(SearchableSnapshotRepository.getIndexSettings(repository, snapshotId, indexId))
                         .build());
 
                 Path tmpDir = createTempDir().resolve(indexId.getId()).resolve(Integer.toString(shardId.id()));
                 ShardId tmpShardId = new ShardId(new Index(indexId.getName(), indexId.getId()), shardId.id());
                 ShardPath tmpShardPath = new ShardPath(false, tmpDir, tmpDir, tmpShardId);
 
-                final DirectoryFactory factory = SearchableSnapshots.newDirectoryFactory(() -> repositories);
+                final DirectoryFactory factory = SearchableSnapshotRepository.newDirectoryFactory(() -> repositories);
                 try (Directory snapshotDirectory = factory.newDirectory(tmpIndexSettings, tmpShardPath)) {
                     consumer.accept(directory, snapshotDirectory);
                 }

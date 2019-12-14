@@ -108,6 +108,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static ClientYamlTestExecutionContext adminExecutionContext;
     private static ClientYamlTestClient clientYamlTestClient;
 
+    public ClientYamlTestCandidate getTestCandidate() {
+        return testCandidate;
+    }
+
     private final ClientYamlTestCandidate testCandidate;
 
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
@@ -154,8 +158,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+        additionalInit();
     }
 
+    protected void additionalInit(){
+
+    }
     protected ClientYamlTestClient initClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
             final RestClient restClient,
@@ -178,7 +186,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     /**
-     * Create parameters for this parameterized test with optional custom paths. Uses the
+     * Create parameters for this parameterized test with optional custom paths to the root of the tests. Uses the
      * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
      * defined in {@link ExecutableSection}.
      */

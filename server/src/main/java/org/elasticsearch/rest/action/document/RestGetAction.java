@@ -19,10 +19,12 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -40,6 +42,11 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
+        "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
+        "or /{index}/_create/{id}).";
 
     public RestGetAction(final RestController controller) {
         controller.registerHandler(GET, "/{index}/_doc/{id}", this);
@@ -62,7 +69,9 @@ public class RestGetAction extends BaseRestHandler {
         GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
 
         //consume the type type param
-        request.param("type");
+        if(request.param("type") != null) {
+            deprecationLogger.deprecatedAndMaybeLog("index_with_types", "foobarbear");
+        }
 
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));

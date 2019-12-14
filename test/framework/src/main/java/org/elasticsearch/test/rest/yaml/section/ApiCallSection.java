@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.common.collect.Tuple;
 
 import static java.util.Collections.unmodifiableMap;
 

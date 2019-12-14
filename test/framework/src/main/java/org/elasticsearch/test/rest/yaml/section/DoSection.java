@@ -41,7 +41,9 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -93,7 +95,7 @@ public class DoSection implements ExecutableSection {
         ApiCallSection apiCallSection = null;
         NodeSelector nodeSelector = NodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        List<String> expectedWarnings = new ArrayList<>();
+        Set<String> expectedWarnings = new HashSet<>();
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("expected [" + XContentParser.Token.START_OBJECT + "], " +
@@ -175,7 +177,7 @@ public class DoSection implements ExecutableSection {
             apiCallSection.addHeaders(headers);
             apiCallSection.setNodeSelector(nodeSelector);
             doSection.setApiCallSection(apiCallSection);
-            doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
+            doSection.setExpectedWarningHeaders(expectedWarnings);
         } finally {
             parser.nextToken();
         }
@@ -187,7 +189,7 @@ public class DoSection implements ExecutableSection {
     private final XContentLocation location;
     private String catchParam;
     private ApiCallSection apiCallSection;
-    private List<String> expectedWarningHeaders = emptyList();
+    private Set<String> expectedWarningHeaders = Collections.emptySet();
 
     public DoSection(XContentLocation location) {
         this.location = location;
@@ -213,7 +215,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we expect from this response. If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<String> getExpectedWarningHeaders() {
+    Set<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -221,8 +223,12 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    void setExpectedWarningHeaders(Set<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
+    }
+
+    public void addExpectedWarningHeader(String message){
+        this.expectedWarningHeaders.add(message);
     }
 
     @Override

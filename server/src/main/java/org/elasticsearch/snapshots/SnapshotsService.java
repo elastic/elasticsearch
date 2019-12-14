@@ -1510,7 +1510,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
+     * Returns the indices that are currently being snapshotted and that are contained in the indices-to-check set.
      */
     public static Set<Index> snapshottingIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
         final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
@@ -1520,23 +1520,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         final Set<Index> indices = new HashSet<>();
         for (final SnapshotsInProgress.Entry entry : snapshots.entries()) {
-            if (entry.partial() == false) {
-                if (entry.state() == State.INIT) {
-                    for (IndexId index : entry.indices()) {
-                        IndexMetaData indexMetaData = currentState.metaData().index(index.getName());
-                        if (indexMetaData != null && indicesToCheck.contains(indexMetaData.getIndex())) {
-                            indices.add(indexMetaData.getIndex());
-                        }
-                    }
-                } else {
-                    for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
-                        Index index = shard.key.getIndex();
-                        if (indicesToCheck.contains(index)
-                            && shard.value.state().completed() == false
-                            && currentState.getMetaData().index(index) != null) {
-                            indices.add(index);
-                        }
-                    }
+            for (IndexId index : entry.indices()) {
+                IndexMetaData indexMetaData = currentState.metaData().index(index.getName());
+                if (indexMetaData != null && indicesToCheck.contains(indexMetaData.getIndex())) {
+                    indices.add(indexMetaData.getIndex());
                 }
             }
         }

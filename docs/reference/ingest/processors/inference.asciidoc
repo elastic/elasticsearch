@@ -29,8 +29,8 @@ include::common-options.asciidoc[]
       	"field_mappings": {},
       	"inference_config": {"regression": {}},
       	"model_info_field": "ml"
-    	}
-	}
+    }
+}
 --------------------------------------------------
 // NOTCONSOLE
 

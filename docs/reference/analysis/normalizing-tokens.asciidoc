@@ -1,0 +1,77 @@
+[[normalization]]
+== Normalizing tokens
+
+_Token normalization_ is the process of changing, removing, or adding tokens in 
+a token stream, typically to make them more searchable. Normalization is handled
+by the <<analysis-tokenfilters,token filters>> of an <<analysis-analyzers,analyzer>>.
+
+The changes made by these filters can vary widely. Some filters remove insignificant differences between otherwise identical
+tokens, such as using the <<analysis-lowercase-tokenfilter,`lowercase`>> filter
+to change uppercase to lowercase.
+
+Other filters might make more significant or complex changes, including:
+
+* <<stemming,Stemming>> tokens to their root word
+* Removing stop words, commonly used words which are rarely relevant to searches
+* Adding synonyms so that searches for a term also match related terms
+
+[[stemming]]
+=== Stemming
+
+Most languages of the world are inflected, meaning that words can change their
+form to express differences in the following:
+
+* _Number_:      fox, foxes
+* _Tense_:       pay, paid, paying
+* _Person_:      hear, hears
+
+_Stemming_ removes these inflections to reduce words to a root form. This lets
+you match the various inflected forms of a word during a search. For example, if
+`foxes` is stemmed to `fox`, searches for the term `fox` match documents that
+contain either `fox` or `foxes`.
+
+[[stemming-token-filters]]
+==== Stemming token filters
+
+{es} offers a number of built-in and configurable <<analysis-tokenfilters,token
+filters>> for stemming.
+
+If you're unsure where to start, use the
+<<analysis-stemmer-tokenfilter,`stemmer`>> filter, which supports multiple
+languages and stemmer types. The <<analysis-stemmer-tokenfilter,`stemmer`
+filter page>> highlights the recommended stemmer for each language in bold,
+based on a reasonable compromise between performance and quality.
+
+Aside from the `stemmer` filter, other stemming token filters include:
+
+* <<analysis-hunspell-tokenfilter,`hunspell`>>
+* <<analysis-kstem-tokenfilter,`kstem`>>
+* <<analysis-porterstem-tokenfilter,`porter_stem`>>
+* <<analysis-snowball-tokenfilter,`snowball`>>
+
+[float]
+[[overriding-stemmers]]
+==== Overriding stemmers
+
+[[stemmer-keyword]]
+You can use a _keyword_ token filter to exclude tokens such as proper nouns or
+brand names from stemming. Tokens that you designate as keywords are not
+stemmed.
+
+Keyword token filters include:
+
+<<analysis-keyword-repeat-tokenfilter,`keyword_marker`>>::
+Designates specific tokens as keywords.
+
+<<analysis-keyword-repeat-tokenfilter,`keyword_repeat`>>::
+Outputs both the stemmed and unstemmed (keyword) version of each token.
+
+<<analysis-stemmer-override-tokenfilter,`stemmer_override`>>::
+Uses a custom mapping to stem certain tokens as specified. These tokens are then
+marked as keywords and excluded from further stemming.
+
+[IMPORTANT]
+====
+To work, keyword token filters must be included in your analyzer configuration
+_before_ any stemming token filters.
+====

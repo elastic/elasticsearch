@@ -3,111 +3,164 @@
 
 [partintro]
 --
+_Analysis_ is the process of converting an input text into smaller chunks,
+called _tokens_ or _terms_, that can be searched.
 
-_Analysis_ is the process of converting text, like the body of any email, into
-_tokens_ or _terms_ which are added to the inverted index for searching.
-Analysis is performed by an <<analysis-analyzers,_analyzer_>> which can be
+To understand why analysis is important and how it works, it's helpful to first
+understand how {es} indexes, matches, and retrieves data.
+
+[discrete]
+[[inverted-index]]
+== Inverted index
+
+When you index a document, {es} stores the data for each document field in a
+structure called an _inverted index_. The field's inverted index lists
+every unique token, typically words, and identifies all of the documents
+in which that token occurs.
+
+For example, you can index two documents, each with a field containing the
+following text:
+
+[source,text]
+------
+1. The quick brown fox jumps
+2. Quick foxes leap over lazy dogs
+------
+
+These values can then be split into sets of separate words, or tokens, called
+_token streams_:
+
+[source,text]
+------
+1. [ The, quick, brown, fox, jumps, lazy, dogs ]
+2. [ Quick, foxes, leap, over, lazy, dogs ]
+------
+
+These token streams can then be compiled into an inverted index that lists each
+unique token and the document containing it.
+
+[options="header"]
+|===
+|Word   | Document 1 | Document 2
+|brown  |            | X
+|dogs   | X          | X
+|fox    | X          |
+|foxes  |            | X
+|jumps  | X          |
+|lazy   | X          | X
+|leap   |            | X
+|over   |            | X
+|quick  | X          |
+|Quick  |            | X
+|The    | X          | 
+|===
+
+When you search for `lazy dogs`, {es} can quickly find which documents contain
+your search terms.
+
+[options="header"]
+|===
+|Word   | Document 1 | Document 2
+|lazy   | X          | X
+|dogs   | X          | X
+|===
+
+However, this example inverted index has a few problems:
+
+* `Quick` and `quick` are listed as separate words, even though you likely want
+either term to match a search for `quick`.
+
+* `fox` and `foxes` share the same root word. However,
+a search for `fox` would not match `foxes` or vice versa.
+
+* While `jumps` and `leap` don't share a root word, they are synonyms and have a
+similar meaning. However, a search for one would not match the other.
+
+To solve this, you can _normalize_ these tokens into a standard format. This
+allows you to match tokens that are not exactly the same as the search terms,
+but similar enough to still be relevant. For example:
+
+* `Quick` can be lowercased: `quick`.
+
+* `foxes` can be _stemmed_, or reduced to its root word: `fox`.
+
+* `jumps` and `leap` are synonyms and can be indexed as a single word: `jump`.
+
+After normalization, the inverted index looks like this:
+
+[options="header"]
+|===
+|Word   | Document 1 | Document 2
+|brown  |            | X
+|dog    | X          | X
+|fox    | X          | X
+|jump   | X          | X
+|lazy   | X          | X
+|over   |            | X
+|quick  | X          | X
+|the    | X          | 
+|===
+
+To ensure search terms match these words as intended, you can apply the same
+normalization rules to the query string. For example, a search for
+`Foxes leaped` is normalized to a search for `fox jump`, which is found in
+both documents
+
+[options="header"]
+|===
+|Word   | Document 1 | Document 2
+|fox    | X          | X
+|jump   | X          | X
+|===
+
+[discrete]
+[[analysis-chain]]
+== Analysis chain
+
+As shown in the previous example, analysis can involve several interconnected
+steps, called the _analysis chain_ or _analysis
+pipeline_, that must be performed in order. These steps include:
+
+[[analysis-preprocessing]]
+String preprocessing::
+Directly changing the input string before any conversion. This typically
+involves changing or removing individual charcters.
+
+[[analysis-tokenization]]
+Tokenization::
+Converting an input string into smaller chunks, called _tokens_ 
+or _terms_. For fields containing unstructured text, like a message or a product
+description, these tokens are often words. A specific set of separated tokens
+is called a _token stream_.
+
+[[analysis-token-normalization]]
+Token normalization::
+Changing, removing, or adding tokens in a token stream, typically to make them
+more searchable. Normalization can involve several techniques, such as stemming
+or adding synonyms. See <<normalization>>.
+
+[discrete]
+[[performing-analysis]]
+== Performing analysis
+
+Analysis is performed by an <<analysis-analyzers,_analyzer_>>, which can be
 either a built-in analyzer or a <<analysis-custom-analyzer,`custom`>> analyzer
 defined per index.
 
-[float]
-== Index time analysis
+For a list of built-in analyzers or to learn more about custom analyzers, see <<analysis-analyzers>>.
 
-For instance, at index time the built-in <<english-analyzer,`english`>> _analyzer_ 
-will first convert the sentence:
+To learn about the components of an analyzer, see
+<<analyzer-anatomy>>.
 
-[source,text]
-------
-"The QUICK brown foxes jumped over the lazy dog!"
-------
-
-into distinct tokens. It will then lowercase each token, remove frequent
-stopwords ("the") and reduce the terms to their word stems (foxes -> fox,
-jumped -> jump, lazy -> lazi). In the end, the following terms will be added
-to the inverted index:
-
-[source,text]
-------
-[ quick, brown, fox, jump, over, lazi, dog ]
-------
-
-[float]
-[[specify-index-time-analyzer]]
-=== Specifying an index time analyzer
-
-Each <<text,`text`>> field in a mapping can specify its own
-<<analyzer,`analyzer`>>:
-
-[source,console]
--------------------------
-PUT my_index
-{
-  "mappings": {
-    "properties": {
-      "title": {
-        "type":     "text",
-        "analyzer": "standard"
-      }
-    }
-  }
-}
--------------------------
-
-At index time, if no `analyzer` has been specified, it looks for an analyzer
-in the index settings called `default`.  Failing that, it defaults to using
-the <<analysis-standard-analyzer,`standard` analyzer>>.
-
-
-[float]
-== Search time analysis
-
-This same analysis process is applied to the query string at search time in
-<<full-text-queries,full text queries>> like the
-<<query-dsl-match-query,`match` query>>
-to convert the text in the query string into terms of the same form as those
-that are stored in the inverted index.
-
-For instance, a user might search for:
-
-[source,text]
-------
-"a quick fox"
-------
-
-which would be analysed by the same `english` analyzer into the following terms:
-
-[source,text]
-------
-[ quick, fox ]
-------
-
-Even though the exact words used in the query string don't appear in the
-original text (`quick` vs `QUICK`, `fox` vs `foxes`), because we have applied
-the same analyzer to both the text and the query string, the terms from the
-query string exactly match the terms from the text in the inverted index,
-which means that this query would match our example document.
-
-[float]
-=== Specifying a search time analyzer
-
-Usually the same analyzer should be used both at
-index time and at search time, and <<full-text-queries,full text queries>>
-like the  <<query-dsl-match-query,`match` query>> will use the mapping to look
-up the analyzer to use for each field.
-
-The analyzer to use to search a particular field is determined by
-looking for:
-
-* An `analyzer` specified in the query itself.
-* The <<search-analyzer,`search_analyzer`>> mapping parameter.
-* The <<analyzer,`analyzer`>> mapping parameter.
-* An analyzer in the index settings called `default_search`.
-* An analyzer in the index settings called `default`.
-* The `standard` analyzer.
-
+After choosing an analyzer, you can apply it to an index, individual
+<<text,`text`>> fields, or full-text queries. See <<specify-analyzer>>.
 --
 
 include::analysis/anatomy.asciidoc[]
+
+include::analysis/normalizing-tokens.asciidoc[]
+
+include::analysis/specify-analyzer.asciidoc[]
 
 include::analysis/testing.asciidoc[]
 
@@ -120,4 +173,3 @@ include::analysis/tokenizers.asciidoc[]
 include::analysis/tokenfilters.asciidoc[]
 
 include::analysis/charfilters.asciidoc[]
-

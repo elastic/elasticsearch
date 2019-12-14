@@ -3,21 +3,23 @@
 
 An _analyzer_  -- whether built-in or custom -- is just a package which
 contains three lower-level building blocks: _character filters_,
-_tokenizers_, and _token filters_.
+_tokenizers_, and _token filters_. Each of these building blocks correspond
+to a step in the <<analysis-chain,analysis chain>>.
 
 The built-in <<analysis-analyzers,analyzers>> pre-package these building
 blocks into analyzers suitable for different languages and types of text.
-Elasticsearch also exposes the individual building blocks so that they can be
+{es} also exposes the individual building blocks so that they can be
 combined to define new <<analysis-custom-analyzer,`custom`>> analyzers.
 
 [float]
 === Character filters
 
-A _character filter_ receives the original text as a stream of characters and
-can transform the stream by adding, removing, or changing characters.  For
-instance, a character filter could be used to convert Hindu-Arabic numerals
-(٠‎١٢٣٤٥٦٧٨‎٩‎) into their Arabic-Latin equivalents (0123456789), or to strip HTML
-elements like `<b>` from the stream.
+A _character filter_ performs <<analysis-preprocessing,string preprocessing>>.
+It receives the original text as a stream of characters and can transform the
+stream by adding, removing, or changing characters.  For instance, a character
+filter could be used to convert Hindu-Arabic numerals (٠‎١٢٣٤٥٦٧٨‎٩‎) into their
+Arabic-Latin equivalents (0123456789), or to strip HTML elements like `<b>` from
+the stream.
 
 An analyzer may have *zero or more* <<analysis-charfilters,character filters>>,
 which are applied in order.
@@ -25,11 +27,12 @@ which are applied in order.
 [float]
 === Tokenizer
 
-A _tokenizer_  receives a stream of characters, breaks it up into individual
-_tokens_ (usually individual words), and outputs a stream of _tokens_. For
-instance, a <<analysis-whitespace-tokenizer,`whitespace`>> tokenizer breaks
-text into tokens whenever it sees any whitespace.  It would convert the text
-`"Quick brown fox!"` into the terms `[Quick, brown, fox!]`.
+A _tokenizer_  performs <<analysis-tokenization,tokenization>>. It receives a
+stream of characters, breaks it up into individual _tokens_ (usually individual
+words), and outputs a stream of _tokens_. For instance, a
+<<analysis-whitespace-tokenizer,`whitespace`>> tokenizer breaks text into tokens
+whenever it sees any whitespace.  It would convert the text `"Quick brown fox!"`
+into the terms `[Quick, brown, fox!]`.
 
 The tokenizer is also responsible for recording the order or _position_ of
 each term and the start and end _character offsets_ of the original word which
@@ -41,13 +44,13 @@ An analyzer must have *exactly one* <<analysis-tokenizers,tokenizer>>.
 [float]
 === Token filters
 
-A _token filter_ receives the token stream and may add, remove, or change
-tokens.  For example, a <<analysis-lowercase-tokenfilter,`lowercase`>> token
-filter converts all tokens to lowercase, a
-<<analysis-stop-tokenfilter,`stop`>> token filter removes common words
-(_stop words_) like `the` from the token stream, and a
-<<analysis-synonym-tokenfilter,`synonym`>> token filter introduces synonyms
-into the token stream.
+A _token filter_ performs <<analysis-token-normalization,token normalization>>.
+It receives the token stream and may add, remove, or change tokens.  For
+example, a <<analysis-lowercase-tokenfilter,`lowercase`>> token filter converts
+all tokens to lowercase, a <<analysis-stop-tokenfilter,`stop`>> token filter
+removes common words (_stop words_) like `the` from the token stream, and a
+<<analysis-synonym-tokenfilter,`synonym`>> token filter introduces synonyms into
+the token stream.
 
 Token filters are not allowed to change the position or character offsets of
 each token.

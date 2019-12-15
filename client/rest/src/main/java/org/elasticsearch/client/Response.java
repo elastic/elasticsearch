@@ -117,18 +117,35 @@ public class Response {
             "\")?"); // closing quote (optional, since an older version can still send a warn-date)
 
     /**
+     * Refer to org.elasticsearch.common.logging.DeprecationLogger
+     */
+    private static String extractWarningValueFromWarningHeader(final String s) {
+        final int firstQuote = s.indexOf('\"');
+        final int lastQuote = s.length() - 1;
+        final String warningValue = s.substring(firstQuote + 1, lastQuote);
+        assert assertWarningValue(s, warningValue);
+        return warningValue;
+    }
+
+    /**
+     * Refer to org.elasticsearch.common.logging.DeprecationLogger
+     */
+    private static boolean assertWarningValue(final String s, final String warningValue) {
+        final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
+        final boolean matches = matcher.matches();
+        assert matches;
+        return matcher.group(1).equals(warningValue);
+    }
+
+    /**
      * Returns a list of all warning headers returned in the response.
      */
     public List<String> getWarnings() {
         List<String> warnings = new ArrayList<>();
         for (Header header : response.getHeaders("Warning")) {
-            String warning = header.getValue();
-            final Matcher matcher = WARNING_HEADER_PATTERN.matcher(warning);
-            if (matcher.matches()) {
-                warnings.add(matcher.group(1));
-            } else {
-                warnings.add(warning);
-            }
+            final String warning = header.getValue();
+            final String warningHeaderValue = extractWarningValueFromWarningHeader(warning);
+            warnings.add(warningHeaderValue);
         }
         return warnings;
     }

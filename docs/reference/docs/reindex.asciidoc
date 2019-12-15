@@ -502,9 +502,24 @@ See <<index-version-types>> for more information.
 (Optional, enum) Set to create to only index documents that do not already exist (put if absent). 
 Valid values: `index`, `create`. Defaults to `index`.
 
+`type`:::
+(Optional, string)
+deprecated:[6.0.0,Types are deprecated and in the process of being removed. See <<removal-of-types>>.]
+<<mapping-type-field,Document type>> for reindexed documents.
+Defaults to `_doc`.
++
+[WARNING]
+====
+Types in source indices are always ignored, also when not specifying a
+destination `type`. If explicitly specifying destination `type`, the specified
+type must match the type in the destination index or be either unspecified or
+the special value `_doc`. See <<removal-of-types>> for further details.
+====
+
 `script`::
 `source`::: 
 (Optional, string) The script to run to update the document source or metadata when reindexing. 
+
 `lang`:::
 (Optional, enum) The script language: `painless`, `expression`, `mustache`, `java`. 
 For more information, see <<modules-scripting>>.

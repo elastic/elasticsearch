@@ -22,13 +22,16 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Opcodes;
 
-public interface IRNode {
+public class NullNode extends ExpressionNode {
 
-    default void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public NullNode() {
+        // do nothing
+    }
 
-    default int accessElementCount() {throw new UnsupportedOperationException();}
-    default void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    @Override
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.visitInsn(Opcodes.ACONST_NULL);
+    }
 }

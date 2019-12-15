@@ -19,16 +19,28 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.MethodWriter;
+public class BinaryNode extends ExpressionNode {
 
-public interface IRNode {
+    protected ExpressionNode leftNode;
+    protected ExpressionNode rightNode;
 
-    default void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public BinaryNode() {
+        // do nothing
+    }
 
-    default int accessElementCount() {throw new UnsupportedOperationException();}
-    default void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public void setLeftNode(ExpressionNode leftNode) {
+        this.leftNode = leftNode;
+    }
+
+    public void setRightNode(ExpressionNode rightNode) {
+        this.rightNode = rightNode;
+    }
+
+    public ExpressionNode getLeftNode() {
+        return leftNode;
+    }
+
+    public ExpressionNode getRightNode() {
+        return rightNode;
+    }
 }

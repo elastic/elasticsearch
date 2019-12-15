@@ -19,16 +19,27 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.MethodWriter;
+public abstract class ExpressionNode implements IRNode {
 
-public interface IRNode {
+    protected TypeNode typeNode;
 
-    default void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public ExpressionNode() {
+        // do nothing
+    }
 
-    default int accessElementCount() {throw new UnsupportedOperationException();}
-    default void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public void setTypeNode(TypeNode typeNode) {
+        this.typeNode = typeNode;
+    }
+
+    public TypeNode getTypeNode() {
+        return typeNode;
+    }
+
+    public Class<?> getType() {
+        return typeNode.getType();
+    }
+
+    public String getCanonicalTypeName() {
+        return typeNode.getCanonicalTypeName();
+    }
 }

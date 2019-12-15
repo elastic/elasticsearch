@@ -21,72 +21,36 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.BinaryNode;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
-import java.util.Set;
 
-/**
- * Represents a boolean expression.
- */
-public final class EBool extends AExpression {
+public final class BooleanNode extends BinaryNode {
 
+    private final Location location;
     private final Operation operation;
-    private AExpression left;
-    private AExpression right;
 
-    public EBool(Location location, Operation operation, AExpression left, AExpression right) {
-        super(location);
-
+    public BooleanNode(Location location, Operation operation) {
+        this.location = Objects.requireNonNull(location);
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
-    }
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        left.expected = boolean.class;
-        left.analyze(scriptRoot, locals);
-        left = left.cast(scriptRoot, locals);
-
-        right.expected = boolean.class;
-        right.analyze(scriptRoot, locals);
-        right = right.cast(scriptRoot, locals);
-
-        if (left.constant != null && right.constant != null) {
-            if (operation == Operation.AND) {
-                constant = (boolean)left.constant && (boolean)right.constant;
-            } else if (operation == Operation.OR) {
-                constant = (boolean)left.constant || (boolean)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
-        actual = boolean.class;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(classWriter, methodWriter, globals);
+            leftNode.write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            right.write(classWriter, methodWriter, globals);
+            rightNode.write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(true);
@@ -99,9 +63,9 @@ public final class EBool extends AExpression {
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(classWriter, methodWriter, globals);
+            leftNode.write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            right.write(classWriter, methodWriter, globals);
+            rightNode.write(classWriter, methodWriter, globals);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.mark(tru);
@@ -111,12 +75,8 @@ public final class EBool extends AExpression {
             methodWriter.push(false);
             methodWriter.mark(end);
         } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+            throw new IllegalStateException("unexpected boolean operation [" + operation + "] " +
+                    "for type [" + getCanonicalTypeName() + "]");
         }
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(left, operation.symbol, right);
     }
 }

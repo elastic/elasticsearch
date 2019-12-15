@@ -17,67 +17,42 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.EQUALS;
 import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 
-public class ComparisonNode implements IRNode {
+public class ComparisonNode extends BinaryNode {
 
+    private final Location location;
     private final Operation operation;
-    private final Class<?> promotedType;
 
-    private IRNode left;
-    private IRNode right;
-
-    public ComparisonNode(Operation operation) {
+    public ComparisonNode(Location location, Operation operation) {
+        this.location = Objects.requireNonNull(location);
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
-    }
-
-    public void setLeft(IRNode left) {
-        this.left = Objects.requireNonNull(left);
-    }
-
-    public void setRight(IRNode right) {
-        this.right = Objects.requireNonNull(right);
-    }
-
-    public IRNode getLeft() {
-        return left;
-    }
-
-    public IRNode getRight() {
-        return right;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        left.write(classWriter, methodWriter, globals);
+        leftNode.write(classWriter, methodWriter, globals);
 
-        if (!right.isNull) {
-            right.write(classWriter, methodWriter, globals);
+        if (rightNode instanceof NullNode == false) {
+            rightNode.write(classWriter, methodWriter, globals);
         }
 
         Label jump = new Label();
@@ -92,48 +67,52 @@ public class ComparisonNode implements IRNode {
 
         boolean writejump = true;
 
-        Type type = MethodWriter.getType(promotedType);
+        Class<?> type = getType();
+        Type asmType = MethodWriter.getType(type);
 
-        if (promotedType == void.class || promotedType == byte.class || promotedType == short.class || promotedType == char.class) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        } else if (promotedType == boolean.class) {
-            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
+        if (type == void.class || type == byte.class || type == short.class || type == char.class) {
+            throw new IllegalStateException("unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for comparison");
+        } else if (type == boolean.class) {
+            if (eq) methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
             else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
+                        "for type [" + getCanonicalTypeName() + "]");
             }
-        } else if (promotedType == int.class || promotedType == long.class || promotedType == float.class || promotedType == double.class) {
-            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
-            else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
-            else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
-            else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
-            else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
+        } else if (type == int.class || type == long.class || type == float.class || type == double.class) {
+            if (eq) methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
+            else if (lt) methodWriter.ifCmp(asmType, MethodWriter.LT, jump);
+            else if (lte) methodWriter.ifCmp(asmType, MethodWriter.LE, jump);
+            else if (gt) methodWriter.ifCmp(asmType, MethodWriter.GT, jump);
+            else if (gte) methodWriter.ifCmp(asmType, MethodWriter.GE, jump);
             else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
+                        "for type [" + getCanonicalTypeName() + "]");
             }
 
-        } else if (promotedType == def.class) {
+        } else if (type == def.class) {
             Type booleanType = Type.getType(boolean.class);
-            Type descriptor = Type.getMethodType(booleanType, MethodWriter.getType(left.actual), MethodWriter.getType(right.actual));
+            Type descriptor = Type.getMethodType(booleanType,
+                    MethodWriter.getType(leftNode.getType()), MethodWriter.getType(rightNode.getType()));
 
             if (eq) {
-                if (right.isNull) {
+                if (rightNode instanceof NullNode) {
                     methodWriter.ifNull(jump);
-                } else if (!left.isNull && operation == Operation.EQ) {
+                } else if (leftNode instanceof NullNode == false && operation == Operation.EQ) {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     writejump = false;
                 } else {
-                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
-                if (right.isNull) {
+                if (rightNode instanceof NullNode) {
                     methodWriter.ifNonNull(jump);
-                } else if (!left.isNull && operation == Operation.NE) {
+                } else if (leftNode instanceof NullNode == false && operation == Operation.NE) {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
                 }
             } else if (lt) {
                 methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
@@ -148,29 +127,31 @@ public class ComparisonNode implements IRNode {
                 methodWriter.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                 writejump = false;
             } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
+                        "for type [" + getCanonicalTypeName() + "]");
             }
         } else {
             if (eq) {
-                if (right.isNull) {
+                if (rightNode instanceof NullNode) {
                     methodWriter.ifNull(jump);
                 } else if (operation == Operation.EQ) {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
                     writejump = false;
                 } else {
-                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
-                if (right.isNull) {
+                if (rightNode instanceof NullNode) {
                     methodWriter.ifNonNull(jump);
                 } else if (operation == Operation.NE) {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
                     methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
                 }
             } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
+                        "for type [" + getCanonicalTypeName() + "]");
             }
         }
 

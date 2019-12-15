@@ -19,16 +19,21 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
-public interface IRNode {
+public class TypeNode implements IRNode {
 
-    default void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    protected final Class<?> type;
 
-    default int accessElementCount() {throw new UnsupportedOperationException();}
-    default void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public TypeNode(Class<?> type) {
+        this.type = type;
+    }
+
+    public Class<?> getType() {
+        return type;
+    }
+
+    public String getCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(type);
+    }
 }

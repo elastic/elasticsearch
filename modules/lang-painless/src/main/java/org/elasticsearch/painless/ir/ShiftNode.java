@@ -19,16 +19,27 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.MethodWriter;
+public abstract class ShiftNode extends BinaryNode {
 
-public interface IRNode {
+    protected TypeNode shiftTypeNode;
 
-    default void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public ShiftNode() {
+        // do nothing
+    }
 
-    default int accessElementCount() {throw new UnsupportedOperationException();}
-    default void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
-    default void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {throw new UnsupportedOperationException();}
+    public void setShiftTypeNode(TypeNode shiftTypeNode) {
+        this.shiftTypeNode = shiftTypeNode;
+    }
+
+    public TypeNode getShiftTypeNode() {
+        return shiftTypeNode;
+    }
+
+    public Class<?> getShiftType() {
+        return shiftTypeNode.getType();
+    }
+
+    public String getShiftCanonicalTypeName() {
+        return shiftTypeNode.getCanonicalTypeName();
+    }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.Assertions;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -97,6 +98,27 @@ public class Maps {
     public static <K, V> Map<K, V> ofEntries(final Collection<Map.Entry<K, V>> entries) {
         @SuppressWarnings("unchecked") final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
         return map;
+    }
+
+    /**
+     * Returns {@code true} if the two specified maps are equal to one another. Two maps are considered equal if both contain
+     * the same number of entries, and all values ​​of the corresponding keys are equal by the specified equivalence relationship
+     * The primary use case is to check if two maps with array values are equal.
+     *
+     * @param left             one map to be tested for equality
+     * @param right            the other map to be tested for equality
+     * @param valueEquivalence the equivalence relationship for comparing values
+     * @return {@code true} if the two maps are equal
+     */
+    public static <K, V> boolean equals(Map<K, V> left, Map<K, V> right, BiPredicate<V, V> valueEquivalence) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+        return left.entrySet().stream()
+                .allMatch(e -> right.containsKey(e.getKey()) && valueEquivalence.test(e.getValue(), right.get(e.getKey())));
     }
 
 }

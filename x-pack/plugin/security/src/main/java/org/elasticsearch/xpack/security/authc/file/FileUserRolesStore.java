@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -27,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -206,9 +208,13 @@ public class FileUserRolesStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserRolesStore.this.file)) {
-                logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                Map<String, String[]> previousUserRoles = userRoles;
                 userRoles = parseFileLenient(file, logger);
-                notifyRefresh();
+
+                if (Maps.equals(previousUserRoles, userRoles, Arrays::equals) == false) {
+                    logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                    notifyRefresh();
+                }
             }
         }
     }

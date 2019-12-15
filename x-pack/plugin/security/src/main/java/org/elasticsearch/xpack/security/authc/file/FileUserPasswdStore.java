@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -191,9 +193,13 @@ public class FileUserPasswdStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserPasswdStore.this.file)) {
-                logger.info("users file [{}] changed. updating users... )", file.toAbsolutePath());
+                Map<String, char[]> previousUsers = users;
                 users = parseFileLenient(file, logger, settings);
-                notifyRefresh();
+
+                if (Maps.equals(previousUsers, users, Arrays::equals) == false) {
+                    logger.info("users file [{}] changed. updating users... )", file.toAbsolutePath());
+                    notifyRefresh();
+                }
             }
         }
     }

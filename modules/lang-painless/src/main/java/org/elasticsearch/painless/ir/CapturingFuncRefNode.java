@@ -23,31 +23,23 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.util.Objects;
-import java.util.Set;
 
-/**
- * Represents a capturing function reference.
- */
-public final class ECapturingFunctionRef extends AExpression {
-    private final String variable;
-    private final String call;
+public class ECapturingFunctionRef extends ExpressionNode {
 
-    private FunctionRef ref;
-    private Variable captured;
-    private String defPointer;
+    protected final String name;
+    protected final FunctionRef functionRef;
+    protected final Variable captured;
+    protected final String pointer;
 
-    public ECapturingFunctionRef(Location location, String variable, String call) {
+    public ECapturingFunctionRef(Location location, FunctionRef functionRef, ) {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
@@ -55,11 +47,10 @@ public final class ECapturingFunctionRef extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         if (defPointer != null) {
-            // dynamic interface: push captured parameter on stack
-            // TODO: don't do this: its just to cutover :)
+            // dynamic interface: push placeholder onto stack
             methodWriter.push((String)null);
             methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
         } else if (ref == null) {

@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.BinaryNode;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 

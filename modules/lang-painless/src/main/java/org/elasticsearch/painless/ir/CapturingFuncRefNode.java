@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
@@ -39,7 +39,7 @@ import java.util.Set;
 /**
  * Represents a capturing function reference.
  */
-public final class ECapturingFunctionRef extends AExpression implements ILambda {
+public final class ECapturingFunctionRef extends AExpression {
     private final String variable;
     private final String call;
 
@@ -52,34 +52,6 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
 
         this.variable = Objects.requireNonNull(variable);
         this.call = Objects.requireNonNull(call);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(variable);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        captured = locals.getVariable(location, variable);
-        if (expected == null) {
-            if (captured.clazz == def.class) {
-                // dynamic implementation
-                defPointer = "D" + variable + "." + call + ",1";
-            } else {
-                // typed implementation
-                defPointer = "S" + PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz) + "." + call + ",1";
-            }
-            actual = String.class;
-        } else {
-            defPointer = null;
-            // static case
-            if (captured.clazz != def.class) {
-                ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
-                        expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
-            }
-            actual = expected;
-        }
     }
 
     @Override
@@ -100,20 +72,5 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
             methodWriter.invokeLambdaCall(ref);
         }
-    }
-
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public Type[] getCaptures() {
-        return new Type[] { MethodWriter.getType(captured.clazz) };
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(variable, call);
     }
 }

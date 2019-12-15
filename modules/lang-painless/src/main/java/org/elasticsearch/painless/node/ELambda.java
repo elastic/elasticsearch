@@ -215,10 +215,10 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    public org.objectweb.asm.Type[] getCaptures() {
-        org.objectweb.asm.Type[] types = new org.objectweb.asm.Type[captures.size()];
-        for (int i = 0; i < types.length; i++) {
-            types[i] = MethodWriter.getType(captures.get(i).clazz);
+    public List<Class<?>> getCaptures() {
+        List<Class<?>> types = new ArrayList<>();
+        for (Variable variable : captures) {
+            types.add(variable.clazz);
         }
         return types;
     }

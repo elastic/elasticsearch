@@ -44,8 +44,9 @@ final class PSubDefCall extends AExpression {
     private final String name;
     private final List<AExpression> arguments;
 
-    private StringBuilder recipe = null;
-    private List<String> pointers = new ArrayList<>();
+    private final StringBuilder recipe = new StringBuilder();
+    private final List<String> pointers = new ArrayList<>();
+    private final List<Class<?>> parameterTypes = new ArrayList<>();
 
     PSubDefCall(Location location, String name, List<AExpression> arguments) {
         super(location);
@@ -61,7 +62,7 @@ final class PSubDefCall extends AExpression {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
-        recipe = new StringBuilder();
+        parameterTypes.add(Object.class);
         int totalCaptures = 0;
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
@@ -70,6 +71,14 @@ final class PSubDefCall extends AExpression {
             expression.internal = true;
             expression.analyze(scriptRoot, locals);
 
+            if (expression.actual == void.class) {
+                throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
+            }
+
+            expression.expected = expression.actual;
+            arguments.set(argument, expression.cast(scriptRoot, locals));
+            parameterTypes.add(expression.actual);
+
             if (expression instanceof ILambda) {
                 ILambda lambda = (ILambda) expression;
                 pointers.add(lambda.getPointer());
@@ -77,14 +86,8 @@ final class PSubDefCall extends AExpression {
                 char ch = (char) (argument + totalCaptures);
                 recipe.append(ch);
                 totalCaptures += lambda.getCaptureCount();
+                parameterTypes.addAll(lambda.getCaptures());
             }
-
-            if (expression.actual == void.class) {
-                throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
-            }
-
-            expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(scriptRoot, locals));
         }
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
@@ -95,25 +98,16 @@ final class PSubDefCall extends AExpression {
     void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        List<Type> parameterTypes = new ArrayList<>();
-
-        // first parameter is the receiver, we never know its type: always Object
-        parameterTypes.add(org.objectweb.asm.Type.getType(Object.class));
-
-        // append each argument
         for (AExpression argument : arguments) {
-            parameterTypes.add(MethodWriter.getType(argument.actual));
-
-            if (argument instanceof ILambda) {
-                ILambda lambda = (ILambda) argument;
-                Collections.addAll(parameterTypes, lambda.getCaptures());
-            }
-
             argument.write(classWriter, methodWriter, globals);
         }
 
         // create method type from return value and arguments
-        Type methodType = Type.getMethodType(MethodWriter.getType(actual), parameterTypes.toArray(new Type[0]));
+        Type[] asmParameterTypes = new Type[parameterTypes.size()];
+        for (int index = 0; index < asmParameterTypes.length; ++index) {
+            asmParameterTypes[index] = Type.getType(parameterTypes.get(index));
+        }
+        Type methodType = Type.getMethodType(MethodWriter.getType(actual), asmParameterTypes);
 
         List<Object> args = new ArrayList<>();
         args.add(recipe.toString());

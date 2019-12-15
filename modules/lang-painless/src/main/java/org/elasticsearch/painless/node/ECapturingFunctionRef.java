@@ -33,6 +33,8 @@ import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -108,8 +110,8 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    public Type[] getCaptures() {
-        return new Type[] { MethodWriter.getType(captured.clazz) };
+    public List<Class<?>> getCaptures() {
+        return Collections.singletonList(captured.clazz);
     }
 
     @Override

@@ -26,8 +26,9 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -83,8 +84,8 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    public Type[] getCaptures() {
-        return new Type[0]; // no captures
+    public List<Class<?>> getCaptures() {
+        return Collections.emptyList();
     }
 
     @Override

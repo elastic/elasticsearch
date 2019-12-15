@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -151,7 +152,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testTurnOffTranslogRetentionAfterAllShardStarted() throws Exception {
         final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            settings.put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
+            settings.put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_6_5_0, Version.CURRENT));
         }
         try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
             group.startAll();

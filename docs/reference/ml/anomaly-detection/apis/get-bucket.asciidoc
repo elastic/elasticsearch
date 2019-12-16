@@ -36,7 +36,8 @@ bucket.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<timestamp>`::
   (Optional, string) The timestamp of a single bucket result. If you do not

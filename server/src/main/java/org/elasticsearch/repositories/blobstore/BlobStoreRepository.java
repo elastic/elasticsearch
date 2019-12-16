@@ -731,6 +731,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         return false;
                     }
                     return allSnapshotIds.contains(foundUUID) == false;
+                } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
+                    // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
+                    return repositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
                 }
                 return false;
             }
@@ -971,9 +974,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (isReadOnly() == false) {
             try {
                 final String testPrefix = testBlobPrefix(seed);
-                final BlobContainer container = blobStore().blobContainer(basePath().add(testPrefix));
-                container.deleteBlobsIgnoringIfNotExists(List.copyOf(container.listBlobs().keySet()));
-                blobStore().blobContainer(basePath()).deleteBlobIgnoringIfNotExists(testPrefix);
+                blobStore().blobContainer(basePath().add(testPrefix)).delete();
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
@@ -1185,7 +1186,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             try {
                                 blobContainer().deleteBlobsIgnoringIfNotExists(oldIndexN);
                             } catch (IOException e) {
-                                logger.warn("Failed to clean up old index blobs {}", oldIndexN);
+                                logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs {}", oldIndexN), e);
                             }
                         }));
                     }

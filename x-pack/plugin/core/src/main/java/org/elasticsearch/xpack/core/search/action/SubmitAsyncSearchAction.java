@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public final class SubmitAsyncSearchAction extends ActionType<AsyncSearchResponse> {
     public static final SubmitAsyncSearchAction INSTANCE = new SubmitAsyncSearchAction();
@@ -14,10 +13,5 @@ public final class SubmitAsyncSearchAction extends ActionType<AsyncSearchRespons
 
     private SubmitAsyncSearchAction() {
         super(NAME, AsyncSearchResponse::new);
-    }
-
-    @Override
-    public Writeable.Reader<AsyncSearchResponse> getResponseReader() {
-        return AsyncSearchResponse::new;
     }
 }

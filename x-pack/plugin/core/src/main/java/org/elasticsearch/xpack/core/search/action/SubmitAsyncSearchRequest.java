@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.search.action;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -26,39 +27,45 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see AsyncSearchResponse
  */
-public class SubmitAsyncSearchRequest extends SearchRequest implements CompositeIndicesRequest {
+public class SubmitAsyncSearchRequest extends ActionRequest implements CompositeIndicesRequest {
     private TimeValue waitForCompletion = TimeValue.timeValueSeconds(1);
+    private boolean cleanOnCompletion = true;
+
+    private final SearchRequest request;
 
     /**
      * Create a new request
-     * @param indices The indices the search will be executed on.
      */
     public SubmitAsyncSearchRequest(String... indices) {
-        this(indices, new SearchSourceBuilder());
+        this(new SearchSourceBuilder(), indices);
     }
 
     /**
      * Create a new request
-     * @param indices The indices the search will be executed on.
-     * @param source The source of the search request.
      */
-    public SubmitAsyncSearchRequest(String[] indices, SearchSourceBuilder source) {
-        super(indices, source);
-        setCcsMinimizeRoundtrips(false);
-        setPreFilterShardSize(1);
-        setBatchedReduceSize(5);
-        requestCache(true);
+    public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
+        this.request = new SearchRequest(indices, source);
+        request.setCcsMinimizeRoundtrips(false);
+        request.setPreFilterShardSize(1);
+        request.setBatchedReduceSize(5);
+        request.requestCache(true);
     }
 
     public SubmitAsyncSearchRequest(StreamInput in) throws IOException {
-        super(in);
+        this.request = new SearchRequest(in);
         this.waitForCompletion = in.readTimeValue();
+        this.cleanOnCompletion = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        request.writeTo(out);
         out.writeTimeValue(waitForCompletion);
+        out.writeBoolean(cleanOnCompletion);
+    }
+
+    public SearchRequest getSearchRequest() {
+        return request;
     }
 
     /**
@@ -75,13 +82,32 @@ public class SubmitAsyncSearchRequest extends SearchRequest implements Composite
         return waitForCompletion;
     }
 
+    public void setBatchedReduceSize(int size) {
+        request.setBatchedReduceSize(size);
+    }
+
+    public SearchSourceBuilder source() {
+        return request.source();
+    }
+
+    /**
+     * Should the resource be removed on completion or failure.
+     */
+    public boolean isCleanOnCompletion() {
+        return cleanOnCompletion;
+    }
+
+    public void setCleanOnCompletion(boolean value) {
+        this.cleanOnCompletion = value;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (scroll() != null) {
+        if (request.scroll() != null) {
             addValidationError("scroll queries are not supported", validationException);
         }
-        if (isSuggestOnly()) {
+        if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
         }
         return validationException;
@@ -96,13 +122,14 @@ public class SubmitAsyncSearchRequest extends SearchRequest implements Composite
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        SubmitAsyncSearchRequest request = (SubmitAsyncSearchRequest) o;
-        return waitForCompletion.equals(request.waitForCompletion);
+        SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
+        return cleanOnCompletion == request1.cleanOnCompletion &&
+            Objects.equals(waitForCompletion, request1.waitForCompletion) &&
+            request.equals(request1.request);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), waitForCompletion);
+        return Objects.hash(waitForCompletion, cleanOnCompletion, request);
     }
 }

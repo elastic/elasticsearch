@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -54,22 +55,20 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     @Override
     protected void doExecute(Task task, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
-        // add a place holder in the async search history index and fire the async search
-        store.storeInitialResponse(
-            ActionListener.wrap(
-                resp -> executeSearch(request, resp, submitListener),
-                submitListener::onFailure
-            )
-        );
+        Map<String, String> headers = new HashMap<>(nodeClient.threadPool().getThreadContext().getHeaders());
+
+        // add a place holder in the search index and fire the async search
+        store.storeInitialResponse(headers,
+            ActionListener.wrap(resp -> executeSearch(request, resp, submitListener, headers), submitListener::onFailure));
     }
 
     private void executeSearch(SubmitAsyncSearchRequest submitRequest, IndexResponse doc,
-                               ActionListener<AsyncSearchResponse> submitListener) {
-        SearchRequest searchRequest = new SearchRequest(submitRequest) {
+                               ActionListener<AsyncSearchResponse> submitListener, Map<String, String> originHeaders) {
+        final SearchRequest searchRequest = new SearchRequest(submitRequest.getSearchRequest()) {
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                String searchId = AsyncSearchId.encode(doc.getIndex(), doc.getId(), new TaskId(nodeClient.getLocalNodeId(), id));
-                return new AsyncSearchTask(id, type, action, headers, searchId, reduceContextSupplier);
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
+                AsyncSearchId searchId = new AsyncSearchId(doc.getIndex(), doc.getId(), new TaskId(nodeClient.getLocalNodeId(), id));
+                return new AsyncSearchTask(id, type, action, originHeaders, taskHeaders, searchId, reduceContextSupplier);
             }
         };
 
@@ -81,7 +80,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onResponse(SearchResponse response) {
                     try {
                         progressListener.onResponse(response);
-                        store.storeFinalResponse(task.getAsyncResponse(true), ActionListener.wrap(() -> taskManager.unregister(task)));
+                        store.storeFinalResponse(originHeaders, task.getAsyncResponse(true),
+                            ActionListener.wrap(() -> taskManager.unregister(task)));
                     } catch (Exception e) {
                         taskManager.unregister(task);
                     }
@@ -91,16 +91,16 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     try {
                         progressListener.onFailure(exc);
-                        store.storeFinalResponse(task.getAsyncResponse(true), ActionListener.wrap(() -> taskManager.unregister(task)));
+                        store.storeFinalResponse(originHeaders, task.getAsyncResponse(true),
+                            ActionListener.wrap(() -> taskManager.unregister(task)));
                     } catch (Exception e) {
                         taskManager.unregister(task);
                     }
                 }
             }
         );
-
-        GetAsyncSearchAction.Request getRequest = new GetAsyncSearchAction.Request(task.getSearchId(),
-            submitRequest.getWaitForCompletion(), -1);
+        GetAsyncSearchAction.Request getRequest = new GetAsyncSearchAction.Request(task.getSearchId().getEncoded(),
+            submitRequest.getWaitForCompletion(), -1, submitRequest.isCleanOnCompletion());
         nodeClient.executeLocally(GetAsyncSearchAction.INSTANCE, getRequest, submitListener);
     }
 }

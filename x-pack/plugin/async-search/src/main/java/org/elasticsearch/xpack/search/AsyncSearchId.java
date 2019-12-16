@@ -24,11 +24,24 @@ class AsyncSearchId {
     private final String indexName;
     private final String docId;
     private final TaskId taskId;
+    private final String encoded;
 
     AsyncSearchId(String indexName, String docId, TaskId taskId) {
         this.indexName = indexName;
         this.docId = docId;
         this.taskId = taskId;
+        this.encoded = encode(indexName, docId, taskId);
+    }
+
+    AsyncSearchId(String id) throws IOException {
+        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap( Base64.getDecoder().decode(id)))) {
+            this.indexName = in.readString();
+            this.docId = in.readString();
+            this.taskId = new TaskId(in.readString());
+            this.encoded = id;
+        } catch (IOException e) {
+            throw new IOException("invalid id: " + id);
+        }
     }
 
     /**
@@ -50,6 +63,13 @@ class AsyncSearchId {
      */
     TaskId getTaskId() {
         return taskId;
+    }
+
+    /**
+     * Get the encoded string that represents this search.
+     */
+    String getEncoded() {
+        return encoded;
     }
 
     @Override

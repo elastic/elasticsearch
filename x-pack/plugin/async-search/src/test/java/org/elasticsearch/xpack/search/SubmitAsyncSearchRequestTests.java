@@ -22,28 +22,31 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
 
     @Override
     protected SubmitAsyncSearchRequest createTestInstance() {
-        SubmitAsyncSearchRequest searchRequest = new SubmitAsyncSearchRequest();
-        searchRequest.allowPartialSearchResults(randomBoolean());
+        final SubmitAsyncSearchRequest searchRequest;
         if (randomBoolean()) {
-            searchRequest.indices(generateRandomStringArray(10, 10, false, false));
+            searchRequest = new SubmitAsyncSearchRequest(generateRandomStringArray(10, 10, false, false));
+        }  else {
+            searchRequest = new SubmitAsyncSearchRequest();
         }
         if (randomBoolean()) {
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            searchRequest.getSearchRequest()
+                .indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
-            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            searchRequest.getSearchRequest()
+                .preference(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {
-            searchRequest.requestCache(randomBoolean());
+            searchRequest.getSearchRequest().requestCache(randomBoolean());
         }
         if (randomBoolean()) {
-            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            searchRequest.getSearchRequest().routing(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
+            searchRequest.getSearchRequest().searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         }
         if (randomBoolean()) {
-            searchRequest.source(randomSearchSourceBuilder());
+            searchRequest.getSearchRequest().source(randomSearchSourceBuilder());
         }
         return searchRequest;
     }
@@ -57,17 +60,5 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             source.aggregation(AggregationBuilders.max("max").field("field"));
         }
         return source;
-    }
-
-    public void testValidateScroll() {
-
-    }
-
-    public void testValidateSuggestOnly() {
-
-    }
-
-    public void testValidateWaitForCompletion() {
-
     }
 }

@@ -93,7 +93,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     protected AsyncSearchResponse getAsyncSearch(String id) throws ExecutionException, InterruptedException {
         return client().execute(GetAsyncSearchAction.INSTANCE,
-            new GetAsyncSearchAction.Request(id, TimeValue.timeValueMillis(1), -1)).get();
+            new GetAsyncSearchAction.Request(id, TimeValue.MINUS_ONE, -1, true)).get();
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
@@ -137,10 +137,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                                                             SearchSourceBuilder source,
                                                             int numFailures,
                                                             int progressStep) throws Exception {
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new String[] { indexName }, source);
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName);
         request.setBatchedReduceSize(progressStep);
         request.setWaitForCompletion(TimeValue.timeValueMillis(1));
-        ClusterSearchShardsResponse response = dataNodeClient().admin().cluster().prepareSearchShards(request.indices()).get();
+        ClusterSearchShardsResponse response = dataNodeClient().admin().cluster()
+            .prepareSearchShards(request.getSearchRequest().indices()).get();
         AtomicInteger failures = new AtomicInteger(numFailures);
         Map<ShardId, ShardIdLatch> shardLatchMap = Arrays.stream(response.getGroups())
             .map(ClusterSearchShardsGroup::getShardId)
@@ -161,7 +162,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
             AsyncSearchResponse resp = client().execute(SubmitAsyncSearchAction.INSTANCE, request).get();
             while (resp.getPartialResponse().getSuccessfulShards() == -1) {
                 resp = client().execute(GetAsyncSearchAction.INSTANCE,
-                    new GetAsyncSearchAction.Request(resp.id(), TimeValue.timeValueSeconds(1), resp.getVersion())).get();
+                    new GetAsyncSearchAction.Request(resp.id(), TimeValue.timeValueSeconds(1), resp.getVersion(), true)).get();
             }
             initial = resp;
         }
@@ -212,7 +213,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 }
                 assertBusy(() -> {
                     AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
-                        new GetAsyncSearchAction.Request(response.id(), TimeValue.timeValueMillis(10), lastVersion)
+                        new GetAsyncSearchAction.Request(response.id(), TimeValue.timeValueMillis(10), lastVersion, true)
                     ).get();
                     atomic.set(newResp);
                     assertNotEquals(RestStatus.NOT_MODIFIED, newResp.status());

@@ -30,24 +30,32 @@ import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 class AsyncSearchTask extends SearchTask {
-    private final String searchId;
+    private final AsyncSearchId searchId;
     private final Supplier<InternalAggregation.ReduceContext> reduceContextSupplier;
     private final Listener progressListener;
+
+    private final Map<String, String> originHeaders;
 
     AsyncSearchTask(long id,
                     String type,
                     String action,
-                    Map<String, String> headers,
-                    String searchId,
+                    Map<String, String> originHeaders,
+                    Map<String, String> taskHeaders,
+                    AsyncSearchId searchId,
                     Supplier<InternalAggregation.ReduceContext> reduceContextSupplier) {
-        super(id, type, action, "async_search", EMPTY_TASK_ID, headers);
+        super(id, type, action, "async_search", EMPTY_TASK_ID, taskHeaders);
+        this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.reduceContextSupplier = reduceContextSupplier;
         this.progressListener = new Listener();
         setProgressListener(progressListener);
     }
 
-    String getSearchId() {
+    Map<String, String> getOriginHeaders() {
+        return originHeaders;
+    }
+
+    AsyncSearchId getSearchId() {
         return searchId;
     }
 
@@ -75,7 +83,7 @@ class AsyncSearchTask extends SearchTask {
         private volatile Response response;
 
         Listener() {
-            final AsyncSearchResponse initial = new AsyncSearchResponse(searchId,
+            final AsyncSearchResponse initial = new AsyncSearchResponse(searchId.getEncoded(),
                 new PartialSearchResponse(totalShards), version.get(), true);
             this.response = new Response(initial, false);
         }
@@ -83,7 +91,7 @@ class AsyncSearchTask extends SearchTask {
         @Override
         public void onListShards(List<SearchShard> shards, boolean fetchPhase) {
             this.totalShards = shards.size();
-            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId,
+            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
                 new PartialSearchResponse(totalShards), version.incrementAndGet(), true);
             response = new Response(newResp, false);
         }
@@ -97,7 +105,7 @@ class AsyncSearchTask extends SearchTask {
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
             lastSuccess = shards.size();
             lastFailures = shardFailures.get();
-            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId,
+            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
                 new PartialSearchResponse(totalShards, lastSuccess, lastFailures, totalHits, aggs),
                 version.incrementAndGet(),
                 true
@@ -109,7 +117,7 @@ class AsyncSearchTask extends SearchTask {
         public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs) {
             int failures = shardFailures.get();
             int ver = (lastSuccess == shards.size() && lastFailures == failures) ? version.get() : version.incrementAndGet();
-            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId,
+            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
                 new PartialSearchResponse(totalShards, shards.size(), failures, totalHits, aggs),
                 ver,
                 true
@@ -119,14 +127,16 @@ class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onResponse(SearchResponse searchResponse) {
-            AsyncSearchResponse newResp = new AsyncSearchResponse(searchId, searchResponse, version.incrementAndGet(), false);
+            AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
+                searchResponse, version.incrementAndGet(), false);
             response = new Response(newResp, false);
         }
 
         @Override
         public void onFailure(Exception exc) {
             AsyncSearchResponse previous = response.get(true);
-            response = new Response(new AsyncSearchResponse(searchId, newPartialResponse(previous, shardFailures.get()),
+            response = new Response(new AsyncSearchResponse(searchId.getEncoded(),
+                newPartialResponse(previous, shardFailures.get()),
                 exc != null ? new ElasticsearchException(exc) : null, version.incrementAndGet(), false), false);
         }
 

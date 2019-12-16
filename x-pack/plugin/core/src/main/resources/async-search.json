@@ -15,6 +15,10 @@
     "_doc": {
       "dynamic": false,
       "properties": {
+        "headers": {
+          "type": "object",
+          "enabled": false
+        },
         "result": {
           "type": "object",
           "enabled": false

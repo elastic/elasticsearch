@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -23,17 +24,21 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.PartialSearchResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_SEARCH_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.search.TransportGetAsyncSearchAction.ensureAuthenticatedUserIsSame;
 
 /**
  * A class that encapsulates the logic to store and retrieve {@link AsyncSearchResponse} to/from the .async-search index.
@@ -41,59 +46,81 @@ import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_S
 class AsyncSearchStoreService {
     static final String ASYNC_SEARCH_ALIAS = ASYNC_SEARCH_TEMPLATE_NAME + "-" + INDEX_TEMPLATE_VERSION;
     static final String RESULT_FIELD = "result";
+    static final String HEADERS_FIELD = "headers";
 
     private final Client client;
     private final NamedWriteableRegistry registry;
     private final Random random;
 
     AsyncSearchStoreService(Client client, NamedWriteableRegistry registry) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN);
         this.registry = registry;
         this.random = new Random(System.nanoTime());
+    }
+
+    Client getClient() {
+        return client;
     }
 
     /**
      * Store an empty document in the .async-search index that is used
      * as a place-holder for the future response.
      */
-    void storeInitialResponse(ActionListener<IndexResponse> next) {
+    void storeInitialResponse(Map<String, String> headers, ActionListener<IndexResponse> next) {
         IndexRequest request = new IndexRequest(ASYNC_SEARCH_ALIAS)
             .id(UUIDs.randomBase64UUID(random))
-            .source(Collections.emptyMap(), XContentType.JSON);
+            .source(Collections.singletonMap(HEADERS_FIELD, headers), XContentType.JSON);
         client.index(request, next);
     }
 
     /**
      * Store the final response if the place-holder document is still present (update).
      */
-    void storeFinalResponse(AsyncSearchResponse response, ActionListener<UpdateResponse> next) throws IOException {
+    void storeFinalResponse(Map<String, String> headers, AsyncSearchResponse response,
+                            ActionListener<UpdateResponse> next) throws IOException {
         AsyncSearchId searchId = AsyncSearchId.decode(response.id());
+        Map<String, Object> source = new HashMap<>();
+        source.put(RESULT_FIELD, encodeResponse(response));
+        source.put(HEADERS_FIELD, headers);
         UpdateRequest request = new UpdateRequest().index(searchId.getIndexName()).id(searchId.getDocId())
-            .doc(Collections.singletonMap(RESULT_FIELD, encodeResponse(response)), XContentType.JSON)
+            .doc(source, XContentType.JSON)
             .detectNoop(false);
         client.update(request, next);
     }
 
     /**
-     * Get the final response from the .async-search index if present, or delegate a {@link ResourceNotFoundException}
+     * Get the response from the .async-search index if present, or delegate a {@link ResourceNotFoundException}
      * failure to the provided listener if not.
      */
-    void getResponse(GetAsyncSearchAction.Request request, AsyncSearchId searchId, ActionListener<AsyncSearchResponse> next) {
+    void getResponse(AsyncSearchId searchId, ActionListener<AsyncSearchResponse> next) {
+        final Authentication current = Authentication.getAuthentication(client.threadPool().getThreadContext());
         GetRequest internalGet = new GetRequest(searchId.getIndexName())
             .id(searchId.getDocId())
             .routing(searchId.getDocId());
         client.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {
-                    next.onFailure(new ResourceNotFoundException(request.getId() + " not found"));
-                } else if (get.getSource().containsKey(RESULT_FIELD) == false) {
-                    next.onResponse(new AsyncSearchResponse(request.getId(), new PartialSearchResponse(-1), 0, false));
+                    next.onFailure(new ResourceNotFoundException(searchId.getEncoded() + " not found"));
+                    return;
+                }
+
+                @SuppressWarnings("unchecked")
+                Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
+                if (ensureAuthenticatedUserIsSame(headers, current) == false) {
+                    next.onFailure(new ResourceNotFoundException(searchId.getEncoded() + " not found"));
+                    return;
+                }
+
+                @SuppressWarnings("unchecked")
+                String encoded = (String) get.getSource().get(RESULT_FIELD);
+                if (encoded == null) {
+                    next.onResponse(new AsyncSearchResponse(searchId.getEncoded(),
+                        new PartialSearchResponse(-1), 0, false));
                 } else {
-                    String encoded = (String) get.getSource().get(RESULT_FIELD);
                     next.onResponse(decodeResponse(encoded, registry));
                 }
             },
-            exc -> next.onFailure(new ResourceNotFoundException(request.getId() + " not found"))
+            next::onFailure
         ));
     }
 

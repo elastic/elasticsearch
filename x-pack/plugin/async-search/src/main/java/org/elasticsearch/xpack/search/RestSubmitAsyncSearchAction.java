@@ -38,18 +38,20 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        SubmitAsyncSearchRequest searchRequest = new SubmitAsyncSearchRequest();
-        IntConsumer setSize = size -> searchRequest.source().size(size);
-        request.withContentOrSourceParamParserOrNull(parser -> parseSearchRequest(searchRequest, request, parser, setSize));
-        searchRequest.setWaitForCompletion(request.paramAsTime("wait_for_completion", TimeValue.timeValueSeconds(1)));
+        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest();
+        IntConsumer setSize = size -> submitRequest.getSearchRequest().source().size(size);
+        request.withContentOrSourceParamParserOrNull(parser ->
+            parseSearchRequest(submitRequest.getSearchRequest(), request, parser, setSize));
+        submitRequest.setWaitForCompletion(request.paramAsTime("wait_for_completion", TimeValue.timeValueSeconds(1)));
+        submitRequest.setCleanOnCompletion(request.paramAsBoolean("clean_on_completion", true));
 
-        ActionRequestValidationException validationException = searchRequest.validate();
+        ActionRequestValidationException validationException = submitRequest.validate();
         if (validationException != null) {
             throw validationException;
         }
         return channel -> {
             RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);
-            client.executeLocally(SubmitAsyncSearchAction.INSTANCE, searchRequest, listener);
+            client.execute(SubmitAsyncSearchAction.INSTANCE, submitRequest, listener);
         };
     }
 }

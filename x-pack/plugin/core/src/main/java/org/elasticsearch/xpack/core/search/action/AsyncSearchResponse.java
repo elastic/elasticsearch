@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.NOT_MODIFIED;
 import static org.elasticsearch.rest.RestStatus.PARTIAL_CONTENT;

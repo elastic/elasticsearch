@@ -73,19 +73,28 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.aggregateIndexSettings;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.buildIndexMetaData;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.clusterStateCreateIndex;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.parseMappings;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -94,6 +103,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.hasValue;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -725,6 +735,31 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
+    public void testClusterStateCreateIndex() {
+        ClusterState currentClusterState =
+            ClusterState.builder(ClusterState.EMPTY_STATE).build();
+
+        IndexMetaData newIndexMetaData = IndexMetaData.builder("test")
+            .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
+            .build();
+
+        // used as a value container, not for the concurrency and visibility guarantees
+        AtomicBoolean allocationRerouted = new AtomicBoolean(false);
+        BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable = (clusterState, reason) -> {
+            allocationRerouted.compareAndSet(false, true);
+            return clusterState;
+        };
+
+        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetaData,
+            rerouteRoutingTable);
+        assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
+        assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
+        assertThat(allocationRerouted.get(), is(true));
+    }
+
     public void testParseMappingsWithTypedTemplateAndTypelessIndexMapping() throws Exception {
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
             try {
@@ -761,5 +796,66 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         });
         Map<String, Object> mappings = parseMappings("", List.of(templateMetaData), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testBuildIndexMetadata() {
+        IndexMetaData sourceIndexMetaData = IndexMetaData.builder("parent")
+            .settings(Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .primaryTerm(0, 3L)
+            .build();
+
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_SOFT_DELETES_SETTING.getKey(), false)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        List<AliasMetaData> aliases = List.of(AliasMetaData.builder("alias1").build());
+        IndexMetaData indexMetaData = buildIndexMetaData("test", aliases, () -> null, indexSettings, 4, sourceIndexMetaData);
+
+        assertThat(indexMetaData.getSettings().getAsBoolean(INDEX_SOFT_DELETES_SETTING.getKey(), true), is(false));
+        assertThat(indexMetaData.getAliases().size(), is(1));
+        assertThat(indexMetaData.getAliases().keys().iterator().next().value, is("alias1"));
+        assertThat("The source index primary term must be used", indexMetaData.primaryTerm(0), is(3L));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .build();
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat("When the target routing number of shards is not specified the expected value is the configured number of shards " +
+            "multiplied by 2 at most ten times (ie. 3 * 2^8)", targetRoutingNumberOfShards, is(768));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsWhenExplicitlyConfigured() {
+        Settings indexSettings = Settings.builder()
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), 9)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .build();
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShards, is(9));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsYieldsSourceNumberOfShards() {
+        Settings indexSettings = Settings.builder()
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .build();
+
+        IndexMetaData sourceIndexMetaData = IndexMetaData.builder("parent")
+            .settings(Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .build())
+            .numberOfShards(6)
+            .numberOfReplicas(0)
+            .build();
+
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, sourceIndexMetaData);
+        assertThat(targetRoutingNumberOfShards, is(6));
     }
 }

@@ -895,7 +895,7 @@ end::model-plot-config[]
 
 tag::model-snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot. For 
-example, `1491007364`.
+example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]

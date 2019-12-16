@@ -195,7 +195,7 @@ public class Response {
     public List<String> getWarnings() {
         List<String> warnings = new ArrayList<>();
         for (Header header : response.getHeaders("Warning")) {
-            final String warning = header.getValue();
+            String warning = header.getValue();
             if (matchWarningHeaderPatternByPrefix(warning)) {
                 warnings.add(extractWarningValueFromWarningHeader(warning));
             } else {

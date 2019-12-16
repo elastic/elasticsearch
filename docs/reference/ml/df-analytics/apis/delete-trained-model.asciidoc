@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="basic"]
 [[delete-inference]]
 === Delete trained model API
 [subs="attributes"]
@@ -7,8 +7,8 @@
 <titleabbrev>Delete trained model</titleabbrev>
 ++++
 
-Deletes an existing trained {dfanalytics} model that is currently not referenced 
-by an ingest pipeline.
+Deletes an existing trained {infer} model that is currently not referenced by an 
+ingest pipeline.
 
 experimental[]
 

@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="basic"]
 [[get-inference-stats]]
 === Get trained model statistics API
 [subs="attributes"]
@@ -7,7 +7,7 @@
 <titleabbrev>Get trained model stats</titleabbrev>
 ++++
 
-Retrieves usage information for trained {dfanalytics} models.
+Retrieves usage information for trained {infer} models.
 
 experimental[]
 
@@ -36,7 +36,7 @@ see <<security-privileges>> and <<built-in-roles>>.
 [[ml-get-inference-stats-desc]]
 ==== {api-description-title}
 
-You can get iusage nformation for multiple trained models in a single API 
+You can get usage information for multiple trained models in a single API 
 request by using a comma-separated list of model IDs or a wildcard expression.
 
 

@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="basic"]
 [[get-inference]]
 === Get trained model API
 [subs="attributes"]
@@ -7,7 +7,7 @@
 <titleabbrev>Get trained model</titleabbrev>
 ++++
 
-Retrieves configuration information for a trained {dfanalytics} model.
+Retrieves configuration information for a trained {infer} model.
 
 experimental[]
 

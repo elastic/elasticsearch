@@ -142,9 +142,8 @@ The following features are not yet supported with the new indexing approach:
    using a `bool` query with each individual point.
 
 * `CONTAINS` relation query - when using the new default vector indexing strategy, `geo_shape`
-   queries with `relation` defined as `contains` are not yet supported. If this query relation
-   is an absolute necessity, it is recommended to set `strategy` to `quadtree` and use the
-   deprecated PrefixTree strategy indexing approach.
+   queries with `relation` defined as `contains` are supported for indices created with
+   ElasticSearch 7.5.0 or higher.
 
 [[prefix-trees]]
 [float]

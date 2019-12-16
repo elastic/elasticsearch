@@ -119,7 +119,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         boolean exists = false;
         try {
             IndexService indexService = indicesService.indexService(shardId.getIndex());
-            final String customDataPath;
             if (indexService != null) {
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
@@ -136,17 +135,15 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                         return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
                     }
                 }
-                if (request.getCustomDataPath() != null) {
-                    customDataPath = request.getCustomDataPath();
-                } else {
-                    // TODO: Fallback for BWC with older ES versions. Remove this once request.getCustomDataPath() always returns non-null
-                    customDataPath = indexService.getIndexSettings().customDataPath();
-                }
+            }
+            final String customDataPath;
+            if (request.getCustomDataPath() != null) {
+                customDataPath = request.getCustomDataPath();
             } else {
-                if (request.getCustomDataPath() != null) {
-                    customDataPath = request.getCustomDataPath();
+                // TODO: Fallback for BWC with older ES versions. Remove this once request.getCustomDataPath() always returns non-null
+                if (indexService != null) {
+                    customDataPath = indexService.getIndexSettings().customDataPath();
                 } else {
-                    // TODO: Fallback for BWC with older ES versions. Remove this once request.getCustomDataPath() always returns non-null
                     IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
                     if (metaData != null) {
                         customDataPath = new IndexSettings(metaData, settings).customDataPath();
@@ -289,7 +286,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         }
 
         /**
-         * Returns null if custom data path information is not available (due to BWC)
+         * Returns the custom data path that is used to look up information for this shard.
+         * Returns an empty string if no custom data path is used for this index.
+         * Returns null if custom data path information is not available (due to BWC).
          */
         @Nullable
         public String getCustomDataPath() {
@@ -364,7 +363,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         }
 
         /**
-         * Returns null if custom data path information is not available (due to BWC)
+         * Returns the custom data path that is used to look up information for this shard.
+         * Returns an empty string if no custom data path is used for this index.
+         * Returns null if custom data path information is not available (due to BWC).
          */
         @Nullable
         public String getCustomDataPath() {

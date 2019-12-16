@@ -187,7 +187,9 @@ public class TransportNodesListGatewayStartedShards extends
         }
 
         /**
-         * Returns null if custom data path information is not available (due to BWC)
+         * Returns the custom data path that is used to look up information for this shard.
+         * Returns an empty string if no custom data path is used for this index.
+         * Returns null if custom data path information is not available (due to BWC).
          */
         @Nullable
         public String getCustomDataPath() {
@@ -263,7 +265,9 @@ public class TransportNodesListGatewayStartedShards extends
         }
 
         /**
-         * Returns null if custom data path information is not available (due to BWC)
+         * Returns the custom data path that is used to look up information for this shard.
+         * Returns an empty string if no custom data path is used for this index.
+         * Returns null if custom data path information is not available (due to BWC).
          */
         @Nullable
         public String getCustomDataPath() {

@@ -721,7 +721,6 @@ NOTE: For the cgroup stats to be visible, cgroups must be compiled into the
 kernel, the `cpu` and `cpuacct` cgroup subsystems must be configured and stats 
 must be readable from `/sys/fs/cgroup/cpu` and `/sys/fs/cgroup/cpuacct`.
 
-
 [[cluster-nodes-stats-api-response-body-process]]
 ===== `process` section
 
@@ -747,6 +746,154 @@ must be readable from `/sys/fs/cgroup/cpu` and `/sys/fs/cgroup/cpuacct`.
     Size in bytes of virtual memory that is guaranteed to be available to the 
     running process.
 
+[[cluster-nodes-stats-api-response-body-jvm]]
+===== `jvm` section
+
+`jvm.timestamp`::
+(integer)
+Last time JVM statistics were refreshed.
+
+`jvm.uptime_in_millis`::
+(integer)
+JVM uptime in milliseconds.
+
+`jvm.mem.heap_used_in_bytes`::
+(integer)
+Memory, in bytes, currently in use by the heap.
+
+`jvm.mem.heap_used_percent`::
+(integer)
+Percentage of memory currently in use by the heap.
+
+`jvm.mem.heap_committed_in_bytes`::
+(integer)
+Amount of memory, in bytes, available for use by the heap.
+
+`jvm.mem.heap_max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the heap.
+
+`jvm.mem.non_heap_used_in_bytes`::
+(integer)
+Non-heap memory used, in bytes.
+
+`jvm.mem.non_heap_committed_in_bytes`::
+(integer)
+Amount of non-heap memory available, in bytes.
+
+`jvm.mem.pools.young.used_in_bytes`::
+(integer)
+Memory, in bytes, used by the young generation heap.
+
+`jvm.mem.pools.young.max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the young generation
+heap.
+
+`jvm.mem.pools.young.peak_used_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the young generation
+heap.
+
+`jvm.mem.pools.young.peak_max_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the young generation
+heap.
+
+`jvm.mem.pools.survivor.used_in_bytes`::
+(integer)
+Memory, in bytes, used by the survivor space.
+
+`jvm.mem.pools.survivor.max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the survivor space.
+
+`jvm.mem.pools.survivor.peak_used_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the survivor space.
+
+`jvm.mem.pools.survivor.peak_max_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the survivor space.
+
+`jvm.mem.pools.old.used_in_bytes`::
+(integer)
+Memory, in bytes, used by the old generation heap.
+
+`jvm.mem.pools.old.max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the old generation
+heap.
+
+`jvm.mem.pools.old.peak_used_in_bytes`::
+(integer)
+Largest amount of memory, in bytes, historically used by the old generation
+heap.
+
+`jvm.mem.pools.old.peak_max_in_bytes`::
+(integer)
+Highest memory limit, in bytes, historically available for use by the old
+generation heap.
+
+`jvm.threads.count`::
+(integer)
+Number of active threads in use by JVM.
+
+`jvm.threads.peak_count`::
+(integer)
+Highest number of threads used by JVM.
+
+`jvm.gc.collectors.young.collection_count`::
+(integer)
+Number of JVM garbage collectors that collect young generation objects.
+
+`jvm.gc.collectors.young.collection_time_in_millis`::
+(integer)
+Total time in milliseconds spent by JVM collecting young generation objects.
+
+`jvm.gc.collectors.old.collection_count`::
+(integer)
+Number of JVM garbage collectors that collect old generation objects.
+
+`jvm.gc.collectors.old.collection_time_in_millis`::
+(integer)
+Total time in milliseconds spent by JVM collecting old generation objects.
+
+`jvm.buffer_pools.mapped.count`::
+(integer)
+Number of mapped buffer pools.
+
+`jvm.buffer_pools.mapped.used_in_bytes`::
+(integer)
+Size, in bytes, of mapped buffer pools.
+
+`jvm.buffer_pools.mapped.total_capacity_in_bytes`::
+(integer)
+Total capacity, in bytes, of mapped buffer pools.
+
+`jvm.buffer_pools.direct.count`::
+(integer)
+Number of direct buffer pools.
+
+`jvm.buffer_pools.direct.used_in_bytes`::
+(integer)
+Size, in bytes, of direct buffer pools.
+
+`jvm.buffer_pools.direct.total_capacity_in_bytes`::
+(integer)
+Total capacity, in bytes, of direct buffer pools.
+
+`jvm.classes.current_loaded_count`::
+(integer)
+Number of buffer pool classes currently loaded by JVM.
+
+`jvm.classes.total_loaded_count`::
+(integer)
+Total number of buffer pool classes loaded since the JVM started.
+
+`jvm.classes.total_unloaded_count`::
+(integer)
+Total number of buffer pool classes unloaded since the JVM started.
 
 [[cluster-nodes-stats-api-response-body-ingest]]
 ===== `ingest` section

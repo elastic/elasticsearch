@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -38,12 +41,13 @@ public class LocalModelTests extends ESTestCase {
 
     public void testClassificationInfer() throws Exception {
         String modelId = "classification_model";
+        List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(false))
             .build();
 
-        Model model = new LocalModel(modelId, definition);
+        Model model = new LocalModel(modelId, definition, new TrainedModelInput(inputFields));
         Map<String, Object> fields = new HashMap<>() {{
             put("foo", 1.0);
             put("bar", 0.5);
@@ -64,7 +68,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(true))
             .build();
-        model = new LocalModel(modelId, definition);
+        model = new LocalModel(modelId, definition, new TrainedModelInput(inputFields));
         result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
@@ -81,11 +85,12 @@ public class LocalModelTests extends ESTestCase {
     }
 
     public void testRegression() throws Exception {
+        List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model model = new LocalModel("regression_model", trainedModelDefinition);
+        Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields));
 
         Map<String, Object> fields = new HashMap<>() {{
             put("foo", 1.0);
@@ -93,7 +98,7 @@ public class LocalModelTests extends ESTestCase {
             put("categorical", "dog");
         }};
 
-        SingleValueInferenceResults results = getSingleValue(model, fields, new RegressionConfig());
+        SingleValueInferenceResults results = getSingleValue(model, fields, RegressionConfig.EMPTY_PARAMS);
         assertThat(results.value(), equalTo(1.3));
 
         PlainActionFuture<InferenceResults> failedFuture = new PlainActionFuture<>();
@@ -103,12 +108,35 @@ public class LocalModelTests extends ESTestCase {
             equalTo("Cannot infer using configuration for [classification] when model target_type is [regression]"));
     }
 
+    public void testAllFieldsMissing() throws Exception {
+        List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
+        TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
+            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setTrainedModel(buildRegression())
+            .build();
+        Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields));
+
+        Map<String, Object> fields = new HashMap<>() {{
+            put("something", 1.0);
+            put("other", 0.5);
+            put("baz", "dog");
+        }};
+
+        WarningInferenceResults results = (WarningInferenceResults)getInferenceResult(model, fields, RegressionConfig.EMPTY_PARAMS);
+        assertThat(results.getWarning(),
+            equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
+    }
+
     private static SingleValueInferenceResults getSingleValue(Model model,
                                                               Map<String, Object> fields,
                                                               InferenceConfig config) throws Exception {
+        return (SingleValueInferenceResults)getInferenceResult(model, fields, config);
+    }
+
+    private static InferenceResults getInferenceResult(Model model, Map<String, Object> fields, InferenceConfig config) throws Exception {
         PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();
         model.infer(fields, config, future);
-        return (SingleValueInferenceResults)future.get();
+        return future.get();
     }
 
     private static Map<String, String> oneHotMap() {

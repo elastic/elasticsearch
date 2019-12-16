@@ -153,9 +153,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                     classificationProbability(value),
                     classificationLabels,
                     classificationConfig.getNumTopClasses());
-                return new ClassificationInferenceResults(value, classificationLabel(value, classificationLabels), topClasses);
+                return new ClassificationInferenceResults(value, classificationLabel(value, classificationLabels), topClasses, config);
             case REGRESSION:
-                return new RegressionInferenceResults(value);
+                return new RegressionInferenceResults(value, config);
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
         }

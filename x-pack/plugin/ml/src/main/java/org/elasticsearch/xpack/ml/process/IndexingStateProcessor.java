@@ -7,21 +7,22 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
+import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
  * Reads state documents of a stream, splits them and persists to an index via a bulk request
@@ -32,12 +33,16 @@ public class IndexingStateProcessor implements StateProcessor {
 
     private static final int READ_BUF_SIZE = 8192;
 
-    private final Client client;
     private final String jobId;
+    private final AbstractAuditor<? extends AbstractAuditMessage> auditor;
+    private final ResultsPersisterService resultsPersisterService;
 
-    public IndexingStateProcessor(Client client, String jobId) {
-        this.client = client;
+    public IndexingStateProcessor(String jobId,
+                                  ResultsPersisterService resultsPersisterService,
+                                  AbstractAuditor<? extends AbstractAuditMessage> auditor) {
         this.jobId = jobId;
+        this.resultsPersisterService = resultsPersisterService;
+        this.auditor = auditor;
     }
 
     @Override
@@ -98,8 +103,15 @@ public class IndexingStateProcessor implements StateProcessor {
         bulkRequest.add(bytes, AnomalyDetectorsIndex.jobStateIndexWriteAlias(), XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document", jobId);
-            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-                client.bulk(bulkRequest).actionGet();
+            try {
+                resultsPersisterService.bulkIndexWithRetry(bulkRequest,
+                    jobId,
+                    () -> true,
+                    (msg) -> auditor.warning(jobId, "Bulk indexing of state failed " + msg));
+            } catch (Exception ex) {
+                String msg = "failed indexing updated state docs";
+                LOGGER.error(() -> new ParameterizedMessage("[{}] {}", jobId, msg), ex);
+                auditor.error(jobId, msg + " error: " + ex.getMessage());
             }
         }
     }

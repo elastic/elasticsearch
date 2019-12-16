@@ -10,18 +10,23 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class RegressionConfigTests extends AbstractWireSerializingTestCase<RegressionConfig> {
 
     public static RegressionConfig randomRegressionConfig() {
-        return new RegressionConfig();
+        return new RegressionConfig(randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     public void testFromMap() {
-        RegressionConfig expected = new RegressionConfig();
-        assertThat(RegressionConfig.fromMap(Collections.emptyMap()), equalTo(expected));
+        RegressionConfig expected = new RegressionConfig("foo");
+        Map<String, Object> config = new HashMap<>(){{
+            put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
+        }};
+        assertThat(RegressionConfig.fromMap(config), equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {

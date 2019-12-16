@@ -164,12 +164,12 @@ public class Response {
          * does not handle dates).
          */
         if (s.length() > WARNING_HEADER_DATE_LENGTH) {
-           final String possibleDateString = s.substring(s.length() - WARNING_HEADER_DATE_LENGTH);
-           final Matcher matcher = WARNING_HEADER_DATE_PATTERN.matcher(possibleDateString);
+            final String possibleDateString = s.substring(s.length() - WARNING_HEADER_DATE_LENGTH);
+            final Matcher matcher = WARNING_HEADER_DATE_PATTERN.matcher(possibleDateString);
 
-           if (matcher.matches()) {
-               warningHeader = warningHeader.substring(0, s.length() - WARNING_HEADER_DATE_LENGTH);
-           }
+            if (matcher.matches()) {
+                warningHeader = warningHeader.substring(0, s.length() - WARNING_HEADER_DATE_LENGTH);
+            }
         }
 
         final int firstQuote = warningHeader.indexOf('\"');

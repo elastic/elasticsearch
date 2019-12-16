@@ -910,7 +910,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
     }
 
-    private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate, DateFormatter dateFormatter, DateFormatter jodaDateFormatter) {
+    private void assertSamePrinterOutput(String format,
+                                         ZonedDateTime javaDate,
+                                         DateTime jodaDate,
+                                         DateFormatter dateFormatter,
+                                         DateFormatter jodaDateFormatter) {
         String javaTimeOut = dateFormatter.format(javaDate);
         String jodaTimeOut = jodaDateFormatter.formatJoda(jodaDate);
 

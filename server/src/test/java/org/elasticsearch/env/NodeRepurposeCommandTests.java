@@ -85,7 +85,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     public void testEarlyExitNoCleanup() throws Exception {
-        createIndexDataFiles(dataMasterSettings, randomInt(10));
+        createIndexDataFiles(dataMasterSettings, randomInt(10), randomBoolean());
 
         verifyNoQuestions(dataMasterSettings, containsString(NO_CLEANUP));
         verifyNoQuestions(dataNoMasterSettings, containsString(NO_CLEANUP));
@@ -96,17 +96,19 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
         Environment environment = TestEnvironment.newEnvironment(noDataMasterSettings);
-        try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
-            try (LucenePersistedStateFactory.Writer writer =
-                     ElasticsearchNodeCommand.createLucenePersistedStateFactory(env.nodeDataPaths()).createWriter()) {
-                writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
+        if (randomBoolean()) {
+            try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
+                try (LucenePersistedStateFactory.Writer writer =
+                         ElasticsearchNodeCommand.createLucenePersistedStateFactory(env.nodeDataPaths()).createWriter()) {
+                    writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
+                }
             }
         }
 
         verifyNoQuestions(noDataNoMasterSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
         verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
-        createIndexDataFiles(dataMasterSettings, 0);
+        createIndexDataFiles(dataMasterSettings, 0, randomBoolean());
 
         verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
@@ -123,7 +125,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     public void testCleanupAll() throws Exception {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
-        createIndexDataFiles(dataMasterSettings, shardCount);
+        boolean hasClusterState = randomBoolean();
+        createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         String messageText = NodeRepurposeCommand.noMasterMessage(
             1,
@@ -132,7 +135,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),
-            conditionalNot(containsString("testIndex"), verbose == false)
+            conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
+            conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
         );
 
         verifyUnchangedOnAbort(noDataNoMasterSettings, outputMatcher, verbose);
@@ -149,17 +153,17 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     public void testCleanupShardData() throws Exception {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
-
-        createIndexDataFiles(dataMasterSettings, shardCount);
+        boolean hasClusterState = randomBoolean();
+        createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
-            conditionalNot(containsString("testIndex"), verbose == false)
+            conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
+            conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
         );
 
-        verifyUnchangedOnAbort(noDataMasterSettings,
-            matcher, verbose);
+        verifyUnchangedOnAbort(noDataMasterSettings, matcher, verbose);
 
         // verify test setup
         expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noDataMasterSettings, environment).close());
@@ -217,19 +221,21 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         nodeRepurposeCommand.testExecute(terminal, options, env);
     }
 
-    private void createIndexDataFiles(Settings settings, int shardCount) throws IOException {
+    private void createIndexDataFiles(Settings settings, int shardCount, boolean writeClusterState) throws IOException {
         int shardDataDirNumber = randomInt(10);
         Environment environment = TestEnvironment.newEnvironment(settings);
         try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
-            try (LucenePersistedStateFactory.Writer writer =
-                     ElasticsearchNodeCommand.createLucenePersistedStateFactory(env.nodeDataPaths()).createWriter()) {
-                writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
-                    .metaData(MetaData.builder().put(IndexMetaData.builder(INDEX.getName())
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT)
-                            .put(IndexMetaData.SETTING_INDEX_UUID, INDEX.getUUID()))
-                        .numberOfShards(1)
-                        .numberOfReplicas(1)).build())
-                    .build());
+            if (writeClusterState) {
+                try (LucenePersistedStateFactory.Writer writer =
+                         ElasticsearchNodeCommand.createLucenePersistedStateFactory(env.nodeDataPaths()).createWriter()) {
+                    writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
+                        .metaData(MetaData.builder().put(IndexMetaData.builder(INDEX.getName())
+                            .settings(Settings.builder().put("index.version.created", Version.CURRENT)
+                                .put(IndexMetaData.SETTING_INDEX_UUID, INDEX.getUUID()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(1)).build())
+                        .build());
+                }
             }
             for (Path path : env.indexPaths(INDEX)) {
                 for (int i = 0; i < shardCount; ++i) {

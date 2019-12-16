@@ -339,7 +339,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(verboseResult.getProcessorResults().get(1).getFailure(), nullValue());
     }
 
-    public void test() throws Exception {
+    public void testAsyncSimulation() throws Exception {
         int numDocs = randomIntBetween(1, 64);
         List<IngestDocument> documents = new ArrayList<>(numDocs);
         for (int id = 0; id < numDocs; id++) {

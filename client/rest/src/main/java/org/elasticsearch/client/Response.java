@@ -117,6 +117,29 @@ public class Response {
             "\")?"); // closing quote (optional, since an older version can still send a warn-date)
 
     /**
+     * Optimized regular expression to test if a string matches the RFC 1123 date
+     * format (with quotes and leading space). Start/end of line characters and
+     * atomic groups are used to prevent backtracking.
+     */
+    private static final Pattern WARNING_HEADER_DATE_PATTERN = Pattern.compile(
+            "^ " + // start of line, leading space
+            // quoted RFC 1123 date format
+            "\"" + // opening quote
+            "(?>Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // day of week, atomic group to prevent backtracking
+            "\\d{2} " + // 2-digit day
+            "(?>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month, atomic group to prevent backtracking
+            "\\d{4} " + // 4-digit year
+            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+            "GMT" + // GMT
+            "\"$"); // closing quote (optional, since an older version can still send a warn-date), end of line
+
+    /**
+     * Length of RFC 1123 format (with quotes and leading space), used in
+     * matchWarningHeaderPatternByPrefix(String).
+     */
+    private static final int WARNING_HEADER_DATE_LENGTH = 32;
+
+    /**
      * Tests if a string matches the RFC 7234 specification for warning headers.
      * This assumes that the warn code is always 299 and the warn agent is always
      * Elasticsearch.
@@ -125,7 +148,24 @@ public class Response {
      * @return {@code true} if the input string matches the specification
      */
     private static boolean matchWarningHeaderPatternByPrefix(final String s) {
-        return s.startsWith("299 Elasticsearch-");
+        String warningHeader = s;
+
+        /*
+         * The following block tests for the existence of a RFC 1123 date in the
+         * warning header. If the date exists, it is removed for
+         * extractWarningValueFromWarningHeader(String) to work properly (as it
+         * does not handle dates).
+         */
+        if (s.length() > WARNING_HEADER_DATE_LENGTH) {
+           final String possibleDateString = s.substring(s.length() - WARNING_HEADER_DATE_LENGTH);
+           final Matcher matcher = WARNING_HEADER_DATE_PATTERN.matcher(possibleDateString);
+
+           if (matcher.matches()) {
+               warningHeader = warningHeader.substring(0, s.length() - WARNING_HEADER_DATE_LENGTH);
+           }
+        }
+
+        return warningHeader.startsWith("299 Elasticsearch-");
     }
 
     /**

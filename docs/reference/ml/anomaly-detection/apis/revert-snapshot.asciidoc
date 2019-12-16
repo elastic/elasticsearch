@@ -24,7 +24,7 @@ Reverts to a specific snapshot.
 [[ml-revert-snapshot-desc]]
 ==== {api-description-title}
 
-The {ml-features} reacts quickly to anomalous input, learning new
+The {ml-features} react quickly to anomalous input, learning new
 behaviors in data. Highly anomalous input increases the variance in the models
 whilst the system learns whether this is a new step-change in behavior or a
 one-off event. In the case where this anomalous input is known to be a one-off,

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -43,16 +44,13 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -76,9 +74,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
@@ -313,21 +308,10 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 });
                 future.actionGet();
 
-                final RepositoriesService repositories = mock(RepositoriesService.class);
-                when(repositories.repository(eq(repositoryName))).thenReturn(new SearchableSnapshotRepository(repository));
+                final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
+                final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
-                final IndexSettings tmpIndexSettings = IndexSettingsModule.newIndexSettings("_searchable_snapshot_index",
-                    Settings.builder()
-                        .put(indexSettings.getSettings())
-                        .put(SearchableSnapshotRepository.getIndexSettings(repository, snapshotId, indexId))
-                        .build());
-
-                Path tmpDir = createTempDir().resolve(indexId.getId()).resolve(Integer.toString(shardId.id()));
-                ShardId tmpShardId = new ShardId(new Index(indexId.getName(), indexId.getId()), shardId.id());
-                ShardPath tmpShardPath = new ShardPath(false, tmpDir, tmpDir, tmpShardId);
-
-                final DirectoryFactory factory = SearchableSnapshotRepository.newDirectoryFactory(() -> repositories);
-                try (Directory snapshotDirectory = factory.newDirectory(tmpIndexSettings, tmpShardPath)) {
+                try (Directory snapshotDirectory = new SearchableSnapshotDirectory(snapshot, blobContainer)) {
                     consumer.accept(directory, snapshotDirectory);
                 }
             } finally {

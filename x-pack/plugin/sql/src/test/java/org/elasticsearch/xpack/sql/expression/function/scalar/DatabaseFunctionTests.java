@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.expression.Alias;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
@@ -38,7 +40,9 @@ public class DatabaseFunctionTests extends ESTestCase {
         );
         
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);
-        assertTrue(result.projections().get(0) instanceof Database);
-        assertEquals(clusterName, ((Database) result.projections().get(0)).fold());
+        NamedExpression ne = result.projections().get(0);
+        assertTrue(ne instanceof Alias);
+        assertTrue(((Alias) ne).child() instanceof Database);
+        assertEquals(clusterName, ((Database) ((Alias) ne).child()).fold());
     }
 }

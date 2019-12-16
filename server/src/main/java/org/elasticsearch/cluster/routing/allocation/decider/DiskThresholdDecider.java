@@ -68,7 +68,7 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
  * exact byte values for free space (like "500mb")
  *
  * <code>cluster.routing.allocation.disk.threshold_enabled</code> is used to
- * enable or disable this decider. It defaults to false (disabled).
+ * enable or disable this decider. It defaults to true (enabled).
  */
 public class DiskThresholdDecider extends AllocationDecider {
 

@@ -50,7 +50,7 @@ public final class SourceDestValidator {
     public static final String NEEDS_REMOTE_CLUSTER_SEARCH = "Source index is configured with a remote index pattern(s) [{0}]"
         + " but the current node [{1}] is not allowed to connect to remote clusters."
         + " Please enable cluster.remote.connect for all data nodes.";
-    public static final String ERROR_REMOTE_CLUSTER_SEARCH = "Error during resolving remote source, error: {0}";
+    public static final String ERROR_REMOTE_CLUSTER_SEARCH = "Error resolving remote source: {0}";
     public static final String UNKNOWN_REMOTE_CLUSTER_LICENSE = "Error during license check ({0}) for remote cluster "
         + "alias(es) {1}, error: {2}";
     public static final String FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE = "License check failed for remote cluster "
@@ -156,11 +156,8 @@ public final class SourceDestValidator {
                         dest,
                         true
                     );
-                    if (singleWriteIndex != null) {
-                        resolvedDest = singleWriteIndex.getName();
-                    } else {
-                        resolvedDest = dest;
-                    }
+
+                    resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : dest;
                 } catch (IllegalArgumentException e) {
                     // stop here as we can not return a single dest index
                     addValidationError(e.getMessage(), false);
@@ -371,8 +368,6 @@ public final class SourceDestValidator {
 
         @Override
         public void validate(Context context) {
-            // boolean remoteIndexesEmpty = context.isRemoteSearchEnabled() ? context.resolveRemoteSource().isEmpty() : true;
-
             try {
                 // non-trivia: if source contains a wildcard index, which does not resolve to a concrete index
                 // the resolved indices might be empty, but we can check if source contained something, this works because

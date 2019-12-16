@@ -27,6 +27,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -222,7 +223,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             clusterService.getNodeName(),
-            "basic",
+            License.OperationMode.BASIC.description(),
             request.isDeferValidation()
         );
         if (validationResult != null) {

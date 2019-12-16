@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -137,7 +138,7 @@ public class TransportPreviewTransformAction extends
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             clusterService.getNodeName(),
-            "basic"
+            License.OperationMode.BASIC.description()
         );
 
         if (validationResult != null) {

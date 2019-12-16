@@ -121,7 +121,7 @@ public class Response {
      * This assumes that the warn code is always 299 and the warn agent is always
      * Elasticsearch.
      *
-     * @param s
+     * @param s the value of a warning header formatted according to RFC 7234
      * @return {@code true} if the input string matches the specification
      */
     private static boolean matchWarningHeaderPatternByPrefix(final String s) {

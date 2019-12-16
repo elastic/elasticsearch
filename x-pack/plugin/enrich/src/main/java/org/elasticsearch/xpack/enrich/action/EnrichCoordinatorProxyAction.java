@@ -63,7 +63,8 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         @Override
         protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
+            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE) ||
+                Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
             coordinator.schedule(request, listener);
         }
     }

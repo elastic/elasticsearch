@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.security.authc;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -77,6 +79,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .build();
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // need real http
+    }
+
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         assertSecurityIndexActive();
@@ -125,7 +132,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47958")
-    public void testCreateApiKey() {
+    public void testCreateApiKey() throws Exception{
         final Instant start = Instant.now();
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -155,13 +162,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // use the first ApiKey for authorized action
         final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
             (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
-        ClusterHealthResponse healthResponse = client()
-            .filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
-            .admin()
-            .cluster()
-            .prepareHealth()
-            .get();
-        assertFalse(healthResponse.isTimedOut());
+        // Assert that we can authenticate with the API KEY
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+            "ApiKey " + base64ApiKeyKeyValue).build());
+        assertThat(authResponse.getUser().getUsername(), equalTo(SecuritySettingsSource.TEST_SUPERUSER));
 
         // use the first ApiKey for an unauthorized action
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->

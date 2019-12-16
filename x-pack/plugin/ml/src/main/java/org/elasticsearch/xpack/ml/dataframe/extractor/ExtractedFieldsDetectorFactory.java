@@ -171,9 +171,10 @@ public class ExtractedFieldsDetectorFactory {
                 docValueFieldsLimitListener.onResponse(minDocValueFieldsLimit);
             },
             e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
                     docValueFieldsLimitListener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
-                        + ((IndexNotFoundException) e).getIndex() + " does not exist"));
+                        + ((IndexNotFoundException) cause).getIndex() + " does not exist"));
                 } else {
                     docValueFieldsLimitListener.onFailure(e);
                 }

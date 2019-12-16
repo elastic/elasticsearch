@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class DefCallNode extends ArgumentsNode {
+public class DefCallNode extends ArgumentsNode<ExpressionNode> {
 
     protected final Location location;
     protected final String name;

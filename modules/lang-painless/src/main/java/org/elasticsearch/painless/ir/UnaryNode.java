@@ -19,28 +19,19 @@
 
 package org.elasticsearch.painless.ir;
 
-public abstract class BinaryNode extends ExpressionNode {
+public abstract class UnaryNode extends ExpressionNode {
 
-    protected ExpressionNode leftNode;
-    protected ExpressionNode rightNode;
+    protected ExpressionNode childNode;
 
-    public BinaryNode() {
+    public UnaryNode() {
         // do nothing
     }
 
-    public void setLeftNode(ExpressionNode leftNode) {
-        this.leftNode = leftNode;
+    public void setChildNode(ExpressionNode childNode) {
+        this.childNode = childNode;
     }
 
-    public void setRightNode(ExpressionNode rightNode) {
-        this.rightNode = rightNode;
-    }
-
-    public ExpressionNode getLeftNode() {
-        return leftNode;
-    }
-
-    public ExpressionNode getRightNode() {
-        return rightNode;
+    public ExpressionNode getChildNode() {
+        return childNode;
     }
 }

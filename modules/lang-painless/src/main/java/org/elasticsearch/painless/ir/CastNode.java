@@ -17,54 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Objects;
-import java.util.Set;
 
-/**
- * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)
- */
-final class ECast extends AExpression {
+public class CastNode extends UnaryNode {
 
-    private AExpression child;
-    private final PainlessCast cast;
+    protected final Location location;
+    protected final PainlessCast cast;
 
-    ECast(Location location, AExpression child, PainlessCast cast) {
-        super(location);
-
-        this.child = Objects.requireNonNull(child);
+    CastNode(Location location, PainlessCast cast) {
+        this.location = Objects.requireNonNull(location);
         this.cast = Objects.requireNonNull(cast);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        child.write(classWriter, methodWriter, globals);
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        childNode.write(classWriter, methodWriter, globals);
         methodWriter.writeDebugInfo(location);
         methodWriter.writeCast(cast);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(cast.targetType), child);
     }
 }

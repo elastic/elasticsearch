@@ -47,8 +47,8 @@ public abstract class ArgumentsNode extends ExpressionNode {
         argumentNodes.remove(index);
     }
 
-    public void setArgumentNodes(List<ExpressionNode> argumentNodes) {
-        this.argumentNodes = Objects.requireNonNull(argumentNodes);
+    public int getArgumentsSize() {
+        return argumentNodes.size();
     }
 
     public List<ExpressionNode> getArgumentsNodes() {

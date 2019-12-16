@@ -90,7 +90,7 @@ public class AssignmentNode extends BinaryNode {
 
             rightNode.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
 
-            if (rightNode instanceof MathNode == false || ((MathNode)rightNode).cat == false) { // check to see if the rhs
+            if (rightNode instanceof BinaryMathNode == false || ((BinaryMathNode)rightNode).cat == false) { // check to see if the rhs
                                                                                                 // has already done a concatenation
                 methodWriter.writeAppendStrings(rightNode.getType());                           // append the rhs's value since
                                                                                                 // it's hasn't already

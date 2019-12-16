@@ -32,14 +32,14 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class MathNode extends ShiftNode {
+public class BinaryMathNode extends ShiftNode {
 
     protected final Location location;
     protected final Operation operation;
     protected final boolean cat;
     protected final boolean originallyExplicit; // record whether there was originally an explicit cast
 
-    public MathNode(Location location, Operation operation, boolean cat, boolean originallyExplicit) {
+    public BinaryMathNode(Location location, Operation operation, boolean cat, boolean originallyExplicit) {
         this.location = Objects.requireNonNull(location);
         this.operation = Objects.requireNonNull(operation);
         this.cat = cat;
@@ -57,13 +57,13 @@ public class MathNode extends ShiftNode {
 
             leftNode.write(classWriter, methodWriter, globals);
 
-            if ((leftNode instanceof MathNode) == false || ((MathNode)leftNode).cat == false) {
+            if ((leftNode instanceof BinaryMathNode) == false || ((BinaryMathNode)leftNode).cat == false) {
                 methodWriter.writeAppendStrings(leftNode.getType());
             }
 
             rightNode.write(classWriter, methodWriter, globals);
 
-            if ((rightNode instanceof MathNode) == false || ((MathNode)rightNode).cat == false) {
+            if ((rightNode instanceof BinaryMathNode) == false || ((BinaryMathNode)rightNode).cat == false) {
                 methodWriter.writeAppendStrings(rightNode.getType());
             }
 

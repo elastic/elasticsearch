@@ -23,7 +23,7 @@ Validates {anomaly-job} configuration information.
 [[ml-valid-job-desc]]
 ==== {api-description-title}
 
-This API enables you validate the {anomaly-job} configuration before you
+This API enables you to validate the {anomaly-job} configuration before you
 create the job.
 
 [[ml-valid-job-request-body]]

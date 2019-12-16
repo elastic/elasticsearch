@@ -17,50 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
-/**
- * Represents a string constant.
- */
-public final class EString extends AExpression {
+public final class NewArrayFuncRefNode extends ExpressionNode {
 
-    public EString(Location location, String string) {
-        super(location);
+    protected final Location location;
+    protected final FunctionRef functionRef;
 
-        this.constant = Objects.requireNonNull(string);
+    public NewArrayFuncRefNode(Location location, FunctionRef functionRef) {
+        this.location = Objects.requireNonNull(location);
+        this.functionRef = Objects.requireNonNull(functionRef);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        if (functionRef != null) {
+            methodWriter.writeDebugInfo(location);
+            methodWriter.invokeLambdaCall(functionRef);
+        } else {
+            // push a null instruction as a placeholder for future lambda instructions
+            methodWriter.push((String)null);
         }
-
-        actual = String.class;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString("'" + constant.toString() + "'");
     }
 }

@@ -80,7 +80,7 @@ public class BinaryMathNode extends ShiftNode {
             } else if (operation == Operation.MATCH) {
                 methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
             } else {
-                throw new IllegalStateException("unexpected math operation [" + operation + "] " +
+                throw new IllegalStateException("unexpected binary math operation [" + operation + "] " +
                         "for type [" + getCanonicalTypeName() + "]");
             }
         } else {

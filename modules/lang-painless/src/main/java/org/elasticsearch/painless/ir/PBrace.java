@@ -33,10 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * Represents an array load/store and defers to a child subnode.
- */
-public final class PBrace extends AStoreable {
+public class PBrace extends AStoreable {
 
     private AExpression index;
 
@@ -52,33 +49,6 @@ public final class PBrace extends AStoreable {
     void extractVariables(Set<String> variables) {
         prefix.extractVariables(variables);
         index.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        prefix.analyze(scriptRoot, locals);
-        prefix.expected = prefix.actual;
-        prefix = prefix.cast(scriptRoot, locals);
-
-        if (prefix.actual.isArray()) {
-            sub = new PSubBrace(location, prefix.actual, index);
-        } else if (prefix.actual == def.class) {
-            sub = new PSubDefArray(location, index);
-        } else if (Map.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubMapShortcut(location, prefix.actual, index);
-        } else if (List.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubListShortcut(location, prefix.actual, index);
-        } else {
-            throw createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
-        }
-
-        sub.write = write;
-        sub.read = read;
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(scriptRoot, locals);
-        actual = sub.actual;
     }
 
     @Override
@@ -117,10 +87,5 @@ public final class PBrace extends AStoreable {
     @Override
     void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         sub.store(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
     }
 }

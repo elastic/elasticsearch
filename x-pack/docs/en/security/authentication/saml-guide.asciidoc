@@ -639,14 +639,14 @@ through either the
 NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
-This is an example of a simple role mapping that grants the `kibana_admin` role
+This is an example of a simple role mapping that grants the `siem_view` role
 to any user who authenticates against the `saml1` realm:
 
 [source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/saml-kibana
 {
-  "roles": [ "kibana_admin" ],
+  "roles": [ "siem_view" ], <1>
   "enabled": true,
   "rules": {
     "field": { "realm.name": "saml1" }
@@ -654,6 +654,13 @@ PUT /_security/role_mapping/saml-kibana
 }
 --------------------------------------------------
 
+<1> The `siem_view` role is *not* a builtin Elasticsearch role.
+This example assumes that you have created a custom role of your own, with
+`read` access to your SIEM <<roles-indices-priv,indices>> and `Read` access to
+the SIEM application using
+{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[Kibana feature privileges].
+You should create your own roles that provide access to the features that your
+users need.
 
 The attributes that are mapped via the realm configuration are used to process
 role mapping rules, and these rules determine which roles a user is granted.

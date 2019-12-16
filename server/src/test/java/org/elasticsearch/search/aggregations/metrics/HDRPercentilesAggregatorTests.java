@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -40,11 +39,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,9 +50,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 
 public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
-
-    @Rule
-    public final ExpectedException expectedException = ExpectedException.none();
 
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -71,65 +64,33 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
      * Attempting to use HDRPercentileAggregation on a string field throws IllegalArgumentException
      */
     public void testStringField() throws IOException {
-        Query query = new MatchAllDocsQuery();
         final String fieldName = "string";
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedSetDocValuesField("string", new BytesRef("bogus")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedSetDocValuesField("string", new BytesRef("zwomp")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedSetDocValuesField("string", new BytesRef("foobar")));
-                indexWriter.addDocument(document);
-            }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                PercentilesAggregationBuilder builder =
-                    new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
-
-                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-                fieldType.setName(fieldName);
-                fieldType.setHasDocValues(true);
-                expectedException.expect(IllegalArgumentException.class);
-                createAggregator(builder, indexSearcher, fieldType);
-            }
-        }
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+        fieldType.setName(fieldName);
+        fieldType.setHasDocValues(true);
+        expectThrows(IllegalArgumentException.class,
+            () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("bogus"))));
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("zwomp"))));
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foobar"))));
+            }, hdr -> {}, fieldType, fieldName));
     }
 
     /**
-     * Attempting to use HDRPercentileAggregation on a range field throws AggregationExecutionException
-     *
-     * Note: this test passes, but this behavior is wrong.  It should throw IllegalArgumentException as the string case does.
+     * Attempting to use HDRPercentileAggregation on a range field throws IllegalArgumentException
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42949")
     public void testRangeField() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                RangeFieldMapper.Range range =new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
-                BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
-                document.add(new BinaryDocValuesField(fieldName, encodedRange));
-                indexWriter.addDocument(document);
-            }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                PercentilesAggregationBuilder builder =
-                    new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
-
-                MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, RangeType.DOUBLE).fieldType();
-                fieldType.setName(fieldName);
-                expectedException.expect(AggregationExecutionException.class);
-                createAggregator(builder, indexSearcher, fieldType);
-            }
-        }
+        MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, RangeType.DOUBLE).fieldType();
+        fieldType.setName(fieldName);
+        RangeFieldMapper.Range range =new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
+        BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
+        expectThrows(IllegalArgumentException.class,
+            () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
+                iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange)));
+            }, hdr -> {}, fieldType, fieldName));
     }
 
     public void testNoMatchingField() throws IOException {
@@ -198,6 +159,13 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalHDRPercentiles> verify) throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        fieldType.setName("number");
+        testCase(query, buildIndex, verify, fieldType, "number");
+    }
+
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalHDRPercentiles> verify, MappedFieldType fieldType, String fieldName) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 buildIndex.accept(indexWriter);
@@ -207,10 +175,8 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 PercentilesAggregationBuilder builder =
-                        new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
+                        new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
 
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType.setName("number");
                 HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);

@@ -225,6 +225,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ClusterService clusterService;
 
+    private boolean uncleanStart;
+
     /**
      * This flag indicates that the repository can not exclusively rely on the value stored in {@link #latestKnownRepoGen} to determine the
      * latest repository generation but must inspect its physical contents as well via {@link #latestIndexBlobId()}.
@@ -274,6 +276,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doStart() {
+        uncleanStart = metadata.pendingGeneration() > RepositoryData.EMPTY_REPO_GEN &&
+            metadata.generation() != metadata.pendingGeneration();
         ByteSizeValue chunkSize = chunkSize();
         if (chunkSize != null && chunkSize.getBytes() <= 0) {
             throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
@@ -305,7 +309,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void updateState(ClusterState state) {
         metadata = getRepoMetaData(state);
-        bestEffortConsistency = isReadOnly() || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION)
+        uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
+        bestEffortConsistency = uncleanStart || isReadOnly()
+            || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION)
             || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN || ALLOW_CONCURRENT_MODIFICATION.get(metadata.settings());
         if (isReadOnly()) {
             // No need to waste cycles, no operations can run against a read-only repository

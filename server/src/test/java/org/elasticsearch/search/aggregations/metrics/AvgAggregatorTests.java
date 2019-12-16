@@ -638,9 +638,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Make sure that an aggregation using a script deterministic script from MockScriptEngine (Aggs is deterministic there) do get cached.
+     * Make sure that an aggregation using a script does not get cached.
      */
-    public void testCacheScripts() throws IOException {
+    public void testDontCacheScripts() throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         final int numDocs = 10;
@@ -675,8 +675,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertEquals("avg", avg.getName());
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
-        // Test that an aggregation using a script does get cached
-        assertTrue(aggregator.context().getQueryShardContext().isCacheable());
+        // Test that an aggregation using a script does not get cached
+        assertFalse(aggregator.context().getQueryShardContext().isCacheable());
 
         multiReader.close();
         directory.close();

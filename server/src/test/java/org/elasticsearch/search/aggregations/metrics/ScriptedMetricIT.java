@@ -1016,8 +1016,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Ensure requests using a script get cached.  Note: {@link org.elasticsearch.script.MockScriptEngine}
+     * AggregationScript.Factory is always cacheable.
      */
     public void testDontCacheScripts() throws Exception {
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state['count'] = 1", Collections.emptyMap());
@@ -1038,7 +1038,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
+        // Ensure that a request not using a script also gets cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)).get();
         assertSearchResponse(r);
@@ -1046,7 +1046,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+                .getMissCount(), equalTo(2L));
     }
 
     public void testConflictingAggAndScriptParams() {

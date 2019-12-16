@@ -639,8 +639,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Ensure requests using a script get cached.  Note: {@link org.elasticsearch.script.MockScriptEngine}
+     * AggregationScript.Factory is always cacheable.
      */
     public void testDontCacheScripts() throws Exception {
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")

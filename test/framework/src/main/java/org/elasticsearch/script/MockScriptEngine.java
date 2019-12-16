@@ -62,11 +62,22 @@ public class MockScriptEngine implements ScriptEngine {
     public static final String NAME = "mockscript";
 
     private final String type;
-    private final Map<String, Function<Map<String, Object>, Object>> scripts;
+    private final Map<String, MockDeterministicScript> scripts;
     private final Map<ScriptContext<?>, ContextCompiler> contexts;
 
     public MockScriptEngine(String type, Map<String, Function<Map<String, Object>, Object>> scripts,
                             Map<ScriptContext<?>, ContextCompiler> contexts) {
+        this(type, scripts, Collections.emptyMap(), contexts);
+    }
+
+    public MockScriptEngine(String type, Map<String, Function<Map<String, Object>, Object>> deterministicScripts,
+                            Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts,
+                            Map<ScriptContext<?>, ContextCompiler> contexts) {
+
+        Map<String, MockDeterministicScript> scripts = new HashMap<>(deterministicScripts.size() + nonDeterministicScripts.size());
+        deterministicScripts.forEach((key, value) -> scripts.put(key, MockDeterministicScript.asDeterministic(value)));
+        nonDeterministicScripts.forEach((key, value) -> scripts.put(key, MockDeterministicScript.asNonDeterministic(value)));
+
         this.type = type;
         this.scripts = Collections.unmodifiableMap(scripts);
         this.contexts = Collections.unmodifiableMap(contexts);
@@ -85,12 +96,12 @@ public class MockScriptEngine implements ScriptEngine {
     public <T extends ScriptFactory> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
-        Function<Map<String, Object>, Object> script = scripts.get(source);
+        MockDeterministicScript script = scripts.get(source);
         if (script == null) {
             throw new IllegalArgumentException("No pre defined script matching [" + source + "] for script with name [" + name + "], " +
                     "did you declare the mocked script?");
         }
-        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
+        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script::apply);
         if (context.instanceClazz.equals(FieldScript.class)) {
             FieldScript.Factory factory = (parameters, lookup) ->
                 ctx -> new FieldScript(parameters, lookup, ctx) {
@@ -156,47 +167,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if(context.instanceClazz.equals(AggregationScript.class)) {
-            AggregationScript.Factory factory = new AggregationScript.Factory() {
-                @Override
-                public AggregationScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
-                    return new AggregationScript.LeafFactory() {
-                        @Override
-                        public AggregationScript newInstance(final LeafReaderContext ctx) {
-                            return new AggregationScript(params, lookup, ctx) {
-                                @Override
-                                public Object execute() {
-                                    Map<String, Object> vars = new HashMap<>(params);
-                                    vars.put("params", params);
-                                    vars.put("doc", getDoc());
-                                    vars.put("_score", get_score());
-                                    vars.put("_value", get_value());
-                                    return script.apply(vars);
-                                }
-                            };
-                        }
-
-                        @Override
-                        public boolean needs_score() {
-                            return true;
-                        }
-                    };
-                }
-
-                @Override
-                public boolean isResultDeterministic() {
-                    return true;
-                }
-            };
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = vars ->
-                new IngestScript(vars) {
-                    @Override
-                    public void execute(Map<String, Object> ctx) {
-                        script.apply(ctx);
-                    }
-                };
-            return context.factoryClazz.cast(factory);
+            return context.factoryClazz.cast(new MockAggregationScript(script));
         } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {
             IngestConditionalScript.Factory factory = parameters -> new IngestConditionalScript(parameters) {
                 @Override
@@ -279,7 +250,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
-            ScoreScript.Factory factory = new MockScoreScript(script);
+            ScoreScript.Factory factory = new MockScoreScript(script::apply);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.InitScript.class)) {
             ScriptedMetricAggContexts.InitScript.Factory factory = mockCompiled::createMetricAggInitScript;
@@ -299,7 +270,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
-            return context.factoryClazz.cast(compiler.compile(script, params));
+            return context.factoryClazz.cast(compiler.compile(script::apply, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -613,5 +584,37 @@ public class MockScriptEngine implements ScriptEngine {
             };
         }
     }
+
+    class MockAggregationScript implements AggregationScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        public MockAggregationScript(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
+
+        @Override
+        public AggregationScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+            return new AggregationScript.LeafFactory() {
+                @Override
+                public AggregationScript newInstance(final LeafReaderContext ctx) {
+                    return new AggregationScript(params, lookup, ctx) {
+                        @Override
+                        public Object execute() {
+                            Map<String, Object> vars = new HashMap<>(params);
+                            vars.put("params", params);
+                            vars.put("doc", getDoc());
+                            vars.put("_score", get_score());
+                            vars.put("_value", get_value());
+                            return script.apply(vars);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return true;
+                }
+            };
+        }
+    }
+
 
 }

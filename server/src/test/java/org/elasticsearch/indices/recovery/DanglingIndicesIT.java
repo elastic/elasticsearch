@@ -22,8 +22,8 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.NodeDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -199,10 +199,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             }
         });
 
-        final RestoreDanglingIndicesRequest request = new RestoreDanglingIndicesRequest();
+        final RestoreDanglingIndexRequest request = new RestoreDanglingIndexRequest();
         request.setIndexIds(new String[] { danglingIndexUUID.get() });
 
-        final RestoreDanglingIndicesResponse restoreResponse = client().admin().cluster().restoreDanglingIndices(request).actionGet();
+        final RestoreDanglingIndexResponse restoreResponse = client().admin().cluster().restoreDanglingIndex(request).actionGet();
 
         assertThat(restoreResponse.status(), equalTo(RestStatus.ACCEPTED));
 
@@ -216,12 +216,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesMustExistToBeRestored() {
         internalCluster().startNodes(1, buildSettings(false));
 
-        final RestoreDanglingIndicesRequest request = new RestoreDanglingIndicesRequest();
+        final RestoreDanglingIndexRequest request = new RestoreDanglingIndexRequest();
         request.setIndexIds(new String[] { "NonExistentUUID", "AnotherNonExistentUUID" });
 
         boolean noExceptionThrown = false;
         try {
-            client().admin().cluster().restoreDanglingIndices(request).actionGet();
+            client().admin().cluster().restoreDanglingIndex(request).actionGet();
             noExceptionThrown = true;
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));

@@ -105,9 +105,9 @@ import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCl
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.TransportListDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.dangling.TransportRestoreDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.TransportRestoreDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
@@ -270,7 +270,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
-import org.elasticsearch.rest.action.admin.cluster.RestRestoreDanglingIndicesAction;
+import org.elasticsearch.rest.action.admin.cluster.RestRestoreDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
@@ -556,7 +556,7 @@ public class ActionModule extends AbstractModule {
 
         // Dangling indices
         actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
-        actions.register(RestoreDanglingIndicesAction.INSTANCE, TransportRestoreDanglingIndicesAction.class);
+        actions.register(RestoreDanglingIndexAction.INSTANCE, TransportRestoreDanglingIndexAction.class);
 
         // internal actions
         actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);
@@ -693,7 +693,7 @@ public class ActionModule extends AbstractModule {
 
         // Dangling indices API
         registerHandler.accept(new RestListDanglingIndicesAction(restController));
-        registerHandler.accept(new RestRestoreDanglingIndicesAction(restController));
+        registerHandler.accept(new RestRestoreDanglingIndexAction(restController));
 
         // CAT API
         registerHandler.accept(new RestAllocationAction(restController));

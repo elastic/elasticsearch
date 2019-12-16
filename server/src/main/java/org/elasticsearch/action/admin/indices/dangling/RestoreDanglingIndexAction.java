@@ -21,12 +21,12 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionType;
 
-public class RestoreDanglingIndicesAction extends ActionType<RestoreDanglingIndicesResponse> {
+public class RestoreDanglingIndexAction extends ActionType<RestoreDanglingIndexResponse> {
 
-    public static final RestoreDanglingIndicesAction INSTANCE = new RestoreDanglingIndicesAction();
+    public static final RestoreDanglingIndexAction INSTANCE = new RestoreDanglingIndexAction();
     public static final String NAME = "cluster:admin/indices/dangling/restore";
 
-    private RestoreDanglingIndicesAction() {
-        super(NAME, RestoreDanglingIndicesResponse::new);
+    private RestoreDanglingIndexAction() {
+        super(NAME, RestoreDanglingIndexResponse::new);
     }
 }

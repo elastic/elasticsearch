@@ -42,40 +42,36 @@ import java.util.Set;
 import static org.elasticsearch.common.util.CollectionUtils.filter;
 import static org.elasticsearch.common.util.CollectionUtils.map;
 
-public class TransportRestoreDanglingIndicesAction extends HandledTransportAction<
-    RestoreDanglingIndicesRequest,
-    RestoreDanglingIndicesResponse> {
+public class TransportRestoreDanglingIndexAction extends HandledTransportAction<RestoreDanglingIndexRequest, RestoreDanglingIndexResponse> {
 
     private final TransportService transportService;
     private final LocalAllocateDangledIndices danglingIndexAllocator;
 
     @Inject
-    public TransportRestoreDanglingIndicesAction(
+    public TransportRestoreDanglingIndexAction(
         ActionFilters actionFilters,
         TransportService transportService,
         LocalAllocateDangledIndices danglingIndexAllocator
     ) {
-        super(RestoreDanglingIndicesAction.NAME, transportService, actionFilters, RestoreDanglingIndicesRequest::new);
+        super(RestoreDanglingIndexAction.NAME, transportService, actionFilters, RestoreDanglingIndexRequest::new);
         this.transportService = transportService;
         this.danglingIndexAllocator = danglingIndexAllocator;
     }
 
     @Override
-    protected void doExecute(Task task, RestoreDanglingIndicesRequest request, ActionListener<RestoreDanglingIndicesResponse> listener) {
-        final Set<String> specifiedIndexIdsToRestore = Set.of(request.getIndexIds());
-
-        List<IndexMetaData> indexMetaDataToRestore;
+    protected void doExecute(Task task, RestoreDanglingIndexRequest request, ActionListener<RestoreDanglingIndexResponse> listener) {
+        IndexMetaData indexMetaDataToRestore;
         try {
-            indexMetaDataToRestore = getIndexMetaDataToRestore(specifiedIndexIdsToRestore);
+            indexMetaDataToRestore = getIndexMetaDataToRestore(request);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
 
-        this.danglingIndexAllocator.allocateDangled(indexMetaDataToRestore, new ActionListener<>() {
+        this.danglingIndexAllocator.allocateDangled(List.of(indexMetaDataToRestore), new ActionListener<>() {
             @Override
             public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
-                listener.onResponse(new RestoreDanglingIndicesResponse());
+                listener.onResponse(new RestoreDanglingIndexResponse());
             }
 
             @Override
@@ -85,9 +81,12 @@ public class TransportRestoreDanglingIndicesAction extends HandledTransportActio
         });
     }
 
-    private List<IndexMetaData> getIndexMetaDataToRestore(Set<String> specifiedIndexIdsToRestore) {
-        if (specifiedIndexIdsToRestore.isEmpty()) {
-            throw new IllegalArgumentException("No index UUIDs specified in request");
+    private IndexMetaData getIndexMetaDataToRestore(RestoreDanglingIndexRequest request) {
+        String indexUuid = request.getIndexUuid();
+        String nodeId = request.getNodeId();
+
+        if (indexUuid == null || indexUuid.isEmpty()) {
+            throw new IllegalArgumentException("No index UUID specified in request");
         }
 
         final List<IndexMetaData> allMetaData = new ArrayList<>();
@@ -95,16 +94,26 @@ public class TransportRestoreDanglingIndicesAction extends HandledTransportActio
             allMetaData.addAll(response.getDanglingIndices());
         }
 
-        final List<String> allMetaDataIds = map(allMetaData, IndexMetaData::getIndexUUID);
+        List<IndexMetaData> matchingMetaData = new ArrayList<>();
 
-        final List<String> unknownIndexIds = new ArrayList<>(specifiedIndexIdsToRestore);
-        unknownIndexIds.removeAll(allMetaDataIds);
-
-        if (unknownIndexIds.isEmpty() == false) {
-            throw new IllegalArgumentException("Dangling index list missing some specified UUIDs: " + unknownIndexIds);
+        for (NodeDanglingIndicesResponse response : fetchDanglingIndices().actionGet().getNodes()) {
+            for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
+                if (danglingIndex.getIndexUUID().equals(indexUuid) && (nodeId == null || response.getNode().getId().equals(nodeId))) {
+                    matchingMetaData.add(danglingIndex);
+                }
+            }
         }
 
-        return filter(allMetaData, each -> specifiedIndexIdsToRestore.contains(each.getIndexUUID()));
+        if (matchingMetaData.isEmpty()) {
+            throw new IllegalArgumentException("No dangling index found for UUID [" + indexUuid + "]");
+        }
+
+        if (matchingMetaData.size() > 1) {
+            throw new IllegalArgumentException("Multiple nodes contain dangling index [" + indexUuid + "]. "
+                + "Specify a node ID to import a specific dangling index.");
+        }
+
+        return matchingMetaData.get(0);
     }
 
     private ActionFuture<ListDanglingIndicesResponse> fetchDanglingIndices() {

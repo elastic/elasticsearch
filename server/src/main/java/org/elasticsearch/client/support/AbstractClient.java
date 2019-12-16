@@ -159,9 +159,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -1161,13 +1161,13 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<RestoreDanglingIndicesResponse> restoreDanglingIndices(RestoreDanglingIndicesRequest request) {
-            return execute(RestoreDanglingIndicesAction.INSTANCE, request);
+        public ActionFuture<RestoreDanglingIndexResponse> restoreDanglingIndex(RestoreDanglingIndexRequest request) {
+            return execute(RestoreDanglingIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void restoreDanglingIndices(RestoreDanglingIndicesRequest request, ActionListener<RestoreDanglingIndicesResponse> listener) {
-            execute(RestoreDanglingIndicesAction.INSTANCE, request, listener);
+        public void restoreDanglingIndex(RestoreDanglingIndexRequest request, ActionListener<RestoreDanglingIndexResponse> listener) {
+            execute(RestoreDanglingIndexAction.INSTANCE, request, listener);
         }
 
         @Override

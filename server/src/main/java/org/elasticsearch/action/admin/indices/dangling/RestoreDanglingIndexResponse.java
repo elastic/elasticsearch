@@ -28,11 +28,11 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class RestoreDanglingIndicesResponse extends ActionResponse implements StatusToXContentObject {
-    public RestoreDanglingIndicesResponse() {
+public class RestoreDanglingIndexResponse extends ActionResponse implements StatusToXContentObject {
+    public RestoreDanglingIndexResponse() {
     }
 
-    public RestoreDanglingIndicesResponse(StreamInput in) {
+    public RestoreDanglingIndexResponse(StreamInput in) {
     }
 
     @Override

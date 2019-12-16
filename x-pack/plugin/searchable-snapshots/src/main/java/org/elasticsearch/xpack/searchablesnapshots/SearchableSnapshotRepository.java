@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -28,6 +29,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -77,15 +79,22 @@ public class SearchableSnapshotRepository extends FilterRepository {
         BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
 
         final SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(snapshot, blobContainer);
+        final InMemoryNoOpCommitDirectory inMemoryNoOpCommitDirectory = new InMemoryNoOpCommitDirectory(searchableSnapshotDirectory);
 
-        try (DirectoryReader directoryReader = DirectoryReader.open(searchableSnapshotDirectory)) {
-            final Map<String, String> userData = directoryReader.getIndexCommit().getUserData();
-            Translog.createEmptyTranslog(shardPath.resolveTranslog(),
+        try (IndexWriter indexWriter = new IndexWriter(inMemoryNoOpCommitDirectory, new IndexWriterConfig())) {
+            final Map<String, String> userData = new HashMap<>();
+            indexWriter.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
+
+            final String translogUUID = Translog.createEmptyTranslog(shardPath.resolveTranslog(),
                 Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-                shardPath.getShardId(), 0L, userData.get(Translog.TRANSLOG_UUID_KEY));
+                shardPath.getShardId(), 0L);
+
+            userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+            indexWriter.setLiveCommitData(userData.entrySet());
+            indexWriter.commit();
         }
 
-        return new InMemoryNoOpCommitDirectory(searchableSnapshotDirectory);
+        return inMemoryNoOpCommitDirectory;
     }
 
     @Override

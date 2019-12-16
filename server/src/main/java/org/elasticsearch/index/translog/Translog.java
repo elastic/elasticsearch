@@ -1852,29 +1852,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public static String createEmptyTranslog(final Path location, final long initialGlobalCheckpoint,
                                              final ShardId shardId, final long primaryTerm) throws IOException {
-        final String translogUUID = UUIDs.randomBase64UUID();
-        createEmptyTranslog(location, initialGlobalCheckpoint, shardId, primaryTerm, translogUUID);
-        return translogUUID;
-    }
-
-    /**
-     * Create an empty translog with a specific translog UUID. Use with extreme care: the translog UUID's uniqueness is vital for safety.
-     */
-    public static void createEmptyTranslog(final Path location, final long initialGlobalCheckpoint,
-                                           final ShardId shardId, final long primaryTerm, String translogUUID) throws IOException {
         final ChannelFactory channelFactory = FileChannel::open;
-        createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory, primaryTerm, translogUUID);
+        return createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory, primaryTerm);
     }
 
     static String createEmptyTranslog(Path location, long initialGlobalCheckpoint, ShardId shardId,
                                       ChannelFactory channelFactory, long primaryTerm) throws IOException {
-        final String translogUUID = UUIDs.randomBase64UUID();
-        createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory, primaryTerm, translogUUID);
-        return translogUUID;
-    }
-
-    private static void createEmptyTranslog(Path location, long initialGlobalCheckpoint, ShardId shardId,
-                                            ChannelFactory channelFactory, long primaryTerm, String translogUUID) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
         final Checkpoint checkpoint =
@@ -1882,11 +1865,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         IOUtils.fsync(checkpointFile, false);
+        final String translogUUID = UUIDs.randomBase64UUID();
         TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1,
             location.resolve(getFilename(1)), channelFactory,
             new ByteSizeValue(10), 1, initialGlobalCheckpoint,
             () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm,
                 new TragicExceptionHolder(), seqNo -> { throw new UnsupportedOperationException(); });
         writer.close();
+        return translogUUID;
     }
 }

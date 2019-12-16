@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -44,6 +46,8 @@ import java.util.stream.Stream;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask, StopDatafeedAction.Request,
         StopDatafeedAction.Response, StopDatafeedAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportStopDatafeedAction.class);
 
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;

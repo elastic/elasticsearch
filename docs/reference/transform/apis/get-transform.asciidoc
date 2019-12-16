@@ -67,78 +67,12 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 ==== {api-response-body-title}
 
 The API returns an array of {transform} resources, which are sorted by the `id`
-value in ascending order and have the following properties:
+value in ascending order. For the full list of properties, see
+<<put-transform-request-body,Create {transform} API>>.
 
 `create_time`::
 (string) The time the {transform} was created. For example, `1576094542936`.
 This property is informational; you cannot change its value.
-
-`description`::
-  (string) A description of the {transform}.
-
-`dest`::
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
-
-`dest`.`index`::: 
-(string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
-
-`dest`.`pipeline`:::
-(string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
-
-`frequency`::
-(<<time-units,time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
-
-`id`::
-(string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
-
-`pivot`::
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
-
-`pivot`.`aggregations`:::
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
-
-`pivot`.`group_by`:::
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
-
-`pivot`.`max_page_search_size`:::
-(integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
-
-`source`:: 
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
-
-`source`.`index`:::
-(string or array)  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
-
-`source`.`query`:::
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
-
-`sync`::
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
-
-`synch `.`time`:::
-(object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
-
-`sync`.`time`.`delay`::::
-(<<time-units,time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
-
-`sync`.`time`.`field`::::
-(string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 
 `version`::
 (string) The version of {es} that existed on the node when the {transform} was

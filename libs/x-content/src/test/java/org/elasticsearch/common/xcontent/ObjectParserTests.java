@@ -881,7 +881,7 @@ public class ObjectParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Required one of fields [a, b], but none were specified. "));
     }
 
-    public void testMultipleMissingRequiredFieldSet() throws IOException {
+    public void testMultipleRequiredFieldSetTwoMissing() throws IOException {
         class TestStruct {
             private Long a;
             private Long b;
@@ -905,32 +905,53 @@ public class ObjectParserTests extends ESTestCase {
             }
         }
 
-        {
-            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
-            ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
-            objectParser.declareLong(TestStruct::setA, new ParseField("a"));
-            objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-            objectParser.declareLong(TestStruct::setC, new ParseField("c"));
-            objectParser.declareLong(TestStruct::setD, new ParseField("d"));
-            objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-            objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
+        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
+        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
+        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
+        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
+        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-            assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
-                "Required one of fields [c, d], but none were specified. "));
-        }
-        {
-            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\"}");
-            ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
-            objectParser.declareLong(TestStruct::setA, new ParseField("a"));
-            objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-            objectParser.declareLong(TestStruct::setC, new ParseField("c"));
-            objectParser.declareLong(TestStruct::setD, new ParseField("d"));
-            objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-            objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
+        assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
+            "Required one of fields [c, d], but none were specified. "));
+    }
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-            assertThat(e.getMessage(), equalTo("Required one of fields [c, d], but none were specified. "));
+    public void testMultipleRequiredFieldSetOneMissing() throws IOException {
+        class TestStruct {
+            private Long a;
+            private Long b;
+            private Long c;
+            private Long d;
+
+            private void setA(long value) {
+                this.a = value;
+            }
+
+            private void setB(long value) {
+                this.b = value;
+            }
+
+            private void setC(long value) {
+                this.c = value;
+            }
+
+            private void setD(long value) {
+                this.d = value;
+            }
         }
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\"}");
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
+        objectParser.declareLong(TestStruct::setA, new ParseField("a"));
+        objectParser.declareLong(TestStruct::setB, new ParseField("b"));
+        objectParser.declareLong(TestStruct::setC, new ParseField("c"));
+        objectParser.declareLong(TestStruct::setD, new ParseField("d"));
+        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
+        assertThat(e.getMessage(), equalTo("Required one of fields [c, d], but none were specified. "));
     }
 }

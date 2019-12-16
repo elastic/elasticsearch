@@ -64,9 +64,9 @@ NOTE: You can update the `analysis_limits` only while the job is closed. The
 `model_memory_limit` property value cannot be decreased below the current usage.
  
 TIP: If the `memory_status` property in the
-<<ml-snapshot-stats,`model_size_stats` object>> has a value of `hard_limit`,
-this means that it was unable to process some data. You might want to re-run
-the job with an increased `model_memory_limit`.
+<<ml-get-snapshot-results,`model_size_stats` object>> has a value of `hard_limit`,
+this means that it was unable to process some data. You might want to re-run the
+job with an increased `model_memory_limit`.
 
 --
 

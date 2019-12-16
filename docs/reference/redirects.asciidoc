@@ -1082,3 +1082,9 @@ See
 [[ml-stats-node]]
 the details in <<ml-get-job-stats>>.
 
+[role="exclude",id="ml-snapshot-resource"]
+=== Model snapshot resources
+
+This page was deleted.
+[[ml-snapshot-stats]]
+See <<ml-update-snapshot>> and <<ml-get-snapshot>>.

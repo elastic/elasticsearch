@@ -1269,7 +1269,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private void indexDocument(String id) throws IOException {
-        final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
+        final Request indexRequest = new Request("POST", "/" + index + "/" + type + "/" + id);
         indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
         assertOK(client().performRequest(indexRequest));
     }

@@ -597,14 +597,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, MetaData metaData) {
         ShardGenerations.Builder builder = ShardGenerations.builder();
         final Map<String, IndexId> indexLookup = new HashMap<>();
-        snapshot.indices().forEach(idx -> {
-            if (metaData.index(idx.getName()) != null) {
-                indexLookup.put(idx.getName(), idx);
-            } else {
-                assert snapshot.partial() : "Index [" + idx + "] was deleted during a snapshot but snapshot was not partial.";
-            }
-        });
+        snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
         snapshot.shards().forEach(c -> {
+            if (metaData.index(c.key.getIndex()) == null) {
+                assert snapshot.partial() :
+                    "Index [" + c.key.getIndex() + "] was deleted during a snapshot but snapshot was not partial.";
+                return;
+            }
             final IndexId indexId = indexLookup.get(c.key.getIndexName());
             if (indexId != null) {
                 builder.put(indexId, c.key.id(), c.value.generation());
@@ -1044,12 +1043,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                     }
                 }
+                final ShardGenerations shardGenerations = buildGenerations(entry, metaData);
                 repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
-                    buildGenerations(entry, metaData),
+                    shardGenerations,
                     entry.startTime(),
                     failure,
-                    entry.shards().size(),
+                    entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                     unmodifiableList(shardFailures),
                     entry.repositoryStateId(),
                     entry.includeGlobalState(),

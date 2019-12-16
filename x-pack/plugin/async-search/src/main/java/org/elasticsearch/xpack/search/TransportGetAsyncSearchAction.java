@@ -58,16 +58,15 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
 
     @Override
     protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
-        listener = wrapCleanupListener(request, listener);
         try {
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId())) {
-                getSearchResponseFromTask(request, searchId, listener);
+                getSearchResponseFromTask(request, searchId, wrapCleanupListener(request, listener));
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
                 DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
                 if (node == null) {
-                    getSearchResponseFromIndex(request, searchId, listener);
+                    getSearchResponseFromIndex(request, searchId, wrapCleanupListener(request, listener));
                 } else {
                     transportService.sendRequest(node, GetAsyncSearchAction.NAME, request, builder.build(),
                         new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME));

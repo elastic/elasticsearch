@@ -293,7 +293,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections,  addresses(address), Collections.singletonList(addressSupplier))) {
+                         numOfConnections,  addresses(address), Collections.singletonList(addressSupplier), false)) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
@@ -405,7 +405,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections, addresses)) {
+                         numOfConnections, addresses, true)) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();

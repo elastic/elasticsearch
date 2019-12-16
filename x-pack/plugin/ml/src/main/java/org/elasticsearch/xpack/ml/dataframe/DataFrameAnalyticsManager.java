@@ -15,9 +15,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -160,34 +157,18 @@ public class DataFrameAnalyticsManager {
         }
 
         // Reindexing is complete; start analytics
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
+        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             refreshResponse -> {
                 if (task.isStopping()) {
                     LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
                     return;
                 }
                 task.setReindexingTaskId(null);
-                startAnalytics(task, config, false);
-            },
-            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
-        );
-
-        // Refresh to ensure copied index is fully searchable
-        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            bulkResponse -> {
-                if (task.isStopping()) {
-                    LOGGER.debug("[{}] Stopping before refreshing destination index", config.getId());
-                    return;
-                }
                 task.setReindexingFinished();
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
-                ClientHelper.executeAsyncWithOrigin(client,
-                    ClientHelper.ML_ORIGIN,
-                    RefreshAction.INSTANCE,
-                    new RefreshRequest(config.getDest().getIndex()),
-                    refreshListener);
+                startAnalytics(task, config, false);
             },
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
@@ -198,6 +179,7 @@ public class DataFrameAnalyticsManager {
                 ReindexRequest reindexRequest = new ReindexRequest();
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
+                reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
                 reindexRequest.setDestIndex(config.getDest().getIndex());
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsIndex.ID_COPY + " = ctx._id"));
 
@@ -251,15 +233,7 @@ public class DataFrameAnalyticsManager {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
                     task.getAllocationId(), null);
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
-                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
-                        error -> {
-                            if (error != null) {
-                                task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
-                            } else {
-                                auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
-                                task.markAsCompleted();
-                            }
-                        }),
+                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory),
                     error -> {
                         if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                             // Task has stopped

@@ -22,7 +22,7 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
-import org.elasticsearch.gradle.tool.ClasspathUtils;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -75,7 +75,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         setupDownloadServiceRepo(project);
 
-        if (ClasspathUtils.isElasticsearchProject(project)) {
+        if (BuildParams.isInternal()) {
             ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
             this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
         }
@@ -179,7 +179,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return;
         }
         addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.elastic.co", FAKE_IVY_GROUP);
-        if (ClasspathUtils.isElasticsearchProject(project) == false) {
+        if (BuildParams.isInternal() == false) {
             // external, so add snapshot repo as well
             addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
         }
@@ -198,7 +198,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      */
     private Object dependencyNotation(Project project, ElasticsearchDistribution distribution) {
 
-        if (ClasspathUtils.isElasticsearchProject(project)) {
+        if (BuildParams.isInternal()) {
             // non-external project, so depend on local build
 
             if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
@@ -212,7 +212,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
-            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion();
+            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
 
 

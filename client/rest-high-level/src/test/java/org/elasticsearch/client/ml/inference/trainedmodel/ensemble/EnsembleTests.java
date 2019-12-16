@@ -57,18 +57,22 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
     }
 
     public static Ensemble createRandom() {
+        return createRandom(randomFrom(TargetType.values()));
+    }
+
+    public static Ensemble createRandom(TargetType targetType) {
         int numberOfFeatures = randomIntBetween(1, 10);
         List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(numberOfFeatures)
             .collect(Collectors.toList());
         int numberOfModels = randomIntBetween(1, 10);
-        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
+        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6, targetType))
             .limit(numberOfFeatures)
             .collect(Collectors.toList());
         OutputAggregator outputAggregator = null;
         if (randomBoolean()) {
             List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-            outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
+            outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights), new LogisticRegression(weights));
         }
         List<String> categoryLabels = null;
         if (randomBoolean()) {
@@ -77,7 +81,7 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
         return new Ensemble(featureNames,
             models,
             outputAggregator,
-            randomFrom(TargetType.values()),
+            targetType,
             categoryLabels);
     }
 

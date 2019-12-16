@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -133,14 +135,9 @@ public class HttpExporterTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
         builder.putList(prefix + ".host", List.of("https://example.com:443"));
         final Settings settings = builder.build();
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
-        assertThat(
-            e,
-            hasToString(containsString("Failed to parse value [[\"https://example.com:443\"]] for setting [" + prefix + ".host]")));
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is set but type is [local]")));
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(HttpExporter.HOST_SETTING, Exporter.TYPE_SETTING));
+        final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e, hasToString(containsString("[" + prefix + ".host] is set but type is [local]")));
     }
 
     public void testInvalidHost() {
@@ -225,17 +222,39 @@ public class HttpExporterTests extends ESTestCase {
     public void testExporterWithPasswordButNoUsername() {
         final String expected =
                 "[xpack.monitoring.exporters._http.auth.password] without [xpack.monitoring.exporters._http.auth.username]";
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
-                .put("xpack.monitoring.exporters._http.host", "localhost:9200")
-                .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+        final String prefix = "xpack.monitoring.exporters._http";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + ".auth.password", "_pass")
+            .build();
 
-        final Config config = createConfig(builder.build());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
+        assertThat(e, hasToString(containsString(expected)));
+    }
 
-        final SettingsException exception = expectThrows(SettingsException.class,
-                () -> new HttpExporter(config, sslService, threadContext));
+    public void testExporterWithUsernameButNoPassword() {
+        final String expected =
+            "[xpack.monitoring.exporters._http.auth.username] is set but [xpack.monitoring.exporters._http.auth.password] is missing";
+        final String prefix = "xpack.monitoring.exporters._http";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + ".auth.username", "_user")
+            .build();
 
-        assertThat(exception.getMessage(), equalTo(expected));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(prefix + ".auth.username").get(settings));
+        assertThat(
+            e,
+            hasToString(
+                containsString("Failed to parse value for setting [xpack.monitoring.exporters._http.auth.username]")));
+
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString(expected)));
     }
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
@@ -277,6 +296,29 @@ public class HttpExporterTests extends ESTestCase {
         final Config config = createConfig(builder.build());
 
         new HttpExporter(config, sslService, threadContext).close();
+    }
+
+    public void testExporterWithInvalidProxyBasePath() throws Exception {
+        final String prefix = "xpack.monitoring.exporters._http";
+        final String settingName = ".proxy.base_path";
+        final String settingValue = "z//";
+        final String expected = "[" + prefix + settingName + "] is malformed [" + settingValue + "]";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + settingName, settingValue)
+            .build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.PROXY_BASE_PATH_SETTING.getConcreteSetting(prefix + settingName).get(settings));
+        assertThat(
+            e,
+            hasToString(
+                containsString("Failed to parse value [" + settingValue + "] for setting [" + prefix + settingName + "]")));
+
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString(expected)));
     }
 
     public void testCreateRestClient() throws IOException {

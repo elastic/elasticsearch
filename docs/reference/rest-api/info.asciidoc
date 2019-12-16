@@ -71,6 +71,10 @@ Example response:
           "available" : true,
           "enabled" : true
       },
+      "enrich" : {
+          "available" : true,
+          "enabled" : true
+      },
       "flattened" : {
          "available" : true,
          "enabled" : true
@@ -106,6 +110,10 @@ Example response:
       "security" : {
          "available" : true,
          "enabled" : false
+      },
+      "slm" : {
+         "available" : true,
+         "enabled" : true
       },
       "spatial" : {
          "available" : true,

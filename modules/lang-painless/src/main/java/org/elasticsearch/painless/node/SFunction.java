@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
@@ -54,7 +53,7 @@ public final class SFunction extends AStatement {
     private final SBlock block;
     public final boolean synthetic;
 
-    private CompilerSettings settings;
+    private int maxLoopCounter;
 
     Class<?> returnType;
     List<Class<?>> typeParameters;
@@ -76,13 +75,6 @@ public final class SFunction extends AStatement {
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.block = Objects.requireNonNull(block);
         this.synthetic = synthetic;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        block.storeSettings(settings);
-
-        this.settings = settings;
     }
 
     @Override
@@ -128,6 +120,8 @@ public final class SFunction extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
+        maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
+
         if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
@@ -142,7 +136,7 @@ public final class SFunction extends AStatement {
             throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
         }
 
-        if (settings.getMaxLoopCounter() > 0) {
+        if (maxLoopCounter > 0) {
             loop = locals.getVariable(null, Locals.LOOP);
         }
     }
@@ -161,10 +155,10 @@ public final class SFunction extends AStatement {
 
     @Override
     void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (settings.getMaxLoopCounter() > 0) {
+        if (maxLoopCounter > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
-            methodWriter.push(settings.getMaxLoopCounter());
+            methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 

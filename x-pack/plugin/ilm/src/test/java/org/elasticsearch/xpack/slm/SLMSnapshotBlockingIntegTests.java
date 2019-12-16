@@ -21,13 +21,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
@@ -43,11 +43,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -57,18 +57,18 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Tests for Snapshot Lifecycle Management that require a slow or blocked snapshot repo (using {@link MockRepository}
  */
-@TestLogging(value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE",
-    reason = "https://github.com/elastic/elasticsearch/issues/46508")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
+    private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
     static final String REPO = "my-repo";
+    List<String> dataNodeNames = null;
 
     @Before
     public void ensureClusterNodes() {
         logger.info("--> starting enough nodes to ensure we have enough to safely stop for tests");
         internalCluster().startMasterOnlyNodes(2);
-        internalCluster().startDataOnlyNodes(2);
+        dataNodeNames = internalCluster().startDataOnlyNodes(2);
         ensureGreen();
     }
 
@@ -77,20 +77,19 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         return Arrays.asList(MockRepository.Plugin.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47689")
     public void testSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
+            index(indexName, i + "", Collections.singletonMap("foo", "bar"));
         }
 
         // Create a snapshot repo
         initializeRepo(REPO);
 
         logger.info("--> creating policy {}", policyName);
-        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", REPO, indexName, true);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true);
 
         logger.info("--> blocking master from completing snapshot");
         blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
@@ -110,7 +109,8 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             SnapshotLifecyclePolicyItem.SnapshotInProgress inProgress = item.getSnapshotInProgress();
             assertThat(inProgress.getSnapshotId().getName(), equalTo(snapshotName));
             assertThat(inProgress.getStartTime(), greaterThan(0L));
-            assertThat(inProgress.getState(), anyOf(equalTo(SnapshotsInProgress.State.INIT), equalTo(SnapshotsInProgress.State.STARTED)));
+            assertThat(inProgress.getState(), anyOf(equalTo(SnapshotsInProgress.State.INIT), equalTo(SnapshotsInProgress.State.STARTED),
+                equalTo(SnapshotsInProgress.State.SUCCESS)));
             assertNull(inProgress.getFailure());
         });
 
@@ -130,13 +130,13 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final String policyId = "slm-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
         }
 
         initializeRepo(REPO);
 
         logger.info("--> creating policy {}", policyId);
-        createSnapshotPolicy(policyId, "snap", "1 2 3 4 5 ?", REPO, indexName, true,
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             false, new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
 
         // Create a snapshot and wait for it to be complete (need something that can be deleted)
@@ -144,8 +144,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         logger.info("--> kicked off snapshot {}", completedSnapshotName);
         assertBusy(() -> {
             try {
-                SnapshotsStatusResponse s =
-                    client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
+                SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);
                 assertThat("expected a snapshot but none were returned", s.getSnapshots().size(), equalTo(1));
                 SnapshotStatus status = s.getSnapshots().get(0);
                 logger.info("--> waiting for snapshot {} to be completed, got: {}", completedSnapshotName, status.getState());
@@ -163,14 +162,26 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             assertTrue("cluster state was not ready for deletion " + state, SnapshotRetentionTask.okayToDeleteSnapshots(state));
         });
 
-        // Take another snapshot, but before doing that, block it from completing
-        logger.info("--> blocking nodes from completing snapshot");
+        logger.info("--> indexing more docs to force new segment files");
+        for (int i = 0; i < docCount; i++) {
+            index(indexName, null, Collections.singletonMap("foo", "bar"));
+        }
+        refresh(indexName);
+
         try {
+            // Take another snapshot, but before doing that, block it from completing
+            logger.info("--> blocking data nodes from completing snapshot");
             blockAllDataNodes(REPO);
+            logger.info("--> blocked data nodes, executing policy");
             final String secondSnapName = executePolicy(policyId);
+            logger.info("--> executed policy, got snapname [{}]", secondSnapName);
+
 
             // Check that the executed snapshot shows up in the SLM output as in_progress
             assertBusy(() -> {
+                logger.info("--> Waiting for at least one data node to hit the block");
+                assertTrue(dataNodeNames.stream().anyMatch(node -> checkBlocked(node, REPO)));
+                logger.info("--> at least one data node has hit the block");
                 GetSnapshotLifecycleAction.Response getResp =
                     client().execute(GetSnapshotLifecycleAction.INSTANCE, new GetSnapshotLifecycleAction.Request(policyId)).get();
                 logger.info("--> checking for in progress snapshot...");
@@ -184,7 +195,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 assertThat(inProgress.getState(), anyOf(equalTo(SnapshotsInProgress.State.INIT),
                     equalTo(SnapshotsInProgress.State.STARTED)));
                 assertNull(inProgress.getFailure());
-            });
+            }, 60, TimeUnit.SECONDS);
 
             // Run retention
             logger.info("--> triggering retention");
@@ -201,15 +212,14 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 client().admin().cluster().prepareReroute().get();
                 logger.info("--> waiting for snapshot to be deleted");
                 try {
-                    SnapshotsStatusResponse s =
-                        client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
+                    SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);
                     assertNull("expected no snapshot but one was returned", s.getSnapshots().get(0));
                 } catch (SnapshotMissingException e) {
                     // Great, we wanted it to be deleted!
                 }
             });
 
-            // Cancel the ongoing snapshot to cancel it
+            // Cancel the ongoing snapshot (or just delete it if it finished)
             assertBusy(() -> {
                 try {
                     logger.info("--> cancelling snapshot {}", secondSnapName);
@@ -253,7 +263,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         // Create a snapshot repo
         initializeRepo(REPO);
 
-        createSnapshotPolicy(policyId, "snap", "1 2 3 4 5 ?", REPO, indexName, true,
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));
 
         // Create a failed snapshot
@@ -345,19 +355,37 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             logger.info("--> waiting for {} snapshot [{}] to be deleted", expectedUnsuccessfulState, failedSnapshotName.get());
             assertBusy(() -> {
                 try {
+                    try {
+                        GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                            .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
+                        assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                    } catch (SnapshotMissingException e) {
+                        // This is what we want to happen
+                    }
+                    logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",
+                        expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
-                } catch (SnapshotMissingException e) {
-                    // This is what we want to happen
+                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
+                    SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                    assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                } catch (RepositoryException re) {
+                    // Concurrent status calls and write operations may lead to failures in determining the current repository generation
+                    // TODO: Remove this hack once tracking the current repository generation has been made consistent
+                    throw new AssertionError(re);
                 }
-                logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",
-                    expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
-                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                    .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
-                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             });
+        }
+    }
+
+    private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {
+        try {
+            return client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
+        } catch (RepositoryException e) {
+            // Convert this to an AssertionError so that it can be retried in an assertBusy - this is often a transient error because
+            // concurrent status calls and write operations may lead to failures in determining the current repository generation
+            // TODO: Remove this hack once tracking the current repository generation has been made consistent
+            logger.warn(e);
+            throw new AssertionError(e);
         }
     }
 
@@ -370,7 +398,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final int numdocs = randomIntBetween(50, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, SINGLE_MAPPING_NAME, Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -472,5 +500,11 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             Thread.sleep(100);
         }
         fail("Timeout waiting for node [" + node + "] to be blocked");
+    }
+
+    public boolean checkBlocked(String node, String repository) {
+        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
+        MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+        return mockRepository.blocked();
     }
 }

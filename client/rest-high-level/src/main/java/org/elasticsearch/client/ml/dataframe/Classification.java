@@ -48,6 +48,8 @@ public class Classification implements DataFrameAnalysis {
     static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
+    static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
+    static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
 
     private static final ConstructingObjectParser<Classification, Void> PARSER =
         new ConstructingObjectParser<>(
@@ -61,7 +63,9 @@ public class Classification implements DataFrameAnalysis {
                 (Integer) a[4],
                 (Double) a[5],
                 (String) a[6],
-                (Double) a[7]));
+                (Double) a[7],
+                (Integer) a[8],
+                (Long) a[9]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
@@ -72,6 +76,8 @@ public class Classification implements DataFrameAnalysis {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_CLASSES);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
     }
 
     private final String dependentVariable;
@@ -82,10 +88,12 @@ public class Classification implements DataFrameAnalysis {
     private final Double featureBagFraction;
     private final String predictionFieldName;
     private final Double trainingPercent;
+    private final Integer numTopClasses;
+    private final Long randomizeSeed;
 
     private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                            @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction, @Nullable String predictionFieldName,
-                           @Nullable Double trainingPercent) {
+                           @Nullable Double trainingPercent, @Nullable Integer numTopClasses, @Nullable Long randomizeSeed) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -94,6 +102,8 @@ public class Classification implements DataFrameAnalysis {
         this.featureBagFraction = featureBagFraction;
         this.predictionFieldName = predictionFieldName;
         this.trainingPercent = trainingPercent;
+        this.numTopClasses = numTopClasses;
+        this.randomizeSeed = randomizeSeed;
     }
 
     @Override
@@ -133,6 +143,14 @@ public class Classification implements DataFrameAnalysis {
         return trainingPercent;
     }
 
+    public Long getRandomizeSeed() {
+        return randomizeSeed;
+    }
+
+    public Integer getNumTopClasses() {
+        return numTopClasses;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -158,6 +176,12 @@ public class Classification implements DataFrameAnalysis {
         if (trainingPercent != null) {
             builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         }
+        if (randomizeSeed != null) {
+            builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
+        }
+        if (numTopClasses != null) {
+            builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
+        }
         builder.endObject();
         return builder;
     }
@@ -165,7 +189,7 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
-            trainingPercent);
+            trainingPercent, randomizeSeed, numTopClasses);
     }
 
     @Override
@@ -180,7 +204,9 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
-            && Objects.equals(trainingPercent, that.trainingPercent);
+            && Objects.equals(trainingPercent, that.trainingPercent)
+            && Objects.equals(randomizeSeed, that.randomizeSeed)
+            && Objects.equals(numTopClasses, that.numTopClasses);
     }
 
     @Override
@@ -197,6 +223,8 @@ public class Classification implements DataFrameAnalysis {
         private Double featureBagFraction;
         private String predictionFieldName;
         private Double trainingPercent;
+        private Integer numTopClasses;
+        private Long randomizeSeed;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -237,9 +265,19 @@ public class Classification implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setRandomizeSeed(Long randomizeSeed) {
+            this.randomizeSeed = randomizeSeed;
+            return this;
+        }
+
+        public Builder setNumTopClasses(Integer numTopClasses) {
+            this.numTopClasses = numTopClasses;
+            return this;
+        }
+
         public Classification build() {
             return new Classification(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
-                trainingPercent);
+                trainingPercent, numTopClasses, randomizeSeed);
         }
     }
 }

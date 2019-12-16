@@ -281,13 +281,6 @@ each one  of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
 
-tag::include-type-name[]
-`include_type_name`::
-deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
-(Optional, boolean) If `true`, a mapping type is expected in the body of
-mappings. Defaults to `false`.
-end::include-type-name[]
-
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
 (Optional, boolean) If `true`, the response includes information from segments

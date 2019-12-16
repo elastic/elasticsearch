@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DYNAMIC;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.KEYWORD;
+import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.LONG;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.PROPERTIES;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.TEXT;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.TYPE;
@@ -74,6 +75,7 @@ public final class InferenceInternalIndex {
             .endObject();
 
         addInferenceDocFields(builder);
+        addDefinitionDocFields(builder);
         return builder.endObject()
             .endObject()
             .endObject();
@@ -86,6 +88,9 @@ public final class InferenceInternalIndex {
             .startObject(TrainedModelConfig.CREATED_BY.getPreferredName())
             .field(TYPE, KEYWORD)
             .endObject()
+            .startObject(TrainedModelConfig.INPUT.getPreferredName())
+            .field(ENABLED, false)
+            .endObject()
             .startObject(TrainedModelConfig.VERSION.getPreferredName())
             .field(TYPE, KEYWORD)
             .endObject()
@@ -95,14 +100,35 @@ public final class InferenceInternalIndex {
             .startObject(TrainedModelConfig.CREATE_TIME.getPreferredName())
             .field(TYPE, DATE)
             .endObject()
-            .startObject(TrainedModelConfig.DEFINITION.getPreferredName())
-            .field(ENABLED, false)
-            .endObject()
             .startObject(TrainedModelConfig.TAGS.getPreferredName())
             .field(TYPE, KEYWORD)
             .endObject()
             .startObject(TrainedModelConfig.METADATA.getPreferredName())
             .field(ENABLED, false)
+            .endObject()
+            .startObject(TrainedModelConfig.ESTIMATED_OPERATIONS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TrainedModelConfig.ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject();
+    }
+
+    private static void addDefinitionDocFields(XContentBuilder builder) throws IOException {
+        builder.startObject(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.DEFINITION.getPreferredName())
+            .field(ENABLED, false)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.COMPRESSION_VERSION.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
+            .field(TYPE, LONG)
             .endObject();
     }
 }

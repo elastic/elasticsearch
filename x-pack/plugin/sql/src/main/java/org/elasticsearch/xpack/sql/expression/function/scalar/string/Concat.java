@@ -38,12 +38,12 @@ public class Concat extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(left(), functionName(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(left(), sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return isStringAndExact(right(), functionName(), ParamOrdinal.SECOND);
+        return isStringAndExact(right(), sourceText(), ParamOrdinal.SECOND);
     }
 
     @Override

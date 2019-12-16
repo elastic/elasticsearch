@@ -37,7 +37,8 @@ opened again before analyzing further data.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-(string) Required. Identifier for the job.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-flush-job-query-parms]]
 ==== {api-query-parms-title}

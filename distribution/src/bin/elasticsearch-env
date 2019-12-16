@@ -41,8 +41,8 @@ if [ ! -z "$JAVA_HOME" ]; then
   JAVA_TYPE="JAVA_HOME"
 else
   if [ "$(uname -s)" = "Darwin" ]; then
-    # OSX has a different structure
-    JAVA="$ES_HOME/jdk/Contents/Home/bin/java"
+    # macOS has a different structure
+    JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
   else
     JAVA="$ES_HOME/jdk/bin/java"
   fi

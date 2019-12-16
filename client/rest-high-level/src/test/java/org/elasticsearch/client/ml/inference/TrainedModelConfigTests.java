@@ -39,7 +39,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
 
     @Override
     protected TrainedModelConfig doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelConfig.fromXContent(parser).build();
+        return TrainedModelConfig.fromXContent(parser);
     }
 
     @Override
@@ -61,9 +61,15 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
+            randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null :
                 Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
-            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            randomBoolean() ? null : TrainedModelInputTests.createRandomInput(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomFrom("platinum", "basic"));
+
     }
 
     @Override

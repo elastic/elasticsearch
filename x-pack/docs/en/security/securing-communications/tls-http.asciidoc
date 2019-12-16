@@ -81,7 +81,7 @@ bin/elasticsearch-keystore add xpack.security.http.ssl.secure_key_passphrase
 ===============================
 * All TLS-related node settings are considered to be highly sensitive and
 therefore are not exposed via the
-{ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API] For more
+<<cluster-nodes-info,nodes info API>> For more
 information about any of these settings, see <<security-settings>>.
 
 * {es} monitors all files such as certificates, keys, keystores, or truststores 

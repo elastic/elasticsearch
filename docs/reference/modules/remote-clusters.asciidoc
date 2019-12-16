@@ -13,12 +13,16 @@ connections to a remote cluster. This functionality is used in
 <<modules-cross-cluster-search,{ccs}>>.
 endif::[]
 
+// tag::how-remote-clusters-work[]
 Remote cluster connections work by configuring a remote cluster and connecting
 only to a limited number of nodes in that remote cluster. Each remote cluster
 is referenced by a name and a list of seed nodes. When a remote cluster is
 registered, its cluster state is retrieved from one of the seed nodes and up
 to three _gateway nodes_ are selected to be connected to as part of remote
-cluster requests. All the communication required between different clusters
+cluster requests.
+// end::how-remote-clusters-work[]
+
+All the communication required between different clusters
 goes through the <<modules-transport,transport layer>>. Remote cluster
 connections consist of uni-directional connections from the coordinating
 node to the selected remote _gateway nodes_ only.
@@ -39,6 +43,7 @@ node, while 6.7 can only communicate with 7.0. Version compatibility  is
 symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
 communicate with 6.7. The matrix below summarizes compatibility as described above.
 
+// tag::remote-cluster-compatibility-matrix[]
 [cols="^,^,^,^,^,^,^,^"]
 |====
 | Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
@@ -50,6 +55,7 @@ communicate with 6.7. The matrix below summarizes compatibility as described abo
 | 7.0           |    No    | No  |    No    | Yes | Yes | Yes |    Yes
 | 7.1->7.x      |    No    | No  |    No    | No  | Yes | Yes |    Yes
 |====
+// end::remote-cluster-compatibility-matrix[]
 
 - *role*: Dedicated master nodes never get selected.
 - *attributes*: You can tag which nodes should be selected

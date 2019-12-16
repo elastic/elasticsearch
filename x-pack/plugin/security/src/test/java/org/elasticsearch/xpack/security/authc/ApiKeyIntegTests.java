@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.security.authc;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,7 +56,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -76,6 +77,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(DELETE_INTERVAL_MILLIS))
             .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
             .build();
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // need real http
     }
 
     @Before
@@ -124,9 +130,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertBusy(() -> assertFalse(apiKeyService.isExpirationInProgress()));
         }
     }
-    
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47958")
-    public void testCreateApiKey() {
+    public void testCreateApiKey() throws Exception{
         final Instant start = Instant.now();
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -156,13 +162,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // use the first ApiKey for authorized action
         final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
             (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
-        ClusterHealthResponse healthResponse = client()
-            .filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
-            .admin()
-            .cluster()
-            .prepareHealth()
-            .get();
-        assertFalse(healthResponse.isTimedOut());
+        // Assert that we can authenticate with the API KEY
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+            "ApiKey " + base64ApiKeyKeyValue).build());
+        assertThat(authResponse.getUser().getUsername(), equalTo(SecuritySettingsSource.TEST_SUPERUSER));
 
         // use the first ApiKey for an unauthorized action
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
@@ -364,7 +368,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
         UpdateResponse expirationDateUpdatedResponse = client
-                .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(0).getId())
+                .prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -374,7 +378,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
-        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(1).getId())
+        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(1).getId())
                 .setDoc("expiration_time", weekBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();

@@ -34,6 +34,8 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
             .setFeatureBagFraction(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
             .setPredictionFieldName(randomBoolean() ? null : randomAlphaOfLength(10))
             .setTrainingPercent(randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true))
+            .setRandomizeSeed(randomBoolean() ? null : randomLong())
+            .setNumTopClasses(randomBoolean() ? null : randomIntBetween(0, 10))
             .build();
     }
 

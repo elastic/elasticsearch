@@ -482,6 +482,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
+        if ("_index".equals(this.fieldName) && values != null) {
+            // Special-case optimisation for canMatch phase:  
+            // We can skip querying this shard if the index name doesn't match any of the search terms.
+            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+            if (shardContext != null) {
+                for (Object localValue : values) {
+                    if (shardContext.indexMatches(BytesRefs.toString(localValue))) {
+                        // We can match - at least one index name matches
+                        return this;
+                    }     
+                }
+                // all index names are invalid - no possibility of a match on this shard.
+                return new MatchNoneQueryBuilder();
+            }
+        }
         return this;
     }
 }

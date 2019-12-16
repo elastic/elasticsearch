@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -44,7 +43,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48085")
 public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     @After
@@ -358,7 +356,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_with_multiple_source_indices";
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(sourceIndex, null))
+            .setSource(new DataFrameAnalyticsSource(sourceIndex, null, null))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
             .setAnalysis(new OutlierDetection.Builder().build())
             .build();
@@ -474,7 +472,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         ByteSizeValue modelMemoryLimit = new ByteSizeValue(1, ByteSizeUnit.MB);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
             .setAnalysis(new OutlierDetection.Builder().build())
             .setModelMemoryLimit(modelMemoryLimit)
@@ -518,7 +516,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         ByteSizeValue modelMemoryLimit = new ByteSizeValue(1, ByteSizeUnit.TB);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
             .setAnalysis(new OutlierDetection.Builder().build())
             .setModelMemoryLimit(modelMemoryLimit)
@@ -550,7 +548,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Stopped analytics");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47612")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 

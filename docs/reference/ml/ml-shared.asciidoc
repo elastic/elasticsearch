@@ -185,6 +185,11 @@ The size of the interval that the analysis is aggregated into, typically between
 see <<time-units>>.
 end::bucket-span[]
 
+tag::bucket-span-results[]
+The length of the bucket in seconds. This value matches the `bucket_span`
+that is specified in the job.
+end::bucket-span-results[]
+
 tag::by-field-name[]
 The field used to split the data. In particular, this property is used for 
 analyzing the splits with respect to their own history. It is used for finding 
@@ -520,6 +525,10 @@ that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
+tag::desc-results[]
+If true, the results are sorted in descending order.
+end::desc-results[]
+
 tag::description-dfa[]
 A description of the job.
 end::description-dfa[]
@@ -618,6 +627,11 @@ working with both over and by fields, then you can set `exclude_frequent` to
 `all` for both fields, or to `by` or `over` for those specific fields.
 end::exclude-frequent[]
 
+tag::exclude-interim-results[]
+If `true`, the output excludes interim results. By default, interim results are 
+included.
+end::exclude-interim-results[]
+
 tag::feature-bag-fraction[]
 Defines the fraction of features that will be used when 
 selecting a random bag for each candidate split. 
@@ -706,6 +720,11 @@ also want to use a field name that is not specifically named in a detector, but
 is available as part of the input data. When you use multiple detectors, the use 
 of influencers is recommended as it aggregates results for each influencer entity.
 end::influencers[]
+
+tag::is-interim[]
+If `true`, this is an interim result. In other words, the results are calculated
+based on partial input data.
+end::is-interim[]
 
 tag::job-id-anomaly-detection[]
 Identifier for the {anomaly-job}.
@@ -1113,6 +1132,10 @@ tag::time-span[]
 The time span that each search will be querying. This setting is only applicable
 when the mode is set to `manual`. For example: `3h`.
 end::time-span[]
+
+tag::timestamp-results[]
+The start time of the bucket for which these results were calculated.
+end::timestamp-results[]
 
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after 

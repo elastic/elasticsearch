@@ -40,41 +40,41 @@ bucket.
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<timestamp>`::
-  (Optional, string) The timestamp of a single bucket result. If you do not
-  specify this parameter, the API returns information about all buckets.
+(Optional, string) The timestamp of a single bucket result. If you do not
+specify this parameter, the API returns information about all buckets.
 
 [[ml-get-bucket-request-body]]
 ==== {api-request-body-title}
 
 `anomaly_score`::
-  (Optional, double) Returns buckets with anomaly scores greater or equal than
-  this value.
+(Optional, double) Returns buckets with anomaly scores greater or equal than
+this value.
 
 `desc`::
-  (Optional, boolean) If true, the buckets are sorted in descending order.
+(Optional, boolean) If true, the buckets are sorted in descending order.
 
 `end`::
-  (Optional, string) Returns buckets with timestamps earlier than this time.
+(Optional, string) Returns buckets with timestamps earlier than this time.
 
 `exclude_interim`::
-  (Optional, boolean) If true, the output excludes interim results. By default,
-  interim results are included.
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `expand`::
-  (Optional, boolean) If true, the output includes anomaly records.
+(Optional, boolean) If true, the output includes anomaly records.
 
 `page`::
 `from`:::
-  (Optional, integer) Skips the specified number of buckets.
+(Optional, integer) Skips the specified number of buckets.
 `size`:::
-  (Optional, integer) Specifies the maximum number of buckets to obtain.
+(Optional, integer) Specifies the maximum number of buckets to obtain.
 
 `sort`::
-  (Optional, string) Specifies the sort field for the requested buckets. By
-  default, the buckets are sorted by the `timestamp` field.
+(Optional, string) Specifies the sort field for the requested buckets. By
+default, the buckets are sorted by the `timestamp` field.
 
 `start`::
-  (Optional, string) Returns buckets with timestamps after this time.
+(Optional, string) Returns buckets with timestamps after this time.
 
 [[ml-get-bucket-results]]
 ==== {api-response-body-title}
@@ -106,15 +106,13 @@ initial value that was calculated at the time the bucket was processed.
 
 `bucket_influencers`.`influencer_field_name`::
 (string) The field name of the influencer.
-////
-TBD: Doesn't appear anymore in 8.0?
+
 `bucket_influencers`.`influencer_field_value`::
-  (string) The field value of the influencer. For example `192.168.88.2` or
-  `Bob`.
-////
+(string) The field value of the influencer. 
+
 `bucket_influencers`.`is_interim`::
-(boolean) If `true`, this is an interim result. In other words, the bucket
-influencer results are calculated based on partial input data.
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `bucket_influencers`.`job_id`::
 (string)
@@ -136,8 +134,8 @@ this.
 (date) The start time of the bucket for which these results were calculated.
 
 `bucket_span`::
-(number) The length of the bucket in seconds. This value matches the
-`bucket_span` that is specified in the job.
+(number)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
 
 `event_count`::
 (number) The number of input data records processed in this bucket.
@@ -147,8 +145,8 @@ this.
 the initial value that was calculated at the time the bucket was processed.
 
 `is_interim`::
-(boolean) If `true`, this is an interim result. In other words, the bucket
-results are calculated based on partial input data.
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`::
 (string)

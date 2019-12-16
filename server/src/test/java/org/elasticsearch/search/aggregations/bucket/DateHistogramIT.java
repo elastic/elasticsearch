@@ -1466,8 +1466,8 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a deterministic script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=date")

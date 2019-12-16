@@ -19,31 +19,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker.DockerShell;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
@@ -78,6 +53,33 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Docker.DockerShell;
+import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 public class DockerTests extends PackagingTestCase {
     protected DockerShell sh;
@@ -388,6 +390,27 @@ public class DockerTests extends PackagingTestCase {
             containsString(
                 "ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have " + "file permissions 400 or 600"
             )
+        );
+    }
+
+    /**
+     * Check that environment variables are translated to -E options even for commands invoked under
+     * `docker exec`, where the Docker image's entrypoint is not executed.
+     */
+    public void test83EnvironmentVariablesAreRespectedUnderDockerExec() {
+        // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
+        // tool in question is only in the default distribution.
+        assumeTrue(distribution.isDefault());
+
+        runContainer(distribution(), null, Collections.singletonMap("http.host", "this.is.not.valid"));
+
+        // This will fail if the env var above is passed as a -E argument
+        final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
+
+        assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
+        assertThat(
+            result.stdout,
+            containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known")
         );
     }
 

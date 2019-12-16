@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+# Allow environment variables to be set by creating a file with the
+# contents, and setting an environment variable with the suffix _FILE to
+# point to it. This can be used to provide secrets to a container, without
+# the values being specified explicitly when running the container.
+#
+# This script is intended to be sourced, not executed, and modifies the
+# environment.
+
+for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
+  if [[ -n "$VAR_NAME_FILE" ]]; then
+    VAR_NAME="${VAR_NAME_FILE%_FILE}"
+
+    if env | grep "^${VAR_NAME}="; then
+      echo "ERROR: Both $VAR_NAME_FILE and $VAR_NAME are set. These are mutually exclusive." >&2
+      exit 1
+    fi
+
+    if [[ ! -e "${!VAR_NAME_FILE}" ]]; then
+      echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE does not exist" >&2
+      exit 1
+    fi
+
+    FILE_PERMS="$(stat -c '%a' ${!VAR_NAME_FILE})"
+
+    if [[ "$FILE_PERMS" != "400" && "$FILE_PERMS" != 600 ]]; then
+        echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE must have file permissions 400 or 600, but actually has: $FILE_PERMS" >&2
+        exit 1
+    fi
+
+    echo "Setting $VAR_NAME from $VAR_NAME_FILE at ${!VAR_NAME_FILE}" >&2
+    export "$VAR_NAME"="$(cat ${!VAR_NAME_FILE})"
+
+    unset VAR_NAME
+    # Unset the suffixed environment variable
+    unset "$VAR_NAME_FILE"
+  fi
+done
+

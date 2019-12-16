@@ -646,7 +646,8 @@ public class MetaDataCreateIndexService {
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 
-    public void validateIndexSettings(String indexName, Settings settings, boolean forbidPrivateIndexSettings) throws IndexCreationException {
+    public void validateIndexSettings(String indexName, Settings settings, boolean forbidPrivateIndexSettings)
+        throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
         if (!validationErrors.isEmpty()) {

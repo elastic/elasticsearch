@@ -1166,8 +1166,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(terms("terms").field("d")).get();
         assertSearchResponse(r);
 

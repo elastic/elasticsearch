@@ -225,6 +225,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ClusterService clusterService;
 
+    /**
+     * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
+     * {@link RepositoryMetaData#pendingGeneration()} than for {@link RepositoryMetaData#generation()} indicating a full cluster restart
+     * potentially accounting for the the last {@code index-N} write in the cluster state.
+     * Note: While it is true that this value could also be set to {@code true} for an instance on a node that is just joining the cluster
+     * during a new {@code index-N} write, this does not present a problem. The node will still load the correct {@link RepositoryData} in
+     * all cases and simply do a redundant listing of the repository contents if it tries to load {@link RepositoryData} and falls back
+     * to {@link #latestIndexBlobId()} to validate the value of {@link RepositoryMetaData#generation()}.
+     */
     private boolean uncleanStart;
 
     /**
@@ -239,6 +248,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     {@link RepositoryMetaData#generation()} when writing a new {@code index-N} blob</li>
      *     <li>The value of {@link RepositoryMetaData#generation()} for this repository is {@link RepositoryData#UNKNOWN_REPO_GEN}
      *     indicating that no consistent repository generation is tracked in the cluster state yet.</li>
+     *     <li>The {@link #uncleanStart} flag is set to {@code true}</li>
      * </ul>
      */
     private volatile boolean bestEffortConsistency;

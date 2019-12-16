@@ -918,6 +918,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
+        // Test that a request using a deterministic script gets cached
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
                 .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.DOUBLE_PLUS_ONE_MONTH, params))
                 .addRange(ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
@@ -930,8 +931,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
                 .addRange(ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
                     ZonedDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)))

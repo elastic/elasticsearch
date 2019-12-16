@@ -148,6 +148,13 @@ public class Response {
      * @return {@code true} if the input string matches the specification
      */
     private static boolean matchWarningHeaderPatternByPrefix(final String s) {
+        return s.startsWith("299 Elasticsearch-");
+    }
+
+    /**
+     * Refer to org.elasticsearch.common.logging.DeprecationLogger
+     */
+    private static String extractWarningValueFromWarningHeader(final String s) {
         String warningHeader = s;
 
         /*
@@ -165,16 +172,9 @@ public class Response {
            }
         }
 
-        return warningHeader.startsWith("299 Elasticsearch-");
-    }
-
-    /**
-     * Refer to org.elasticsearch.common.logging.DeprecationLogger
-     */
-    private static String extractWarningValueFromWarningHeader(final String s) {
-        final int firstQuote = s.indexOf('\"');
-        final int lastQuote = s.length() - 1;
-        final String warningValue = s.substring(firstQuote + 1, lastQuote);
+        final int firstQuote = warningHeader.indexOf('\"');
+        final int lastQuote = warningHeader.length() - 1;
+        final String warningValue = warningHeader.substring(firstQuote + 1, lastQuote);
         assert assertWarningValue(s, warningValue);
         return warningValue;
     }

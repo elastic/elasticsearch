@@ -81,7 +81,8 @@ public class RecoverySettings {
             INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get, TimeValue.timeValueSeconds(0),
             Property.Dynamic, Property.NodeScope);
 
-    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+    // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile int maxConcurrentFileChunks;

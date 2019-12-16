@@ -251,7 +251,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             .execute().actionGet();
 
         String doc = "{\"location\" : {\"type\":\"envelope\", \"coordinates\":[ [-100.0, 100.0], [100.0, -100.0]]}}";
-        client().prepareIndex("test_contains").setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test_contains", "type").setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         // index the mbr of the collection
         EnvelopeBuilder queryShape = new EnvelopeBuilder(new Coordinate(-50, 50), new Coordinate(50, -50));

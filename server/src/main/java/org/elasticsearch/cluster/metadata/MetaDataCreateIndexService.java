@@ -467,6 +467,9 @@ public class MetaDataCreateIndexService {
      *
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetaData#order()})
+     *
+     * @return the list of resolved aliases, with the explicitly provided aliases occurring first (having a higher priority) followed by
+     * the ones inherited from the templates
      */
     static List<AliasMetaData> resolveAndValidateAliases(String index, Set<Alias> aliases, List<IndexTemplateMetaData> templates,
                                                          MetaData metaData, AliasValidator aliasValidator,
@@ -556,8 +559,9 @@ public class MetaDataCreateIndexService {
             indexMetaDataBuilder.putMapping(mappingMd);
         }
 
-        for (AliasMetaData aliasMetaData : aliases) {
-            indexMetaDataBuilder.putAlias(aliasMetaData);
+        // apply the aliases in reverse order as the lower index ones have higher order
+        for (int i = aliases.size() - 1; i >= 0; i--) {
+            indexMetaDataBuilder.putAlias(aliases.get(i));
         }
 
         indexMetaDataBuilder.state(IndexMetaData.State.OPEN);

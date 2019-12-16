@@ -559,11 +559,17 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     environment,
                     settings,
                     nativeController,
-                    client,
-                    clusterService);
+                    clusterService,
+                    resultsPersisterService,
+                    anomalyDetectionAuditor);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
-                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, client, nativeController, clusterService,
-                    xContentRegistry);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(
+                    environment,
+                    nativeController,
+                    clusterService,
+                    xContentRegistry,
+                    resultsPersisterService,
+                    dataFrameAnalyticsAuditor);
                 memoryEstimationProcessFactory =
                     new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;

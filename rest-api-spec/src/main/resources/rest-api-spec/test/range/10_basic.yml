@@ -394,6 +394,9 @@ setup:
 
 ---
 "Date range rounding":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "This part tests rounding behaviour changed in 8.0.0"
 
   - do:
       index:

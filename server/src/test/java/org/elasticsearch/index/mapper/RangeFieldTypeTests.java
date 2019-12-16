@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -162,7 +163,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
             assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
     }
-    
+
     /**
      * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
      */
@@ -231,14 +232,15 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
             xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null);
     }
-    
+
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
         fieldType.setName(FIELDNAME);
         fieldType.setIndexOptions(IndexOptions.DOCS);
         fieldType.setHasDocValues(false);
-        ShapeRelation relation = randomFrom(ShapeRelation.values());
+        // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
+        ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT,() -> randomFrom(ShapeRelation.values()));
 
         // dates will break the default format, month/day of month is turned around in the format
         final String from = "2016-15-06T15:29:50+08:00";
@@ -257,7 +259,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         fieldType.setDateTimeFormatter(formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);
-        assertEquals("field:<ranges:[1465975790000 : 1466062190000]>", query.toString());
+        assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
+
+        // compare lower and upper bounds with what we would get on a `date` field
+        DateFieldType dateFieldType = new DateFieldType();
+        dateFieldType.setName(FIELDNAME);
+        dateFieldType.setDateTimeFormatter(formatter);
+        final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, null, context);
+        assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {

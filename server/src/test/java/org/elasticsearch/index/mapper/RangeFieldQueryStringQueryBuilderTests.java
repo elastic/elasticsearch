@@ -39,6 +39,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.ZoneId;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -104,11 +105,11 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,
             new long[]{ parser.parse("2010-01-01", () -> 0).toEpochMilli()},
-            new long[]{ parser.parse("2018-01-01", () -> 0).toEpochMilli()});
+            new long[]{ parser.parse("2018-01-01", () -> 0, true, (ZoneId) null).toEpochMilli()});
         Query dv = RangeType.DATE.dvRangeQuery(DATE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             parser.parse("2010-01-01", () -> 0).toEpochMilli(),
-            parser.parse("2018-01-01", () -> 0).toEpochMilli(), true, true);
+            parser.parse("2018-01-02", () -> 0).toEpochMilli(), true, false);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
 

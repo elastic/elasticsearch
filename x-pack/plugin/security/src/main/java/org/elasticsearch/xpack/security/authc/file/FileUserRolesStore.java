@@ -208,10 +208,10 @@ public class FileUserRolesStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserRolesStore.this.file)) {
-                Map<String, String[]> previousUserRoles = userRoles;
+                final Map<String, String[]> previousUserRoles = userRoles;
                 userRoles = parseFileLenient(file, logger);
 
-                if (Maps.equals(previousUserRoles, userRoles, Arrays::equals) == false) {
+                if (Maps.deepEquals(previousUserRoles, userRoles) == false) {
                     logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
                     notifyRefresh();
                 }

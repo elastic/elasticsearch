@@ -223,7 +223,7 @@ public class DnRoleMapper implements UserRoleMapper {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(DnRoleMapper.this.file)) {
-                Map<String, List<String>> previousDnRoles = dnRoles;
+                final Map<String, List<String>> previousDnRoles = dnRoles;
                 dnRoles = parseFileLenient(file, logger, config.type(), config.name());
 
                 if (previousDnRoles.equals(dnRoles) == false) {

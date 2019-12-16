@@ -116,7 +116,8 @@ public class DnRoleMapperTests extends ESTestCase {
             writer.append("\n");
         }
 
-        if (latch.await(200, TimeUnit.MILLISECONDS)) {
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        if (latch.getCount() != 1) {
             fail("Listener should not be called as roles mapping is not changed.");
         }
 

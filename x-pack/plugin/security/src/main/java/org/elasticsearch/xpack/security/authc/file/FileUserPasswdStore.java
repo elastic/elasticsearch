@@ -193,10 +193,10 @@ public class FileUserPasswdStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserPasswdStore.this.file)) {
-                Map<String, char[]> previousUsers = users;
+                final Map<String, char[]> previousUsers = users;
                 users = parseFileLenient(file, logger, settings);
 
-                if (Maps.equals(previousUsers, users, Arrays::equals) == false) {
+                if (Maps.deepEquals(previousUsers, users) == false) {
                     logger.info("users file [{}] changed. updating users... )", file.toAbsolutePath());
                     notifyRefresh();
                 }

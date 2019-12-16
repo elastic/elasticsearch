@@ -210,13 +210,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(SignificantTermsHeuristicScoreScript.class)) {
-            SignificantTermsHeuristicScoreScript.Factory factory = () -> new SignificantTermsHeuristicScoreScript() {
-                @Override
-                public double execute(Map<String, Object> vars) {
-                    return ((Number) script.apply(vars)).doubleValue();
-                }
-            };
-            return context.factoryClazz.cast(factory);
+            return context.factoryClazz.cast(new MockSignificantTermsHeuristicScoreScript(script));
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
             TemplateScript.Factory factory = vars -> {
                 Map<String, Object> varsWithParams = new HashMap<>();
@@ -616,5 +610,19 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
+    class MockSignificantTermsHeuristicScoreScript implements SignificantTermsHeuristicScoreScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        public MockSignificantTermsHeuristicScoreScript(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
 
+        @Override
+        public SignificantTermsHeuristicScoreScript newInstance() {
+            return new SignificantTermsHeuristicScoreScript() {
+                @Override
+                public double execute(Map<String, Object> vars) {
+                    return ((Number) script.apply(vars)).doubleValue();
+                }
+            };
+        }
+    }
 }

@@ -840,7 +840,7 @@ recommended value.
 end::mode[]
 
 tag::model-id[]
-The unique identifier of the trained {dfanalytics} model.
+The unique identifier of the trained {infer} model.
 end::model-id[]
 
 tag::model-memory-limit[]

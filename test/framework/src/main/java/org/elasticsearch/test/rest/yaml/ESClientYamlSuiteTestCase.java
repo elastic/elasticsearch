@@ -41,6 +41,7 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
+import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -158,12 +160,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
-        additionalInit();
+        overrideDoSection();
     }
 
-    protected void additionalInit(){
+    protected void overrideDoSection(){}
 
-    }
     protected ClientYamlTestClient initClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
             final RestClient restClient,
@@ -190,17 +191,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
      * defined in {@link ExecutableSection}.
      */
-    public static Iterable<Object[]> createParameters(String... paths) throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, paths);
+    public static Iterable<Object[]> createParameters() throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI()));
     }
-
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception{
+        return createParameters(executeableSectionRegistry, PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI()));
+    }
     /**
      * Create parameters for this parameterized test.
      */
-    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... providedRoots) throws Exception {
-        //TODO: support providedRoots to run only specific tests
-
-        Map<String, Set<Path>> yamlSuites = providedRoots == null ? loadSuites( resolvePathsProperty(REST_TESTS_SUITE, "") ) : loadSuitesFromMultipleRoots(providedRoots);
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, Path root) throws Exception {
+        String[] requestedTests = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
+        Map<String, Set<Path>> yamlSuites = loadSuites(root, requestedTests);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
         // yaml suites are grouped by directory (effectively by api)
@@ -243,37 +245,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return tests;
     }
 
-    //TODO: DRY and support individual tests
-    static Map<String, Set<Path>> loadSuitesFromMultipleRoots(String... roots) throws Exception {
-        Map<String, Set<Path>> files = new HashMap<>();
-        for (String r : roots) {
-            Path root = Paths.get(r);
-            Path path = root.resolve(TESTS_PATH.substring(1));
-            System.out.println("******************************" + path);
-
-            if (Files.isDirectory(path)) {
-                Files.walk(path).forEach(file -> {
-                    if (file.toString().endsWith(".yml")) {
-                        addSuite(root, file, files);
-                    } else if (file.toString().endsWith(".yaml")) {
-                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
-                    }
-                });
-            }
-//            else {
-//                path = root.resolve(strPath + ".yml");
-//                assert Files.exists(path);
-//                addSuite(root, path, files);
-//            }
-        }
-        return files;
-    }
-
     /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
-    static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
+    static Map<String, Set<Path>> loadSuites(Path root, String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
         for (String strPath : paths) {
             Path path = root.resolve(strPath);
             if (Files.isDirectory(path)) {
@@ -466,4 +441,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         configureClient(builder, restClientSettings());
         return builder;
     }
+
+    protected final List<DoSection> getDoSectionsByParam(String paramKey) {
+        return getAllDoSections().stream()
+            .filter(doSection -> doSection.getApiCallSection().getParams().containsKey(paramKey))
+            .collect(Collectors.toList());
+    }
+
+    protected final List<DoSection> getAllDoSections(){
+        return getTestCandidate().getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).map(s2 -> (DoSection) s2).collect(Collectors.toList());
+    }
+
 }

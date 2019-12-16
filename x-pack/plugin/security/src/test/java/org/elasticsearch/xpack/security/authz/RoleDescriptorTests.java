@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -319,7 +320,9 @@ public class RoleDescriptorTests extends ESTestCase {
             "\"grant\" : [\"f1\",\"f2\"], \"except\" : [\"f3\"] } }] }";
         final ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class, () -> RoleDescriptor.parse("test",
             new BytesArray(json), false, XContentType.JSON));
-        assertThat(epe.getMessage(), containsString("must be a " +
-            "subset of [grant] field values "));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("must be a subset of the granted fields ")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f1")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f2")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
     }
 }

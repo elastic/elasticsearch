@@ -5,11 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -19,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -28,9 +24,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -43,8 +39,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.apache.lucene.util.automaton.Operations.subsetOf;
 
 /**
  * A holder for a Role that contains user-readable information about the Role
@@ -552,29 +546,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {
-        Automaton grantedFieldsAutomaton;
-        if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
-            grantedFieldsAutomaton = Automatons.MATCH_ALL;
-        } else {
-            // an automaton that includes metadata fields, including join fields created by the _parent field such
-            // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
-        }
-        Automaton deniedFieldsAutomaton;
-        if (deniedFields == null || deniedFields.length == 0) {
-            deniedFieldsAutomaton = Automatons.EMPTY;
-        } else {
-            deniedFieldsAutomaton = Automatons.patterns(deniedFields);
-        }
-        grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton,
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES);
-        deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton,
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES);
-        if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. [{}] field values [{}] must be a " +
-                "subset of [{}] field values [{}]", roleName, Fields.EXCEPT_FIELDS, Strings.arrayToCommaDelimitedString(deniedFields),
-                Fields.GRANT_FIELDS, Strings.arrayToCommaDelimitedString(grantedFields));
+        try {
+            FieldPermissions.buildPermittedFieldsAutomaton(grantedFields, deniedFields);
+        } catch (ElasticsearchSecurityException e) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
         }
     }
 

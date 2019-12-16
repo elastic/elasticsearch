@@ -69,6 +69,7 @@ public enum ShapeRelation implements Writeable {
             case INTERSECTS: return QueryRelation.INTERSECTS;
             case DISJOINT: return QueryRelation.DISJOINT;
             case WITHIN: return QueryRelation.WITHIN;
+            case CONTAINS: return QueryRelation.CONTAINS;
             default:
                 throw new IllegalArgumentException("ShapeRelation [" + this + "] not supported");
         }

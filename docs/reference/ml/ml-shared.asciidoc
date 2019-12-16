@@ -839,9 +839,9 @@ recommended value.
 --
 end::mode[]
 
-tag::model-id
+tag::model-id[]
 The unique identifier of the trained {dfanalytics} model.
-end::model-id
+end::model-id[]
 
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for 

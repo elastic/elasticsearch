@@ -36,6 +36,6 @@ include::get-dfanalytics-stats.asciidoc[]
 include::start-dfanalytics.asciidoc[]
 include::stop-dfanalytics.asciidoc[]
 //INFERENCE
-include::get-trained-model.asciidoc
-include::get-trained-model-stats.asciidoc
-include::delete-trained-model.asciidoc
+include::get-trained-model.asciidoc[]
+include::get-trained-model-stats.asciidoc[]
+include::delete-trained-model.asciidoc[]

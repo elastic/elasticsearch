@@ -384,7 +384,7 @@ setup:
         name: source-index
 
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[created-destination-index\] is included in source expression \[airline-data,created-destination-index\]/
+      catch: /.*reason=Validation Failed.* Destination index \[created-destination-index\] is included in source expression \[created-destination-index,airline-data\]/
       transform.put_transform:
         transform_id: "transform-from-aliases-failures"
         body: >

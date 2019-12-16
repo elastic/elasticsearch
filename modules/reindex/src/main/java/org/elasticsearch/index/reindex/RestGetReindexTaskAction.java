@@ -41,7 +41,8 @@ public class RestGetReindexTaskAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetReindexTaskAction.Request request = new GetReindexTaskAction.Request(restRequest.param("task_id"));
+        String taskId = restRequest.param("task_id");
+        GetReindexTaskAction.Request request = new GetReindexTaskAction.Request(taskId);
         return channel -> client.execute(GetReindexTaskAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

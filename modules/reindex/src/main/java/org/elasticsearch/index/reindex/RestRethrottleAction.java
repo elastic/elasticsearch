@@ -36,9 +36,9 @@ public class RestRethrottleAction extends BaseRestHandler {
 
     public RestRethrottleAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
-        controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_reindex/{taskId}/_rethrottle", this);
+        controller.registerHandler(POST, "/_update_by_query/{task_id}/_rethrottle", this);
+        controller.registerHandler(POST, "/_delete_by_query/{task_id}/_rethrottle", this);
+        controller.registerHandler(POST, "/_reindex/{task_id}/_rethrottle", this);
     }
 
     @Override
@@ -49,7 +49,7 @@ public class RestRethrottleAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         RethrottleRequest internalRequest = new RethrottleRequest();
-        internalRequest.setTaskId(new TaskId(request.param("taskId")));
+        internalRequest.setTaskId(new TaskId(request.param("task_id")));
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);
         if (requestsPerSecond == null) {
             throw new IllegalArgumentException("requests_per_second is a required parameter");

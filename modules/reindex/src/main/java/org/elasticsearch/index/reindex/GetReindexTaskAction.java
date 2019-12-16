@@ -172,7 +172,6 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             builder.field(START_TIME, Instant.ofEpochMilli(startMillis).atZone(ZoneOffset.UTC));
             if (endMillis != null) {
                 builder.field(END_TIME, Instant.ofEpochMilli(endMillis).atZone(ZoneOffset.UTC));
-                builder.field(DURATION_IN_MILLIS, endMillis - startMillis);
                 builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endMillis - startMillis, TimeUnit.MILLISECONDS));
             }
             if (reindexResponse != null) {

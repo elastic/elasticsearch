@@ -121,11 +121,23 @@
   - is_false: response.task
   - is_false: response.deleted
 
-#  - do:
-#      reindex_task:
-#        task_id: $persistent_task_id
-#
-#  - match: {created: 1}
+  - do:
+      reindex_task:
+        task_id: $persistent_task_id
+
+  - match: {state: "done"}
+  - match: {start_time: /.+/}
+  - match: {end_time: /.+/}
+  - gte: {duration_in_millis: 0}
+  - match: {result.created: 1}
+  - match: {result.updated: 0}
+  - match: {result.version_conflicts: 0}
+  - match: {result.batches: 1}
+  - match: {result.failures: []}
+  - match: {result.throttled_millis: 0}
+  - gte: {result.took: 0}
+  - is_false: result.task
+  - is_false: result.deleted
 
   # Make sure reindex closed all the scroll contexts
   - do:

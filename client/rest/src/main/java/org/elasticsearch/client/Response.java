@@ -117,6 +117,18 @@ public class Response {
             "\")?"); // closing quote (optional, since an older version can still send a warn-date)
 
     /**
+     * Tests if a string matches the RFC 7234 specification for warning headers.
+     * This assumes that the warn code is always 299 and the warn agent is always
+     * Elasticsearch.
+     *
+     * @param s
+     * @return {@code true} if the input string matches the specification
+     */
+    private static boolean matchWarningHeaderPatternByPrefix(final String s) {
+        return s.startsWith("299 Elasticsearch-");
+    }
+
+    /**
      * Refer to org.elasticsearch.common.logging.DeprecationLogger
      */
     private static String extractWarningValueFromWarningHeader(final String s) {
@@ -144,8 +156,11 @@ public class Response {
         List<String> warnings = new ArrayList<>();
         for (Header header : response.getHeaders("Warning")) {
             final String warning = header.getValue();
-            final String warningHeaderValue = extractWarningValueFromWarningHeader(warning);
-            warnings.add(warningHeaderValue);
+            if (matchWarningHeaderPatternByPrefix(warning)) {
+                warnings.add(extractWarningValueFromWarningHeader(warning));
+            } else {
+                warnings.add(warning);
+            }
         }
         return warnings;
     }

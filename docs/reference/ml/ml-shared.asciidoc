@@ -483,6 +483,11 @@ Identifier for the {dfeed}. It can be a {dfeed} identifier or a wildcard
 expression.
 end::datafeed-id-wildcard[]
 
+tag::decompress-definition[]
+Specifies if the included model definition should be returned as a JSON map or 
+in a custom compressed format. Defaults to `true`.
+end::decompress-definition[]
+
 tag::delayed-data-check-config[]
 Specifies whether the {dfeed} checks for missing data and the size of the
 window. For example: `{"enabled": true, "check_window": "1h"}`.
@@ -688,6 +693,12 @@ tag::groups[]
 A list of job groups. A job can belong to no groups or many.
 end::groups[]
 
+tag::include-model-definition[]
+Specifies if the model definition should be returned in the response. Defaults 
+to `false`. When `true`, only a single model must match the ID patterns 
+provided, otherwise a bad request is returned.
+end::include-model-definition[]
+
 tag::indices[]
 An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
@@ -827,6 +838,10 @@ recommended value.
 * `off`: No chunking is applied.
 --
 end::mode[]
+
+tag::model-id
+The unique identifier of the trained {dfanalytics} model.
+end::model-id
 
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for 

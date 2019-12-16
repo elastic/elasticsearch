@@ -13,6 +13,9 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 * <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
 * <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
 * <<explain-dfanalytics,Explain {dfanalytics}>>
+* <<get-inference>>
+* <<get-inference-stats>>
+* <<delete-inference>>
 
 For the `analysis` object resources, check <<ml-dfa-analysis-objects>>.
 
@@ -32,3 +35,7 @@ include::get-dfanalytics-stats.asciidoc[]
 //SET/START/STOP
 include::start-dfanalytics.asciidoc[]
 include::stop-dfanalytics.asciidoc[]
+//INFERENCE
+include::get-trained-model.asciidoc
+include::get-trained-model-stats.asciidoc
+include::delete-trained-model.asciidoc

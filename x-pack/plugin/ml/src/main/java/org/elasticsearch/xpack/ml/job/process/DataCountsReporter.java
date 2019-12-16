@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -229,13 +228,13 @@ public class DataCountsReporter {
     /**
      * Report the counts now regardless of whether or not we are at a reporting boundary.
      */
-    public void finishReporting(ActionListener<Boolean> listener) {
+    public void finishReporting() {
         Date now = new Date();
         incrementalRecordStats.setLastDataTimeStamp(now);
         totalRecordStats.setLastDataTimeStamp(now);
         diagnostics.flush();
         retrieveDiagnosticsIntermediateResults();
-        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), listener);
+        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats());
     }
 
     /**

@@ -235,13 +235,13 @@ public class ExtractedFieldsDetector {
                 if (IGNORE_FIELDS.contains(field)) {
                     throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", field);
                 }
+                if (excludes.contains(field)) {
+                    fieldsIterator.remove();
+                    addExcludedField(field, "field in excludes list", fieldSelection);
+                }
             } else {
                 fieldsIterator.remove();
                 addExcludedField(field, "field not in includes list", fieldSelection);
-            }
-            if (excludes.contains(field)) {
-                fieldsIterator.remove();
-                addExcludedField(field, "field in excludes list", fieldSelection);
             }
         }
     }

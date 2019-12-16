@@ -24,6 +24,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
+import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
@@ -145,16 +146,13 @@ class PrecommitTasks {
             doFirst {
                 // we need to defer this configuration since we don't know the runtime java version until execution time
                 targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
-                /*
-                TODO: Reenable once Gradle supports Java 13 or later!
                 if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
-                    project.logger.info(
-                            "Forbidden APIs does not support java version past 13. Will use the signatures from 13 for ",
-                            BuildParams.runtimeJavaVersion`
+                    project.logger.warn(
+                            "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
+                            BuildParams.runtimeJavaVersion
                     )
-                    targetCompatibility = JavaVersion.VERSION_13.getMajorVersion()
+                    targetCompatibility = JavaVersion.VERSION_13.majorVersion
                 }
-                */
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"

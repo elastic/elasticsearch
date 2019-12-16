@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -53,7 +52,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * the OutputStream. No transformation is applied to the data the timestamp
      * is expected in seconds from the epoch. If any of the fields in
      * <code>analysisFields</code> or the <code>DataDescription</code>s
-     * timeField is missing from the JOSN inputIndex an exception is thrown
+     * timeField is missing from the JSON inputIndex an exception is thrown
      */
     @Override
     public void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,
@@ -70,12 +69,8 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                     + "] is not supported by JsonDataToProcessWriter");
         }
 
-        // this line can throw and will be propagated
-        dataCountsReporter.finishReporting(
-                ActionListener.wrap(
-                        response -> handler.accept(dataCountsReporter.incrementalStats(), null),
-                        e -> handler.accept(null, e)
-                ));
+        dataCountsReporter.finishReporting();
+        handler.accept(dataCountsReporter.incrementalStats(), null);
     }
 
     private void writeJsonXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {

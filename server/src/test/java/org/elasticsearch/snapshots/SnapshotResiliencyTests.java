@@ -211,6 +211,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -514,11 +515,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
 
         final StepListener<Collection<CreateIndexResponse>> createIndicesListener = new StepListener<>();
+        final int indices = randomIntBetween(5, 20);
 
         continueOrDie(createRepoAndIndex(repoName, index, 1), createIndexResponse -> {
             // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
             // finalization
-            final int indices = randomIntBetween(5, 20);
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(createIndicesListener, indices);
             for (int i = 0; i < indices; ++i) {
                 client().admin().indices().create(new CreateIndexRequest("index-" + i), listener);
@@ -527,9 +528,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
+        final boolean partialSnapshot = randomBoolean();
+
         continueOrDie(createIndicesListener, createIndexResponses ->
             client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(false)
-                .execute(createSnapshotResponseStepListener));
+                .setPartial(partialSnapshot).execute(createSnapshotResponseStepListener));
 
         continueOrDie(createSnapshotResponseStepListener,
             createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), noopListener()));
@@ -544,6 +547,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        if (partialSnapshot) {
+            // Single shard for each index so we either get all indices or all except for the deleted index
+            assertThat(snapshotInfo.successfulShards(), either(is(indices + 1)).or(is(indices)));
+        } else {
+            // Index delete must be blocked for non-partial snapshots and we get a snapshot for every index
+            assertEquals(snapshotInfo.successfulShards(), indices + 1);
+        }
         assertEquals(0, snapshotInfo.failedShards());
     }
 

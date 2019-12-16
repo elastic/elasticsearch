@@ -33,6 +33,9 @@ privileges on the destination index. For more information, see
 This API updates an existing {transform}. The list of properties that you can
 update is a subset of the list that you can define when you create a {transform}.
 
+When the {transform} is updated, a series of validations occur to ensure its
+success. You can use the `defer_validation` parameter to skip these checks.
+
 All updated properties except description do not take effect until after the
 {transform} starts the next checkpoint. This is so there is consistency with the
 pivoted data in each checkpoint.

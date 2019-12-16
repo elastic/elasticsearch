@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -207,7 +209,9 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
             for (int i = 0; i < remaining; ++i) {
                 TransportAddress address = nextAddress(resolved);
                 String id = clusterAlias + "#" + address;
-                DiscoveryNode node = new DiscoveryNode(id, address, Version.CURRENT.minimumCompatibilityVersion());
+                Map<String, String> attributes = Collections.singletonMap("server_name", address.address().getHostString());
+                DiscoveryNode node = new DiscoveryNode(id, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
+                    Version.CURRENT.minimumCompatibilityVersion());
 
                 connectionManager.connectToNode(node, profile, clusterNameValidator, new ActionListener<>() {
                     @Override
@@ -243,7 +247,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private static TransportAddress resolveAddress(String address) {
-        return new TransportAddress(parseSeedAddress(address));
+        return new TransportAddress(parseConfiguredAddress(address));
     }
 
     private boolean addressesChanged(final List<String> oldAddresses, final List<String> newAddresses) {

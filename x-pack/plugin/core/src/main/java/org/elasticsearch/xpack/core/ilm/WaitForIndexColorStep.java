@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -20,28 +21,91 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.Objects;
 
-class WaitForIndexGreenStep extends ClusterStateWaitStep {
+/**
+ * Wait Step for index based on color
+ * */
 
-    static final String NAME = "wait-for-index-green-step";
+class WaitForIndexColorStep extends ClusterStateWaitStep {
 
-    WaitForIndexGreenStep(StepKey key, StepKey nextStepKey) {
+    static final String NAME = "wait-for-index-color-step";
+
+    private final ClusterHealthStatus color;
+
+    WaitForIndexColorStep(StepKey key, StepKey nextStepKey, ClusterHealthStatus color) {
         super(key, nextStepKey);
+        this.color = color;
+    }
+
+    public ClusterHealthStatus getColor() {
+        return this.color;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), this.color);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) return false;
+        if (!(obj instanceof WaitForIndexColorStep)) return false;
+        WaitForIndexColorStep other = (WaitForIndexColorStep) obj;
+        return super.equals(obj) && Objects.equals(this.color, other.color);
     }
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(index);
+        Result result;
+        switch (this.color) {
+            case GREEN:
+                result = waitForGreen(indexRoutingTable);
+                break;
+            case YELLOW:
+                result = waitForYellow(indexRoutingTable);
+                break;
+            case RED:
+                result = waitForRed(indexRoutingTable);
+                break;
+            default:
+                result = new Result(false, new Info("No index color match"));
+                break;
+        }
+        return result;
+    }
+
+    private Result waitForRed(IndexRoutingTable indexRoutingTable) {
+        if (indexRoutingTable == null) {
+            return new Result(true, new Info("Index is red"));
+        }
+        return new Result(false, new Info("Index is not red"));
+    }
+
+    private Result waitForYellow(IndexRoutingTable indexRoutingTable) {
+        if (indexRoutingTable == null) {
+            return new Result(false, new Info("index is red; no IndexRoutingTable"));
+        }
+
+        boolean indexIsAtLeastYellow = indexRoutingTable.allPrimaryShardsActive();
+        if (indexIsAtLeastYellow) {
+            return new Result(true, null);
+        } else {
+            return new Result(false, new Info("index is red; not all primary shards are active"));
+        }
+    }
+
+    private Result waitForGreen(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
             return new Result(false, new Info("index is red; no IndexRoutingTable"));
         }
 
         boolean indexIsGreen = false;
-        if(indexRoutingTable.allPrimaryShardsActive()) {
+        if (indexRoutingTable.allPrimaryShardsActive()) {
             boolean replicaIndexIsGreen = false;
             for (ObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().values()) {
                 replicaIndexIsGreen = shardRouting.value.replicaShards().stream().allMatch(ShardRouting::active);
-                if(!replicaIndexIsGreen) {
+                if (!replicaIndexIsGreen) {
                     return new Result(false, new Info("index is yellow; not all replica shards are active"));
                 }
             }

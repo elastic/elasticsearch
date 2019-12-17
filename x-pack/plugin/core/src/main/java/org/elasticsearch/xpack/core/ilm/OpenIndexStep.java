@@ -13,6 +13,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
+/**
+ * Invokes a open step on a single index.
+ */
+
 final class OpenIndexStep extends AsyncActionStep {
 
     static final String NAME = "open-index";
@@ -28,7 +32,10 @@ final class OpenIndexStep extends AsyncActionStep {
             OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
             getClient().admin().indices()
                 .open(request,
-                    ActionListener.wrap(closeIndexResponse -> listener.onResponse(true), listener::onFailure));
+                    ActionListener.wrap(openIndexResponse-> {
+                        assert openIndexResponse.isAcknowledged() : "open Index response is not acknowledged";
+                        listener.onResponse(true);
+                    }, listener::onFailure));
 
         } else {
             listener.onResponse(true);

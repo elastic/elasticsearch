@@ -32,7 +32,7 @@ Engine::
 * Account trimAboveSeqNo in committed translog generation {pull}50205[#50205] (issue: {issue}49970[#49970])
 
 Features/ILM+SLM::
-* Handle failure to retrieve ILM policy step better {pull}49193[#49193] (issue: {issue}49128[#49128])
+* Handle failure to retrieve ILM policy step better {pull}49193[#49193] (issue: {pull}49128[#49128])
 
 Features/Java High Level REST Client::
 * Support es7 node http publish_address format {pull}49279[#49279] (issue: {issue}48950[#48950])

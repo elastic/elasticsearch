@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,7 +54,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
     @Before
     public void createStream() {
         loggingStream = new TestLoggingOutputStream();
-        printStream = new PrintStream(loggingStream);
+        printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8);
     }
 
     public void testEmptyLine() {

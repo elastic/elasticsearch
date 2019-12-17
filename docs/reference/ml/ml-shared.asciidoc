@@ -485,7 +485,7 @@ end::datafeed-id-wildcard[]
 
 tag::decompress-definition[]
 Specifies whether the included model definition should be returned as a JSON map (`true`) or 
-in a custom compressed format. Defaults to `true`.
+in a custom compressed format (`false`). Defaults to `true`.
 end::decompress-definition[]
 
 tag::delayed-data-check-config[]

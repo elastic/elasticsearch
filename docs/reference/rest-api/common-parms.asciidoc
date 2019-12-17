@@ -57,6 +57,42 @@ This parameter also applies to <<indices-aliases,index aliases>>
 that point to a missing or closed index.
 end::allow-no-indices[]
 
+tag::allow-no-match-transforms1[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {transforms} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `transforms` array when
+there are no matches and the subset of results when there are partial matches.
+
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+end::allow-no-match-transforms1[]
+
+tag::allow-no-match-transforms2[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {transforms} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns a successful acknowledgement message
+when there are no matches. When there are only partial matches, the API stops
+the appropriate {transforms}. For example, if the request contains
+`test-id1*,test-id2*` as the identifiers and there are no {transforms}
+that match `test-id2*`, the API nonetheless stops the {transforms}
+that match `test-id1*`.
+
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+end::allow-no-match-transforms2[]
+
 tag::analyzer[]
 `analyzer`::
 (Optional, string) Analyzer to use for the query string.
@@ -95,6 +131,18 @@ tag::default_operator[]
 (Optional, string) The default operator for query string query: AND or OR. 
 Defaults to `OR`.
 end::default_operator[]
+
+tag::dest[]
+The destination for the {transform}.
+end::dest[]
+
+tag::dest-index[]
+The _destination index_ for the {transform}.
+end::dest-index[]
+
+tag::dest-pipeline[]
+The unique identifier for a <<pipeline,pipeline>>.
+end::dest-pipeline[]
 
 tag::detailed[]
 `detailed`::
@@ -202,10 +250,21 @@ https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
 
+tag::frequency[]
+The interval between checks for changes in the source indices when the
+{transform} is running continuously. Also determines the retry interval in the
+event of transient failures while the {transform} is searching or indexing. The
+minimum value is `1s` and the maximum is `1h`. The default value is `1m`.
+end::frequency[]
+
 tag::from[]
 `from`::
 (Optional, integer) Starting document offset. Defaults to `0`.
 end::from[]
+
+tag::from-transforms[]
+Skips the specified number of {transforms}. The default value is `0`.
+end::from-transforms[]
 
 tag::generation[]
 Generation number, such as `0`. {es} increments this generation number
@@ -484,6 +543,12 @@ or use a value of `-1`.
 --
 end::parent-task-id[]
 
+tag::payloads[]
+`payloads`::
+(Optional, boolean) If `true`, the response includes term payloads.
+Defaults to `true`.
+end::payloads[]
+
 tag::pipeline[]
 `pipeline`::
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
@@ -495,11 +560,52 @@ tag::path-pipeline[]
 used to limit the request.
 end::path-pipeline[]
 
-tag::payloads[]
-`payloads`::
-(Optional, boolean) If `true`, the response includes term payloads.
-Defaults to `true`.
-end::payloads[]
+tag::pivot[]
+The method for transforming the data. These objects define the pivot function
+`group by` fields and the aggregation to reduce the data.
+end::pivot[]
+
+tag::pivot-aggs[]
+Defines how to aggregate the grouped data. The following composite aggregations
+are supported:
++
+--
+* <<search-aggregations-metrics-avg-aggregation,Average>>
+* <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
+* <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
+* <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
+* <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
+* <<search-aggregations-metrics-max-aggregation,Max>>
+* <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
+* <<search-aggregations-metrics-sum-aggregation,Sum>>
+* <<search-aggregations-metrics-valuecount-aggregation,Value count>>
+* <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
+* <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
+
+IMPORTANT: {transforms-cap} support a subset of the functionality in
+composite aggregations. See <<transform-limitations>>.
+
+--
+end::pivot-aggs[]
+
+tag::pivot-group-by[]
+Defines how to group the data. More than one grouping can be defined
+  per pivot. The following groupings are supported:
++
+--
+* <<_terms,Terms>>
+* <<_histogram,Histogram>>
+* <<_date_histogram,Date histogram>>
+--
+end::pivot-group-by[]
+
+tag::pivot-max-page-search-size[]
+Defines the initial page size to use for the composite aggregation for each
+checkpoint. If circuit breaker exceptions occur, the page size is dynamically
+adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+The default value is `500`.
+end::pivot-max-page-search-size[]
 
 tag::positions[]
 `positions`::
@@ -626,6 +732,11 @@ Configuration options for the target index.
 See <<index-modules-settings>>.
 end::target-index-settings[]
 
+tag::size-transforms[]
+Specifies the maximum number of {transforms} to obtain. The default value is
+`100`.
+end::size-transforms[]
+
 tag::slices[]
 `slices`::
 (Optional, integer) The number of slices this task should be divided into. 
@@ -655,6 +766,21 @@ tag::source_includes[]
 field.
 end::source_includes[]
 
+tag::source-transforms[]
+The source of the data for the {transform}. 
+end::source-transforms[]
+
+tag::source-index-transforms[]
+The _source indices_ for the {transform}. It can be a single index, an index
+pattern (for example, `"myindex*"`), or an array of indices (for example,
+`["index1", "index2"]`).
+end::source-index-transforms[]
+
+tag::source-query-transforms[]
+A query clause that retrieves a subset of data from the source index. See
+<<query-dsl>>.
+end::source-query-transforms[]
+
 tag::stats[]
 `stats`::
 (Optional, string) Specific `tag` of the request for logging and statistical
@@ -666,6 +792,24 @@ tag::stored_fields[]
 (Optional, boolean) If `true`, retrieves the document fields stored in the
 index rather than the document `_source`. Defaults to `false`.
 end::stored_fields[]
+
+tag::sync[]
+Defines the properties {transforms} require to run continuously.
+end::sync[]
+
+tag::sync-time[]
+Specifies that the {transform} uses a time field to synchronize the source and
+destination indices.
+end::sync-time[]
+
+tag::sync-time-field[]
+The date field that is used to identify new documents in the source.
+end::sync-time-field[]
+
+tag::sync-time-delay[]
+The time delay between the current time and the latest input data time. The
+default value is `60s`.
+end::sync-time-delay[]
 
 tag::target-index[]
 `<target-index>`::
@@ -719,6 +863,18 @@ expires, the request fails and returns an error. Defaults to `30s`.
 end::master-timeout[]
 
 end::timeoutparms[]
+
+tag::transform-id[]
+Identifier for the {transform}. This identifier can contain lowercase
+alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
+and end with alphanumeric characters.
+end::transform-id[]
+
+tag::transform-id-wildcard[]
+Identifier for the {transform}. It can be a {transform} identifier or a wildcard
+expression. If you do not specify one of these options, the API returns
+information for all {transforms}.
+end::transform-id-wildcard[]
 
 tag::type[]
 `<type>`::

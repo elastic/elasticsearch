@@ -33,7 +33,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.SIMPLE);
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
             .build();
@@ -44,7 +44,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.SIMPLE);
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "simple")
             .build();
@@ -57,7 +57,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.SIMPLE);
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
 
         Settings.Builder newBuilder = Settings.builder();
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "simple");

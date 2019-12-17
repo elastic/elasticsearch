@@ -110,9 +110,9 @@ public abstract class RemoteClusterAware {
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
-            SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            SimpleConnectionStrategy.INCLUDE_SERVER_NAME);
+            ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategy.INCLUDE_SERVER_NAME);
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 

@@ -110,7 +110,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
         "cluster.remote.",
-        "proxy",
+        "sniff.proxy",
         (ns, key) -> Setting.simpleString(
             key,
             new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF, s -> {

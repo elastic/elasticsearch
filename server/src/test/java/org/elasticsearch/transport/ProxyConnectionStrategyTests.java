@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class SimpleConnectionStrategyTests extends ESTestCase {
+public class ProxyConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
@@ -86,7 +86,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testSimpleStrategyWillOpenExpectedNumberOfConnectionsToAddresses() {
+    public void testProxyStrategyWillOpenExpectedNumberOfConnectionsToAddresses() {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT);
              MockTransportService transport2 = startTransport("node2", Version.CURRENT)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
@@ -99,7 +99,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses(address1, address2))) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
@@ -117,7 +117,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testSimpleStrategyWillOpenNewConnectionsOnDisconnect() throws Exception {
+    public void testProxyStrategyWillOpenNewConnectionsOnDisconnect() throws Exception {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT);
              MockTransportService transport2 = startTransport("node2", Version.CURRENT)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
@@ -130,7 +130,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses(address1, address2))) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
@@ -191,7 +191,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 });
                 int numOfConnections = 5;
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses(address1, address2))) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
@@ -225,7 +225,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses(address1))) {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -255,7 +255,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses(address1, address2))) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
@@ -275,7 +275,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testSimpleStrategyWillResolveAddressesEachConnect() throws Exception {
+    public void testProxyStrategyWillResolveAddressesEachConnect() throws Exception {
         try (MockTransportService transport1 = startTransport("seed_node", Version.CURRENT)) {
             TransportAddress address = transport1.boundAddress().publishAddress();
 
@@ -292,7 +292,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections,  addresses(address), Collections.singletonList(addressSupplier), false)) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
@@ -306,7 +306,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testSimpleStrategyWillNeedToBeRebuiltIfNumOfSocketsOrAddressesChange() {
+    public void testProxyStrategyWillNeedToBeRebuiltIfNumOfSocketsOrAddressesChange() {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT);
              MockTransportService transport2 = startTransport("node2", Version.CURRENT)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
@@ -319,7 +319,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses(address1, address2))) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
@@ -332,24 +332,24 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
 
                     Setting<?> modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE
                         .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> addressesSetting = SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES
+                    Setting<?> addressesSetting = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES
                         .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> socketConnections = SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS
+                    Setting<?> socketConnections = ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS
                         .getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
-                        .put(modeSetting.getKey(), "simple")
+                        .put(modeSetting.getKey(), "proxy")
                         .put(addressesSetting.getKey(), Strings.arrayToCommaDelimitedString(addresses(address1, address2).toArray()))
                         .put(socketConnections.getKey(), numOfConnections)
                         .build();
                     assertFalse(strategy.shouldRebuildConnection(noChange));
                     Settings addressesChanged = Settings.builder()
-                        .put(modeSetting.getKey(), "simple")
+                        .put(modeSetting.getKey(), "proxy")
                         .put(addressesSetting.getKey(), Strings.arrayToCommaDelimitedString(addresses(address1).toArray()))
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(addressesChanged));
                     Settings socketsChanged = Settings.builder()
-                        .put(modeSetting.getKey(), "simple")
+                        .put(modeSetting.getKey(), "proxy")
                         .put(addressesSetting.getKey(), Strings.arrayToCommaDelimitedString(addresses(address1, address2).toArray()))
                         .put(socketConnections.getKey(), numOfConnections + 1)
                         .build();
@@ -361,8 +361,8 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
 
     public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
         List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
-            new Tuple<>(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES, "192.168.0.1:8080"),
-            new Tuple<>(SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3"));
+            new Tuple<>(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES, "192.168.0.1:8080"),
+            new Tuple<>(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3"));
 
         RemoteConnectionStrategy.ConnectionStrategy sniff = RemoteConnectionStrategy.ConnectionStrategy.SNIFF;
 
@@ -384,7 +384,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
             String expected = "Setting \"" + concreteSetting.getKey() + "\" cannot be used with the configured " +
-                "\"cluster.remote.cluster_name.mode\" [required=SIMPLE, configured=SNIFF]";
+                "\"cluster.remote.cluster_name.mode\" [required=PROXY, configured=SNIFF]";
             assertEquals(expected, iae.getMessage());
         }
     }
@@ -404,7 +404,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
                          numOfConnections, addresses, true)) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
 

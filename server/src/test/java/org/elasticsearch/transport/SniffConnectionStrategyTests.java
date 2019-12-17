@@ -655,7 +655,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD, "192.168.0.1:8080"),
             new Tuple<>(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS, "2"));
 
-        RemoteConnectionStrategy.ConnectionStrategy simple = RemoteConnectionStrategy.ConnectionStrategy.SIMPLE;
+        RemoteConnectionStrategy.ConnectionStrategy simple = RemoteConnectionStrategy.ConnectionStrategy.PROXY;
 
         String clusterName = "cluster_name";
         Settings settings = Settings.builder()

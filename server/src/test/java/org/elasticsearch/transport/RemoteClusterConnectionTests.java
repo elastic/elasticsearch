@@ -356,7 +356,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             modeInfo1 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 4);
             modeInfo2 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 3);
         } else {
-            modeInfo1 = new SimpleConnectionStrategy.SimpleModeInfo(remoteAddresses, 18, 18);
+            modeInfo1 = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses, 18, 18);
             modeInfo2 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 18, 17);
         }
 
@@ -404,7 +404,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         if (sniff) {
             modeInfo = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 3, 2);
         } else {
-            modeInfo = new SimpleConnectionStrategy.SimpleModeInfo(remoteAddresses, 18, 16);
+            modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses, 18, 16);
         }
 
         RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo, TimeValue.timeValueMinutes(30), true);
@@ -419,7 +419,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"initial_connect_timeout\":\"30m\"," +
                 "\"skip_unavailable\":true}}", Strings.toString(builder));
         } else {
-            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"simple\",\"addresses\":[\"seed:1\",\"seed:2\"]," +
+            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"proxy\",\"addresses\":[\"seed:1\",\"seed:2\"]," +
                 "\"num_sockets_connected\":16,\"max_socket_connections\":18,\"initial_connect_timeout\":\"30m\"," +
                 "\"skip_unavailable\":true}}", Strings.toString(builder));
         }
@@ -611,17 +611,17 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     private Settings buildRandomSettings(String clusterAlias, List<String> addresses) {
         if (randomBoolean()) {
-            return buildSimpleSettings(clusterAlias, addresses);
+            return buildProxySettings(clusterAlias, addresses);
         } else {
             return buildSniffSettings(clusterAlias, addresses);
         }
     }
 
-    private static Settings buildSimpleSettings(String clusterAlias, List<String> addresses) {
+    private static Settings buildProxySettings(String clusterAlias, List<String> addresses) {
         Settings.Builder builder = Settings.builder();
-        builder.put(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).getKey(),
+        builder.put(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).getKey(),
             Strings.collectionToCommaDelimitedString(addresses));
-        builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "simple");
+        builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "proxy");
         return builder.build();
     }
 

@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference]]
-=== Get trained model API
+=== Get {infer} trained model API
 [subs="attributes"]
 ++++
-<titleabbrev>Get trained model</titleabbrev>
+<titleabbrev>Get {infer} trained model</titleabbrev>
 ++++
 
 Retrieves configuration information for a trained {infer} model.
@@ -74,6 +74,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
 [[ml-get-inference-response-codes]]
 ==== {api-response-codes-title}
+
+`400`::
+  If `include_model_definition` is `true`, this code indicates that more than 
+  one models match the ID pattern.
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no

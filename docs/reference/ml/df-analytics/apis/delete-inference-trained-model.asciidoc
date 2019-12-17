@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-inference]]
-=== Delete trained model API
+=== Delete {infer} trained model API
 [subs="attributes"]
 ++++
-<titleabbrev>Delete trained model</titleabbrev>
+<titleabbrev>Delete {infer} trained model</titleabbrev>
 ++++
 
 Deletes an existing trained {infer} model that is currently not referenced by an 
@@ -32,6 +32,14 @@ information, see <<security-privileges>> and <<built-in-roles>>.
 `<model_id>`::
 (Optional, string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
+
+
+[ml-delete-inference-response-codes]]
+==== {api-response-codes-title}
+
+`409`::
+  The code indicates that the trained {infer} model is referenced by an ingest 
+  pipeline and cannot be deleted.
 
 
 [[ml-delete-inference-example]]

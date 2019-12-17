@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference-stats]]
-=== Get trained model statistics API
+=== Get {infer} trained model statistics API
 [subs="attributes"]
 ++++
-<titleabbrev>Get trained model stats</titleabbrev>
+<titleabbrev>Get {infer} trained model stats</titleabbrev>
 ++++
 
 Retrieves usage information for trained {infer} models.

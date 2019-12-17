@@ -119,7 +119,7 @@ API key information.
 <3> generated API key
 
 The API key returned by this API can then be used by sending a request with a
-`Authorization` header with a value having the prefix `ApiKey ` followed
+`Authorization` header with a value having the prefix `ApiKey` followed
 by the _credentials_, where _credentials_ is the base64 encoding of `id` and `api_key` joined by a colon.
 
 [source,shell]

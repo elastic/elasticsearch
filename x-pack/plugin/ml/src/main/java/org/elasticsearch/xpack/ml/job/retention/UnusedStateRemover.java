@@ -16,14 +16,19 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
+import org.elasticsearch.xpack.ml.utils.persistence.DocIdBatchedDocumentIterator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,6 +98,13 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private Set<String> getJobIds() {
         Set<String> jobIds = new HashSet<>();
+        jobIds.addAll(getAnamalyDetectionJobIds());
+        jobIds.addAll(getDataFrameAnalyticsJobIds());
+        return jobIds;
+    }
+
+    private Set<String> getAnamalyDetectionJobIds() {
+        Set<String> jobIds = new HashSet<>();
 
         // TODO Once at 8.0, we can stop searching for jobs in cluster state
         // and remove cluster service as a member all together.
@@ -102,6 +114,18 @@ public class UnusedStateRemover implements MlDataRemover {
         while (jobsIterator.hasNext()) {
             Deque<Job.Builder> jobs = jobsIterator.next();
             jobs.stream().map(Job.Builder::getId).forEach(jobIds::add);
+        }
+        return jobIds;
+    }
+
+    private Set<String> getDataFrameAnalyticsJobIds() {
+        Set<String> jobIds = new HashSet<>();
+
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, AnomalyDetectorsIndex.configIndexName(),
+            QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE));
+        while (iterator.hasNext()) {
+            Deque<String> docIds = iterator.next();
+            docIds.stream().map(DataFrameAnalyticsConfig::extractJobIdFromDocId).filter(Objects::nonNull).forEach(jobIds::add);
         }
         return jobIds;
     }
@@ -137,7 +161,13 @@ public class UnusedStateRemover implements MlDataRemover {
     private static class JobIdExtractor {
 
         private static List<Function<String, String>> extractors = Arrays.asList(
-            ModelState::extractJobId, Quantiles::extractJobId, CategorizerState::extractJobId);
+            ModelState::extractJobId,
+            Quantiles::extractJobId,
+            CategorizerState::extractJobId,
+            Classification::extractJobIdFromStateDoc,
+            Regression::extractJobIdFromStateDoc,
+            StoredProgress::extractJobIdFromDocId
+        );
 
         private static String extractJobId(String docId) {
             String jobId;

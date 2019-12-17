@@ -78,7 +78,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         String nodeId = nodeMetaData.nodeId();
-        return new LucenePersistedStateFactory(dataPaths, nodeId, true, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE);
+        return new LucenePersistedStateFactory(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE, true);
     }
 
     public static ClusterState clusterState(Environment environment, LucenePersistedStateFactory.OnDiskState onDiskState) {

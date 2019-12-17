@@ -123,21 +123,21 @@ public class LucenePersistedStateFactory {
 
     private final Path[] dataPaths;
     private final String nodeId;
-    private final boolean preserveUnknownCustoms;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
+    private final boolean preserveUnknownCustoms;
 
     public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
-        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays);
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, false);
     }
 
-    public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, boolean preserveUnknownCustoms,
-                                       NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
+    public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
+                                       boolean preserveUnknownCustoms) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
-        this.preserveUnknownCustoms = preserveUnknownCustoms;
         this.namedXContentRegistry = namedXContentRegistry;
         this.bigArrays = bigArrays;
+        this.preserveUnknownCustoms = preserveUnknownCustoms;
     }
 
     public String getNodeId() {

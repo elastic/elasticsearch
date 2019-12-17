@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -36,6 +38,8 @@ import java.util.function.Supplier;
 
 public class TransportDeleteExpiredDataAction extends HandledTransportAction<DeleteExpiredDataAction.Request,
         DeleteExpiredDataAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteExpiredDataAction.class);
 
     // TODO: make configurable in the request
     static final Duration MAX_DURATION = Duration.ofHours(8);

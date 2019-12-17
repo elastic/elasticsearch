@@ -110,6 +110,11 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         assertThat(regression.getStateDocId(randomId), equalTo(randomId + "_regression_state#1"));
     }
 
+    public void testExtractJobIdFromStateDoc() {
+        assertThat(Regression.extractJobIdFromStateDoc("foo_bar-1_regression_state#1"), equalTo("foo_bar-1"));
+        assertThat(Regression.extractJobIdFromStateDoc("noop"), is(nullValue()));
+    }
+
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {
         Regression regression = createRandom();
         assertThat(regression.getRandomizeSeed(), is(notNullValue()));

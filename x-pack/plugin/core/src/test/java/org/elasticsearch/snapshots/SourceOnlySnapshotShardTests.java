@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -352,8 +353,12 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     private Repository createRepository() {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(),
-            BlobStoreTestUtil.mockClusterService(repositoryMetaData));
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetaData);
+        final Repository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(), clusterService);
+        clusterService.addStateApplier(e -> repository.updateState(e.state()));
+        // Apply state once to initialize repo properly like RepositoriesService would
+        repository.updateState(clusterService.state());
+        return repository;
     }
 
     private static void runAsSnapshot(ThreadPool pool, Runnable runnable) {

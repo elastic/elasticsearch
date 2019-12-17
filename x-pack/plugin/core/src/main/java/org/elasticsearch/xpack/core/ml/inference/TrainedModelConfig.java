@@ -138,7 +138,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
         }
         this.estimatedOperations = estimatedOperations;
-        this.licenseLevel = License.OperationMode.resolve(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
+        this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -153,7 +153,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         input = new TrainedModelInput(in);
         estimatedHeapMemory = in.readVLong();
         estimatedOperations = in.readVLong();
-        licenseLevel = License.OperationMode.resolve(in.readString());
+        licenseLevel = License.OperationMode.parse(in.readString());
     }
 
     public String getModelId() {

@@ -86,7 +86,7 @@ public class GatewayMetaState implements Closeable {
                 long lastAcceptedVersion = onDiskState.lastAcceptedVersion;
                 long currentTerm = onDiskState.currentTerm;
 
-                if (onDiskState.empty() == false) {
+                if (onDiskState.empty()) {
                     assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 :
                         "legacy metadata loader is not needed anymore from v9 onwards";
                     final Tuple<Manifest, MetaData> legacyState = metaStateService.loadFullState();

@@ -1,19 +1,12 @@
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.CLD3WordEmbedding;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LanguageExamples;
 
-import java.io.UnsupportedEncodingException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.IntStream;
-
-import static org.elasticsearch.xpack.core.ml.inference.preprocessing.CLD3WordEmbedding.MAX_STRING_SIZE_IN_BYTES;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RelevantScriptFeatureExtractorTests extends ESTestCase {

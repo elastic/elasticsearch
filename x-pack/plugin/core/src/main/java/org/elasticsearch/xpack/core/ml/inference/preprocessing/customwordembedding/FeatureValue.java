@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 /**
  * Extracted feature values from the text

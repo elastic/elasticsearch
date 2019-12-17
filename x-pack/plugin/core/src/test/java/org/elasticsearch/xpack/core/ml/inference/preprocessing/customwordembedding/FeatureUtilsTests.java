@@ -3,10 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.CLD3WordEmbedding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
 
 import java.io.UnsupportedEncodingException;
 
@@ -57,7 +57,7 @@ public class FeatureUtilsTests extends ESTestCase {
             "对于要提交的图书 我确认 我是版权所有者或已得到版权所有者的授权 " +
             "要更改您的国家 地区 请在此表的最上端更改您的";
 
-        String text = FeatureUtils.truncateToNumValidBytes(strZH, CLD3WordEmbedding.MAX_STRING_SIZE_IN_BYTES);
+        String text = FeatureUtils.truncateToNumValidBytes(strZH, CustomWordEmbedding.MAX_STRING_SIZE_IN_BYTES);
         assertEquals(strZH.length(), text.length());
     }
 

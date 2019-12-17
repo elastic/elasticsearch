@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.CLD3WordEmbedding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
@@ -50,8 +50,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             TargetMeanEncoding::fromXContentLenient));
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, FrequencyEncoding.NAME,
             FrequencyEncoding::fromXContentLenient));
-        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, CLD3WordEmbedding.NAME,
-            CLD3WordEmbedding::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, CustomWordEmbedding.NAME,
+            CustomWordEmbedding::fromXContentLenient));
 
         // PreProcessing Strict
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, OneHotEncoding.NAME,
@@ -60,8 +60,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             TargetMeanEncoding::fromXContentStrict));
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, FrequencyEncoding.NAME,
             FrequencyEncoding::fromXContentStrict));
-        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, CLD3WordEmbedding.NAME,
-            CLD3WordEmbedding::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, CustomWordEmbedding.NAME,
+            CustomWordEmbedding::fromXContentStrict));
 
         // Model Lenient
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class, Tree.NAME, Tree::fromXContentLenient));
@@ -112,8 +112,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             TargetMeanEncoding::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(PreProcessor.class, FrequencyEncoding.NAME.getPreferredName(),
             FrequencyEncoding::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(PreProcessor.class, CLD3WordEmbedding.NAME.getPreferredName(),
-            CLD3WordEmbedding::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(PreProcessor.class, CustomWordEmbedding.NAME.getPreferredName(),
+            CustomWordEmbedding::new));
 
         // Model
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new));

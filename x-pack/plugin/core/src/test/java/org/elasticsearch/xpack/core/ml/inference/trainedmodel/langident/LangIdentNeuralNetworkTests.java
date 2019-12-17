@@ -63,14 +63,4 @@ public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<Lan
         return new NamedXContentRegistry(namedXContent);
     }
 
-    public void testSomething() {
-
-        for (int i = 0; i < LanguageExamples.goldLangText.length; i++) {
-            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
-            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
-            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
-            System.out.println("\""+ LanguageExamples.goldLangText[i][0] +"\", ");
-        }
-
-    }
 }

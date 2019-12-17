@@ -5,14 +5,11 @@
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 import org.apache.lucene.util.Counter;
 
-import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class ScriptFeatureExtractor implements FeatureExtractor {
 

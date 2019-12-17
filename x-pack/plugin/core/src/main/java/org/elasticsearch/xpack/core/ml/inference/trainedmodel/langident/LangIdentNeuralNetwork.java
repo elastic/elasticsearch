@@ -2,6 +2,7 @@
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
+ * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
@@ -35,9 +36,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
 
-/**
- * TODO add links back
- */
 public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, LenientlyParsedTrainedModel {
 
     public static final ParseField NAME = new ParseField("lang_ident_neural_network");
@@ -60,6 +58,8 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         "sn", "yo", "pa", "ku");
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LangIdentNeuralNetwork.class);
+
+    private static final int EMBEDDING_VECTOR_LENGTH = 80;
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<LangIdentNeuralNetwork, Void> createParser(boolean lenient) {
@@ -122,9 +122,13 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
                 NAME.getPreferredName(),
                 embeddedVectorFeatureName);
         }
-        // TODO add length checks?
         double[] embeddedVector = (double[]) vector;
-
+        if (embeddedVector.length != EMBEDDING_VECTOR_LENGTH) {
+            throw ExceptionsHelper.badRequestException("[{}] model is expecting embedding vector of length [{}] but got [{}]",
+                NAME.getPreferredName(),
+                EMBEDDING_VECTOR_LENGTH,
+                embeddedVector.length);
+        }
         double[] h0 = hiddenLayer.productPlusBias(false, embeddedVector);
         double[] scores = softmaxLayer.productPlusBias(true, h0);
 

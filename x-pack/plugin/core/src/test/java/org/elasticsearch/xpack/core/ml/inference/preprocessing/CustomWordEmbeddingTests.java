@@ -7,29 +7,23 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.ContinuousFeatureValue;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.FeatureValue;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.ScriptDetector;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-
-import static org.hamcrest.Matchers.instanceOf;
 
 
-public class CLD3WordEmbeddingTests extends PreProcessingTests<CLD3WordEmbedding> {
+public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbedding> {
 
     @Override
-    protected CLD3WordEmbedding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? CLD3WordEmbedding.fromXContentLenient(parser) : CLD3WordEmbedding.fromXContentStrict(parser);
+    protected CustomWordEmbedding doParseInstance(XContentParser parser) throws IOException {
+        return lenient ? CustomWordEmbedding.fromXContentLenient(parser) : CustomWordEmbedding.fromXContentStrict(parser);
     }
 
     @Override
-    protected CLD3WordEmbedding createTestInstance() {
+    protected CustomWordEmbedding createTestInstance() {
         return createRandom();
     }
 
-    public static CLD3WordEmbedding createRandom() {
+    public static CustomWordEmbedding createRandom() {
         int quantileSize = randomIntBetween(1, 10);
         int internalQuantSize = randomIntBetween(1, 10);
         short[][] quantiles = new short[quantileSize][internalQuantSize];
@@ -46,12 +40,12 @@ public class CLD3WordEmbeddingTests extends PreProcessingTests<CLD3WordEmbedding
                 weights[i][j] = randomInt((int)Character.MAX_VALUE);
             }
         }
-        return new CLD3WordEmbedding(quantiles, weights, randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return new CustomWordEmbedding(quantiles, weights, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     @Override
-    protected Writeable.Reader<CLD3WordEmbedding> instanceReader() {
-        return CLD3WordEmbedding::new;
+    protected Writeable.Reader<CustomWordEmbedding> instanceReader() {
+        return CustomWordEmbedding::new;
     }
 
 }

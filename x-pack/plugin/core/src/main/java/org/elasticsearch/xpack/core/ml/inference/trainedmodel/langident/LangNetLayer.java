@@ -2,6 +2,7 @@
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
+ * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
@@ -90,10 +91,8 @@ public class LangNetLayer implements ToXContentObject, Writeable, Accountable {
     }
 
     double[] productPlusBias(boolean applyRelu, double[] x) {
-        // Initialise y with b
         double[] y = Arrays.copyOf(bias, bias.length);
 
-        // TODO - some loss in precision here compared to C++ - investigate further
         for (int i = 0; i < x.length; ++i) {
             double scale = x[i];
             if (applyRelu) {

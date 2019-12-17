@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -32,7 +32,7 @@ public final class FeatureUtils {
     }
 
     // Return truncated byte length of UTF8 string (truncating without splitting UTF8)
-    // TODO - we can probably do this with Java codepoints
+    // TODO - can we do this with java code points?
     public static int validUTF8Length(String input, int maxLength) {
         int resultLen = 0;
         for (int i = 0; i < input.length(); i++) {
@@ -62,8 +62,6 @@ public final class FeatureUtils {
     // Clean up text and lowercase it
 
     /**
-     * simplified logic
-     *
      * NOTE: This does not do any string compression by removing duplicate tokens
      */
     public static String cleanAndLowerText(String text) {

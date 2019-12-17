@@ -2,9 +2,10 @@
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
+ * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 public enum ULScript {
     ULScript_Common(0),//Zyyy

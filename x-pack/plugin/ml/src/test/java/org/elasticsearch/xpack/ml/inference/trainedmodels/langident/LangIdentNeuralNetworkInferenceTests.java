@@ -5,12 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.inference.trainedmodels.langident;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -21,46 +17,27 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LanguageExamples;
 
-import java.net.URL;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.equalTo;
 
 
 public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
 
     public void testLangInference() throws Exception {
-        String path = "/org/elasticsearch/xpack/ml/inference/persistence/lang_ident_model_1.json";
-        URL resource = getClass().getResource(path);
-        if (resource == null) {
-            throw new ElasticsearchException(
-                "Unable to find resource in path [/org/elasticsearch/xpack/ml/inference/persistence/lang_ident_model_1.json]");
-        }
-        BytesReference bytes = Streams.readFully(getClass().getResourceAsStream(path));
-        TrainedModelConfig config;
-        try (XContentParser parser =
-                 XContentHelper.createParser(xContentRegistry(),
-                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                     bytes,
-                     XContentType.JSON)) {
-            config = TrainedModelConfig.fromXContent(parser, true).build();
-            config.ensureParsedDefinition(xContentRegistry());
-        } catch (Exception ex) {
-            fail(ex.getMessage());
-            return;
-        }
+        TrainedModelConfig config = getLangIdentModel();
 
         TrainedModelDefinition trainedModelDefinition = config.getModelDefinition();
+        List<LanguageExamples.LanguageExampleEntry> examples = new LanguageExamples().getLanguageExamples();
 
-        for (int i = 0; i < LanguageExamples.goldLangText.length; ++i) {
-            String text = LanguageExamples.goldLangText[i][1];
+        for (LanguageExamples.LanguageExampleEntry entry : examples) {
+            String text = entry.getText();
 
-            String cld3Expected = LanguageExamples.goldLangResults[i][0];
-            String cld3Actual = LanguageExamples.goldLangResults[i][1];
-            String cld3ProbabilityStr = LanguageExamples.goldLangResults[i][2];
-
-            float cld3Probability = Float.parseFloat(cld3ProbabilityStr);
+            String cld3Expected = entry.getLanguage();// LanguageExamples.goldLangResults[i][0];
+            String cld3Actual = entry.getPredictedLanguage(); //.goldLangResults[i][1];
+            double cld3Probability = entry.getProbability();//.goldLangResults[i][2];
 
             Map<String, Object> inferenceFields = new HashMap<>();
             inferenceFields.put("text", text);
@@ -73,6 +50,21 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             assertEquals(cld3Expected,
                 cld3Probability,
                 singleValueInferenceResults.getTopClasses().get(0).getProbability(), 0.01);
+        }
+    }
+
+
+
+    private TrainedModelConfig getLangIdentModel() throws IOException {
+        String path = "/org/elasticsearch/xpack/ml/inference/persistence/lang_ident_model_1.json";
+        try(XContentParser parser =
+                XContentType.JSON.xContent().createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    Files.newInputStream(getDataPath(path))) ) {
+            TrainedModelConfig config = TrainedModelConfig.fromXContent(parser, true).build();
+            config.ensureParsedDefinition(xContentRegistry());
+            return config;
         }
     }
 

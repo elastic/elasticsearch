@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 import java.util.Map;
 import java.util.TreeMap;

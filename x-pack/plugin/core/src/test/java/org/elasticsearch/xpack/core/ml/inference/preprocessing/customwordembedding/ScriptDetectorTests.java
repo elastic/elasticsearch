@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
+package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -70,10 +70,12 @@ public class ScriptDetectorTests extends ESTestCase {
         assertThat(ScriptDetector.Script.fromCodePoint("ヸ".codePointAt(0)), is(ScriptDetector.Script.kScriptKatakana));
     }
 
-    public void testOtherScripts() {
+    public void testOtherOneByte() {
         assertThat(ScriptDetector.Script.fromCodePoint("^".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8OneByte));
         assertThat(ScriptDetector.Script.fromCodePoint("$".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8OneByte));
+    }
 
+    public void testOtherTwoBytes() {
         // Unrecognized 2-byte scripts.  For info on the scripts mentioned below, see
         // http://www.unicode.org/charts/#scripts Note: the scripts below are uniquely
         // associated with a language.  Still, the number of queries in those
@@ -84,21 +86,21 @@ public class ScriptDetectorTests extends ESTestCase {
         assertThat(ScriptDetector.Script.fromCodePoint("Ձ".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
         assertThat(ScriptDetector.Script.fromCodePoint("ܔ".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
         assertThat(ScriptDetector.Script.fromCodePoint("ށ".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8TwoBytes));
+    }
 
+    public void testOtherThreeBytes() {
         // Unrecognized 3-byte script: CJK Unified Ideographs: not uniquely associated
         // with a language.
         assertThat(ScriptDetector.Script.fromCodePoint("万".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
         assertThat(ScriptDetector.Script.fromCodePoint("両".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
+    }
 
-        // TODO - investigate these
-        /*
+    public void testOtherFourBytes() {
         // Unrecognized 4-byte script: CJK Unified Ideographs Extension C.  Note:
-        // there is a nice UTF-8 encoder / decoder at https://mothereff.in/utf-8
-        assertFalse(ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.Script.fromCodePoint("\u00F0\u00AA\u009C\u0094".codePointAt(0)));
+        assertThat(ScriptDetector.Script.fromCodePoint("𪩘".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8FourBytes));
 
         // Unrecognized 4-byte script: CJK Unified Ideographs Extension E
-        assertFalse(ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.Script.fromCodePoint("\u00F0\u00AB\u00A0\u00B5".codePointAt(0)) ||
-            ScriptDetector.Script.kScriptOtherUtf8FourBytes != ScriptDetector.Script.fromCodePoint("\u00F0\u00AC\u00BA\u00A1".codePointAt(0)));
-            */
+        assertThat(ScriptDetector.Script.fromCodePoint("𫢸".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8FourBytes));
+        assertThat(ScriptDetector.Script.fromCodePoint("𫫇".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8FourBytes));
     }
 }

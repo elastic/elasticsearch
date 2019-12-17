@@ -31,29 +31,22 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
 
         TrainedModelDefinition trainedModelDefinition = config.getModelDefinition();
         List<LanguageExamples.LanguageExampleEntry> examples = new LanguageExamples().getLanguageExamples();
+        ClassificationConfig classificationConfig = new ClassificationConfig(1);
 
         for (LanguageExamples.LanguageExampleEntry entry : examples) {
             String text = entry.getText();
-
-            String cld3Expected = entry.getLanguage();// LanguageExamples.goldLangResults[i][0];
-            String cld3Actual = entry.getPredictedLanguage(); //.goldLangResults[i][1];
-            double cld3Probability = entry.getProbability();//.goldLangResults[i][2];
+            String cld3Actual = entry.getPredictedLanguage();
+            double cld3Probability = entry.getProbability();
 
             Map<String, Object> inferenceFields = new HashMap<>();
             inferenceFields.put("text", text);
             ClassificationInferenceResults singleValueInferenceResults =
-                (ClassificationInferenceResults) trainedModelDefinition.infer(inferenceFields, new ClassificationConfig(5));
+                (ClassificationInferenceResults) trainedModelDefinition.infer(inferenceFields, classificationConfig);
 
-            assertEquals(text + ":" + singleValueInferenceResults.valueAsString(),
-                cld3Actual,
-                singleValueInferenceResults.valueAsString());
-            assertEquals(cld3Expected,
-                cld3Probability,
-                singleValueInferenceResults.getTopClasses().get(0).getProbability(), 0.01);
+            assertEquals(cld3Actual, singleValueInferenceResults.valueAsString());
+            assertEquals(cld3Probability, singleValueInferenceResults.getTopClasses().get(0).getProbability(), 0.01);
         }
     }
-
-
 
     private TrainedModelConfig getLangIdentModel() throws IOException {
         String path = "/org/elasticsearch/xpack/ml/inference/persistence/lang_ident_model_1.json";
@@ -61,7 +54,7 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
                 XContentType.JSON.xContent().createParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    Files.newInputStream(getDataPath(path))) ) {
+                    Files.newInputStream(getDataPath(path)))) {
             TrainedModelConfig config = TrainedModelConfig.fromXContent(parser, true).build();
             config.ensureParsedDefinition(xContentRegistry());
             return config;

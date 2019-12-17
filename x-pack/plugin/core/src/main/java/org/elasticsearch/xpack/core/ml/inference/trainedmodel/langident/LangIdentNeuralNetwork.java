@@ -147,7 +147,8 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
             classificationConfig.getNumTopClasses());
         return new ClassificationInferenceResults(maxIndex,
             LANGUAGE_NAMES.get(maxIndex),
-            topClasses);
+            topClasses,
+            classificationConfig);
     }
 
     @Override

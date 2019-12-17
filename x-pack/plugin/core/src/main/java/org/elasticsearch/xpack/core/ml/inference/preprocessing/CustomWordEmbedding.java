@@ -175,7 +175,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
             for (FeatureValue featureValue : featureVector) {
                 // Multiplier for each embedding weight.
                 int row = featureValue.getRow();
-                double multiplier = featureValue.getWeight() * shortToFloat(quants[row]);
+                double multiplier = featureValue.getWeight() * shortToDouble(quants[row]);
 
                 // Iterate across columns for this row
                 for (int i = 0; i < embeddingDim; ++i) {
@@ -191,11 +191,18 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         return concat;
     }
 
-    private static float shortToFloat(short s) {
-        // We fill in the new mantissa bits with 0, and don't do anything smarter.
-        // TODO java internals may be different
-        int i = (s << 16);
-        return Float.intBitsToFloat(i);
+    /**
+     * Internal logic to CLD3. The quantiles are stored as "compact float16" values.
+     * These values are stored as `unsigned int16` in C++, best represented by a `short` Java
+     * To "expand" these to a regular float, the mantissa bytes are filled with 0, a la a bit shift of 16
+     * The memory is then statically cast to a float with the shift.
+     *
+     * The following satisfies this in java
+     * @param s Represents a "compact float16", i.e. unsigned int16
+     * @return Float representation with the short shifted over to zero out the underlying mantissa bytes
+     */
+    private static double shortToDouble(short s) {
+        return Float.intBitsToFloat(s << 16);
     }
 
     private static int getRowMajorData(int[] data, int colDim, int row, int col) {

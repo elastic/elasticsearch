@@ -6,9 +6,6 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
-
-import java.io.UnsupportedEncodingException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -19,26 +16,26 @@ public class FeatureUtilsTests extends ESTestCase {
             // Truncate to UTF8 boundary (no cut)
             String strAZ = " a az qalıb breyn rinq intellektual oyunu üzrə yarışın zona mərhələləri " +
                 "keçirilib miq un qalıqlarının dənizdən çıxarılması davam edir məhəmməd " +
-                "peyğəmbərin karikaturalarını çap edən qəzetin baş redaktoru iş otağında " +
-                "ölüb";
+                "peyğəmbərin karikaturalarını";
 
-            int i = FeatureUtils.validUTF8Length(strAZ, 200);
-            assertEquals(200, i);
+            String truncated = FeatureUtils.truncateToNumValidBytes(strAZ, 200);
+            assertThat(truncated, equalTo(strAZ));
         }
         {
             // Truncate to UTF8 boundary (cuts)
             String strBE = " а друкаваць іх не было тэхнічна магчыма бліжэй за вільню тым самым часам " +
                 "нямецкае кіраўніцтва прапаноўвала апроч ўвядзення лацінкі яе";
 
-            int i = FeatureUtils.validUTF8Length(strBE, 200);
-            assertEquals(199, i);
+            String truncated = FeatureUtils.truncateToNumValidBytes(strBE, 200);
+            assertThat(truncated, equalTo(" а друкаваць іх не было тэхнічна магчыма бліжэй за вільню тым самым часам " +
+                "нямецкае кіраўніцтва прапаноўвала "));
         }
         {
             // Don't truncate
             String strAR = "احتيالية بيع أي حساب";
 
-            int i = FeatureUtils.validUTF8Length(strAR, 200);
-            assertEquals(37, i);
+            String truncated = FeatureUtils.truncateToNumValidBytes(strAR, 200);
+            assertThat(truncated, equalTo(strAR));
         }
         {
             // Truncate to UTF8 boundary (cuts)
@@ -46,19 +43,11 @@ public class FeatureUtilsTests extends ESTestCase {
                 "对于要提交的图书 我确认 我是版权所有者或已得到版权所有者的授权 " +
                 "要更改您的国家 地区 请在此表的最上端更改您的";
 
-            int i = FeatureUtils.validUTF8Length(strZH, 200);
-            assertEquals(198, i);
+            String truncated = FeatureUtils.truncateToNumValidBytes(strZH, 200);
+            assertThat(truncated, equalTo("产品的简报和公告 提交该申请后无法进行更改 请确认您的选择是正确的 " +
+                "对于要提交的图书 我确认 我是版权所有者或已得到版权所有者的授权 " +
+                "要更改"));
         }
-    }
-
-    public void testFindNumValidBytesToProcess() throws UnsupportedEncodingException {
-        // Testing mainly covered by testValidUTF8Length
-        String strZH = "产品的简报和公告 提交该申请后无法进行更改 请确认您的选择是正确的 " +
-            "对于要提交的图书 我确认 我是版权所有者或已得到版权所有者的授权 " +
-            "要更改您的国家 地区 请在此表的最上端更改您的";
-
-        String text = FeatureUtils.truncateToNumValidBytes(strZH, CustomWordEmbedding.MAX_STRING_SIZE_IN_BYTES);
-        assertEquals(strZH.length(), text.length());
     }
 
     public void testCleanText() {

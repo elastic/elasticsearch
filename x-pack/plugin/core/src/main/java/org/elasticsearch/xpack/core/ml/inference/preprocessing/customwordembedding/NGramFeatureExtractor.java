@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
+import org.apache.lucene.util.Counter;
+
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -44,9 +46,8 @@ public class NGramFeatureExtractor implements FeatureExtractor {
         // ^$ ^this$ ^text$ ^is$ ^written$ ^in$ ^english$ ^$"
         // nGramSize = 2
         // [{h$},{sh},{li},{gl},{in},{en},{^$},...]
-        Map<String, Integer> charNGrams = new TreeMap<>();
+        Map<String, Counter> charNGrams = new TreeMap<>();
 
-        //TODO use lucene tokenizer ?
         int countSum = 0;
         for (int start = 0; start <= (newText.toString().length()) - nGrams; ++start) {
             StringBuilder charNGram = new StringBuilder();
@@ -61,20 +62,19 @@ public class NGramFeatureExtractor implements FeatureExtractor {
             }
 
             if (index == nGrams) {
-                charNGrams.put(charNGram.toString(),
-                    charNGrams.getOrDefault(charNGram.toString(), 0) + 1);
+                charNGrams.computeIfAbsent(charNGram.toString(), ngram -> Counter.newCounter()).addAndGet(1);
                 ++countSum;
             }
         }
 
         FeatureValue[] results = new FeatureValue[charNGrams.size()];
         int index = 0;
-        for (Map.Entry<String, Integer> entry : charNGrams.entrySet()) {
+        for (Map.Entry<String, Counter> entry : charNGrams.entrySet()) {
             String key = entry.getKey();
-            int value = entry.getValue();
+            long value = entry.getValue().get();
 
             double weight = (double) value / (double) countSum;
-            int id = Integer.remainderUnsigned(hashing.hash(key), dimensionId);
+            int id = (int)(hashing.hash(key) % dimensionId);
 
             results[index++] = new ContinuousFeatureValue(id, weight);
         }

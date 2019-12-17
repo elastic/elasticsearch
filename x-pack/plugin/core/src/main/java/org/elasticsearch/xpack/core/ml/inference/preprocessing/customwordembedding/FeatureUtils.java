@@ -6,6 +6,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
@@ -17,51 +21,34 @@ public final class FeatureUtils {
     private FeatureUtils() {}
 
     /**
-     * Text cleaning pre-processors
+     * Truncates a string to the number of characters that fit in X bytes avoiding multi byte characters being cut in
+     * half at the cut off point. Also handles surrogate pairs where 2 characters in the string is actually one literal
+     * character.
+     *
+     * Based on: https://stackoverflow.com/a/35148974/1818849
+     *
      */
     public static String truncateToNumValidBytes(String text, int maxLength) {
-        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length < maxLength) {
+        if (text == null) {
+            return null;
+        }
+        byte[] sba = text.getBytes(StandardCharsets.UTF_8);
+        if (sba.length <= maxLength) {
             return text;
         }
-        // Truncate the input text if it is too long and find the span containing
-        // interchange-valid UTF8.
-        int numValidBytes = validUTF8Length(text, maxLength);
-
-        return new String(bytes, 0, numValidBytes, StandardCharsets.UTF_8);
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+        // Ensure truncation by having byte buffer = maxBytes
+        ByteBuffer bb = ByteBuffer.wrap(sba, 0, maxLength);
+        CharBuffer cb = CharBuffer.allocate(maxLength);
+        // Ignore an incomplete character
+        decoder.onMalformedInput(CodingErrorAction.IGNORE);
+        decoder.decode(bb, cb, true);
+        decoder.flush(cb);
+        return new String(cb.array(), 0, cb.position());
     }
-
-    // Return truncated byte length of UTF8 string (truncating without splitting UTF8)
-    // TODO - can we do this with java code points?
-    public static int validUTF8Length(String input, int maxLength) {
-        int resultLen = 0;
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
-            int charLen = 0;
-            if (c <= 0x7F) {
-                charLen = 1;
-            } else if (c <= 0x7FF) {
-                charLen = 2;
-            } else if (c <= 0xD7FF) {
-                charLen = 3;
-            } else if (c <= 0xDBFF) {
-                charLen = 4;
-            } else if (c <= 0xDFFF) {
-                charLen = 0;
-            } else if (c <= 0xFFFF) {
-                charLen = 3;
-            }
-            if (resultLen + charLen > maxLength) {
-                break;
-            }
-            resultLen += charLen;
-        }
-        return resultLen;
-    }
-
-    // Clean up text and lowercase it
 
     /**
+     * Cleanup text and lower-case it
      * NOTE: This does not do any string compression by removing duplicate tokens
      */
     public static String cleanAndLowerText(String text) {

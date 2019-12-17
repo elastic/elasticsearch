@@ -22,9 +22,9 @@ final class Hash32 {
         this(DEFAULT_SEED);
     }
 
-    public int hash(String input) {
+    public long hash(String input) {
         byte[] bytes = input.getBytes(StandardCharsets.UTF_8);
-        return hash32(bytes);
+        return Integer.toUnsignedLong(hash32(bytes));
     }
 
     /**
@@ -55,13 +55,13 @@ final class Hash32 {
 
         // Handle the last few bytes of the input array
         if (n == 3) {
-            h ^= byteAs32(data[i + 2]) << 16;
+            h ^= Byte.toUnsignedInt(data[i + 2]) << 16;
         }
         if (n >= 2) {
-            h ^= byteAs32(data[i + 1]) << 8;
+            h ^= Byte.toUnsignedInt(data[i + 1]) << 8;
         }
         if (n >= 1) {
-            h ^= byteAs32(data[i]);
+            h ^= Byte.toUnsignedInt(data[i]);
             h *= m;
         }
 
@@ -74,11 +74,10 @@ final class Hash32 {
     }
 
     private static int decodeFixed32(byte[] ptr, int offset) {
-        return byteAs32(ptr[offset]) | byteAs32(ptr[offset + 1]) << 8 | byteAs32(ptr[offset + 2]) << 16 | byteAs32(ptr[offset + 3]) << 24;
-    }
-
-    private static int byteAs32(byte c) {
-        return (c & 0xFF);
+        return Byte.toUnsignedInt(ptr[offset]) |
+            Byte.toUnsignedInt(ptr[offset + 1]) << 8 |
+            Byte.toUnsignedInt(ptr[offset + 2]) << 16 |
+            Byte.toUnsignedInt(ptr[offset + 3]) << 24;
     }
 
 }

@@ -175,13 +175,15 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
             TransformConfig updatedConfig = update.apply(config);
             sourceDestValidator.validate(
                 clusterState,
-                config.getSource().getIndex(),
-                config.getDestination().getIndex(),
+                updatedConfig.getSource().getIndex(),
+                updatedConfig.getDestination().getIndex(),
                 request.isDeferValidation() ? SourceDestValidator.NON_DEFERABLE_VALIDATIONS : SourceDestValidator.ALL_VALIDATIONS,
-                ActionListener.wrap(validationResponse -> {
-
-                    checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
-                }, listener::onFailure)
+                ActionListener.wrap(
+                    validationResponse -> {
+                        checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
+                    },
+                    listener::onFailure
+                )
             );
 
         }, listener::onFailure));

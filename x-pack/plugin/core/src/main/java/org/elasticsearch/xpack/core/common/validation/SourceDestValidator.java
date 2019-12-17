@@ -295,7 +295,7 @@ public final class SourceDestValidator {
 
         ActionListener<Context> validationListener = ActionListener.wrap(c -> {
             if (c.getValidationException() != null) {
-                listener.onFailure(context.getValidationException());
+                listener.onFailure(c.getValidationException());
             } else {
                 listener.onResponse(true);
             }

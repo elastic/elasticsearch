@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,9 +31,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
-    private static final String tokenUser1 = basicAuthHeaderValue("user1", new SecureString("x-pack-test-password".toCharArray()));
-    private static final String tokenUser2 = basicAuthHeaderValue("user2", new SecureString("x-pack-test-password".toCharArray()));
-
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.
      */
@@ -65,8 +63,8 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
     }
 
     private void testCase(String user, String other) throws Exception {
-        for (String indexName : new String[] {"index", "index-" + user}) {
-            Response submitResp = submitAsyncSearch(indexName, "foo:bar", user);
+       for (String indexName : new String[] {"index", "index-" + user}) {
+            Response submitResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
             assertOK(submitResp);
             String id = extractResponseId(submitResp);
             Response getResp = getAsyncSearch(id, user);
@@ -84,8 +82,8 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
             assertOK(delResp);
         }
         ResponseException exc = expectThrows(ResponseException.class,
-            () -> submitAsyncSearch("index-" + other, "*", user));
-        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            () -> submitAsyncSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(exc.getMessage(), containsString("unauthorized"));
     }
 
@@ -110,12 +108,23 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
     }
 
     static Response submitAsyncSearch(String indexName, String query, String user) throws IOException {
+        return submitAsyncSearch(indexName, query, TimeValue.MINUS_ONE, user);
+    }
+
+    static Response submitAsyncSearch(String indexName, String query, TimeValue waitForCompletion, String user) throws IOException {
         final Request request = new Request("GET", indexName + "/_async_search");
         setRunAsHeader(request, user);
         request.addParameter("q", query);
-        request.addParameter("wait_for_completion", "0ms");
+        request.addParameter("wait_for_completion", waitForCompletion.toString());
         // we do the cleanup explicitly
         request.addParameter("clean_on_completion", "false");
+        return client().performRequest(request);
+    }
+
+    static Response search(String indexName, String query, String user) throws IOException {
+        final Request request = new Request("GET", indexName + "/_search");
+        setRunAsHeader(request, user);
+        request.addParameter("q", query);
         return client().performRequest(request);
     }
 

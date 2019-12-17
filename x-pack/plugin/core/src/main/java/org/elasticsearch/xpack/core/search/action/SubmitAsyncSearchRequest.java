@@ -103,13 +103,14 @@ public class SubmitAsyncSearchRequest extends ActionRequest implements Composite
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = request.validate();
         if (request.scroll() != null) {
             addValidationError("scroll queries are not supported", validationException);
         }
         if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
         }
+
         return validationException;
     }
 

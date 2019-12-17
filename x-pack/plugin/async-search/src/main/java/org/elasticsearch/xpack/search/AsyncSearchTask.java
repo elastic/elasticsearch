@@ -65,11 +65,13 @@ class AsyncSearchTask extends SearchTask {
     }
 
     /**
-     * Perform the final reduce on the current {@link AsyncSearchResponse} if requested
-     * and return the result.
+     * Perform the final reduce on the current {@link AsyncSearchResponse} if <code>doFinalReduce</code>
+     * is set to true and return the result.
+     * Note that this function returns <code>null</code> until {@link Listener#onListShards}
+     * or {@link Listener#onFailure} is called on the search task.
      */
     AsyncSearchResponse getAsyncResponse(boolean doFinalReduce) {
-        return progressListener.response.get(doFinalReduce);
+        return progressListener.response != null ? progressListener.response.get(doFinalReduce) : null;
     }
 
     private class Listener extends SearchProgressActionListener {
@@ -81,12 +83,6 @@ class AsyncSearchTask extends SearchTask {
         private int lastFailures = 0;
 
         private volatile Response response;
-
-        Listener() {
-            final AsyncSearchResponse initial = new AsyncSearchResponse(searchId.getEncoded(),
-                new PartialSearchResponse(totalShards), version.get(), true);
-            this.response = new Response(initial, false);
-        }
 
         @Override
         public void onListShards(List<SearchShard> shards, boolean fetchPhase) {
@@ -134,15 +130,15 @@ class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onFailure(Exception exc) {
-            AsyncSearchResponse previous = response.get(true);
+            AsyncSearchResponse previous = response != null ? response.get(true) : null;
             response = new Response(new AsyncSearchResponse(searchId.getEncoded(),
-                newPartialResponse(previous, shardFailures.get()),
-                exc != null ? new ElasticsearchException(exc) : null, version.incrementAndGet(), false), false);
+                previous != null ? newPartialResponse(previous, shardFailures.get()) : null,
+                exc != null ? ElasticsearchException.guessRootCauses(exc)[0] : null, version.incrementAndGet(), false), false);
         }
 
         private PartialSearchResponse newPartialResponse(AsyncSearchResponse response, int numFailures) {
             PartialSearchResponse old = response.getPartialResponse();
-            return response.hasPartialResponse() ? new PartialSearchResponse(totalShards, old.getSuccessfulShards(), shardFailures.get(),
+            return response.hasPartialResponse() ? new PartialSearchResponse(totalShards, old.getSuccessfulShards(), numFailures,
                 old.getTotalHits(), old.getAggregations()) : null;
         }
     }

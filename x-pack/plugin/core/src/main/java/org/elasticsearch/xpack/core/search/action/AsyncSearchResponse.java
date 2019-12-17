@@ -160,7 +160,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Override
     public RestStatus status() {
         if (finalResponse == null && partialResponse == null) {
-            return NOT_MODIFIED;
+            return failure != null ? failure.status() : NOT_MODIFIED;
         } else if (finalResponse == null) {
             return failure != null ? failure.status() : PARTIAL_CONTENT;
         } else {

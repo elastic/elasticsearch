@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchProgressActionListener;
@@ -14,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
@@ -33,6 +38,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
+
     private final NodeClient nodeClient;
     private final Supplier<InternalAggregation.ReduceContext> reduceContextSupplier;
     private final TransportSearchAction searchAction;
@@ -55,8 +62,12 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     @Override
     protected void doExecute(Task task, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
-        Map<String, String> headers = new HashMap<>(nodeClient.threadPool().getThreadContext().getHeaders());
+        ActionRequestValidationException exc = request.validate();
+        if (exc != null) {
+            submitListener.onFailure(exc);
+        }
 
+        Map<String, String> headers = new HashMap<>(nodeClient.threadPool().getThreadContext().getHeaders());
         // add a place holder in the search index and fire the async search
         store.storeInitialResponse(headers,
             ActionListener.wrap(resp -> executeSearch(request, resp, submitListener, headers), submitListener::onFailure));
@@ -74,16 +85,28 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
         AsyncSearchTask task = (AsyncSearchTask) taskManager.register("transport", SearchAction.INSTANCE.name(), searchRequest);
         SearchProgressActionListener progressListener = task.getProgressListener();
+
+        final ActionListener<UpdateResponse> finishHim = new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse updateResponse) {
+                taskManager.unregister(task);
+            }
+
+            @Override
+            public void onFailure(Exception exc) {
+                logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", task.getSearchId().getEncoded()), exc);
+                taskManager.unregister(task);
+            }
+        };
         searchAction.execute(task, searchRequest,
             new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse response) {
                     try {
                         progressListener.onResponse(response);
-                        store.storeFinalResponse(originHeaders, task.getAsyncResponse(true),
-                            ActionListener.wrap(() -> taskManager.unregister(task)));
+                        store.storeFinalResponse(originHeaders, task.getAsyncResponse(true), finishHim);
                     } catch (Exception e) {
-                        taskManager.unregister(task);
+                        finishHim.onFailure(e);
                     }
                 }
 
@@ -91,10 +114,9 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     try {
                         progressListener.onFailure(exc);
-                        store.storeFinalResponse(originHeaders, task.getAsyncResponse(true),
-                            ActionListener.wrap(() -> taskManager.unregister(task)));
+                        store.storeFinalResponse(originHeaders, task.getAsyncResponse(true), finishHim);
                     } catch (Exception e) {
-                        taskManager.unregister(task);
+                        finishHim.onFailure(e);
                     }
                 }
             }

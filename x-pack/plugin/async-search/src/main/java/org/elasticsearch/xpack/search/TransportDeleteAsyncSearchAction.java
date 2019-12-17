@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -17,7 +15,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
@@ -43,33 +40,19 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
     protected void doExecute(Task task, DeleteAsyncSearchAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         try {
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
-            // check if the response can be retrieved (handle security)
-            store.getResponse(searchId, ActionListener.wrap(res -> cancelTask(searchId, listener), listener::onFailure));
+            // check if the response can be retrieved by the user (handle security) and then cancel/delete.
+            store.getResponse(searchId, ActionListener.wrap(res -> cancelTaskAndDeleteResult(searchId, listener), listener::onFailure));
         } catch (IOException exc) {
             listener.onFailure(exc);
         }
     }
 
-    private void cancelTask(AsyncSearchId searchId, ActionListener<AcknowledgedResponse> listener) {
+    private void cancelTaskAndDeleteResult(AsyncSearchId searchId, ActionListener<AcknowledgedResponse> listener) {
         try {
             nodeClient.execute(CancelTasksAction.INSTANCE, new CancelTasksRequest().setTaskId(searchId.getTaskId()),
-                ActionListener.wrap(() -> deleteResult(searchId, listener)));
+                ActionListener.wrap(() -> store.deleteResult(searchId, listener)));
         } catch (Exception e) {
-            deleteResult(searchId, listener);
+            store.deleteResult(searchId, listener);
         }
-    }
-
-    private void deleteResult(AsyncSearchId searchId, ActionListener<AcknowledgedResponse> next) {
-        DeleteRequest request = new DeleteRequest(searchId.getIndexName()).id(searchId.getDocId());
-        store.getClient().delete(request, ActionListener.wrap(
-            resp -> {
-                if (resp.status() == RestStatus.NOT_FOUND) {
-                    next.onFailure(new ResourceNotFoundException("id [{}] not found", searchId.getEncoded()));
-                } else {
-                    next.onResponse(new AcknowledgedResponse(true));
-                }
-            },
-            exc -> next.onFailure(new ResourceNotFoundException("id [{}] not found", searchId.getEncoded())))
-        );
     }
 }

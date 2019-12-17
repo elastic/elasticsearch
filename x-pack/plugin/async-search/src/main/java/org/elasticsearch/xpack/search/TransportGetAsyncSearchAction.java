@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,23 +25,21 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
-    private Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(TransportGetAsyncSearchAction.class);
+
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final AsyncSearchStoreService store;
-    private final Client client;
 
     @Inject
     public TransportGetAsyncSearchAction(TransportService transportService,
@@ -53,7 +53,6 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.store = new AsyncSearchStoreService(client, registry);
-        this.client = client;
     }
 
     @Override
@@ -61,12 +60,12 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         try {
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId())) {
-                getSearchResponseFromTask(request, searchId, wrapCleanupListener(request, listener));
+                getSearchResponseFromTask(request, searchId, wrapCleanupListener(request, searchId, listener));
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
                 DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
                 if (node == null) {
-                    getSearchResponseFromIndex(request, searchId, wrapCleanupListener(request, listener));
+                    getSearchResponseFromIndex(request, searchId, wrapCleanupListener(request, searchId, listener));
                 } else {
                     transportService.sendRequest(node, GetAsyncSearchAction.NAME, request, builder.build(),
                         new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME));
@@ -108,41 +107,64 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
 
    private void getSearchResponseFromIndex(GetAsyncSearchAction.Request request, AsyncSearchId searchId,
                                            ActionListener<AsyncSearchResponse> listener) {
-        store.getResponse(searchId,
-            wrap(
-                resp -> {
-                    if (resp.getVersion() <= request.getLastVersion()) {
+        store.getResponse(searchId, new ActionListener<>() {
+                @Override
+                public void onResponse(AsyncSearchResponse response) {
+                    if (response == null) {
+                        // the task failed to store a response but we still have the placeholder in the index so we
+                        // force the deletion and throw a resource not found exception.
+                        store.deleteResult(searchId, new ActionListener<>() {
+                            @Override
+                            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                                listener.onFailure(new ResourceNotFoundException(request.getId() + " not found"));
+                            }
+
+                            @Override
+                            public void onFailure(Exception exc) {
+                                logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", request.getId()), exc);
+                                listener.onFailure(new ResourceNotFoundException(request.getId() + " not found"));
+                            }
+                        });
+                    } else if (response.getVersion() <= request.getLastVersion()) {
                         // return a not-modified response
-                        listener.onResponse(new AsyncSearchResponse(resp.id(), resp.getVersion(), false));
+                        listener.onResponse(new AsyncSearchResponse(response.id(), response.getVersion(), false));
                     } else {
-                        listener.onResponse(resp);
+                        listener.onResponse(response);
                     }
-                },
-                listener::onFailure
-            )
-        );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     void waitForCompletion(GetAsyncSearchAction.Request request, AsyncSearchTask task,
                            long startMs, ActionListener<AsyncSearchResponse> listener) {
         final AsyncSearchResponse response = task.getAsyncResponse(false);
-        try {
-            if (response.isRunning() == false) {
-                listener.onResponse(response);
-            } else if (request.getWaitForCompletion().getMillis() < (threadPool.relativeTimeInMillis() - startMs)) {
-                if (response.getVersion() <= request.getLastVersion()) {
-                    // return a not-modified response
-                    listener.onResponse(new AsyncSearchResponse(response.id(), response.getVersion(), true));
+        if (response == null) {
+            // the search task is not fully initialized
+            Runnable runnable = threadPool.preserveContext(() -> waitForCompletion(request, task, startMs, listener));
+            threadPool.schedule(runnable, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
+        } else {
+            try {
+                if (response.isRunning() == false) {
+                    listener.onResponse(response);
+                } else if (request.getWaitForCompletion().getMillis() < (threadPool.relativeTimeInMillis() - startMs)) {
+                    if (response.getVersion() <= request.getLastVersion()) {
+                        // return a not-modified response
+                        listener.onResponse(new AsyncSearchResponse(response.id(), response.getVersion(), true));
+                    } else {
+                        listener.onResponse(task.getAsyncResponse(true));
+                    }
                 } else {
-                    final AsyncSearchResponse ret = task.getAsyncResponse(true);
-                    listener.onResponse(ret);
+                    Runnable runnable = threadPool.preserveContext(() -> waitForCompletion(request, task, startMs, listener));
+                    threadPool.schedule(runnable, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
                 }
-            } else {
-                Runnable runnable = threadPool.preserveContext(() -> waitForCompletion(request, task, startMs, listener));
-                threadPool.schedule(runnable, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
-        } catch (Exception e) {
-            listener.onFailure(e);
         }
     }
 
@@ -184,37 +206,30 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
      * frozen (because the task has completed, failed or the coordinating node crashed).
      */
     private ActionListener<AsyncSearchResponse> wrapCleanupListener(GetAsyncSearchAction.Request request,
+                                                                    AsyncSearchId searchId,
                                                                     ActionListener<AsyncSearchResponse> listener) {
         return ActionListener.wrap(
             resp -> {
                 if (request.isCleanOnCompletion() && resp.isRunning() == false) {
                     // TODO: We could ensure that the response was successfully sent to the user
                     //       before deleting, see {@link RestChannel#sendResponse(RestResponse)}.
-                    cleanupAsyncSearch(resp, null, listener);
+                    store.deleteResult(searchId, new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            listener.onResponse(resp);
+                        }
+
+                        @Override
+                        public void onFailure(Exception exc) {
+                            logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", request.getId()), exc);
+                            listener.onResponse(resp);
+                        }
+                    });
                 } else {
                     listener.onResponse(resp);
                 }
             },
-            exc -> {
-                if (request.isCleanOnCompletion() && exc instanceof ResourceNotFoundException == false) {
-                    // remove the task on real failures
-                    cleanupAsyncSearch(null, exc, listener);
-                } else {
-                    listener.onFailure(exc);
-                }
-            }
+            listener::onFailure
         );
-    }
-
-    private void cleanupAsyncSearch(AsyncSearchResponse resp, Exception exc, ActionListener<AsyncSearchResponse> listener) {
-        client.execute(DeleteAsyncSearchAction.INSTANCE, new DeleteAsyncSearchAction.Request(resp.id()),
-            ActionListener.wrap(
-                () -> {
-                    if (exc == null) {
-                        listener.onResponse(resp);
-                    } else {
-                        listener.onFailure(exc);
-                    }
-            }));
     }
 }

@@ -23,6 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
+
 
 public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
 
@@ -43,8 +46,9 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             ClassificationInferenceResults singleValueInferenceResults =
                 (ClassificationInferenceResults) trainedModelDefinition.infer(inferenceFields, classificationConfig);
 
-            assertEquals(cld3Actual, singleValueInferenceResults.valueAsString());
-            assertEquals(cld3Probability, singleValueInferenceResults.getTopClasses().get(0).getProbability(), 0.01);
+            assertThat(singleValueInferenceResults.valueAsString(), equalTo(cld3Actual));
+            assertThat("mismatch probability for language " + cld3Actual,
+                singleValueInferenceResults.getTopClasses().get(0).getProbability(), closeTo(cld3Probability, 0.001));
         }
     }
 

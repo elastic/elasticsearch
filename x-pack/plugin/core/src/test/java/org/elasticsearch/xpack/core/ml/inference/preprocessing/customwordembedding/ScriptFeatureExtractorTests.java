@@ -46,6 +46,6 @@ public class ScriptFeatureExtractorTests extends ESTestCase {
             assertEquals(expected[i], ScriptFeatureExtractor.getScriptFeatureValue(text));
         }
     }
-    
+
 }
 

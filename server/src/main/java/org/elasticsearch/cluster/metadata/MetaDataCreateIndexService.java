@@ -303,12 +303,12 @@ public class MetaDataCreateIndexService {
                 throw e;
             }
 
-            final List<AliasMetaData> aliases = Collections.unmodifiableList(resolveAndValidateAliases(request.index(), request.aliases(),
-                templates, currentState.metaData(), aliasValidator,
-                // the context is only used for validation so it's fine to pass fake values for the shard id and the current
-                // timestamp
-                xContentRegistry, () -> indexService.newQueryShardContext(0, null, () -> 0L, null)
-            ));
+            // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+            // timestamp
+            final List<AliasMetaData> aliases = Collections.unmodifiableList(
+                resolveAndValidateAliases(request.index(), request.aliases(), templates, currentState.metaData(), aliasValidator,
+                    xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null))
+            );
 
             final IndexMetaData indexMetaData;
             try {
@@ -474,10 +474,8 @@ public class MetaDataCreateIndexService {
      */
     static List<AliasMetaData> resolveAndValidateAliases(String index, Set<Alias> aliases, List<IndexTemplateMetaData> templates,
                                                          MetaData metaData, AliasValidator aliasValidator,
-                                                         NamedXContentRegistry xContentRegistry,
-                                                         Supplier<QueryShardContext> queryShardContextSupplier) {
+                                                         NamedXContentRegistry xContentRegistry, QueryShardContext queryShardContext) {
         List<AliasMetaData> resolvedAliases = new ArrayList<>();
-        QueryShardContext queryShardContext = queryShardContextSupplier.get();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metaData);
             if (Strings.hasLength(alias.filter())) {

@@ -615,7 +615,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         expectThrows(InvalidAliasNameException.class, () ->
             resolveAndValidateAliases(request.index(), request.aliases(), List.of(), MetaData.builder().build(),
-                aliasValidator, xContentRegistry(), () -> queryShardContext)
+                aliasValidator, xContentRegistry(), queryShardContext)
         );
     }
 
@@ -636,7 +636,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         Map<String, Object> parsedMappings = MetaDataCreateIndexService.parseMappings(request.mappings(), List.of(templateMetaData),
             xContentRegistry());
         List<AliasMetaData> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(), List.of(templateMetaData),
-            MetaData.builder().build(), aliasValidator, xContentRegistry(), () -> queryShardContext);
+            MetaData.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(templateMetaData), Map.of(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
 
@@ -684,7 +684,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templates, Map.of(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         List<AliasMetaData> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(), templates,
-            MetaData.builder().build(), aliasValidator, xContentRegistry(), () -> queryShardContext);
+            MetaData.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
         AliasMetaData alias = resolvedAliases.get(0);
         assertThat(alias.getSearchRouting(), equalTo("3"));

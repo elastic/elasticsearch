@@ -96,8 +96,12 @@ public final class BlobStoreTestUtil {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
+    private static final byte[] SINK = new byte[1024];
+
     public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
-        try (InputStream ignored = container.readBlob(blobName)) {
+        try (InputStream input = container.readBlob(blobName)) {
+            // drain input stream full to avoid warnings from SDKs like S3 that don't like closing streams mid-way
+            while (input.read(SINK) >= 0);
             return true;
         } catch (NoSuchFileException e) {
             return false;

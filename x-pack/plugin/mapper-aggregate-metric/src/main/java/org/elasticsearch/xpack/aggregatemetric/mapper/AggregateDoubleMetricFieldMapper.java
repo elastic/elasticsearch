@@ -248,7 +248,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             "] does not exist in the mapping of field [" + fieldType.name() + "]");
                     } else {
                         context.addIgnoredField(fieldType.name());
-                        continue;
+                        return;
                     }
                 }
 
@@ -260,7 +260,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             "] of field [" + fieldType.name() + "] must be a number");
                     } else {
                         context.addIgnoredField(fieldType.name());
-                        continue;
+                        return;
                     }
                 }
 
@@ -272,7 +272,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                 "] of field [" + fieldType.name() + "] must be an integer number");
                         } else {
                             context.addIgnoredField(fieldType.name());
-                            continue;
+                            return;
                         }
                     }
 
@@ -283,7 +283,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                 "] of field [" + fieldType.name() + "] must not be a negative number");
                         } else {
                             context.addIgnoredField(fieldType.name());
-                            continue;
+                            return;
                         }
                     }
                 }
@@ -295,11 +295,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 null,fieldType.name());
         }
 
-        // TODO: Implement null_value support?
-        if (parsedMetricsMap.keySet().containsAll(metrics.value()) == false
-            && ignoreMalformed.value() == false) {
-            throw new IllegalArgumentException("Aggregate metric field [" + fieldType.name() +
-                "] must contain all metrics " + metrics.value().toString());
+        if (parsedMetricsMap.keySet().containsAll(metrics.value()) == false) {
+            if (ignoreMalformed.value() == false) {
+                throw new IllegalArgumentException("Aggregate metric field [" + fieldType.name() +
+                    "] must contain all metrics " + metrics.value().toString());
+            } else {
+                context.addIgnoredField(fieldType.name());
+                return;
+            }
         }
 
         //TODO: Change this and delegate it to NumberType

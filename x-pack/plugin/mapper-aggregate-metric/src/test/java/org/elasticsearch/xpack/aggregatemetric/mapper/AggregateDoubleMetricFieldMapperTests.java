@@ -174,7 +174,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
 
     /**
      * Test inserting a document containing a metric that has not been defined in the field mapping.
-     * Metric will be ignored because config ignore_malformed has been set.
+     * Field will be ignored because config ignore_malformed has been set.
      */
     public void testUnmappedMetricWithIgnoreMalformed() throws Exception {
         ensureGreen();
@@ -200,7 +200,67 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                 .endObject().endObject()),
             XContentType.JSON));
 
-        assertThat(doc.rootDoc().getField("metric.min"), notNullValue());
+        assertNull(doc.rootDoc().getField("metric.min"));
+    }
+
+    /**
+     * Test inserting a document containing less metrics than those defined in the field mapping.
+     * An exception will be thrown
+     */
+    public void testMissingMetric() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"min", "max", "sum"})
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> defaultMapper.parse(new SourceToParse("test", "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject().startObject("metric")
+                    .field("min", 10.0)
+                    .field("max", 50.0)
+                    .endObject().endObject()),
+                XContentType.JSON)));
+        assertThat(e.getCause().getMessage(),
+            containsString("Aggregate metric field [metric] must contain all metrics [min, max, sum]"));
+    }
+
+    /**
+     * Test inserting a document containing less metrics than those defined in the field mapping.
+     * Field will be ignored because config ignore_malformed has been set.
+     */
+    public void testMissingMetricWithIgnoreMalformed() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"min", "max", "sum"})
+            .field(IGNORE_MALFORMED, true)
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().startObject("metric")
+                .field("min", 10.0)
+                .field("max", 50.0)
+                .endObject().endObject()),
+            XContentType.JSON));
+
+        assertNull(doc.rootDoc().getField("metric.min"));
     }
 
     /**
@@ -232,6 +292,34 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     }
 
     /**
+     * Test a metric that has an invalid value (string instead of number)
+     * with ignore_malformed = true
+     */
+    public void testInvalidMetricValueIgnoreMalformed() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"min"})
+            .field(IGNORE_MALFORMED, true)
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject().startObject("metric")
+                    .field("min", "10.0")
+                    .endObject().endObject()),
+                XContentType.JSON));
+        assertThat(doc.rootDoc().getField("metric"), nullValue());
+    }
+
+    /**
      * Test a field that has a negative value for value_count
      */
     public void testNegativeValueCount() throws Exception {
@@ -257,6 +345,35 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                 XContentType.JSON)));
         assertThat(e.getCause().getMessage(),
             containsString("Aggregate metric [value_count] of field [metric] must not be a negative number"));
+    }
+
+    /**
+     * Test a field that has a negative value for value_count with ignore_malformed = true
+     * No exception will be thrown but the field will be ignored
+     */
+    public void testNegativeValueCountIgnoreMalformed() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(IGNORE_MALFORMED, true)
+            .field(METRICS_FIELD,  new String[] {"value_count"})
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject().startObject("metric")
+                    .field("value_count", -55) // value_count cannot be negative value
+                    .endObject().endObject()),
+                XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("metric"), nullValue());
     }
 
     /**

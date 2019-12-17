@@ -13,8 +13,6 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 
 `GET /_cat/snapshots/<repository>`
 
-`GET /_cat/snapshots`
-
 
 [[cat-snapshots-path-params]]
 ==== {api-path-parms-title}

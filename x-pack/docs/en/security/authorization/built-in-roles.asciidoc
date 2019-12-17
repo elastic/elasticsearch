@@ -75,7 +75,7 @@ must be defined in a separate role.
 (This role is deprecated, please use 
 {kibana-ref}/kibana-privileges.html#kibana-feature-privileges[{kib} feature privileges]
 instead).
-Grants access to the {kib} Dashboard and read-only permissions to every 
+Grants read-only access to the {kib} Dashboard in every 
 {kibana-ref}/xpack-spaces.html[Space in {kib}].
 This role does not have access to editing tools in {kib}. 
 
@@ -136,9 +136,7 @@ required to use {kib}. This role grants access to the monitoring indices and gra
 privileges necessary for reading basic cluster information. This role also includes
 all {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {stack-monitor-features}.
 Monitoring users should also be assigned the `kibana_admin` role, or another role
-with access to Monitoring
-{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[feature privilege]
-in {kib}
+with {kibana-ref}/xpack-security-authorization.html[access to the {kib} instance]
 
 [[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
 Grants the minimum privileges required to write data into the monitoring indices
@@ -152,7 +150,7 @@ Grants the minimum privileges required to collect monitoring data for the {stack
 Grants the specific privileges required for users of {reporting} other than those
 required to use {kib}. This role grants access to the reporting indices; each 
 user has access to only their own reports.
-Reporting users should also be assigned additional roles with that grant 
+Reporting users should also be assigned additional roles that grant 
 {kibana-ref}/xpack-security-authorization.html[Access to {kib}] as well as read
 access to the <<roles-indices-priv,indices>> that will be used to generate reports.
 

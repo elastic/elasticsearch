@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -187,8 +188,9 @@ public class GatewayAllocator {
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
-            super(logger, type, shardId, action);
+        InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath,
+                           Lister<? extends BaseNodesResponse<T>, T> action) {
+            super(logger, type, shardId, customDataPath, action);
         }
 
         @Override
@@ -214,7 +216,9 @@ public class GatewayAllocator {
                                                                         fetchData(ShardRouting shard, RoutingAllocation allocation) {
             AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch =
                 asyncFetchStarted.computeIfAbsent(shard.shardId(),
-                    shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId, startedAction));
+                    shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId,
+                        IndexMetaData.INDEX_DATA_PATH_SETTING.get(allocation.metaData().index(shard.index()).getSettings()),
+                        startedAction));
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
@@ -238,7 +242,8 @@ public class GatewayAllocator {
                                                                         fetchData(ShardRouting shard, RoutingAllocation allocation) {
             AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch =
                 asyncFetchStore.computeIfAbsent(shard.shardId(),
-                    shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction));
+                    shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(),
+                        IndexMetaData.INDEX_DATA_PATH_SETTING.get(allocation.metaData().index(shard.index()).getSettings()), storeAction));
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData()) {

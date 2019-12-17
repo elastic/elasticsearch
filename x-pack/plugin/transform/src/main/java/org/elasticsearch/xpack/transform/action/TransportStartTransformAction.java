@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +70,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
-    private final boolean isRemoteSearchEnabled;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportStartTransformAction(
@@ -128,7 +127,15 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = transformServices.getAuditor();
-        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
     }
 
     @Override
@@ -214,25 +221,56 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
                 return;
             }
-            // Validate source and destination indices
-            ValidationException validationResult = SourceDestValidator.validate(
+
+            sourceDestValidator.validate(
                 clusterService.state(),
-                indexNameExpressionResolver,
-                transportService.getRemoteClusterService(),
-                isRemoteSearchEnabled
-                    ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
-                    : null,
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
-                clusterService.getNodeName(),
-                License.OperationMode.BASIC.description(),
-                false
-            );
+                SourceDestValidator.ALL_VALIDATIONS,
+                ActionListener.wrap(validationResponse -> {
 
-            if (validationResult != null) {
-                listener.onFailure(validationResult);
-                return;
-            }
+                    transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
+                    final String destinationIndex = config.getDestination().getIndex();
+                    String[] dest = indexNameExpressionResolver.concreteIndexNames(
+                        state,
+                        IndicesOptions.lenientExpandOpen(),
+                        destinationIndex
+                    );
+
+                    if (dest.length == 0) {
+                        auditor.info(request.getId(), "Creating destination index [" + destinationIndex + "] with deduced mappings.");
+                        createDestinationIndex(config, createOrGetIndexListener);
+                    } else {
+                        auditor.info(request.getId(), "Using existing destination index [" + destinationIndex + "].");
+                        ClientHelper.executeAsyncWithOrigin(
+                            client.threadPool().getThreadContext(),
+                            ClientHelper.TRANSFORM_ORIGIN,
+                            client.admin().indices().prepareStats(dest).clear().setDocs(true).request(),
+                            ActionListener.<IndicesStatsResponse>wrap(r -> {
+                                long docTotal = r.getTotal().docs.getCount();
+                                if (docTotal > 0L) {
+                                    auditor.warning(
+                                        request.getId(),
+                                        "Non-empty destination index ["
+                                            + destinationIndex
+                                            + "]. "
+                                            + "Contains ["
+                                            + docTotal
+                                            + "] total documents."
+                                    );
+                                }
+                                createOrGetIndexListener.onResponse(null);
+                            }, e -> {
+                                String msg = "Unable to determine destination index stats, error: " + e.getMessage();
+                                logger.error(msg, e);
+                                auditor.warning(request.getId(), msg);
+                                createOrGetIndexListener.onResponse(null);
+                            }),
+                            client.admin().indices()::stats
+                        );
+                    }
+                }, listener::onFailure)
+            );
 
             transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
             final String destinationIndex = config.getDestination().getIndex();

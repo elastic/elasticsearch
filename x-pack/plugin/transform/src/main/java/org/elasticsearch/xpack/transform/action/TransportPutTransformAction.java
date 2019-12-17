@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -74,7 +73,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
-    private final boolean isRemoteSearchEnabled;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportPutTransformAction(
@@ -130,7 +129,15 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.getAuditor();
-        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
     }
 
     static HasPrivilegesRequest buildPrivilegeCheck(
@@ -215,35 +222,31 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             return;
         }
 
-        ValidationException validationResult = SourceDestValidator.validate(
+        sourceDestValidator.validate(
             clusterState,
-            indexNameExpressionResolver,
-            transportService.getRemoteClusterService(),
-            isRemoteSearchEnabled ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode) : null,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
-            clusterService.getNodeName(),
-            License.OperationMode.BASIC.description(),
-            request.isDeferValidation()
-        );
-        if (validationResult != null) {
-            listener.onFailure(validationResult);
-            return;
-        }
+            request.isDeferValidation() ? SourceDestValidator.NON_DEFERABLE_VALIDATIONS : SourceDestValidator.ALL_VALIDATIONS,
+            ActionListener.wrap(
+                validationResponse -> {
 
-        // Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
-            final String username = securityContext.getUser().principal();
-            HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
-            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, r, listener),
+                    // Early check to verify that the user can create the destination index and can read from the source
+                    if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
+                        final String username = securityContext.getUser().principal();
+                        HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
+                        ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                            r -> handlePrivsResponse(username, request, r, listener),
+                            listener::onFailure
+                        );
+
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    } else { // No security enabled, just create the transform
+                        putTransform(request, listener);
+                    }
+                },
                 listener::onFailure
-            );
-
-            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-        } else { // No security enabled, just create the transform
-            putTransform(request, listener);
-        }
+            )
+        );
     }
 
     @Override

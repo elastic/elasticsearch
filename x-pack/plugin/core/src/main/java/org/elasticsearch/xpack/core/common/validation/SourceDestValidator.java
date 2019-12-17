@@ -28,10 +28,11 @@ import org.elasticsearch.transport.RemoteClusterService;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -60,6 +61,12 @@ public final class SourceDestValidator {
     public static final String TIMEOUT_CHECK_REMOTE_CLUSTER_LICENSE = "Timeout during license check ({0}) for remote cluster "
         + "alias(es) [{1}]";
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final RemoteClusterService remoteClusterService;
+    private final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
+    private final String nodeName;
+    private final String license;
+
     static class Context {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -71,8 +78,8 @@ public final class SourceDestValidator {
         private final String license;
 
         private ValidationException validationException = null;
-        private Set<String> resolvedSource = null;
-        private Set<String> resolvedRemoteSource = null;
+        private SortedSet<String> resolvedSource = null;
+        private SortedSet<String> resolvedRemoteSource = null;
         private String resolvedDest = null;
 
         Context(
@@ -131,7 +138,7 @@ public final class SourceDestValidator {
             return license;
         }
 
-        public Set<String> resolveSource() {
+        public SortedSet<String> resolveSource() {
             if (resolvedSource == null) {
                 resolveLocalAndRemoteSource();
             }
@@ -139,7 +146,7 @@ public final class SourceDestValidator {
             return resolvedSource;
         }
 
-        public Set<String> resolveRemoteSource() {
+        public SortedSet<String> resolveRemoteSource() {
             if (resolvedRemoteSource == null) {
                 resolveLocalAndRemoteSource();
             }
@@ -190,13 +197,13 @@ public final class SourceDestValidator {
         }
 
         private void resolveLocalAndRemoteSource() {
-            resolvedSource = new LinkedHashSet<>(Arrays.asList(source));
-            resolvedRemoteSource = new LinkedHashSet<>(RemoteClusterLicenseChecker.remoteIndices(resolvedSource));
+            resolvedSource = new TreeSet<>(Arrays.asList(source));
+            resolvedRemoteSource = new TreeSet<>(RemoteClusterLicenseChecker.remoteIndices(resolvedSource));
             resolvedSource.removeAll(resolvedRemoteSource);
 
             // special case: if indexNameExpressionResolver gets an empty list it treats it as _all
             if (resolvedSource.isEmpty() == false) {
-                resolvedSource = new LinkedHashSet<>(
+                resolvedSource = new TreeSet<>(
                     Arrays.asList(
                         indexNameExpressionResolver.concreteIndexNames(
                             state,
@@ -210,8 +217,6 @@ public final class SourceDestValidator {
     }
 
     interface SourceDestValidation {
-        boolean isDeferrable();
-
         void validate(Context context);
     }
 
@@ -219,20 +224,86 @@ public final class SourceDestValidator {
     private static final IndicesOptions DEFAULT_INDICES_OPTIONS_FOR_VALIDATION = IndicesOptions
         .strictExpandOpenAndForbidClosedIgnoreThrottled();
 
-    private static final SourceDestValidation SOURCE_MISSING_VALIDATION = new SourceMissingValidation();
-    private static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new RemoteSourceEnabledAndRemoteLicenseValidation();
+    public static final SourceDestValidation SOURCE_MISSING_VALIDATION = new SourceMissingValidation();
+    public static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new RemoteSourceEnabledAndRemoteLicenseValidation();
+    public static final SourceDestValidation DESTINATION_IN_SOURCE_VALIDATION = new DestinationInSourceValidation();
+    public static final SourceDestValidation DESTINATION_SINGLE_INDEX_VALIDATION = new DestinationSingleIndexValidation();
 
-    private static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Arrays.asList(
-        SOURCE_MISSING_VALIDATION,
-        REMOTE_SOURCE_VALIDATION
-    );
+    // set of default validation collections
+    public static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Arrays.asList(SOURCE_MISSING_VALIDATION, REMOTE_SOURCE_VALIDATION);
 
-    private static final List<SourceDestValidation> START_AND_PUT_VALIDATIONS = Arrays.asList(
+    public static final List<SourceDestValidation> ALL_VALIDATIONS = Arrays.asList(
         SOURCE_MISSING_VALIDATION,
         REMOTE_SOURCE_VALIDATION,
-        new DestinationInSourceValidation(),
-        new DestinationSingleIndexValidation()
+        DESTINATION_IN_SOURCE_VALIDATION,
+        DESTINATION_SINGLE_INDEX_VALIDATION
     );
+
+    public static final List<SourceDestValidation> NON_DEFERABLE_VALIDATIONS = Arrays.asList(DESTINATION_SINGLE_INDEX_VALIDATION);
+
+    /**
+     * Create a new Source Dest Validator
+     *
+     * @param indexNameExpressionResolver A valid IndexNameExpressionResolver object
+     * @param remoteClusterService A valid RemoteClusterService object
+     * @param remoteClusterLicenseChecker A RemoteClusterLicenseChecker or null if CCS is disabled
+     * @param nodeName the name of this node
+     * @param license the license of the feature validated for
+     */
+    public SourceDestValidator(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteClusterService remoteClusterService,
+        RemoteClusterLicenseChecker remoteClusterLicenseChecker,
+        String nodeName,
+        String license
+    ) {
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.remoteClusterService = remoteClusterService;
+        this.remoteClusterLicenseChecker = remoteClusterLicenseChecker;
+        this.nodeName = nodeName;
+        this.license = license;
+    }
+
+    /**
+     * Run validation against source and dest.
+     *
+     * @param clusterState The current ClusterState
+     * @param source an array of source indexes
+     * @param dest destination index
+     * @param validations list of of validations to run
+     * @param listener result listener
+     */
+    public void validate(
+        ClusterState clusterState,
+        String[] source,
+        String dest,
+        List<SourceDestValidation> validations,
+        ActionListener<Boolean> listener
+    ) {
+        Context context = new Context(
+            clusterState,
+            indexNameExpressionResolver,
+            remoteClusterService,
+            remoteClusterLicenseChecker,
+            source,
+            dest,
+            nodeName,
+            license
+        );
+
+        // validation exception might gets thrown if validation stops early
+        try {
+            for (SourceDestValidation validation : validations) {
+                validation.validate(context);
+            }
+        } catch (ValidationException e) {}
+
+        if (context.getValidationException() != null) {
+            listener.onFailure(context.getValidationException());
+            return;
+        }
+        listener.onResponse(true);
+    }
 
     /**
      * Validate dest request.
@@ -263,108 +334,7 @@ public final class SourceDestValidator {
         return validationException;
     }
 
-    /**
-     * Validates source and dest indices for preview.
-     *
-     * @param clusterState The current ClusterState
-     * @param indexNameExpressionResolver A valid IndexNameExpressionResolver object
-     * @param remoteClusterService A valid RemoteClusterService object
-     * @param remoteClusterLicenseChecker A RemoteClusterLicenseChecker or null if CCS is disabled
-     * @param source an array of source indices
-     * @param dest destination index
-     * @param nodeName the name of this node
-     * @param license the license of the feature validated for
-     * @return ValidationException instance containing all validation errors or null if validation found no problems.
-     */
-    public static ValidationException validateForPreview(
-        ClusterState clusterState,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        RemoteClusterService remoteClusterService,
-        RemoteClusterLicenseChecker remoteClusterLicenseChecker,
-        String[] source,
-        String dest,
-        String nodeName,
-        String license
-    ) {
-        Context context = new Context(
-            clusterState,
-            indexNameExpressionResolver,
-            remoteClusterService,
-            remoteClusterLicenseChecker,
-            source,
-            dest,
-            nodeName,
-            license
-        );
-
-        // validation exception might gets thrown if validation stops early
-        try {
-            for (SourceDestValidation validation : PREVIEW_VALIDATIONS) {
-                validation.validate(context);
-            }
-        } catch (ValidationException e) {}
-
-        return context.getValidationException();
-    }
-
-    /**
-     * Validates source and destination indices for put, start and update.
-     * Assumes that name checks have been made at the REST layer.
-     *
-     * @param clusterState The current ClusterState
-     * @param indexNameExpressionResolver A valid IndexNameExpressionResolver object
-     * @param remoteClusterService A valid RemoteClusterService object
-     * @param remoteClusterLicenseChecker A RemoteClusterLicenseChecker or null if CCS is disabled
-     * @param source an array of source indexes
-     * @param dest destination index
-     * @param nodeName the name of this node
-     * @param license the license of the feature validated for
-     * @param shouldDefer whether to defer certain validations, used for put while source indices are not created yet
-     * @return ValidationException instance containing all validation errors or null if validation found no problems.
-     */
-
-    public static ValidationException validate(
-        ClusterState clusterState,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        RemoteClusterService remoteClusterService,
-        RemoteClusterLicenseChecker remoteClusterLicenseChecker,
-        String[] source,
-        String dest,
-        String nodeName,
-        String license,
-        boolean shouldDefer
-    ) {
-        Context context = new Context(
-            clusterState,
-            indexNameExpressionResolver,
-            remoteClusterService,
-            remoteClusterLicenseChecker,
-            source,
-            dest,
-            nodeName,
-            license
-        );
-
-        // validation exception might gets thrown if validation stops early
-        try {
-            for (SourceDestValidation validation : START_AND_PUT_VALIDATIONS) {
-                if (shouldDefer && validation.isDeferrable()) {
-                    continue;
-                }
-                validation.validate(context);
-            }
-
-        } catch (ValidationException e) {}
-
-        return context.getValidationException();
-    }
-
     static class SourceMissingValidation implements SourceDestValidation {
-
-        @Override
-        public boolean isDeferrable() {
-            return true;
-        }
 
         @Override
         public void validate(Context context) {
@@ -382,11 +352,6 @@ public final class SourceDestValidator {
     }
 
     static class RemoteSourceEnabledAndRemoteLicenseValidation implements SourceDestValidation {
-        @Override
-        public boolean isDeferrable() {
-            return true;
-        }
-
         @Override
         public void validate(Context context) {
             if (context.resolveRemoteSource().isEmpty()) {
@@ -457,11 +422,6 @@ public final class SourceDestValidator {
     static class DestinationInSourceValidation implements SourceDestValidation {
 
         @Override
-        public boolean isDeferrable() {
-            return true;
-        }
-
-        @Override
         public void validate(Context context) {
             final String destIndex = context.getDest();
 
@@ -490,11 +450,6 @@ public final class SourceDestValidator {
     }
 
     static class DestinationSingleIndexValidation implements SourceDestValidation {
-
-        @Override
-        public boolean isDeferrable() {
-            return false;
-        }
 
         @Override
         public void validate(Context context) {

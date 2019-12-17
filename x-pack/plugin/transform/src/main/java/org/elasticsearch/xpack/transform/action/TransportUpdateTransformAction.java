@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -74,7 +73,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
-    private final boolean isRemoteSearchEnabled;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -122,7 +121,15 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.getAuditor();
-        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
     }
 
     @Override
@@ -166,7 +173,17 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
                 return;
             }
             TransformConfig updatedConfig = update.apply(config);
-            validateAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
+            sourceDestValidator.validate(
+                clusterState,
+                config.getSource().getIndex(),
+                config.getDestination().getIndex(),
+                request.isDeferValidation() ? SourceDestValidator.NON_DEFERABLE_VALIDATIONS : SourceDestValidator.ALL_VALIDATIONS,
+                ActionListener.wrap(validationResponse -> {
+
+                    checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
+                }, listener::onFailure)
+            );
+
         }, listener::onFailure));
     }
 
@@ -203,30 +220,13 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         }
     }
 
-    private void validateAndUpdateTransform(
+    private void checkPriviledgesAndUpdateTransform(
         Request request,
         ClusterState clusterState,
         TransformConfig config,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         ActionListener<Response> listener
     ) {
-        ValidationException validationResult = SourceDestValidator.validate(
-            clusterState,
-            indexNameExpressionResolver,
-            transportService.getRemoteClusterService(),
-            isRemoteSearchEnabled ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode) : null,
-            config.getSource().getIndex(),
-            config.getDestination().getIndex(),
-            clusterService.getNodeName(),
-            License.OperationMode.BASIC.description(),
-            request.isDeferValidation()
-        );
-
-        if (validationResult != null) {
-            listener.onFailure(validationResult);
-            return;
-        }
-
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
             final String username = securityContext.getUser().principal();

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,7 +41,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -71,6 +74,13 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+    private final SourceDestValidator simpleNonRemoteValidator = new SourceDestValidator(
+        new IndexNameExpressionResolver(),
+        remoteClusterService,
+        null,
+        "node_id",
+        "license"
+    );
 
     static {
         IndexMetaData source1 = IndexMetaData.builder(SOURCE_1)
@@ -172,355 +182,356 @@ public class SourceDestValidatorTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenNoSourceIndexAndValidDestIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] {},
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("Source index [] does not exist"));
-    }
-
-    public void testCheck_GivenMissingConcreteSourceIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { "missing" },
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { "missing" },
-            "dest",
-            "node_id",
-            "license",
-            true
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenMixedMissingAndExistingConcreteSourceIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1, "missing" },
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1, "missing" },
-            "dest",
-            "node_id",
-            "license",
-            true
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenMixedMissingWildcardExistingConcreteSourceIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1, "wildcard*", "missing" },
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1, "wildcard*", "missing" },
-            "dest",
-            "node_id",
-            "license",
-            true
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenWildcardSourceIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { "wildcard*" },
-            "dest",
-            "node_id",
-            "license",
-            false
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenDestIndexSameAsSourceIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            "source-1",
-            "node_id",
-            "license",
-            false
-        );
-
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(
-            e.validationErrors().get(0),
-            equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [" + SOURCE_1 + "]")
-        );
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            "source-1",
-            "node_id",
-            "license",
-            true
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenDestIndexMatchesSourceIndex() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { "source-*" },
-            SOURCE_2,
-            "node_id",
-            "license",
-            false
-        );
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(
-            e.validationErrors().get(0),
-            equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [source-*]")
-        );
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { "source-*" },
-            SOURCE_2,
-            "node_id",
-            "license",
-            true
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenDestIndexMatchesOneOfSourceIndices() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { "source-1", "source-*" },
-            SOURCE_2,
-            "node_id",
-            "license",
-            false
-        );
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(
-            e.validationErrors().get(0),
-            equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [source-*]")
-        );
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { "source-1", "source-*" },
-            SOURCE_2,
-            "node_id",
-            "license",
-            true
-        );
-        assertNull(e);
-    }
-
-    public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            DEST_ALIAS,
-            "node_id",
-            "license",
-            false
-        );
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(
-            e.validationErrors().get(0),
-            equalTo(
-                "no write index is defined for alias [dest-alias]. "
-                    + "The write index may be explicitly disabled using is_write_index=false or the alias points "
-                    + "to multiple indices without one being designated as a write index"
-            )
-        );
-
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            DEST_ALIAS,
-            "node_id",
-            "license",
-            true
-        );
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(
-            e.validationErrors().get(0),
-            equalTo(
-                "no write index is defined for alias [dest-alias]. "
-                    + "The write index may be explicitly disabled using is_write_index=false or the alias points "
-                    + "to multiple indices without one being designated as a write index"
-            )
+    public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                "dest",
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
         );
     }
 
-    public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndicesButHasSingleWriteAlias() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            ALIAS_READ_WRITE_DEST,
-            "node_id",
-            "license",
-            false
+    public void testCheck_GivenNoSourceIndexAndValidDestIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] {},
+                "dest",
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(e.validationErrors().get(0), equalTo("Source index [] does not exist"));
+            }
         );
-        assertNotNull(e);
     }
 
-    public void testCheck_GivenDestIndexIsAliasThatIsIncludedInSource() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            SOURCE_1_ALIAS,
-            "node_id",
-            "license",
-            false
-        );
-        assertNotNull(e);
-        assertEquals(1, e.validationErrors().size());
-        assertThat(
-            e.validationErrors().get(0),
-            equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [" + SOURCE_1 + "]")
+    public void testCheck_GivenMissingConcreteSourceIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "missing" },
+                "dest",
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+            }
         );
 
-        e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1 },
-            SOURCE_1_ALIAS,
-            "node_id",
-            "license",
-            true
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "missing" },
+                "dest",
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
         );
-
-        assertNull(e);
     }
 
-    public void testCheck_MultipleValidationErrors() {
-        ValidationException e = SourceDestValidator.validate(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            null,
-            new String[] { SOURCE_1, "missing" },
-            SOURCE_1_ALIAS,
-            "node_id",
-            "license",
-            false
+    public void testCheck_GivenMixedMissingAndExistingConcreteSourceIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1, "missing" },
+                "dest",
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+            }
         );
 
-        assertNotNull(e);
-        assertEquals(2, e.validationErrors().size());
-        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
-        assertThat(
-            e.validationErrors().get(1),
-            equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [source-1,missing]")
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1, "missing" },
+                "dest",
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_GivenMixedMissingWildcardExistingConcreteSourceIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1, "wildcard*", "missing" },
+                "dest",
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+            }
+        );
+
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1, "wildcard*", "missing" },
+                "dest",
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_GivenWildcardSourceIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "wildcard*" },
+                "dest",
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_GivenDestIndexSameAsSourceIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                SOURCE_1,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [" + SOURCE_1 + "]")
+                );
+            }
+        );
+
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                SOURCE_1,
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_GivenDestIndexMatchesSourceIndex() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "source-*" },
+                SOURCE_2,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [source-*]")
+                );
+            }
+        );
+
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "source-*" },
+                SOURCE_2,
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_GivenDestIndexMatchesOneOfSourceIndices() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "source-1", "source-*" },
+                SOURCE_2,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [source-*]")
+                );
+            }
+        );
+
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "source-1", "source-*" },
+                SOURCE_2,
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                DEST_ALIAS,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo(
+                        "no write index is defined for alias [dest-alias]. "
+                            + "The write index may be explicitly disabled using is_write_index=false or the alias points "
+                            + "to multiple indices without one being designated as a write index"
+                    )
+                );
+            }
+        );
+
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                DEST_ALIAS,
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo(
+                        "no write index is defined for alias [dest-alias]. "
+                            + "The write index may be explicitly disabled using is_write_index=false or the alias points "
+                            + "to multiple indices without one being designated as a write index"
+                    )
+                );
+            }
+        );
+    }
+
+    public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndicesButHasSingleWriteAlias() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                ALIAS_READ_WRITE_DEST,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo(
+                        "no write index is defined for alias ["
+                            + ALIAS_READ_WRITE_DEST
+                            + "]. "
+                            + "The write index may be explicitly disabled using is_write_index=false or the alias points "
+                            + "to multiple indices without one being designated as a write index"
+                    )
+                );
+            }
+        );
+    }
+
+    public void testCheck_GivenDestIndexIsAliasThatIsIncludedInSource() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                SOURCE_1_ALIAS,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [" + SOURCE_1 + "]")
+                );
+            }
+        );
+
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                SOURCE_1_ALIAS,
+                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_MultipleValidationErrors() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1, "missing" },
+                SOURCE_1_ALIAS,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(2, e.validationErrors().size());
+                assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+                assertThat(
+                    e.validationErrors().get(1),
+                    equalTo("Destination index [" + SOURCE_1 + "] is included in source expression [missing,source-1]")
+                );
+            }
         );
     }
 
@@ -706,5 +717,31 @@ public class SourceDestValidatorTests extends ESTestCase {
         assertNotNull(validationException);
         assertEquals(3, validationException.validationErrors().size());
         assertThat(validationException.validationErrors().get(2), equalTo("Destination index [UPPERCASE] must be lowercase"));
+    }
+
+    private <T> void assertValidation(Consumer<ActionListener<T>> function, T expected, Consumer<ValidationException> onException)
+        throws InterruptedException {
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            if (expected == null) {
+                fail("expected an exception but got a response");
+            } else {
+                assertThat(r, equalTo(expected));
+            }
+        }, e -> {
+            if (onException == null) {
+                logger.error("got unexpected exception", e);
+                fail("got unexpected exception: " + e.getMessage());
+            } else if (e instanceof ValidationException) {
+                onException.accept((ValidationException) e);
+            } else {
+                fail("got unexpected exception type: " + e);
+            }
+        }), latch);
+
+        function.accept(listener);
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
     }
 }

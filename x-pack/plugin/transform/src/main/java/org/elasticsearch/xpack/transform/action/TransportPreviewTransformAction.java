@@ -20,7 +20,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -70,10 +69,8 @@ public class TransportPreviewTransformAction extends
     private final XPackLicenseState licenseState;
     private final Client client;
     private final ThreadPool threadPool;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
-    private final TransportService transportService;
-    private final boolean isRemoteSearchEnabled;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -115,9 +112,15 @@ public class TransportPreviewTransformAction extends
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.transportService = transportService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
     }
 
     @Override
@@ -130,42 +133,41 @@ public class TransportPreviewTransformAction extends
         ClusterState clusterState = clusterService.state();
 
         final TransformConfig config = request.getConfig();
-        ValidationException validationResult = SourceDestValidator.validateForPreview(
+
+        sourceDestValidator.validate(
             clusterState,
-            indexNameExpressionResolver,
-            this.transportService.getRemoteClusterService(),
-            isRemoteSearchEnabled ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode) : null,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
-            clusterService.getNodeName(),
-            License.OperationMode.BASIC.description()
+            SourceDestValidator.PREVIEW_VALIDATIONS,
+            ActionListener.wrap(r -> {
+
+                Pivot pivot = new Pivot(config.getPivotConfig());
+                try {
+                    pivot.validateConfig();
+                } catch (ElasticsearchStatusException e) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                            e.status(),
+                            e
+                        )
+                    );
+                    return;
+                } catch (Exception e) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            e
+                        )
+                    );
+                    return;
+                }
+
+                getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
+
+            }, listener::onFailure)
         );
-
-        if (validationResult != null) {
-            listener.onFailure(validationResult);
-            return;
-        }
-
-        Pivot pivot = new Pivot(config.getPivotConfig());
-        try {
-            pivot.validateConfig();
-        } catch (ElasticsearchStatusException e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
-            );
-            return;
-        } catch (Exception e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e
-                )
-            );
-            return;
-        }
-
-        getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
     }
 
     @SuppressWarnings("unchecked")

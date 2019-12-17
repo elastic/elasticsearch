@@ -394,7 +394,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
-    public void test83EnvironmentVariablesAreRespectedUnderDockerExec() {
+    public void test083EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());
@@ -562,9 +562,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the Java process running inside the container has the expect PID, UID and username.
+     * Check that the Java process running inside the container has the expected UID and username.
      */
-    public void test130JavaHasCorrectPidAndOwnership() {
+    public void test130JavaHasCorrectOwnership() {
         final List<String> processes = sh.run("ps -o pid,uid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
 
         assertThat("Expected a single java process", processes, hasSize(1));
@@ -572,7 +572,6 @@ public class DockerTests extends PackagingTestCase {
         final String[] fields = processes.get(0).trim().split("\\s+");
 
         assertThat(fields, arrayWithSize(3));
-        assertThat("Incorrect PID", fields[0], equalTo("1"));
         assertThat("Incorrect UID", fields[1], equalTo("1000"));
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
     }

@@ -65,13 +65,15 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY bin/my_init /sbin/my_init
 
-# Openshift overrides USER and uses ones with randomly uid>1024 and gid=0
-# Allow ENTRYPOINT (and ES) to run even with a different user
-RUN chgrp 0 /usr/local/bin/docker-entrypoint.sh && \
-    chmod g=u /etc/passwd && \
-    chmod 0775 /usr/local/bin/docker-entrypoint.sh
+RUN chmod g=u /etc/passwd && \
+    chmod 0775 /usr/local/bin/docker-entrypoint.sh && \
+    chmod 0775 /sbin/my_init
+
+# Ensure that there are no files with setuid, in order to mitigate "stackclash" attacks.
+RUN find / -xdev -perm -4000 -exec chmod u-s {} +
 
 EXPOSE 9200 9300
 
@@ -94,6 +96,8 @@ LABEL org.label-schema.build-date="${build_date}" \
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \
   org.opencontainers.image.vendor="Elastic" \
   org.opencontainers.image.version="${version}"
+
+USER elasticsearch:root
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint

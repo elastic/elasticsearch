@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -76,6 +77,8 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsResponse;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -2337,4 +2340,89 @@ public final class MachineLearningClient {
             Collections.emptySet());
     }
 
+    /**
+     * Gets trained model stats
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     GET Trained Model Stats documentation</a>
+     *
+     * @param request The {@link GetTrainedModelsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetTrainedModelsStatsResponse} response object
+     */
+    public GetTrainedModelsStatsResponse getTrainedModelsStats(GetTrainedModelsStatsRequest request,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getTrainedModelsStats,
+            options,
+            GetTrainedModelsStatsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets trained model stats asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     GET Trained Model Stats documentation</a>
+     *
+     * @param request The {@link GetTrainedModelsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getTrainedModelsStatsAsync(GetTrainedModelsStatsRequest request,
+                                                  RequestOptions options,
+                                                  ActionListener<GetTrainedModelsStatsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getTrainedModelsStats,
+            options,
+            GetTrainedModelsStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Trained Model
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     DELETE Trained  Model documentation</a>
+     *
+     * @param request The {@link DeleteTrainedModelRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteTrainedModel(DeleteTrainedModelRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteTrainedModel,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Trained Model asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     DELETE Trained Model documentation</a>
+     *
+     * @param request The {@link DeleteTrainedModelRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteTrainedModelAsync(DeleteTrainedModelRequest request,
+                                               RequestOptions options,
+                                               ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteTrainedModel,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
 }

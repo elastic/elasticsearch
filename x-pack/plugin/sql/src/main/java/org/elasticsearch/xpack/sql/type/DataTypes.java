@@ -31,10 +31,6 @@ public final class DataTypes {
 
     private DataTypes() {}
 
-    public static boolean isNull(DataType from) {
-        return from == NULL;
-    }
-
     public static boolean isUnsupported(DataType from) {
         return from == UNSUPPORTED;
     }

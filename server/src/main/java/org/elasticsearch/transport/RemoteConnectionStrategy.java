@@ -170,7 +170,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return allConcreteSettings.map(affixSetting::getNamespace);
     }
 
-    static InetSocketAddress parseSeedAddress(String remoteHost) {
+    static InetSocketAddress parseConfiguredAddress(String remoteHost) {
         final Tuple<String, Integer> hostPort = parseHostPort(remoteHost);
         final String host = hostPort.v1();
         assert hostPort.v2() != null : remoteHost;

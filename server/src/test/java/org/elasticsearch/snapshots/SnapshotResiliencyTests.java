@@ -541,22 +541,23 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .setPartial(partialSnapshot).execute(createSnapshotResponseStepListener));
 
         continueOrDie(createSnapshotResponseStepListener,
-            createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (partialSnapshot) {
-                        // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+            createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index),
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        if (partialSnapshot) {
+                            // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
+                            client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (partialSnapshot) {
-                        throw new AssertionError("Delete index should always work during partial snapshots", e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (partialSnapshot) {
+                            throw new AssertionError("Delete index should always work during partial snapshots", e);
+                        }
                     }
-                }
-            }));
+                }));
 
         deterministicTaskQueue.runAllRunnableTasks();
 

@@ -101,7 +101,7 @@ public class MockScriptEngine implements ScriptEngine {
             throw new IllegalArgumentException("No pre defined script matching [" + source + "] for script with name [" + name + "], " +
                     "did you declare the mocked script?");
         }
-        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script::apply);
+        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
         if (context.instanceClazz.equals(FieldScript.class)) {
             FieldScript.Factory factory = (parameters, lookup) ->
                 ctx -> new FieldScript(parameters, lookup, ctx) {
@@ -247,16 +247,16 @@ public class MockScriptEngine implements ScriptEngine {
             ScoreScript.Factory factory = new MockScoreScript(script::apply);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.InitScript.class)) {
-            ScriptedMetricAggContexts.InitScript.Factory factory = mockCompiled::createMetricAggInitScript;
+            ScriptedMetricAggContexts.InitScript.Factory factory = new MockMetricAggInitScriptFactory(script);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.MapScript.class)) {
-            ScriptedMetricAggContexts.MapScript.Factory factory = mockCompiled::createMetricAggMapScript;
+            ScriptedMetricAggContexts.MapScript.Factory factory = new MockMetricAggMapScriptFactory(script);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.CombineScript.class)) {
-            ScriptedMetricAggContexts.CombineScript.Factory factory = mockCompiled::createMetricAggCombineScript;
+            ScriptedMetricAggContexts.CombineScript.Factory factory = new MockMetricAggCombineScriptFactory(script);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.ReduceScript.class)) {
-            ScriptedMetricAggContexts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
+            ScriptedMetricAggContexts.ReduceScript.Factory factory = new MockMetricAggReduceScriptFactory(script);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(IntervalFilterScript.class)) {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
@@ -332,25 +332,6 @@ public class MockScriptEngine implements ScriptEngine {
 
         public SimilarityWeightScript createSimilarityWeightScript() {
             return new MockSimilarityWeightScript(script != null ? script : ctx -> 42d);
-        }
-
-        public ScriptedMetricAggContexts.InitScript createMetricAggInitScript(Map<String, Object> params, Map<String, Object> state) {
-            return new MockMetricAggInitScript(params, state, script != null ? script : ctx -> 42d);
-        }
-
-        public ScriptedMetricAggContexts.MapScript.LeafFactory createMetricAggMapScript(Map<String, Object> params,
-                                                                                        Map<String, Object> state,
-                                                                                        SearchLookup lookup) {
-            return new MockMetricAggMapScript(params, state, lookup, script != null ? script : ctx -> 42d);
-        }
-
-        public ScriptedMetricAggContexts.CombineScript createMetricAggCombineScript(Map<String, Object> params,
-                                                                                    Map<String, Object> state) {
-            return new MockMetricAggCombineScript(params, state, script != null ? script : ctx -> 42d);
-        }
-
-        public ScriptedMetricAggContexts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> states) {
-            return new MockMetricAggReduceScript(params, states, script != null ? script : ctx -> 42d);
         }
 
         public IntervalFilterScript createIntervalFilterScript() {
@@ -433,6 +414,17 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
+    public static class MockMetricAggInitScriptFactory implements ScriptedMetricAggContexts.InitScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        MockMetricAggInitScriptFactory(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
+
+        @Override
+        public ScriptedMetricAggContexts.InitScript newInstance(Map<String, Object> params, Map<String, Object> state) {
+            return new MockMetricAggInitScript(params, state, script);
+        }
+    }
+
     public static class MockMetricAggInitScript extends ScriptedMetricAggContexts.InitScript {
         private final Function<Map<String, Object>, Object> script;
 
@@ -452,6 +444,18 @@ public class MockScriptEngine implements ScriptEngine {
 
             map.put("state", getState());
             script.apply(map);
+        }
+    }
+
+    public static class MockMetricAggMapScriptFactory implements  ScriptedMetricAggContexts.MapScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        MockMetricAggMapScriptFactory(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
+
+        @Override
+        public ScriptedMetricAggContexts.MapScript.LeafFactory newFactory(Map<String, Object> params, Map<String, Object> state,
+                                                                          SearchLookup lookup) {
+            return new MockMetricAggMapScript(params, state, lookup, script);
         }
     }
 
@@ -491,11 +495,21 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
+    public static class MockMetricAggCombineScriptFactory implements ScriptedMetricAggContexts.CombineScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        MockMetricAggCombineScriptFactory(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
+
+        @Override
+        public ScriptedMetricAggContexts.CombineScript newInstance(Map<String, Object> params, Map<String, Object> state) {
+            return new MockMetricAggCombineScript(params, state, script);
+        }
+    }
+
     public static class MockMetricAggCombineScript extends ScriptedMetricAggContexts.CombineScript {
         private final Function<Map<String, Object>, Object> script;
 
-        MockMetricAggCombineScript(Map<String, Object> params, Map<String, Object> state,
-                                Function<Map<String, Object>, Object> script) {
+        MockMetricAggCombineScript(Map<String, Object> params, Map<String, Object> state, Function<Map<String, Object>, Object> script) {
             super(params, state);
             this.script = script;
         }
@@ -513,11 +527,21 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
+    public static class MockMetricAggReduceScriptFactory implements ScriptedMetricAggContexts.ReduceScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        MockMetricAggReduceScriptFactory(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
+
+        @Override
+        public ScriptedMetricAggContexts.ReduceScript newInstance(Map<String, Object> params, List<Object> states) {
+            return new MockMetricAggReduceScript(params, states, script);
+        }
+    }
+
     public static class MockMetricAggReduceScript extends ScriptedMetricAggContexts.ReduceScript {
         private final Function<Map<String, Object>, Object> script;
 
-        MockMetricAggReduceScript(Map<String, Object> params, List<Object> states,
-                                  Function<Map<String, Object>, Object> script) {
+        MockMetricAggReduceScript(Map<String, Object> params, List<Object> states, Function<Map<String, Object>, Object> script) {
             super(params, states);
             this.script = script;
         }

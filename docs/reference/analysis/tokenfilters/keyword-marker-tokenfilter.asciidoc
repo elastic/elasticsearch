@@ -19,8 +19,7 @@ use the <<analysis-keyword-repeat-tokenfilter,`keyword_repeat`>> token filter.
 ==== Example
 
 The following <<indices-analyze,analyze API>> request uses the `keyword_marker`
-filter to protect the `jumping` keyword in `quick foxes running and jumping`
-from stemming:
+filter to designate `jumping` as a keyword.
 
 [source,console]
 --------------------------------------------------

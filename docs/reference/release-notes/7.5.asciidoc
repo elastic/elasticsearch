@@ -50,7 +50,7 @@ Machine Learning::
 * [ML] Stop timing stats failure propagation {pull}49495[#49495]
 
 Mapping::
-* Improve DateFieldMapper `ignore_malformed` handling {pull}50090[#50090] (issues: {issue}46675[#46675], {issue}50081[#50081])
+* Improve DateFieldMapper `ignore_malformed` handling {pull}50090[#50090] (issue: {issue}50081[#50081])
 
 Recovery::
 * Migrate peer recovery from translog to retention lease {pull}49448[#49448] (issue: {issue}45136[#45136])

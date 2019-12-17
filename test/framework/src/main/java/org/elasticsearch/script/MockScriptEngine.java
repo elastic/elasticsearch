@@ -586,7 +586,7 @@ public class MockScriptEngine implements ScriptEngine {
 
     class MockAggregationScript implements AggregationScript.Factory, ScriptFactory {
         private final MockDeterministicScript script;
-        public MockAggregationScript(MockDeterministicScript script) { this.script = script; }
+        MockAggregationScript(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
 
         @Override
@@ -617,7 +617,7 @@ public class MockScriptEngine implements ScriptEngine {
 
     class MockSignificantTermsHeuristicScoreScript implements SignificantTermsHeuristicScoreScript.Factory, ScriptFactory {
         private final MockDeterministicScript script;
-        public MockSignificantTermsHeuristicScoreScript(MockDeterministicScript script) { this.script = script; }
+        MockSignificantTermsHeuristicScoreScript(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
 
         @Override
@@ -633,7 +633,7 @@ public class MockScriptEngine implements ScriptEngine {
 
     class MockFieldScriptFactory implements FieldScript.Factory, ScriptFactory {
         private final MockDeterministicScript script;
-        public MockFieldScriptFactory(MockDeterministicScript script) { this.script = script; }
+        MockFieldScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
 
         @Override
@@ -652,7 +652,7 @@ public class MockScriptEngine implements ScriptEngine {
 
     class MockStringSortScriptFactory implements StringSortScript.Factory, ScriptFactory {
         private final MockDeterministicScript script;
-        public MockStringSortScriptFactory(MockDeterministicScript script) { this.script = script; }
+        MockStringSortScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
 
         @Override

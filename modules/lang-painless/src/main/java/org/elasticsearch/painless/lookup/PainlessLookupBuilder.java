@@ -910,7 +910,7 @@ public final class PainlessLookupBuilder {
     }
 
     public void addPainlessClassBinding(Class<?> targetClass, String methodName, Class<?> returnType, List<Class<?>> typeParameters,
-        Map<Class<?>, Object> annotations) {
+            Map<Class<?>, Object> annotations) {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnType);

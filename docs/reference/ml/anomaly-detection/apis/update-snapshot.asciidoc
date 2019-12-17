@@ -29,7 +29,8 @@ Updates certain properties of a snapshot.
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
-  (Required, string) Identifier for the model snapshot.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-update-snapshot-request-body]]
 ==== {api-request-body-title}
@@ -37,14 +38,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 The following properties can be updated after the model snapshot is created:
 
 `description`::
-  (Optional, string) A description of the model snapshot. For example,
-  "Before black friday".
+(Optional, string) A description of the model snapshot.
 
 `retain`::
-  (Optional, boolean) If true, this snapshot will not be deleted during
-  automatic cleanup of snapshots older than `model_snapshot_retention_days`.
-  Note that this snapshot will still be deleted when the {anomaly-job} is
-  deleted. The default value is false.
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=retain]
+
 
 [[ml-update-snapshot-example]]
 ==== {api-examples-title}

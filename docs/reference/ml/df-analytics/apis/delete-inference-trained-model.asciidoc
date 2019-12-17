@@ -34,7 +34,7 @@ information, see <<security-privileges>> and <<built-in-roles>>.
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
-[ml-delete-inference-response-codes]]
+[[ml-delete-inference-response-codes]]
 ==== {api-response-codes-title}
 
 `409`::

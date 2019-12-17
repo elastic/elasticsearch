@@ -216,17 +216,13 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
             return;
         }
         String text = (String)field;
-        try {
-            text = FeatureUtils.cleanAndLowerText(text);
-            text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
-            String finalText = text;
-            List<FeatureValue[]> processedFeatures = FEATURE_EXTRACTORS.stream()
-                .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
-                .collect(Collectors.toList());
-            fields.put(destField, concatEmbeddings(processedFeatures));
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failure embedding the text in pre-processor", e);
-        }
+        text = FeatureUtils.cleanAndLowerText(text);
+        text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
+        String finalText = text;
+        List<FeatureValue[]> processedFeatures = FEATURE_EXTRACTORS.stream()
+            .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
+            .collect(Collectors.toList());
+        fields.put(destField, concatEmbeddings(processedFeatures));
     }
 
     @Override

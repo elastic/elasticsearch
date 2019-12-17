@@ -14,8 +14,6 @@ import static org.hamcrest.CoreMatchers.not;
 public class ScriptDetectorTests extends ESTestCase {
 
     public void testGreekScript() {
-        // The first two conditions check first / last character from the Greek and
-        // Coptic script. The last two ones are negative tests.
         assertThat(ScriptDetector.Script.fromCodePoint("Ͱ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
         assertThat(ScriptDetector.Script.fromCodePoint("Ͽ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
         assertThat(ScriptDetector.Script.fromCodePoint("δ".codePointAt(0)), is(ScriptDetector.Script.kScriptGreek));
@@ -89,17 +87,16 @@ public class ScriptDetectorTests extends ESTestCase {
     }
 
     public void testOtherThreeBytes() {
-        // Unrecognized 3-byte script: CJK Unified Ideographs: not uniquely associated
-        // with a language.
+        // Unrecognized 3-byte script: CJK Unified Ideographs. Not uniquely associated with a language.
         assertThat(ScriptDetector.Script.fromCodePoint("万".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
         assertThat(ScriptDetector.Script.fromCodePoint("両".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8ThreeBytes));
     }
 
     public void testOtherFourBytes() {
-        // Unrecognized 4-byte script: CJK Unified Ideographs Extension C.  Note:
+        // Unrecognized 4-byte script: CJK Unified Ideographs Extension C. Not uniquely associated with a language.
         assertThat(ScriptDetector.Script.fromCodePoint("𪩘".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8FourBytes));
 
-        // Unrecognized 4-byte script: CJK Unified Ideographs Extension E
+        // Unrecognized 4-byte script: CJK Unified Ideographs Extension E. Not uniquely associated with a language.
         assertThat(ScriptDetector.Script.fromCodePoint("𫢸".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8FourBytes));
         assertThat(ScriptDetector.Script.fromCodePoint("𫫇".codePointAt(0)), is(ScriptDetector.Script.kScriptOtherUtf8FourBytes));
     }

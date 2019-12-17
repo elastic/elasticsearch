@@ -46,32 +46,6 @@ public class ScriptFeatureExtractorTests extends ESTestCase {
             assertEquals(expected[i], ScriptFeatureExtractor.getScriptFeatureValue(text));
         }
     }
-
-    public void testAllCodePoints() {
-        // Test to test all unicode code points against cld3 output - currently different
-        // TODO - script_ids between cld3 and Java codepoint script are different investigate this further
-       /*
-        final int numCodePoints = 17 * 65536;
-
-       for (int i = 0; i <= numCodePoints; ++i) {
-           int [] codePoints = {i};
-           String text = new String(codePoints, 0, 1);
-           long actual = ScriptFeatureExtractor.getScriptFeatureValue(text);
-           Character.UnicodeScript unicodeScript = Character.UnicodeScript.of(text.codePointAt(0));
-           Matcher m = Pattern.compile("\\b\\p{L}").matcher(text);
-
-           System.out.println(i + ":" + actual + " " + unicodeScript + " " + m.find());
-       }
-
-        int i = 13319;
-        int[] codePoints = {i};
-        String text = new String(codePoints, 0, 1);
-        long actual = ScriptFeatureExtractor.getScriptFeatureValue(text);
-        Character.UnicodeScript unicodeScript = Character.UnicodeScript.of(text.codePointAt(0));
-        Matcher m = Pattern.compile("\\b\\p{L}").matcher(text);
-
-        System.out.println(i + ":" + actual + " " + unicodeScript + " " + m.find());
-        */
-    }
+    
 }
 

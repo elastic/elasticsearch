@@ -36,11 +36,6 @@ public enum ShapeType {
     ENVELOPE, // not part of the actual WKB spec
     CIRCLE; // not part of the actual WKB spec
 
-    private static ShapeType[] values = values();
-
-    public static ShapeType forOrdinal(int ordinal) {
-        return values[ordinal];
-    }
     public static ShapeType forName(String shapeName) {
         return ShapeType.valueOf(shapeName.toUpperCase(Locale.ROOT));
     }

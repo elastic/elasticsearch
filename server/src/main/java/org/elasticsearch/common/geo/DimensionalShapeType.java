@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -47,8 +49,8 @@ public enum DimensionalShapeType {
     MULTILINESTRING,
     POLYGON,
     MULTIPOLYGON,
-    GEOMETRYCOLLECTION_POINTS,    // highest-dimensional shapes are Points
-    GEOMETRYCOLLECTION_LINES,     // highest-dimensional shapes are Lines
+    GEOMETRYCOLLECTION_POINTS,     // highest-dimensional shapes are Points
+    GEOMETRYCOLLECTION_LINES,      // highest-dimensional shapes are Lines
     GEOMETRYCOLLECTION_POLYGONS;   // highest-dimensional shapes are Polygons
 
     private static DimensionalShapeType[] values = values();
@@ -64,8 +66,12 @@ public enum DimensionalShapeType {
         return COMPARATOR.compare(s1, s2) >= 0 ? s1 : s2;
     }
 
-    public static DimensionalShapeType forOrdinal(int ordinal) {
-        return values[ordinal];
+    public void writeTo(ByteBuffersDataOutput out) {
+        out.writeByte((byte) ordinal());
+    }
+
+    public static DimensionalShapeType readFrom(ByteArrayDataInput in) {
+        return values[Byte.toUnsignedInt(in.readByte())];
     }
 
     public static DimensionalShapeType forGeometry(Geometry geometry) {

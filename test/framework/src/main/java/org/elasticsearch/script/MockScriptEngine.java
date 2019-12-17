@@ -103,16 +103,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
         MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
         if (context.instanceClazz.equals(FieldScript.class)) {
-            FieldScript.Factory factory = (parameters, lookup) ->
-                ctx -> new FieldScript(parameters, lookup, ctx) {
-                    @Override
-                    public Object execute() {
-                        Map<String, Object> vars = createVars(parameters);
-                        vars.putAll(getLeafLookup().asMap());
-                        return script.apply(vars);
-                    }
-                };
-            return context.factoryClazz.cast(factory);
+            return context.factoryClazz.cast(new MockFieldScriptFactory(script));
         } else if(context.instanceClazz.equals(TermsSetQueryScript.class)) {
             TermsSetQueryScript.Factory factory = (parameters, lookup) -> (TermsSetQueryScript.LeafFactory) ctx
                 -> new TermsSetQueryScript(parameters, lookup, ctx) {
@@ -147,17 +138,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(StringSortScript.class)) {
-            StringSortScript.Factory factory = (parameters, lookup) -> (StringSortScript.LeafFactory) ctx
-                -> new StringSortScript(parameters, lookup, ctx) {
-                @Override
-                public String execute() {
-                    Map<String, Object> vars = new HashMap<>(parameters);
-                    vars.put("params", parameters);
-                    vars.put("doc", getDoc());
-                    return String.valueOf(script.apply(vars));
-                }
-            };
-            return context.factoryClazz.cast(factory);
+            return context.factoryClazz.cast(new MockStringSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
             IngestScript.Factory factory = vars -> new IngestScript(vars) {
                 @Override
@@ -645,6 +626,44 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public double execute(Map<String, Object> vars) {
                     return ((Number) script.apply(vars)).doubleValue();
+                }
+            };
+        }
+    }
+
+    class MockFieldScriptFactory implements FieldScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        public MockFieldScriptFactory(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
+
+        @Override
+        public FieldScript.LeafFactory newFactory(Map<String, Object> parameters, SearchLookup lookup) {
+            return ctx -> new FieldScript(parameters, lookup, ctx) {
+                @Override
+                public Object execute() {
+                    Map<String, Object> vars = createVars(parameters);
+                    vars.putAll(getLeafLookup().asMap());
+                    return script.apply(vars);
+
+                }
+            };
+        }
+    }
+
+    class MockStringSortScriptFactory implements StringSortScript.Factory, ScriptFactory {
+        private final MockDeterministicScript script;
+        public MockStringSortScriptFactory(MockDeterministicScript script) { this.script = script; }
+        @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
+
+        @Override
+        public StringSortScript.LeafFactory newFactory(Map<String, Object> parameters, SearchLookup lookup) {
+            return ctx -> new StringSortScript(parameters, lookup, ctx) {
+                @Override
+                public String execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return String.valueOf(script.apply(vars));
                 }
             };
         }

@@ -51,3 +51,11 @@ deprecated in 7.6, and are now removed in 8.x. The form
 `function(query, 'field')` should be used instead. For example,
 `cosineSimilarity(query, doc['field'])` is replaced by
 `cosineSimilarity(query, 'field')`.
+
+[float]
+==== Consistent rounding of range queries on dates
+`range` queries on `date` and `date_range` field behaved differently for some boundaries when using 
+date math or dates that didn't specify up to the last millisecond. While queries on `date` field rounded
+up to the latest millisecond on `gt` and `lte` boundary definitions, the same queries on `date_range`
+fields didn't do this. Starting with 8.0 the behavior is like documented in <<range-query-date-math-rounding>>
+for both cases.

@@ -275,23 +275,23 @@ public class MetaDataCreateIndexService {
 
         // we only find a template when its an API call (a new index)
         // find templates, highest order are better matching
-        List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index()) :
+        final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index())) :
             List.of();
 
-        Map<String, Object> mappings = parseMappings(request.mappings(), templates, xContentRegistry);
+        final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates, xContentRegistry));
 
-        Settings aggregatedIndexSettings =
+        final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, templates, mappings, sourceMetaData, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetaData);
 
         // remove the setting it's temporary and is only relevant once we create the index
-        Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
+        final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
         settingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        Settings indexSettings = settingsBuilder.build();
+        final Settings indexSettings = settingsBuilder.build();
 
         try {
-            IndexService indexService = validateActiveShardCountAndCreateIndexService(request.index(), request.waitForActiveShards(),
+            final IndexService indexService = validateActiveShardCountAndCreateIndexService(request.index(), request.waitForActiveShards(),
                 indexSettings, routingNumShards, indicesService);
             // create the index here (on the master) to validate it can be created, as well as adding the mapping
             createdIndex = indexService.index();
@@ -303,14 +303,14 @@ public class MetaDataCreateIndexService {
                 throw e;
             }
 
-            List<AliasMetaData> aliases = resolveAndValidateAliases(request.index(), request.aliases(), templates,
-                currentState.metaData(), aliasValidator,
+            final List<AliasMetaData> aliases = Collections.unmodifiableList(resolveAndValidateAliases(request.index(), request.aliases(),
+                templates, currentState.metaData(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                 // timestamp
                 xContentRegistry, () -> indexService.newQueryShardContext(0, null, () -> 0L, null)
-            );
+            ));
 
-            IndexMetaData indexMetaData;
+            final IndexMetaData indexMetaData;
             try {
                 indexMetaData = buildIndexMetaData(request.index(), aliases, indexService.mapperService()::documentMapper, indexSettings,
                     routingNumShards, sourceMetaData);
@@ -325,7 +325,8 @@ public class MetaDataCreateIndexService {
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetaData.getIndex(),
                 indexMetaData.getSettings());
-            ClusterState updatedState = clusterStateCreateIndex(currentState, request.blocks(), indexMetaData, allocationService::reroute);
+            final ClusterState updatedState = clusterStateCreateIndex(currentState, request.blocks(), indexMetaData,
+                allocationService::reroute);
 
             removalExtraInfo = "cleaning up after validating index on master";
             removalReason = IndexRemovalReason.NO_LONGER_ASSIGNED;
@@ -441,9 +442,9 @@ public class MetaDataCreateIndexService {
      * it will return the value configured for that index.
      */
     static int getIndexNumberOfRoutingShards(Settings indexSettings, @Nullable IndexMetaData sourceMetaData) {
-        int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
+        final int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
         final Version indexVersionCreated = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        int routingNumShards;
+        final int routingNumShards;
         if (sourceMetaData == null || sourceMetaData.getNumberOfShards() == 1) {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
@@ -574,7 +575,7 @@ public class MetaDataCreateIndexService {
      * created index needs to be gte than the maximum term in the source index).
      */
     private static IndexMetaData.Builder createIndexMetadataBuilder(String indexName, @Nullable IndexMetaData sourceMetaData,
-                                                            Settings indexSettings, int routingNumShards) {
+                                                                    Settings indexSettings, int routingNumShards) {
         final IndexMetaData.Builder builder = IndexMetaData.builder(indexName);
         builder.setRoutingNumShards(routingNumShards);
         builder.settings(indexSettings);
@@ -650,7 +651,7 @@ public class MetaDataCreateIndexService {
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 
-    public void validateIndexSettings(String indexName, Settings settings, boolean forbidPrivateIndexSettings)
+    public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
@@ -681,7 +682,7 @@ public class MetaDataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(Settings settings, boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataFile());
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));

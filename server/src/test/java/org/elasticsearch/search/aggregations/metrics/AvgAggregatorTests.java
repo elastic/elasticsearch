@@ -119,7 +119,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         });
 
         Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
-        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> Math.random());
+        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> AvgAggregatorTests.randomDouble());
 
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
             scripts,

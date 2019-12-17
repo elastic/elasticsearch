@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -96,7 +97,7 @@ public class MetricAggScriptPlugin extends MockScriptPlugin {
     protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-        scripts.put("Math.random()", vars -> Math.random());
+        scripts.put("Math.random()", vars -> ESTestCase.randomDouble());
 
         return scripts;
     }

@@ -147,7 +147,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         });
 
         Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
-        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> Math.random());
+        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> MaxAggregatorTests.randomDouble());
 
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
             scripts,

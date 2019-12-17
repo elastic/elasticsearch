@@ -252,14 +252,14 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
             scripts.put("state.data = Math.random()", vars ->
-                aggScript(vars, state -> state.put("data", Math.random())));
+                aggScript(vars, state -> state.put("data", ScriptedMetricIT.randomDouble())));
 
 
             scripts.put("state['count'] = Math.random() >= 0.5 ? 1 : 0", vars ->
-                aggScript(vars, state -> state.put("count", Math.random() >= 0.5 ? 1 : 0)));
+                aggScript(vars, state -> state.put("count", ScriptedMetricIT.randomDouble() >= 0.5 ? 1 : 0)));
 
 
-            scripts.put("return Math.random()", vars -> Math.random());
+            scripts.put("return Math.random()", vars -> ScriptedMetricIT.randomDouble());
 
             return scripts;
         }

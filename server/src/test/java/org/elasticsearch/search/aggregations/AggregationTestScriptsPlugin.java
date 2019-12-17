@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -121,7 +122,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
     protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-        scripts.put("Math.random()", vars -> Math.random());
+        scripts.put("Math.random()", vars -> ESTestCase.randomDouble());
 
         return scripts;
     }

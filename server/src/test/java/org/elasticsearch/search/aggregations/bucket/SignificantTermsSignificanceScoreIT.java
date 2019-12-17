@@ -197,7 +197,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("Math.random()", vars -> Math.random());
+            scripts.put("Math.random()", vars -> SignificantTermsSignificanceScoreIT.randomDouble());
 
             return scripts;
         }

@@ -110,7 +110,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
-            return Collections.singletonMap("Math.random()", script -> Math.random());
+            return Collections.singletonMap("Math.random()", script -> TopHitsIT.randomDouble());
         }
     }
 

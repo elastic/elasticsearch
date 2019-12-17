@@ -164,7 +164,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         scripts.put(INVERT_SCRIPT, vars -> -((Number) vars.get("_value")).doubleValue());
 
         Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
-        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> Math.random());
+        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> AggregatorTestCase.randomDouble());
 
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
             scripts,

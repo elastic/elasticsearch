@@ -29,13 +29,19 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Objects;
 
+/**
+ * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
+ * that deal with extents/rectangles representing rectangular areas of interest.
+ */
 public class BoundingBox implements ToXContentObject, Writeable {
-    private static final GeometryParser GEOMETRY_PARSER = new GeometryParser(true, true, true);
+    private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     static final ParseField TOP_FIELD = new ParseField("top");
@@ -62,6 +68,83 @@ public class BoundingBox implements ToXContentObject, Writeable {
         this.bottomRight = input.readGeoPoint();
     }
 
+    public GeoPoint topLeft() {
+        return topLeft;
+    }
+
+    public GeoPoint bottomRight() {
+        return bottomRight;
+    }
+
+    public double top() {
+        return topLeft.lat();
+    }
+
+    public double bottom() {
+        return bottomRight.lat();
+    }
+
+    public double left() {
+        return topLeft.lon();
+    }
+
+    public double right() {
+        return bottomRight.lon();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(BOUNDS_FIELD.getPreferredName());
+        toXContentFragment(builder, true);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder toXContentFragment(XContentBuilder builder, boolean buildLatLonFields) throws IOException {
+        if (buildLatLonFields) {
+            builder.startObject(TOP_LEFT_FIELD.getPreferredName());
+            builder.field(LAT_FIELD.getPreferredName(), topLeft.lat());
+            builder.field(LON_FIELD.getPreferredName(), topLeft.lon());
+            builder.endObject();
+        } else {
+            builder.array(TOP_LEFT_FIELD.getPreferredName(), topLeft.lon(), topLeft.lat());
+        }
+        if (buildLatLonFields) {
+            builder.startObject(BOTTOM_RIGHT_FIELD.getPreferredName());
+            builder.field(LAT_FIELD.getPreferredName(), bottomRight.lat());
+            builder.field(LON_FIELD.getPreferredName(), bottomRight.lon());
+            builder.endObject();
+        } else {
+            builder.array(BOTTOM_RIGHT_FIELD.getPreferredName(), bottomRight.lon(), bottomRight.lat());
+        }
+        return builder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeGeoPoint(topLeft);
+        out.writeGeoPoint(bottomRight);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BoundingBox that = (BoundingBox) o;
+        return topLeft.equals(that.topLeft) &&
+            bottomRight.equals(that.bottomRight);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(topLeft, bottomRight);
+    }
+
+    @Override
+    public String toString() {
+        return "BBOX (" + topLeft.lon() + ", " + bottomRight.lon() + ", " + topLeft.lat() + ", " + bottomRight.lat() + ")";
+    }
+
     /**
      * Parses the bounding box and returns bottom, top, left, right coordinates
      */
@@ -86,13 +169,13 @@ public class BoundingBox implements ToXContentObject, Writeable {
                 token = parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
-                        Geometry geometry = GEOMETRY_PARSER.parse(parser);
+                        Geometry geometry = WKT_PARSER.fromWKT(parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
                             throw new ElasticsearchParseException("failed to parse WKT bounding box. ["
-                                + geometry.type() + "] found instead");
+                                + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]");
                         }
                         envelope = (Rectangle) geometry;
-                    } catch (ParseException e) {
+                    } catch (ParseException|IllegalArgumentException e) {
                         throw new ElasticsearchParseException("failed to parse WKT bounding box", e);
                     }
                 } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -143,75 +226,4 @@ public class BoundingBox implements ToXContentObject, Writeable {
         return new BoundingBox(topLeft, bottomRight);
     }
 
-    public GeoPoint topLeft() {
-        return topLeft;
-    }
-
-    public GeoPoint bottomRight() {
-        return bottomRight;
-    }
-
-    public double top() {
-        return topLeft.lat();
-    }
-
-    public double bottom() {
-        return bottomRight.lat();
-    }
-
-    public double left() {
-        return topLeft.lon();
-    }
-
-    public double right() {
-        return bottomRight.lon();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(BOUNDS_FIELD.getPreferredName());
-        toXContentFragment(builder, true);
-        builder.endObject();
-        return null;
-    }
-
-    public XContentBuilder toXContentFragment(XContentBuilder builder, boolean buildLatLonFields) throws IOException {
-        if (buildLatLonFields) {
-            builder.startObject(TOP_LEFT_FIELD.getPreferredName());
-            builder.field(LAT_FIELD.getPreferredName(), topLeft.lat());
-            builder.field(LON_FIELD.getPreferredName(), topLeft.lon());
-            builder.endObject();
-        } else {
-            builder.array(TOP_LEFT_FIELD.getPreferredName(), topLeft.lon(), topLeft.lat());
-        }
-        if (buildLatLonFields) {
-            builder.startObject(BOTTOM_RIGHT_FIELD.getPreferredName());
-            builder.field(LAT_FIELD.getPreferredName(), bottomRight.lat());
-            builder.field(LON_FIELD.getPreferredName(), bottomRight.lon());
-            builder.endObject();
-        } else {
-            builder.array(BOTTOM_RIGHT_FIELD.getPreferredName(), bottomRight.lon(), bottomRight.lat());
-        }
-        return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeGeoPoint(topLeft);
-        out.writeGeoPoint(bottomRight);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BoundingBox that = (BoundingBox) o;
-        return topLeft.equals(that.topLeft) &&
-            bottomRight.equals(that.bottomRight);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(topLeft, bottomRight);
-    }
 }

@@ -60,9 +60,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=desc-results]
 include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `page`::
-`from`:::
+`page`.`from`:::
 (Optional, integer) Skips the specified number of records.
-`size`:::
+`page`.`size`:::
 (Optional, integer) Specifies the maximum number of records to obtain.
 
 `record_score`::

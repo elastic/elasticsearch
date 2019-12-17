@@ -54,9 +54,9 @@ parameter, the API returns information about all categories in the {anomaly-job}
 ==== {api-request-body-title}
 
 `page`::
-`from`:::
+`page`.`from`:::
 (Optional, integer) Skips the specified number of categories.
-`size`:::
+`page`.`size`:::
 (Optional, integer) Specifies the maximum number of categories to obtain.
 
 [[ml-get-category-results]]

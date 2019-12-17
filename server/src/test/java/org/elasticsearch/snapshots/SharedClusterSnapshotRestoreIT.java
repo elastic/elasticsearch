@@ -2929,7 +2929,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final IndexId corruptedIndex = randomFrom(indexIds.values());
         final Path indexMetadataPath = repo.resolve("indices")
             .resolve(corruptedIndex.getId())
-            .resolve("meta-" + snapshotInfo.snapshotId().getUUID() + ".dat");
+            .resolve(
+                "meta-" + repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotInfo.snapshotId(), corruptedIndex) + ".dat");
 
         // Truncate the index metadata file
         try(SeekableByteChannel outChan = Files.newByteChannel(indexMetadataPath, StandardOpenOption.WRITE)) {

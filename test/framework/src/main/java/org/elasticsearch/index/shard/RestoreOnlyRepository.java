@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -88,7 +89,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
         listener.onResponse(new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(),
-            Collections.singletonMap(indexId, emptySet()), ShardGenerations.EMPTY, Collections.emptyMap()));
+            Collections.singletonMap(indexId, emptySet()), ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY));
     }
 
     @Override

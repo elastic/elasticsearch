@@ -40,6 +40,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -104,8 +106,11 @@ public class RepositoryDataTests extends ESTestCase {
             indices.add(indexId);
             builder.put(indexId, 0, "2");
         }
+        final ShardGenerations shardGenerations = builder.build();
         RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot,
-            randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), builder.build(), Collections.emptyMap());
+            randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), shardGenerations,
+            shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), i -> UUIDs.randomBase64UUID(random()))),
+            Collections.emptyMap());
         // verify that the new repository data has the new snapshot and its indices
         assertTrue(newRepoData.getSnapshotIds().contains(newSnapshot));
         for (IndexId indexId : indices) {
@@ -128,11 +133,11 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotStates.put(snapshotId.getUUID(), randomFrom(SnapshotState.values()));
         }
         RepositoryData repositoryData = new RepositoryData(EMPTY_REPO_GEN, snapshotIds,
-            Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY, Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
         // test that initializing indices works
         Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
         RepositoryData newRepoData = new RepositoryData(
-            repositoryData.getGenId(), snapshotIds, snapshotStates, indices, ShardGenerations.EMPTY, Collections.emptyMap());
+            repositoryData.getGenId(), snapshotIds, snapshotStates, indices, ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
         Collections.sort(expected);
         List<SnapshotId> actual = new ArrayList<>(newRepoData.getSnapshotIds());
@@ -169,7 +174,7 @@ public class RepositoryDataTests extends ESTestCase {
         final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         final SnapshotState state = randomFrom(SnapshotState.values());
         final RepositoryData repositoryData =
-            RepositoryData.EMPTY.addSnapshot(snapshotId, state, ShardGenerations.EMPTY, Collections.emptyMap());
+            RepositoryData.EMPTY.addSnapshot(snapshotId, state, ShardGenerations.EMPTY, Collections.emptyMap(), Collections.emptyMap());
         assertEquals(state, repositoryData.getSnapshotState(snapshotId));
         assertNull(repositoryData.getSnapshotState(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())));
     }
@@ -212,7 +217,7 @@ public class RepositoryDataTests extends ESTestCase {
         assertNotNull(corruptedIndexId);
 
         RepositoryData corruptedRepositoryData = new RepositoryData(parsedRepositoryData.getGenId(), snapshotIds, snapshotStates,
-            indexSnapshots, shardGenBuilder.build(), Collections.emptyMap());
+            indexSnapshots, shardGenBuilder.build(), IndexMetaDataGenerations.EMPTY);
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
         corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, true);
@@ -281,8 +286,10 @@ public class RepositoryDataTests extends ESTestCase {
                     builder.put(someIndex, j, uuid);
                 }
             }
-            repositoryData =
-                repositoryData.addSnapshot(snapshotId, randomFrom(SnapshotState.values()), builder.build(), Collections.emptyMap());
+            repositoryData = repositoryData.addSnapshot(
+                snapshotId, randomFrom(SnapshotState.values()), builder.build(),
+                someIndices.stream().collect(Collectors.toMap(Function.identity(), ind -> UUIDs.randomBase64UUID(random()))),
+                Collections.emptyMap());
         }
         return repositoryData;
     }

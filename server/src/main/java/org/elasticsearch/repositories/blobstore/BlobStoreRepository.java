@@ -694,6 +694,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
                 return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
             }),
+            //TODO: This needs to account for index meta changes
             deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(indexId ->
                 indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID()))
         ).map(absolutePath -> {
@@ -874,14 +875,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         getRepositoryData(ActionListener.wrap(existingRepositoryData -> {
 
-            final Map<IndexId, String> indexMetas = ConcurrentCollections.newConcurrentMap();
+            final Map<IndexId, String> indexMetas;
+            final Map<String, String> indexMetaHashes;
+            if (writeShardGens) {
+                indexMetaHashes = ConcurrentCollections.newConcurrentMap();
+                indexMetas = ConcurrentCollections.newConcurrentMap();
+            } else {
+                indexMetas = null;
+                indexMetaHashes = null;
+            }
 
             final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
                 ActionListener.wrap(snapshotInfos -> {
                     assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
                     final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
-                    final RepositoryData updatedRepositoryData =
-                        existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), shardGenerations, indexMetas);
+                    final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
+                        snapshotId, snapshotInfo.state(), shardGenerations, indexMetas, indexMetaHashes);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, writeShardGens, ActionListener.wrap(v -> {
                         if (writeShardGens) {
                             cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
@@ -904,14 +913,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (IndexId index : indices) {
                 executor.execute(ActionRunnable.run(allMetaListener, () -> {
                         final IndexMetaData indexMetaData = clusterMetaData.index(index.getName());
-                        final BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-                        indexMetaData.writeTo(bytesStreamOutput);
-                        final String hash =
-                            MessageDigests.toHexString(MessageDigests.sha256().digest(BytesReference.toBytes(bytesStreamOutput.bytes())));
-                        if (existingRepositoryData.containsMeta(hash) == false) {
-                            indexMetaDataFormat.write(indexMetaData, indexContainer(index), snapshotId.getUUID(), false);
+                        if (writeShardGens) {
+                            final BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+                            indexMetaData.writeTo(bytesStreamOutput);
+                            final String hash = MessageDigests.toHexString(
+                                MessageDigests.sha256().digest(BytesReference.toBytes(bytesStreamOutput.bytes())));
+                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaKey(hash);
+                            if (metaUUID == null) {
+                                metaUUID = UUIDs.base64UUID();
+                                indexMetaDataFormat.write(indexMetaData, indexContainer(index), metaUUID, false);
+                                indexMetaHashes.put(hash, metaUUID);
+                            }
+                            indexMetas.put(index, hash);
+                        } else {
+                            indexMetaDataFormat.write(
+                                clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);
                         }
-                        indexMetas.put(index, hash);
                     }
                 ));
             }
@@ -965,7 +982,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public IndexMetaData getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
         try {
-            return indexMetaDataFormat.read(indexContainer(index), repositoryData.indexMetaBlobId(snapshotId, index));
+            return indexMetaDataFormat.read(indexContainer(index),
+                repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, index));
         } catch (NoSuchFileException e) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, e);
         }

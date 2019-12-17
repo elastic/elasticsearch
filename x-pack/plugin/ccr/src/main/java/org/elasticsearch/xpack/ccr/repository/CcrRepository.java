@@ -57,6 +57,7 @@ import org.elasticsearch.indices.recovery.MultiFileTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -243,7 +244,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
             }
             return new RepositoryData(
-                1, copiedSnapshotIds, snapshotStates, indexSnapshots, ShardGenerations.EMPTY, Collections.emptyMap());
+                1, copiedSnapshotIds, snapshotStates, indexSnapshots, ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
         });
     }
 

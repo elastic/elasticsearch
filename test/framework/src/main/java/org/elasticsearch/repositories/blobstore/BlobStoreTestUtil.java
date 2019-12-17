@@ -189,8 +189,8 @@ public final class BlobStoreTestUtil {
                 .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(".dat", ""))
                 .collect(Collectors.toSet());
             final Set<String> indexMetaGenerationsExpected = new HashSet<>();
-            // TODO: this is bs and needs to adapt to the snapshots actual index contents
-            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
+            for (SnapshotId snapshotId : repositoryData.getSnapshots(repositoryData.getIndices().values().stream()
+                .filter(i -> i.getId().equals(indexId)).findFirst().get())) {
                 indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(
                     snapshotId, new IndexId("_na", indexId)));
             }

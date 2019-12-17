@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -33,6 +35,8 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMlInfoAction.class);
 
     private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;

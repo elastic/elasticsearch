@@ -61,6 +61,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -133,7 +134,7 @@ public final class BlobStoreTestUtil {
                      LoggingDeprecationHandler.INSTANCE, blob)) {
                 repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
             }
-            assertIndexUUIDs(blobContainer, repositoryData);
+            assertIndexUUIDs(repository, repositoryData);
             assertSnapshotUUIDs(repository, repositoryData);
             assertShardIndexGenerations(blobContainer, repositoryData.shardGenerations());
         }));
@@ -169,10 +170,10 @@ public final class BlobStoreTestUtil {
         }
     }
 
-    private static void assertIndexUUIDs(BlobContainer repoRoot, RepositoryData repositoryData) throws IOException {
+    private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
         final List<String> expectedIndexUUIDs =
             repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toList());
-        final BlobContainer indicesContainer = repoRoot.children().get("indices");
+        final BlobContainer indicesContainer = repository.blobContainer().children().get("indices");
         final List<String> foundIndexUUIDs;
         if (indicesContainer == null) {
             foundIndexUUIDs = Collections.emptyList();
@@ -182,6 +183,19 @@ public final class BlobStoreTestUtil {
                 s -> s.startsWith("extra") == false).collect(Collectors.toList());
         }
         assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        for (String indexId : foundIndexUUIDs) {
+            final Set<String> indexMetaGenerationsFound = indicesContainer.children().get(indexId)
+                .listBlobsByPrefix(BlobStoreRepository.METADATA_PREFIX).keySet().stream()
+                .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(".dat", ""))
+                .collect(Collectors.toSet());
+            final Set<String> indexMetaGenerationsExpected = new HashSet<>();
+            // TODO: this is bs and needs to adapt to the snapshots actual index contents
+            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
+                indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(
+                    snapshotId, new IndexId("_na", indexId)));
+            }
+            assertEquals(indexMetaGenerationsExpected, indexMetaGenerationsFound);
+        }
     }
 
     private static void assertSnapshotUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {

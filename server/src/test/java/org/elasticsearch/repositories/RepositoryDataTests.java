@@ -107,10 +107,12 @@ public class RepositoryDataTests extends ESTestCase {
             builder.put(indexId, 0, "2");
         }
         final ShardGenerations shardGenerations = builder.build();
+        final Map<IndexId, String> indexLookup =
+            shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
         RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot,
             randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), shardGenerations,
-            shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), i -> UUIDs.randomBase64UUID(random()))),
-            Collections.emptyMap());
+            indexLookup,
+            indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
         // verify that the new repository data has the new snapshot and its indices
         assertTrue(newRepoData.getSnapshotIds().contains(newSnapshot));
         for (IndexId indexId : indices) {
@@ -286,10 +288,12 @@ public class RepositoryDataTests extends ESTestCase {
                     builder.put(someIndex, j, uuid);
                 }
             }
+            final Map<IndexId, String> indexLookup =
+                someIndices.stream().collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
             repositoryData = repositoryData.addSnapshot(
                 snapshotId, randomFrom(SnapshotState.values()), builder.build(),
-                someIndices.stream().collect(Collectors.toMap(Function.identity(), ind -> UUIDs.randomBase64UUID(random()))),
-                Collections.emptyMap());
+                indexLookup,
+                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
         }
         return repositoryData;
     }

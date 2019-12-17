@@ -62,7 +62,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -95,6 +94,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
@@ -694,7 +694,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
                 return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
             }),
-            //TODO: This needs to account for index meta changes
             deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(indexId ->
                 indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID()))
         ).map(absolutePath -> {
@@ -914,12 +913,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 executor.execute(ActionRunnable.run(allMetaListener, () -> {
                         final IndexMetaData indexMetaData = clusterMetaData.index(index.getName());
                         if (writeShardGens) {
-                            final BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-                            indexMetaData.writeTo(bytesStreamOutput);
-                            final String hash = MessageDigests.toHexString(
-                                MessageDigests.sha256().digest(BytesReference.toBytes(bytesStreamOutput.bytes())));
-                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaKey(hash);
+                            final String hash = IndexMetaDataGenerations.hashIndexMetaData(indexMetaData);
+                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(hash);
                             if (metaUUID == null) {
+                                // We don't yet have this version of the metadata so we write it
                                 metaUUID = UUIDs.base64UUID();
                                 indexMetaDataFormat.write(indexMetaData, indexContainer(index), metaUUID, false);
                                 indexMetaHashes.put(hash, metaUUID);

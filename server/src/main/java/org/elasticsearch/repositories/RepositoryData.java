@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -165,6 +166,10 @@ public final class RepositoryData {
             .filter(entry -> entry.getValue().size() > 1 && entry.getValue().contains(snapshotId))
             .map(Map.Entry::getKey)
             .collect(Collectors.toList());
+    }
+
+    public Collection<Tuple<IndexId, String>> indexMetaDataBlobsToDelete(RepositoryData nextRepositoryData) {
+        return Collections.emptySet();
     }
 
     /**

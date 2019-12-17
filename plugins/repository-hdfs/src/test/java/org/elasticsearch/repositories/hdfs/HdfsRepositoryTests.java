@@ -78,7 +78,7 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
         }
     }
 
-    private static boolean isJava11() {
+    public static boolean isJava11() {
         return JavaVersion.current().equals(JavaVersion.parse("11"));
     }
 }

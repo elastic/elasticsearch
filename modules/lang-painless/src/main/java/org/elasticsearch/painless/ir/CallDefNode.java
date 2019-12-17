@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class DefCallNode extends ArgumentsNode<ExpressionNode> {
+public class CallDefNode extends ArgumentsNode<ExpressionNode> {
 
     protected final Location location;
     protected final String name;
@@ -39,7 +39,7 @@ public class DefCallNode extends ArgumentsNode<ExpressionNode> {
     protected final List<String> pointers;
     protected final List<Class<?>> parameterTypes;
 
-    public DefCallNode(Location location, String name, String recipe, List<String> pointers, List<Class<?>> parameterTypes) {
+    public CallDefNode(Location location, String name, String recipe, List<String> pointers, List<Class<?>> parameterTypes) {
         this.location = location;
         this.name = Objects.requireNonNull(name);
         this.recipe = Objects.requireNonNull(recipe);

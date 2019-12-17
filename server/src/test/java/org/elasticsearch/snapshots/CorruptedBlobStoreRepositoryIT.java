@@ -213,6 +213,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();
+        ensureGreen();
 
         Repository repositoryAfterRestart = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
 

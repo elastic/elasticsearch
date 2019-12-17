@@ -30,7 +30,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -73,10 +72,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -813,55 +812,61 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // when writing the index-${N} to each shard directory.
         final Consumer<Exception> onUpdateFailure =
             e -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e));
-        final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
-            ActionListener.wrap(snapshotInfos -> {
-                assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
-                final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
-                getRepositoryData(ActionListener.wrap(existingRepositoryData -> {
+
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+        getRepositoryData(ActionListener.wrap(existingRepositoryData -> {
+
+            final Map<IndexId, String> indexMetas = ConcurrentCollections.newConcurrentMap();
+
+            final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
+                ActionListener.wrap(snapshotInfos -> {
+                    assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
+                    final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
                     final RepositoryData updatedRepositoryData =
-                        existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), shardGenerations);
+                        existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), shardGenerations, indexMetas);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, writeShardGens, ActionListener.wrap(v -> {
                         if (writeShardGens) {
                             cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
                         }
                         listener.onResponse(snapshotInfo);
                     }, onUpdateFailure));
-                }, onUpdateFailure));
-            }, onUpdateFailure), 2 + indices.size());
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+                }, onUpdateFailure), 2 + indices.size());
 
-        // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
-        // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
-        // index or global metadata will be compatible with the segments written in this snapshot as well.
-        // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
-        // that decrements the generation it points at
+            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
+            // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
+            // index or global metadata will be compatible with the segments written in this snapshot as well.
+            // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
+            // that decrements the generation it points at
 
-        // Write Global MetaData
-        executor.execute(ActionRunnable.run(allMetaListener,
-            () -> globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false)));
+            // Write Global MetaData
+            executor.execute(ActionRunnable.run(allMetaListener,
+                () -> globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false)));
 
-        // write the index metadata for each index in the snapshot
-        for (IndexId index : indices) {
-            executor.execute(ActionRunnable.run(allMetaListener, () -> {
-                final IndexMetaData indexMetaData = clusterMetaData.index(index.getName());
-                final BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-                indexMetaData.writeTo(bytesStreamOutput);
-                final String hash =
-                    MessageDigests.toHexString(MessageDigests.sha256().digest(BytesReference.toBytes(bytesStreamOutput.bytes())));
-                if ()
-                    indexMetaDataFormat.write(indexMetaData, indexContainer(index), snapshotId.getUUID(), false);
-                }
-            ));
-        }
-
-        executor.execute(ActionRunnable.supply(allMetaListener, () -> {
-            final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
-                indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-                startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
-                includeGlobalState, userMetadata);
-            snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
-            return snapshotInfo;
-        }));
+            // write the index metadata for each index in the snapshot
+            for (IndexId index : indices) {
+                executor.execute(ActionRunnable.run(allMetaListener, () -> {
+                        final IndexMetaData indexMetaData = clusterMetaData.index(index.getName());
+                        final BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+                        indexMetaData.writeTo(bytesStreamOutput);
+                        final String hash =
+                            MessageDigests.toHexString(MessageDigests.sha256().digest(BytesReference.toBytes(bytesStreamOutput.bytes())));
+                        if (existingRepositoryData.containsMeta(hash) == false) {
+                            indexMetaDataFormat.write(indexMetaData, indexContainer(index), snapshotId.getUUID(), false);
+                        }
+                        indexMetas.put(index, hash);
+                    }
+                ));
+            }
+            executor.execute(ActionRunnable.supply(allMetaListener, () -> {
+                final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
+                    indices.stream().map(IndexId::getName).collect(Collectors.toList()),
+                    startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
+                    includeGlobalState, userMetadata);
+                snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
+                return snapshotInfo;
+            }));
+        }, onUpdateFailure));
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data

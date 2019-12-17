@@ -38,7 +38,7 @@ public class ForceMergeAction implements LifecycleAction {
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {
         int maxNumSegments = (int) a[0];
-        Codec codec = a[1] != null ? Codec.forName((String)a[1]): Codec.getDefault();
+        Codec codec = a[1] != null ? Codec.forName((String) a[1]) : Codec.getDefault();
         return new ForceMergeAction(maxNumSegments, codec);
     });
 
@@ -68,7 +68,7 @@ public class ForceMergeAction implements LifecycleAction {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.codec = Codec.forName(in.readString());
         } else {
-          this.codec = Codec.getDefault();
+            this.codec = Codec.getDefault();
         }
     }
 
@@ -130,7 +130,8 @@ public class ForceMergeAction implements LifecycleAction {
             UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
                 openKey, client, bestCompressionSettings);
             OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
-            WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey, forceMergeKey, ClusterHealthStatus.GREEN);
+            WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
+                forceMergeKey, ClusterHealthStatus.GREEN);
             ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, nextStepKey, client, maxNumSegments);
             return Arrays.asList(closeIndexStep, updateBestCompressionSettings,
                 openIndexStep, waitForIndexGreenStep, forceMergeStep);

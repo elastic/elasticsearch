@@ -21,7 +21,7 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 +
 --
 (Optional, string) Comma-separated list of snapshot repositories used to limit
-the request. Accepts wildcard expressions. `_all` returns all repositories.
+the request. Accepts wildcard expressions.
 
 If any repository fails during the request, {es} returns an error.
 --

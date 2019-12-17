@@ -354,7 +354,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         // We need to construct the checks here while the secure settings are still available.
-        // If we want until #getBoostrapChecks the secure settings will have been cleared/closed.
+        // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
         checks.addAll(Arrays.asList(
             new ApiKeySSLBootstrapCheck(),

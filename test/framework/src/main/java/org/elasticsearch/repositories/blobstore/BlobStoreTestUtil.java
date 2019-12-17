@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.util.SameThreadExecutorService;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -29,6 +30,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -69,6 +72,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -326,7 +330,11 @@ public final class BlobStoreTestUtil {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        final AtomicReference<ClusterState> currentState = new AtomicReference<>(initialState);
+        // Setting local node as master so it may update the repository metadata in the cluster state
+        final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
+        final AtomicReference<ClusterState> currentState = new AtomicReference<>(
+            ClusterState.builder(initialState).nodes(
+                DiscoveryNodes.builder().add(localNode).masterNodeId(localNode.getId()).localNodeId(localNode.getId()).build()).build());
         when(clusterService.state()).then(invocationOnMock -> currentState.get());
         final List<ClusterStateApplier> appliers = new CopyOnWriteArrayList<>();
         doAnswer(invocation -> {

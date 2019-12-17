@@ -37,7 +37,8 @@ public final class MapHelper {
      *     "a.b.c": {"d": 2}
      * }
      *
-     * To exhaustively explore all these paths would result in 2^n-1 total possible paths, where {@code n = path.split("\\.").length}
+     * Exhaustively exploring all the combinations of nesting fields via '.' (field name delimiter) or ':' (nested objects)
+     * would result in 2^n-1 total possible paths, where {@code n = path.split("\\.").length}.
      *
      * This would result in an exponential runtime algorithm.
      *

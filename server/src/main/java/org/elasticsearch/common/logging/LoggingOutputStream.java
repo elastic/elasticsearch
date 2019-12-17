@@ -34,6 +34,9 @@ class LoggingOutputStream extends OutputStream {
     /** The starting length of the buffer */
     static final int DEFAULT_BUFFER_LENGTH = 1024;
 
+    // limit a single log message to 64k
+    static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 64;
+
     class Buffer {
 
         /** The buffer of bytes sent to the stream */
@@ -70,8 +73,15 @@ class LoggingOutputStream extends OutputStream {
         Buffer buffer = threadLocal.get();
 
         if (buffer.used == buffer.bytes.length) {
-            // extend the buffer
-            buffer.bytes = Arrays.copyOf(buffer.bytes, 2 * buffer.bytes.length);
+            if (buffer.bytes.length >= MAX_BUFFER_LENGTH) {
+                // don't let the buffer get infinitely big
+                flush();
+                // we reset the buffer in flush so get the new instance
+                buffer = threadLocal.get();
+            } else {
+                // extend the buffer
+                buffer.bytes = Arrays.copyOf(buffer.bytes, 2 * buffer.bytes.length);
+            }
         }
 
         buffer.bytes[buffer.used++] = (byte) b;

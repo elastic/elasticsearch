@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggingOutputStream.DEFAULT_BUFFER_LENGTH;
+import static org.elasticsearch.common.logging.LoggingOutputStream.MAX_BUFFER_LENGTH;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -84,6 +85,14 @@ public class LoggingOutputStreamTests extends ESTestCase {
         printStream.println(extraLongStr);
         assertThat(loggingStream.lines, contains(longStr, extraLongStr));
         assertThat(loggingStream.threadLocal.get().bytes.length, equalTo(DEFAULT_BUFFER_LENGTH));
+    }
+
+    public void testMaxBuffer() {
+        String longStr = randomAlphaOfLength(MAX_BUFFER_LENGTH);
+        String extraLongStr = longStr + "OVERFLOW";
+        printStream.println(longStr);
+        printStream.println(extraLongStr);
+        assertThat(loggingStream.lines, contains(longStr, longStr, "OVERFLOW"));
     }
 
     public void testClosed() {

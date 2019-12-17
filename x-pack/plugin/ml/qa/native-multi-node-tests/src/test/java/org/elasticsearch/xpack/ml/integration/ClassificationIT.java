@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -333,16 +332,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
 
+        // Call _delete_expired_data API and check nothing was deleted
+        assertThat(deleteExpiredData().isDeleted(), is(true));
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+
         // Delete the config straight from the config index
         DeleteResponse deleteResponse = client().prepareDelete(".ml-config", DataFrameAnalyticsConfig.documentId(jobId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute().actionGet();
         assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
 
-        DeleteExpiredDataAction.Response deleteExpiredDataResponse = client()
-            .execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).actionGet();
-        assertThat(deleteExpiredDataResponse.isDeleted(), is(true));
-
-        client().admin().indices().refresh(new RefreshRequest(".ml-state")).actionGet();
+        // Now calling the _delete_expired_data API should remove unused state
+        assertThat(deleteExpiredData().isDeleted(), is(true));
 
         SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state").execute().actionGet();
         assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));

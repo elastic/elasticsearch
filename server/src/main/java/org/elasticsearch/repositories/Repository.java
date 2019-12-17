@@ -99,7 +99,7 @@ public interface Repository extends LifecycleComponent {
      * @param index      the {@link IndexId} to load the metadata from
      * @return the index metadata about the given index for the given snapshot
      */
-    IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException;
+    IndexMetaData getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots

@@ -229,7 +229,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING,
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(), new Snapshot("src_only", snapshotId), Version.CURRENT, indexId.getName()));
-        IndexMetaData metaData = runAsSnapshot(threadPool, () -> repository.getSnapshotIndexMetaData(snapshotId, indexId));
+        IndexMetaData metaData = runAsSnapshot(threadPool,
+            () -> repository.getSnapshotIndexMetaData(PlainActionFuture.get(repository::getRepositoryData), snapshotId, indexId));
         IndexShard restoredShard = newShard(
             shardRouting, metaData, null, SourceOnlySnapshotRepository.getEngineFactory(), () -> {}, RetentionLeaseSyncer.EMPTY);
         restoredShard.mapperService().merge(shard.indexSettings().getIndexMetaData(), MapperService.MergeReason.MAPPING_RECOVERY);

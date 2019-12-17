@@ -704,7 +704,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);
-            IndexMetaData indexMetaData = repository.getSnapshotIndexMetaData(snapshotInfo.snapshotId(), indexId);
+            IndexMetaData indexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId);
             if (indexMetaData != null) {
                 int numberOfShards = indexMetaData.getNumberOfShards();
                 for (int i = 0; i < numberOfShards; i++) {

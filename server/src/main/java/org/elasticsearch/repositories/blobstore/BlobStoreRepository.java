@@ -630,7 +630,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             executor.execute(ActionRunnable.wrap(deleteIndexMetaDataListener, deleteIdxMetaListener -> {
                 final IndexMetaData indexMetaData;
                 try {
-                    indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
+                    indexMetaData = getSnapshotIndexMetaData(oldRepositoryData, snapshotId, indexId);
                 } catch (Exception ex) {
                     logger.warn(() ->
                         new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
@@ -963,9 +963,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public IndexMetaData getSnapshotIndexMetaData(final SnapshotId snapshotId, final IndexId index) throws IOException {
+    public IndexMetaData getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
         try {
-            return indexMetaDataFormat.read(indexContainer(index), snapshotId.getUUID());
+            return indexMetaDataFormat.read(indexContainer(index), repositoryData.indexMetaBlobId(snapshotId, index));
         } catch (NoSuchFileException e) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, e);
         }

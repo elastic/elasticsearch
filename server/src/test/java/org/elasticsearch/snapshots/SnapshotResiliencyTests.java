@@ -572,7 +572,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertThat(snapshotInfo.successfulShards(), either(is(indices + 1)).or(is(indices)));
             if (snapshotInfo.successfulShards() == indices + 1) {
                 final IndexMetaData indexMetaData =
-                    repository.getSnapshotIndexMetaData(snapshotInfo.snapshotId(), repositoryData.resolveIndexId(index));
+                    repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), repositoryData.resolveIndexId(index));
                 // Make sure we snapshotted the metadata of this index and not the recreated version
                 assertEquals(indexMetaData.getIndex(), firstIndex.get());
             }

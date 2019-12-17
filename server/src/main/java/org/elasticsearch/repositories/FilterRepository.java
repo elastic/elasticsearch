@@ -64,8 +64,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-        return in.getSnapshotIndexMetaData(snapshotId, index);
+    public IndexMetaData getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
+        return in.getSnapshotIndexMetaData(repositoryData, snapshotId, index);
     }
 
     @Override

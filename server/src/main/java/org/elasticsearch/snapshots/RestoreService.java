@@ -206,7 +206,7 @@ public class RestoreService implements ClusterStateApplier {
 
                 final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(indicesInSnapshot);
                 for (IndexId indexId : indexIdsInSnapshot) {
-                    metaDataBuilder.put(repository.getSnapshotIndexMetaData(snapshotId, indexId), false);
+                    metaDataBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId), false);
                 }
 
                 final MetaData metaData = metaDataBuilder.build();

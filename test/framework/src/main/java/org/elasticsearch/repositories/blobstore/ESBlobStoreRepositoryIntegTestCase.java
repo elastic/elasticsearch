@@ -34,6 +34,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -236,7 +237,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     public static byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
         byte[] data = new byte[length];
         try (InputStream inputStream = container.readBlob(name)) {
-            assertThat(inputStream.read(data), CoreMatchers.equalTo(length));
+            assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
             assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
         }
         return data;

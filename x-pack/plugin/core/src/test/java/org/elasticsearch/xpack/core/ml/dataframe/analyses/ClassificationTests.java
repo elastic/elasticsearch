@@ -216,4 +216,9 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         String randomId = randomAlphaOfLength(10);
         assertThat(classification.getStateDocId(randomId), equalTo(randomId + "_classification_state#1"));
     }
+
+    public void testExtractJobIdFromStateDoc() {
+        assertThat(Classification.extractJobIdFromStateDoc("foo_bar-1_classification_state#1"), equalTo("foo_bar-1"));
+        assertThat(Classification.extractJobIdFromStateDoc("noop"), is(nullValue()));
+    }
 }

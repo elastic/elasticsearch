@@ -91,7 +91,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             final int lengthWritten = randomIntBetween(1, 100);
             final byte[] blobData = randomByteArrayOfLength(lengthWritten);
             blobContainer.writeBlob(blobName, new ByteArrayInputStream(blobData), lengthWritten, true);
-            blobContainer.deleteBlob(blobName);
+            blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
             assertThrowsOnInconsistentRead(blobContainer, blobName);
             blobStoreContext.forceConsistent();
             expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob(blobName));
@@ -140,6 +140,8 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         try (BlobStoreRepository repository =
                  new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random())) {
             clusterService.addStateApplier(event -> repository.updateState(event.state()));
+            // Apply state once to initialize repo properly like RepositoriesService would
+            repository.updateState(clusterService.state());
             repository.start();
 
             // We create a snap- blob for snapshot "foo" in the first generation

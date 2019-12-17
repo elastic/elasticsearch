@@ -6,13 +6,19 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -33,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -46,10 +53,12 @@ import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -77,6 +86,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private AutodetectResultProcessor resultProcessor;
     private Renormalizer renormalizer;
     private AutodetectProcess process;
+    private ResultsPersisterService resultsPersisterService;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -92,12 +102,24 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
+        ThreadPool tp = mock(ThreadPool.class);
+        Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings,
+            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                ClusterService.USER_DEFINED_META_DATA,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+
+        resultsPersisterService = new ResultsPersisterService(client(), clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
                 client(),
                 auditor,
                 JOB_ID,
                 renormalizer,
-                new JobResultsPersister(client()),
+                new JobResultsPersister(client(), resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
                 new TimingStats(JOB_ID)) {

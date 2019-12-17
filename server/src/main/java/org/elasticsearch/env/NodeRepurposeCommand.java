@@ -140,9 +140,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         final MetaData metaData = loadClusterState(terminal, env, psf).metaData();
 
         final Set<Path> indexPaths = uniqueParentPaths(shardDataPaths);
-        final Set<String> indexUUIDs = Sets.union(indexUUIDsFor(indexPaths),
-            StreamSupport.stream(metaData.indices().values().spliterator(), false)
-                .map(imd -> imd.value.getIndexUUID()).collect(Collectors.toSet()));
+        final Set<String> indexUUIDs = indexUUIDsFor(indexPaths);
 
         outputVerboseInformation(terminal, shardDataPaths, indexUUIDs, metaData);
 

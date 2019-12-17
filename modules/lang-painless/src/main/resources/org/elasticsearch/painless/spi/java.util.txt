@@ -490,9 +490,9 @@ class java.util.Calendar {
   Map getDisplayNames(int,int,Locale)
   int getFirstDayOfWeek()
   int getGreatestMinimum(int)
-  Calendar getInstance()
-  Calendar getInstance(TimeZone)
-  Calendar getInstance(TimeZone,Locale)
+  Calendar getInstance() @nondeterministic
+  Calendar getInstance(TimeZone) @nondeterministic
+  Calendar getInstance(TimeZone,Locale) @nondeterministic
   int getLeastMaximum(int)
   int getMaximum(int)
   int getMinimalDaysInFirstWeek()

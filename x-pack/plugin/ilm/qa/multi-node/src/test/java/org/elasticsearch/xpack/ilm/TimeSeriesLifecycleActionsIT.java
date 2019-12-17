@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -411,7 +412,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         };
         assertThat(numSegments.get(), greaterThan(1));
 
-        createNewSingletonPolicy("warm", new ForceMergeAction(1, false));
+        createNewSingletonPolicy("warm", new ForceMergeAction(1, Codec.getDefault()));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
@@ -1007,7 +1008,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         hotActions.put(RolloverAction.NAME,  new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
-        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, false));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, Codec.getDefault()));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();

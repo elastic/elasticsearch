@@ -19,8 +19,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -30,6 +32,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Response for the successful creation of an api key
  */
 public final class CreateApiKeyResponse extends ActionResponse implements ToXContentObject {
+    private static final Charset UTF8 = Charset.forName("UTF-8");
 
     static ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
             args -> new CreateApiKeyResponse((String) args[0], (String) args[1], new SecureString((String) args[2]),
@@ -45,6 +48,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
     private final String id;
     private final SecureString key;
     private final Instant expiration;
+    private final SecureString encodedKey;
 
     public CreateApiKeyResponse(String name, String id, SecureString key, Instant expiration) {
         this.name = name;
@@ -54,6 +58,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         // here creating the 'Instant' of milliseconds precision.
         // This Instant can then be used for date comparison.
         this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()): null;
+        this.encodedKey = new SecureString(getEncodedKey(id, key));
     }
 
     public CreateApiKeyResponse(StreamInput in) throws IOException {
@@ -61,12 +66,18 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         this.name = in.readString();
         this.id = in.readString();
         byte[] bytes = null;
+        byte[] encodedBytes = null;
         try {
             bytes = in.readByteArray();
+            encodedBytes = in.readByteArray();
             this.key = new SecureString(CharArrays.utf8BytesToChars(bytes));
+            this.encodedKey = new SecureString(CharArrays.utf8BytesToChars(encodedBytes));
         } finally {
             if (bytes != null) {
                 Arrays.fill(bytes, (byte) 0);
+            }
+            if (encodedBytes != null) {
+                Arrays.fill(encodedBytes, (byte) 0);
             }
         }
         this.expiration = in.readOptionalInstant();
@@ -82,6 +93,10 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
 
     public SecureString getKey() {
         return key;
+    }
+
+    public SecureString getEncodedKey() {
+        return encodedKey;
     }
 
     @Nullable
@@ -122,12 +137,18 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         out.writeString(name);
         out.writeString(id);
         byte[] bytes = null;
+        byte[] encodedBytes = null;
         try {
             bytes = CharArrays.toUtf8Bytes(key.getChars());
+            encodedBytes = CharArrays.toUtf8Bytes(encodedKey.getChars());
             out.writeByteArray(bytes);
+            out.writeByteArray(encodedBytes);
         } finally {
             if (bytes != null) {
                 Arrays.fill(bytes, (byte) 0);
+            }
+            if (encodedBytes != null) {
+                Arrays.fill(encodedBytes, (byte) 0);
             }
         }
         out.writeOptionalInstant(expiration);
@@ -146,10 +167,12 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             builder.field("expiration", expiration.toEpochMilli());
         }
         byte[] charBytes = CharArrays.toUtf8Bytes(key.getChars());
+        byte[] encodedCharBytes = CharArrays.toUtf8Bytes(encodedKey.getChars());
         try {
             builder.field("api_key").utf8Value(charBytes, 0, charBytes.length);
         } finally {
             Arrays.fill(charBytes, (byte) 0);
+            Arrays.fill(encodedCharBytes, (byte) 0);
         }
         return builder.endObject();
     }
@@ -157,6 +180,11 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
     @Override
     public String toString() {
         return "CreateApiKeyResponse [name=" + name + ", id=" + id + ", expiration=" + expiration + "]";
+    }
+
+    private String getEncodedKey(String id, SecureString key) {
+        final String toEncode = id + ":" + key.toString();
+        return Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
     }
 
 }

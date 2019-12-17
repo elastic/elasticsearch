@@ -15,8 +15,10 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,6 +52,12 @@ public class CreateApiKeyResponseTests extends AbstractXContentTestCase<CreateAp
                 assertThat(serialized, equalTo(response));
             }
         }
+    }
+
+    public void testEncodedKey() {
+        final CreateApiKeyResponse response = createTestInstance();
+        final String toEncode = response.getId() + ":" + response.getKey().toString();
+        assertThat(response.getEncodedKey(), equalTo(Base64.getEncoder().encodeToString(toEncode.getBytes(Charset.forName("UTF-8")))));
     }
 
     public void testEqualsHashCode() {

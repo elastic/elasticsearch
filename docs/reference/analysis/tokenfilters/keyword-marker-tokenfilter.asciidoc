@@ -4,8 +4,7 @@
 <titleabbrev>Keyword marker</titleabbrev>
 ++++
 
-Designates specific tokens as <<stemmer-keyword,keywords>> so they are not
-<<stemming,stemmed>>.
+Designates specific tokens as keywords so they are not stemmed.
 
 This filter uses Lucene's
 https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/KeywordMarkerFilter.html[KeywordMarkerFilter].

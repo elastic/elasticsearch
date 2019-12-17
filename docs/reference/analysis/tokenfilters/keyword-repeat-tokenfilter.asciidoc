@@ -4,7 +4,7 @@
 <titleabbrev>Keyword repeat</titleabbrev>
 ++++
 
-Outputs both the stemmed and unstemmed (<<stemmer-keyword,keyword>>) version of
+Outputs both the stemmed and unstemmed (keyword) version of
 each token.
 
 The `keyword_repeat` filter uses Lucene's
@@ -111,7 +111,7 @@ can remove these duplicate tokens using the
 [IMPORTANT]
 ====
 To work, the `keyword_repeat` filter must be placed _before_ any
-<<stemming-token-filters,stemming filters>>, such as the
+stemming filters, such as the
 <<analysis-stemmer-tokenfilter,`stemmer`>> or
 <<analysis-porterstem-tokenfilter,`porter_stem`>> token filter, in the
 <<analysis-custom-analyzer,analyzer configuration>>.

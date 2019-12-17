@@ -111,8 +111,6 @@ include::analysis/anatomy.asciidoc[]
 
 include::analysis/testing.asciidoc[]
 
-include::analysis/common-uses.asciidoc[]
-
 include::analysis/analyzers.asciidoc[]
 
 include::analysis/normalizers.asciidoc[]

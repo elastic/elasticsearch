@@ -54,8 +54,10 @@ public class InternalComposite
     private final List<String> sourceNames;
     private final List<DocValueFormat> formats;
 
+    private final boolean earlyTerminated;
+
     InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
-                      List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls,
+                      List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls, boolean earlyTerminated,
                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sourceNames = sourceNames;
@@ -64,6 +66,7 @@ public class InternalComposite
         this.afterKey = afterKey;
         this.size = size;
         this.reverseMuls = reverseMuls;
+        this.earlyTerminated = earlyTerminated;
     }
 
     public InternalComposite(StreamInput in) throws IOException {
@@ -85,6 +88,7 @@ public class InternalComposite
         } else {
             this.afterKey = buckets.size() > 0 ? buckets.get(buckets.size()-1).key : null;
         }
+        this.earlyTerminated = in.getVersion().onOrAfter(Version.V_7_6_0) ? in.readBoolean() : false;
     }
 
     @Override
@@ -103,6 +107,9 @@ public class InternalComposite
             if (afterKey != null) {
                 afterKey.writeTo(out);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeBoolean(earlyTerminated);
         }
     }
 
@@ -124,7 +131,7 @@ public class InternalComposite
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
         return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
-            reverseMuls, pipelineAggregators(), getMetaData());
+            reverseMuls, earlyTerminated, pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -151,6 +158,11 @@ public class InternalComposite
     }
 
     // Visible for tests
+    boolean isTerminatedEarly() {
+        return earlyTerminated;
+    }
+
+    // Visible for tests
     int[] getReverseMuls() {
         return reverseMuls;
     }
@@ -158,8 +170,10 @@ public class InternalComposite
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
+        boolean earlyTerminated = false;
         for (InternalAggregation agg : aggregations) {
             InternalComposite sortedAgg = (InternalComposite) agg;
+            earlyTerminated |= sortedAgg.earlyTerminated;
             BucketIterator it = new BucketIterator(sortedAgg.buckets);
             if (it.next() != null) {
                 pq.add(it);
@@ -191,7 +205,8 @@ public class InternalComposite
             result.add(reduceBucket);
         }
         final CompositeKey lastKey = result.size() > 0 ? result.get(result.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls, pipelineAggregators(), metaData);
+        return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls,
+            earlyTerminated, pipelineAggregators(), metaData);
     }
 
     @Override

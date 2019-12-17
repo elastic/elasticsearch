@@ -21,11 +21,14 @@ package org.elasticsearch.cli;
 
 import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import joptsimple.util.KeyValuePair;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,6 +39,7 @@ public class MultiCommand extends Command {
     protected final Map<String, Command> subcommands = new LinkedHashMap<>();
 
     private final NonOptionArgumentSpec<String> arguments = parser.nonOptions("command");
+    private final OptionSpec<KeyValuePair> settingOption;
 
     /**
      * Construct the multi-command with the specified command description and runnable to execute before main is invoked.
@@ -45,6 +49,7 @@ public class MultiCommand extends Command {
      */
     public MultiCommand(final String description, final Runnable beforeMain) {
         super(description, beforeMain);
+        this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
         parser.posixlyCorrect(true);
     }
 
@@ -66,15 +71,24 @@ public class MultiCommand extends Command {
         if (subcommands.isEmpty()) {
             throw new IllegalStateException("No subcommands configured");
         }
-        String[] args = arguments.values(options).toArray(new String[0]);
-        if (args.length == 0) {
+
+        // .values(...) returns an unmodifiable list
+        final List<String> args = new ArrayList<>(arguments.values(options));
+        if (args.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Missing command");
         }
-        Command subcommand = subcommands.get(args[0]);
+
+        String subcommandName = args.remove(0);
+        Command subcommand = subcommands.get(subcommandName);
         if (subcommand == null) {
-            throw new UserException(ExitCodes.USAGE, "Unknown command [" + args[0] + "]");
+            throw new UserException(ExitCodes.USAGE, "Unknown command [" + subcommandName + "]");
         }
-        subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
+
+        for (final KeyValuePair pair : this.settingOption.values(options)) {
+            args.add("-E" + pair);
+        }
+
+        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal);
     }
 
     @Override

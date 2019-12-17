@@ -85,6 +85,6 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         } else {
             format = config.format();
         }
-        return new CompositeValuesSourceConfig(name, fieldType, vs, format, order(), missingBucket());
+        return new CompositeValuesSourceConfig(name, fieldType, vs, format, order(), missingBucket(), script() != null);
     }
 }

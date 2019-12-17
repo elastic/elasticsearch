@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -171,7 +171,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                              DataFrameAnalyticsConfig config,
                              ActionListener<BulkByScrollResponse> listener) {
         List<String> ids = new ArrayList<>();
-        ids.add(DataFrameAnalyticsTask.progressDocId(config.getId()));
+        ids.add(StoredProgress.documentId(config.getId()));
         if (config.getAnalysis().persistsState()) {
             ids.add(config.getAnalysis().getStateDocId(config.getId()));
         }

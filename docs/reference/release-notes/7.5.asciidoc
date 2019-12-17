@@ -47,7 +47,6 @@ Machine Learning::
 * [ML] Use query in cardinality check {pull}49939[#49939]
 * Fix expired job results deletion audit message {pull}49560[#49560] (issue: {issue}49549[#49549])
 * [ML] Apply source query on data frame analytics memory estimation {pull}49527[#49527] (issue: {issue}49454[#49454])
-* [ML] Apply source query on data frame analytics memory estimation {pull}49517[#49517] (issue: {issue}49454[#49454])
 * [ML] Stop timing stats failure propagation {pull}49495[#49495]
 
 Mapping::

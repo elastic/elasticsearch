@@ -32,6 +32,9 @@ import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -60,6 +63,8 @@ import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING
 import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
 class S3BlobContainer extends AbstractBlobContainer {
+
+    private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
@@ -189,6 +194,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                         outstanding.removeAll(keysInRequest);
                         outstanding.addAll(
                             e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet()));
+                        logger.warn(
+                            () -> new ParameterizedMessage("Failed to delete some blobs {}", e.getErrors()
+                                .stream().map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]")
+                                .collect(Collectors.toList())), e);
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                     } catch (AmazonClientException e) {
                         // The AWS client threw any unexpected exception and did not execute the request at all so we do not

@@ -53,7 +53,7 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
         createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
         NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get());
+                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), processConnectTimeout);
 
         try {
             normalizerProcess.start(executorService);

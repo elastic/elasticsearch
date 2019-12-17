@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -26,10 +27,10 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
 
     protected NativeAnalyticsProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                                      OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                     Consumer<String> onProcessCrash, AnalyticsProcessConfig config,
+                                     Consumer<String> onProcessCrash, Duration processConnectTimeout, AnalyticsProcessConfig config,
                                      NamedXContentRegistry namedXContentRegistry) {
         super(NAME, AnalyticsResult.PARSER, jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields,
-            filesToDelete, onProcessCrash, namedXContentRegistry);
+            filesToDelete, onProcessCrash, processConnectTimeout, namedXContentRegistry);
         this.config = Objects.requireNonNull(config);
     }
 

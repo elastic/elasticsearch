@@ -1,0 +1,55 @@
+[[specify-analyzer]]
+== Specify an analyzer
+
+After choosing an <<analysis-analyzers,analyzer>>, you can apply it to an index,
+individual <<text,`text`>> fields, or <<full-text-queries,full text queries>>.
+
+[[specify-index-time-analyzer]]
+=== Specifying an index time analyzer
+
+Each <<text,`text`>> field in a mapping can specify its own
+<<analyzer,`analyzer`>>:
+
+[source,console]
+-------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type":     "text",
+        "analyzer": "standard"
+      }
+    }
+  }
+}
+-------------------------
+
+At index time, if no `analyzer` has been specified, it looks for an analyzer
+in the index settings called `default`.  Failing that, it defaults to using
+the <<analysis-standard-analyzer,`standard` analyzer>>.
+
+
+[specify-search-time-analyzer]
+=== Specifying a search time analyzer
+
+This same analysis process is applied to the query string at search time in
+<<full-text-queries,full text queries>> like the
+<<query-dsl-match-query,`match` query>>
+to convert the text in the query string into terms of the same form as those
+that are stored in the inverted index.
+
+Usually the same analyzer should be used both at
+index time and at search time, and <<full-text-queries,full text queries>>
+like the  <<query-dsl-match-query,`match` query>> will use the mapping to look
+up the analyzer to use for each field.
+
+The analyzer to use to search a particular field is determined by
+looking for:
+
+* An `analyzer` specified in the query itself.
+* The <<search-analyzer,`search_analyzer`>> mapping parameter.
+* The <<analyzer,`analyzer`>> mapping parameter.
+* An analyzer in the index settings called `default_search`.
+* An analyzer in the index settings called `default`.
+* The `standard` analyzer.

@@ -29,11 +29,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.security.MessageDigest;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -51,15 +49,16 @@ public final class IndexMetaDataGenerations {
     /**
      * Map of a tuple of {@link SnapshotId} and {@link IndexId} to metadata hash.
      */
-    final Map<String, String> lookup;
+    final Map<SnapshotId, Map<IndexId, String>> lookup;
 
     /**
      * Map of index metadata hash to blob uuid.
      */
     final Map<String, String> hashes;
 
-    IndexMetaDataGenerations(Map<String, String> lookup, Map<String, String> hashes) {
-        assert hashes.keySet().equals(Set.copyOf(lookup.values())) :
+    //TODO: adjust code to use nested map
+    IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> hashes) {
+        assert hashes.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) :
             "Hash mappings " + hashes +" don't track the same blob ids as the lookup map " + lookup;
         this.lookup = Map.copyOf(lookup);
         this.hashes = Map.copyOf(hashes);
@@ -87,7 +86,7 @@ public final class IndexMetaDataGenerations {
      * @return blob id for the given index metadata
      */
     public String indexMetaBlobId(SnapshotId snapshotId, IndexId indexId) {
-        final String hash = lookup.get(lookupKey(snapshotId, indexId));
+        final String hash = lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
         if (hash == null) {
             return snapshotId.getUUID();
         } else {
@@ -105,11 +104,18 @@ public final class IndexMetaDataGenerations {
      */
     public IndexMetaDataGenerations withAddedSnapshot(SnapshotId snapshotId, Map<IndexId, String> newLookup,
                                                       Map<String, String> newHashes) {
-        final Map<String, String> updatedIndexMetaLookup = new HashMap<>(this.lookup);
+        final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(this.lookup);
         final Map<String, String> updatedIndexMetaHashes = new HashMap<>(hashes);
         updatedIndexMetaHashes.putAll(newHashes);
-        updatedIndexMetaLookup.putAll(newLookup.entrySet().stream().collect(
-            Collectors.toMap(e -> IndexMetaDataGenerations.lookupKey(snapshotId, e.getKey()), Map.Entry::getValue)));
+        updatedIndexMetaLookup.compute(snapshotId, (snId, lookup) -> {
+            if (lookup == null) {
+                return Map.copyOf(newLookup);
+            } else {
+                final Map<IndexId, String> updated = new HashMap<>(lookup);
+                updated.putAll(newLookup);
+                return Map.copyOf(updated);
+            }
+        });
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaHashes);
     }
 
@@ -117,16 +123,14 @@ public final class IndexMetaDataGenerations {
      * Create a new instance with the given snapshot removed.
      *
      * @param snapshotId SnapshotId
-     * @param indexIds indices in the snapshot
      * @return new instance without the given snapshot
      */
-    public IndexMetaDataGenerations withRemovedSnapshot(SnapshotId snapshotId, Collection<IndexId> indexIds) {
-        final Map<String, String> updatedIndexMetaLookup = new HashMap<>(lookup);
-        for (final IndexId indexId : indexIds) {
-            updatedIndexMetaLookup.remove(lookupKey(snapshotId, indexId));
-        }
+    public IndexMetaDataGenerations withRemovedSnapshot(SnapshotId snapshotId) {
+        final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(lookup);
+        updatedIndexMetaLookup.remove(snapshotId);
         final Map<String, String> updatedIndexMetaDataHashes = new HashMap<>(hashes);
-        updatedIndexMetaDataHashes.keySet().removeIf(k -> updatedIndexMetaLookup.containsValue(k) == false);
+        updatedIndexMetaDataHashes.keySet().removeIf(
+            k -> updatedIndexMetaLookup.values().stream().noneMatch(hashes -> hashes.containsValue(k)));
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaDataHashes);
     }
 

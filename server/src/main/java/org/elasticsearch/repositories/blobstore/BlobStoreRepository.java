@@ -564,7 +564,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final ActionListener<Void> afterCleanupsListener =
                     new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
                 asyncCleanupUnlinkedRootAndIndicesBlobs(foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
-                asyncCleanupUnlinkedShardLevelBlobs(snapshotId, writeShardMetaDataAndComputeDeletesStep.result(), afterCleanupsListener);
+                asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotId, writeShardMetaDataAndComputeDeletesStep.result(),
+                    afterCleanupsListener);
             }, listener::onFailure);
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
@@ -577,7 +578,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
                 writeUpdatedShardMetaDataAndComputeDeletes(snapshotId, repositoryData, false, writeMetaAndComputeDeletesStep);
                 writeMetaAndComputeDeletesStep.whenComplete(deleteResults ->
-                        asyncCleanupUnlinkedShardLevelBlobs(snapshotId, deleteResults, afterCleanupsListener),
+                        asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotId, deleteResults, afterCleanupsListener),
                     afterCleanupsListener::onFailure);
             }, listener::onFailure));
         }
@@ -590,13 +591,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             l -> cleanupStaleBlobs(foundIndices, rootBlobs, updatedRepoData, ActionListener.map(l, ignored -> null))));
     }
 
-    private void asyncCleanupUnlinkedShardLevelBlobs(SnapshotId snapshotId, Collection<ShardSnapshotMetaDeleteResult> deleteResults,
+    private void asyncCleanupUnlinkedShardLevelBlobs(RepositoryData oldRepositoryData, SnapshotId snapshotId,
+                                                     Collection<ShardSnapshotMetaDeleteResult> deleteResults,
                                                      ActionListener<Void> listener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(
             listener,
             l -> {
                 try {
-                    blobContainer().deleteBlobsIgnoringIfNotExists(resolveFilesToDelete(snapshotId, deleteResults));
+                    blobContainer().deleteBlobsIgnoringIfNotExists(resolveFilesToDelete(oldRepositoryData, snapshotId, deleteResults));
                     l.onResponse(null);
                 } catch (Exception e) {
                     logger.warn(
@@ -685,17 +687,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private List<String> resolveFilesToDelete(SnapshotId snapshotId, Collection<ShardSnapshotMetaDeleteResult> deleteResults) {
+    private List<String> resolveFilesToDelete(RepositoryData oldRepositoryData, SnapshotId snapshotId,
+                                              Collection<ShardSnapshotMetaDeleteResult> deleteResults) {
         final String basePath = basePath().buildAsString();
         final int basePathLen = basePath.length();
+        final Map<IndexId, String> indexMetaGenerations = oldRepositoryData.indexMetaDataToRemoveAfterRemovingSnapshot(snapshotId);
         return Stream.concat(
             deleteResults.stream().flatMap(shardResult -> {
                 final String shardPath =
                     shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
                 return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
             }),
-            deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().map(indexId ->
-                indexContainer(indexId).path().buildAsString() + globalMetaDataFormat.blobName(snapshotId.getUUID()))
+            indexMetaGenerations.entrySet().stream().map(entry ->
+                indexContainer(entry.getKey()).path().buildAsString() + indexMetaDataFormat.blobName(entry.getValue()))
         ).map(absolutePath -> {
             assert absolutePath.startsWith(basePath);
             return absolutePath.substring(basePathLen);

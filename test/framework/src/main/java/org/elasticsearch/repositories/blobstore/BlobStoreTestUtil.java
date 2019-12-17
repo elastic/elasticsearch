@@ -189,10 +189,10 @@ public final class BlobStoreTestUtil {
                 .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(".dat", ""))
                 .collect(Collectors.toSet());
             final Set<String> indexMetaGenerationsExpected = new HashSet<>();
-            for (SnapshotId snapshotId : repositoryData.getSnapshots(repositoryData.getIndices().values().stream()
-                .filter(i -> i.getId().equals(indexId)).findFirst().get())) {
-                indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(
-                    snapshotId, new IndexId("_na", indexId)));
+            final IndexId idx =
+                repositoryData.getIndices().values().stream().filter(i -> i.getId().equals(indexId)).findFirst().get();
+            for (SnapshotId snapshotId : repositoryData.getSnapshots(idx)) {
+                indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, idx));
             }
             assertEquals(indexMetaGenerationsExpected, indexMetaGenerationsFound);
         }

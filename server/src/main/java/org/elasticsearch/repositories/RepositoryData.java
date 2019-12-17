@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -35,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -170,8 +168,19 @@ public final class RepositoryData {
     }
 
     public Map<IndexId, String> indexMetaDataToRemoveAfterRemovingSnapshot(SnapshotId snapshotId) {
-        // TODO: Implement and use to fix tests
-        return Collections.emptyMap();
+        Collection<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotId);
+        final Set<String> allHashes = indexMetaDataGenerations.lookup.entrySet().stream()
+            .filter(e -> e.getKey().equals(snapshotId) == false).flatMap(e -> e.getValue().values().stream())
+            .map(indexMetaDataGenerations::getIndexMetaBlobId).collect(Collectors.toSet());
+        final Map<IndexId, String> toRemove = new HashMap<>();
+        for (IndexId indexId : indicesForSnapshot) {
+            final String hash = indexMetaDataGenerations.indexMetaBlobId(snapshotId, indexId);
+            if (allHashes.contains(hash) == false) {
+                final String prev = toRemove.put(indexId, hash);
+                assert prev == null : "Saw double entry [" + prev + "][" + hash + "]";
+            }
+        }
+        return toRemove;
     }
 
     /**
@@ -277,7 +286,7 @@ public final class RepositoryData {
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots,
             ShardGenerations.builder().putAll(shardGenerations).putAll(updatedShardGenerations)
                 .retainIndicesAndPruneDeletes(indexSnapshots.keySet()).build(),
-            indexMetaDataGenerations.withRemovedSnapshot(snapshotId, indices.values())
+            indexMetaDataGenerations.withRemovedSnapshot(snapshotId)
         );
     }
 
@@ -374,6 +383,10 @@ public final class RepositoryData {
             if (snapshotStates.containsKey(snapshot.getUUID())) {
                 builder.field(STATE, snapshotStates.get(snapshot.getUUID()).value());
             }
+            if (shouldWriteShardGens) {
+                builder.field(INDEX_METADATA_LOOKUP, indexMetaDataGenerations.lookup.getOrDefault(snapshot, Collections.emptyMap())
+                    .entrySet().stream().collect(Collectors.toMap(entry -> entry.getKey().getId(), Map.Entry::getValue)));
+            }
             builder.endObject();
         }
         builder.endArray();
@@ -399,12 +412,9 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endObject();
-
         if (shouldWriteShardGens) {
             builder.field(INDEX_METADATA_HASHES, indexMetaDataGenerations.hashes);
-            builder.field(INDEX_METADATA_LOOKUP, indexMetaDataGenerations.lookup);
         }
-
         builder.endObject();
         return builder;
     }
@@ -422,7 +432,7 @@ public final class RepositoryData {
         final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         final ShardGenerations.Builder shardGenerations = ShardGenerations.builder();
         final Map<String, String> indexMetaHashes = new HashMap<>();
-        final Map<String, String> indexMetaLookup = new HashMap<>();
+        final Map<SnapshotId, Map<String, String>> indexMetaLookup = new HashMap<>();
 
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
@@ -433,6 +443,7 @@ public final class RepositoryData {
                             String name = null;
                             String uuid = null;
                             SnapshotState state = null;
+                            Map<String, String> metaGenerations = new HashMap<>();
                             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                                 String currentFieldName = parser.currentName();
                                 parser.nextToken();
@@ -442,6 +453,8 @@ public final class RepositoryData {
                                     uuid = parser.text();
                                 } else if (STATE.equals(currentFieldName)) {
                                     state = SnapshotState.fromValue(parser.numberValue().byteValue());
+                                } else if (INDEX_METADATA_LOOKUP.equals(currentFieldName)) {
+                                    metaGenerations.putAll(parser.mapStrings());
                                 }
                             }
                             final SnapshotId snapshotId = new SnapshotId(name, uuid);
@@ -449,6 +462,7 @@ public final class RepositoryData {
                                 snapshotStates.put(uuid, state);
                             }
                             snapshots.put(snapshotId.getUUID(), snapshotId);
+                            indexMetaLookup.put(snapshotId, metaGenerations);
                         }
                     } else {
                         throw new ElasticsearchParseException("expected array for [" + field + "]");
@@ -509,7 +523,6 @@ public final class RepositoryData {
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     gens.add(parser.textOrNull());
                                 }
-
                             }
                         }
                         assert indexId != null;
@@ -523,11 +536,6 @@ public final class RepositoryData {
                         throw new ElasticsearchParseException("start object expected [" + INDEX_METADATA_HASHES + "]");
                     }
                     indexMetaHashes.putAll(parser.mapStrings());
-                } else if (INDEX_METADATA_LOOKUP.equals(field)) {
-                    if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                        throw new ElasticsearchParseException("start object expected [" + INDEX_METADATA_HASHES + "]");
-                    }
-                    indexMetaLookup.putAll(parser.mapStrings());
                 } else {
                     throw new ElasticsearchParseException("unknown field name  [" + field + "]");
                 }
@@ -535,7 +543,11 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
+        final Map<String, IndexId> indexLookup =
+            indexSnapshots.keySet().stream().collect(Collectors.toMap(IndexId::getId, Function.identity()));
         return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, shardGenerations.build(),
-            new IndexMetaDataGenerations(indexMetaLookup, indexMetaHashes));
+            new IndexMetaDataGenerations(indexMetaLookup.entrySet().stream().collect(
+                Collectors.toMap(Map.Entry::getKey, e -> e.getValue().entrySet().stream()
+                    .collect(Collectors.toMap(entry -> indexLookup.get(entry.getKey()), Map.Entry::getValue)))), indexMetaHashes));
     }
 }

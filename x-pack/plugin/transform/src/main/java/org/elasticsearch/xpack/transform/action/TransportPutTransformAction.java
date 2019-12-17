@@ -229,7 +229,6 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             request.isDeferValidation() ? SourceDestValidator.NON_DEFERABLE_VALIDATIONS : SourceDestValidator.ALL_VALIDATIONS,
             ActionListener.wrap(
                 validationResponse -> {
-
                     // Early check to verify that the user can create the destination index and can read from the source
                     if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
                         final String username = securityContext.getUser().principal();

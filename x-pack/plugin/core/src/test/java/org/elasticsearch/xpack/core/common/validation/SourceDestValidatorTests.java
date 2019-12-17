@@ -44,6 +44,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -738,14 +739,17 @@ public class SourceDestValidatorTests extends ESTestCase {
         throws InterruptedException {
 
         CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
         LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             if (expected == null) {
                 fail("expected an exception but got a response");
             } else {
                 assertThat(r, equalTo(expected));
             }
         }, e -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             if (onException == null) {
                 logger.error("got unexpected exception", e);
                 fail("got unexpected exception: " + e.getMessage());
@@ -767,14 +771,17 @@ public class SourceDestValidatorTests extends ESTestCase {
     ) throws InterruptedException {
 
         CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
         LatchedActionListener<Context> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             if (onAnswer == null) {
                 fail("expected an exception but got a response");
             } else {
                 onAnswer.accept(r);
             }
         }, e -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             if (onException == null) {
                 logger.error("got unexpected exception", e);
                 fail("got unexpected exception: " + e.getMessage());

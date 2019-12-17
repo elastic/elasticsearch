@@ -135,7 +135,8 @@ remote cluster.
     "num_nodes_connected" : 1, <2>
     "max_connections_per_cluster" : 3,
     "initial_connect_timeout" : "30s",
-    "skip_unavailable" : false
+    "skip_unavailable" : false,
+    "mode" : "sniff"
   }
 }
 --------------------------------------------------
@@ -146,7 +147,7 @@ remote cluster.
     alias `leader`
 <2> This shows the number of nodes in the remote cluster the local cluster is
     connected to.
-    
+
 Alternatively, you can manage remote clusters on the
 *Management / Elasticsearch / Remote Clusters* page in {kib}:
 

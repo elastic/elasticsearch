@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,15 +49,15 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RemoteConnectionInfo, String> PARSER = new ConstructingObjectParser<>(
-        "remote_connection_info", true,
-        (args, clusterAlias) -> new RemoteConnectionInfo(
-            clusterAlias,
-            (List<String>) args[0],
-            (int) args[1],
-            (int) args[2],
-            TimeValue.parseTimeValue((String)args[3], INITIAL_CONNECT_TIMEOUT),
-            (boolean) args[4]
-        )
+            "remote_connection_info", true,
+            (args, clusterAlias) -> new RemoteConnectionInfo(
+                    clusterAlias,
+                    (List<String>) args[0],
+                    (int) args[1],
+                    (int) args[2],
+                    TimeValue.parseTimeValue((String)args[3], INITIAL_CONNECT_TIMEOUT),
+                    (boolean) args[4]
+            )
     );
 
     static {
@@ -67,63 +68,66 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(SKIP_UNAVAILABLE));
     }
 
-    final List<String> seedNodes;
-    final int connectionsPerCluster;
+    final ModeInfo modeInfo;
     final TimeValue initialConnectionTimeout;
-    final int numNodesConnected;
     final String clusterAlias;
     final boolean skipUnavailable;
 
-    RemoteConnectionInfo(String clusterAlias, List<String> seedNodes,
-                         int connectionsPerCluster, int numNodesConnected,
-                         TimeValue initialConnectionTimeout, boolean skipUnavailable) {
+    RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
-        this.seedNodes = seedNodes;
-        this.connectionsPerCluster = connectionsPerCluster;
-        this.numNodesConnected = numNodesConnected;
+        this.modeInfo = modeInfo;
         this.initialConnectionTimeout = initialConnectionTimeout;
         this.skipUnavailable = skipUnavailable;
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        seedNodes = Arrays.asList(input.readStringArray());
-        connectionsPerCluster = input.readVInt();
-        initialConnectionTimeout = input.readTimeValue();
-        numNodesConnected = input.readVInt();
-        clusterAlias = input.readString();
-        skipUnavailable = input.readBoolean();
+        // TODO: Change to 7.6 after backport
+        if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+            RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
+            modeInfo = mode.getReader().read(input);
+            initialConnectionTimeout = input.readTimeValue();
+            clusterAlias = input.readString();
+            skipUnavailable = input.readBoolean();
+        } else {
+            List<String> seedNodes = Arrays.asList(input.readStringArray());
+            int connectionsPerCluster = input.readVInt();
+            initialConnectionTimeout = input.readTimeValue();
+            int numNodesConnected = input.readVInt();
+            clusterAlias = input.readString();
+            skipUnavailable = input.readBoolean();
+            modeInfo = new SniffConnectionStrategy.SniffModeInfo(seedNodes, connectionsPerCluster, numNodesConnected);
+        }
     }
 
-    public List<String> getSeedNodes() {
-        return seedNodes;
-    }
-
-    public int getConnectionsPerCluster() {
-        return connectionsPerCluster;
-    }
-
-    public TimeValue getInitialConnectionTimeout() {
-        return initialConnectionTimeout;
-    }
-
-    public int getNumNodesConnected() {
-        return numNodesConnected;
+    public boolean isConnected() {
+        return modeInfo.isConnected();
     }
 
     public String getClusterAlias() {
         return clusterAlias;
     }
 
-    public boolean isSkipUnavailable() {
-        return skipUnavailable;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(seedNodes.toArray(new String[0]));
-        out.writeVInt(connectionsPerCluster);
-        out.writeTimeValue(initialConnectionTimeout);
-        out.writeVInt(numNodesConnected);
+        // TODO: Change to 7.6 after backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeEnum(modeInfo.modeType());
+            modeInfo.writeTo(out);
+            out.writeTimeValue(initialConnectionTimeout);
+        } else {
+            if (modeInfo.modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {
+                SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) this.modeInfo;
+                out.writeStringArray(sniffInfo.seedNodes.toArray(new String[0]));
+                out.writeVInt(sniffInfo.maxConnectionsPerCluster);
+                out.writeTimeValue(initialConnectionTimeout);
+                out.writeVInt(sniffInfo.numNodesConnected);
+            } else {
+                out.writeStringArray(new String[0]);
+                out.writeVInt(0);
+                out.writeTimeValue(initialConnectionTimeout);
+                out.writeVInt(0);
+            }
+        }
         out.writeString(clusterAlias);
         out.writeBoolean(skipUnavailable);
     }
@@ -132,16 +136,11 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(clusterAlias);
         {
-            builder.startArray(SEEDS);
-            for (String addr : seedNodes) {
-                builder.value(addr);
-            }
-            builder.endArray();
-            builder.field(CONNECTED, numNodesConnected > 0);
-            builder.field(NUM_NODES_CONNECTED, numNodesConnected);
-            builder.field(MAX_CONNECTIONS_PER_CLUSTER, connectionsPerCluster);
-            builder.field(INITIAL_CONNECT_TIMEOUT, initialConnectionTimeout);
-            builder.field(SKIP_UNAVAILABLE, skipUnavailable);
+            builder.field("connected", modeInfo.isConnected());
+            builder.field("mode", modeInfo.modeName());
+            modeInfo.toXContent(builder, params);
+            builder.field("initial_connect_timeout", initialConnectionTimeout);
+            builder.field("skip_unavailable", skipUnavailable);
         }
         builder.endObject();
         return builder;
@@ -156,18 +155,23 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteConnectionInfo that = (RemoteConnectionInfo) o;
-        return connectionsPerCluster == that.connectionsPerCluster &&
-            numNodesConnected == that.numNodesConnected &&
-            Objects.equals(seedNodes, that.seedNodes) &&
+        return skipUnavailable == that.skipUnavailable &&
+            Objects.equals(modeInfo, that.modeInfo) &&
             Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
-            Objects.equals(clusterAlias, that.clusterAlias) &&
-            skipUnavailable == that.skipUnavailable;
+            Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(seedNodes, connectionsPerCluster, initialConnectionTimeout,
-                numNodesConnected, clusterAlias, skipUnavailable);
+        return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable);
     }
 
+    public interface ModeInfo extends ToXContentFragment, Writeable {
+
+        boolean isConnected();
+
+        String modeName();
+
+        RemoteConnectionStrategy.ConnectionStrategy modeType();
+    }
 }

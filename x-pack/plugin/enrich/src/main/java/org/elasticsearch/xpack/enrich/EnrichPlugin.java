@@ -132,7 +132,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             return Map.of();
         }
 
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
     }

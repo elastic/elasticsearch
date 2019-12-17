@@ -35,10 +35,8 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -247,21 +245,22 @@ public final class IndexSettings {
      * Controls how long translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is enabled.
+     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age",
-            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12), TimeValue.MINUS_ONE,
-            Property.Dynamic, Property.IndexScope);
+            settings -> shouldDisableTranslogRetention(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
+            TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls how many translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is enabled.
+     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? "-1" : "512MB",
+        Setting.byteSizeSetting("index.translog.retention.size",
+            settings -> shouldDisableTranslogRetention(settings) ? "-1" : "512MB",
             Property.Dynamic, Property.IndexScope);
 
     /**
@@ -305,66 +304,15 @@ public final class IndexSettings {
         new Setting<>("index.default_pipeline",
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
-        new DefaultPipelineValidator(),
         Property.Dynamic,
         Property.IndexScope);
 
-    public static final Setting<String> REQUIRED_PIPELINE =
-        new Setting<>("index.required_pipeline",
+    public static final Setting<String> FINAL_PIPELINE =
+        new Setting<>("index.final_pipeline",
             IngestService.NOOP_PIPELINE_NAME,
             Function.identity(),
-            new RequiredPipelineValidator(),
             Property.Dynamic,
             Property.IndexScope);
-
-    static class DefaultPipelineValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(final String value) {
-
-        }
-
-        @Override
-        public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String requiredPipeline = (String) settings.get(IndexSettings.REQUIRED_PIPELINE);
-            if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
-                && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
-                throw new IllegalArgumentException(
-                    "index has a default pipeline [" + value + "] and a required pipeline [" + requiredPipeline + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<?>> settings() {
-            final List<Setting<?>> settings = List.of(REQUIRED_PIPELINE);
-            return settings.iterator();
-        }
-
-    }
-
-    static class RequiredPipelineValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(final String value) {
-
-        }
-
-        @Override
-        public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String defaultPipeline = (String) settings.get(IndexSettings.DEFAULT_PIPELINE);
-            if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
-                throw new IllegalArgumentException(
-                    "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<?>> settings() {
-            final List<Setting<?>> settings = List.of(DEFAULT_PIPELINE);
-            return settings.iterator();
-        }
-
-    }
 
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
@@ -613,7 +561,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
-        scopedSettings.addSettingsUpdateConsumer(REQUIRED_PIPELINE, this::setRequiredPipeline);
+        scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
@@ -630,7 +578,7 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        if (softDeleteEnabled && byteSizeValue.getBytes() >= 0) {
+        if (shouldDisableTranslogRetention(settings) && byteSizeValue.getBytes() >= 0) {
             // ignore the translog retention settings if soft-deletes enabled
             this.translogRetentionSize = new ByteSizeValue(-1);
         } else {
@@ -639,7 +587,7 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionAge(TimeValue age) {
-        if (softDeleteEnabled && age.millis() >= 0) {
+        if (shouldDisableTranslogRetention(settings) && age.millis() >= 0) {
             // ignore the translog retention settings if soft-deletes enabled
             this.translogRetentionAge = TimeValue.MINUS_ONE;
         } else {
@@ -827,7 +775,7 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        assert softDeleteEnabled == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
+        assert shouldDisableTranslogRetention(settings) == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
         return translogRetentionSize;
     }
 
@@ -836,7 +784,7 @@ public final class IndexSettings {
      * around
      */
     public TimeValue getTranslogRetentionAge() {
-        assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
+        assert shouldDisableTranslogRetention(settings) == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
     }
 
@@ -846,6 +794,11 @@ public final class IndexSettings {
      */
     public int getTranslogRetentionTotalFiles() {
         return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
+    }
+
+    private static boolean shouldDisableTranslogRetention(Settings settings) {
+        return INDEX_SOFT_DELETES_SETTING.get(settings)
+            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0);
     }
 
     /**

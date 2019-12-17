@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,13 +41,16 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,15 +58,38 @@ import java.util.stream.Stream;
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {
-        SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::enablementSettings),
-        SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings);
+        SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::enablementSettings,
+            SniffConnectionStrategy::infoReader) {
+            @Override
+            public String toString() {
+                return "sniff";
+            }
+        },
+        SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings,
+            SimpleConnectionStrategy::infoReader) {
+            @Override
+            public String toString() {
+                return "simple";
+            }
+        };
 
         private final int numberOfChannels;
-        private final Supplier<Stream<Setting.AffixSetting<?>>> enabledSettings;
+        private final Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings;
+        private final Supplier<Writeable.Reader<RemoteConnectionInfo.ModeInfo>> reader;
 
-        ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enabledSettings) {
+        ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings,
+                           Supplier<Writeable.Reader<RemoteConnectionInfo.ModeInfo>> reader) {
             this.numberOfChannels = numberOfChannels;
-            this.enabledSettings = enabledSettings;
+            this.enablementSettings = enablementSettings;
+            this.reader = reader;
+        }
+
+        public int getNumberOfChannels() {
+            return numberOfChannels;
+        }
+
+        public Writeable.Reader<RemoteConnectionInfo.ModeInfo> getReader() {
+            return reader.get();
         }
     }
 
@@ -71,6 +98,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             key,
             ConnectionStrategy.SNIFF.name(),
             value -> ConnectionStrategy.valueOf(value.toUpperCase(Locale.ROOT)),
+            Setting.Property.NodeScope,
             Setting.Property.Dynamic));
 
 
@@ -121,7 +149,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static Set<String> getRemoteClusters(Settings settings) {
         final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
-            .flatMap(strategy -> strategy.enabledSettings.get());
+            .flatMap(strategy -> strategy.enablementSettings.get());
         return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
     }
 
@@ -302,6 +330,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     protected abstract void connectImpl(ActionListener<Void> listener);
 
+    protected abstract RemoteConnectionInfo.ModeInfo getModeInfo();
+
     private List<ActionListener<Void>> getAndClearListeners() {
         final List<ActionListener<Void>> result;
         synchronized (mutex) {
@@ -318,5 +348,46 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+    }
+
+    static class StrategyValidator<T> implements Setting.Validator<T> {
+
+        private final String key;
+        private final ConnectionStrategy expectedStrategy;
+        private final String namespace;
+        private final Consumer<T> valueChecker;
+
+        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy) {
+            this(namespace, key, expectedStrategy, (v) -> {});
+        }
+
+        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
+            this.namespace = namespace;
+            this.key = key;
+            this.expectedStrategy = expectedStrategy;
+            this.valueChecker = valueChecker;
+        }
+
+        @Override
+        public void validate(T value) {
+            valueChecker.accept(value);
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            Setting<ConnectionStrategy> concrete = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
+            ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
+            if (isPresent && modeType.equals(expectedStrategy) == false) {
+                throw new IllegalArgumentException("Setting \"" + key + "\" cannot be used with the configured \"" + concrete.getKey()
+                    + "\" [required=" + expectedStrategy.name() + ", configured=" + modeType.name() + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            Setting<ConnectionStrategy> concrete = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
+            Stream<Setting<?>> settingStream = Stream.of(concrete);
+            return settingStream.iterator();
+        }
     }
 }

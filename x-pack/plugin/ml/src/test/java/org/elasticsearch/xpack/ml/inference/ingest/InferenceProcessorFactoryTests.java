@@ -14,7 +14,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,8 +39,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,8 +60,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
                     Settings.EMPTY,
-                    parameters.ingestService,
-                    licenseState));
+                    parameters.ingestService));
         }
     };
     private Client client;
@@ -68,10 +72,14 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void setUpVariables() {
         ThreadPool tp = mock(ThreadPool.class);
         client = mock(Client.class);
-        clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            Collections.singleton(InferenceProcessor.MAX_INFERENCE_PROCESSORS));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings,
+            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                ClusterService.USER_DEFINED_META_DATA,
+                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        clusterService = new ClusterService(settings, clusterSettings, tp);
         ingestService = new IngestService(clusterService, tp, null, null,
             null, Collections.singletonList(SKINNY_PLUGIN), client);
         licenseState = mock(XPackLicenseState.class);
@@ -84,8 +92,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
-            ingestService,
-            licenseState);
+            ingestService);
         processorFactory.accept(buildClusterState(metaData));
 
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
@@ -102,8 +109,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.builder().put(InferenceProcessor.MAX_INFERENCE_PROCESSORS.getKey(), 1).build(),
-            ingestService,
-            licenseState);
+            ingestService);
 
         processorFactory.accept(buildClusterStateWithModelReferences("model1"));
 
@@ -118,8 +124,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
-            ingestService,
-            licenseState);
+            ingestService);
 
         Map<String, Object> config = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
@@ -160,8 +165,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
-            ingestService,
-            licenseState);
+            ingestService);
         processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
 
         Map<String, Object> regression = new HashMap<>() {{
@@ -204,8 +208,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
-            ingestService,
-            licenseState);
+            ingestService);
 
         Map<String, Object> regression = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
@@ -232,6 +235,29 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             processorFactory.create(Collections.emptyMap(), "my_inference_processor", classification);
         } catch (Exception ex) {
             fail(ex.getMessage());
+        }
+    }
+
+    public void testCreateProcessorWithDuplicateFields() {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY,
+            ingestService);
+
+        Map<String, Object> regression = new HashMap<>() {{
+            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.MODEL_ID, "my_model");
+            put(InferenceProcessor.TARGET_FIELD, "ml");
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME,
+                Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
+        }};
+
+        try {
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
+            fail("should not have succeeded creating with duplicate fields");
+        } catch (Exception ex) {
+            assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +
+                "More than one field is configured as [warning]"));
         }
     }
 

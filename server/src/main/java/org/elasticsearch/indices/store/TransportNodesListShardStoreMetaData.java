@@ -268,7 +268,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -299,7 +299,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 out.writeString(customDataPath);
             }
         }
@@ -336,7 +336,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -352,7 +352,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 assert customDataPath != null;
                 out.writeString(customDataPath);
             }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.common.validation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,13 +32,15 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
 
 /**
- * Validation of source indexes and destination index in different situations (preview, put)
+ * Validation of source indexes and destination index.
+ *
+ * Validations are separated into validators to choose from, e.g. you want to run different types of validations for
+ * preview/create/start with or without support for remote clusters
  */
 public final class SourceDestValidator {
 
@@ -67,6 +68,9 @@ public final class SourceDestValidator {
     private final String nodeName;
     private final String license;
 
+    /*
+     * Internal shared context between validators.
+     */
     static class Context {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -167,22 +171,20 @@ public final class SourceDestValidator {
                     resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : dest;
                 } catch (IllegalArgumentException e) {
                     // stop here as we can not return a single dest index
-                    addValidationError(e.getMessage(), false);
+                    addValidationError(e.getMessage());
+                    throw validationException;
                 }
             }
 
             return resolvedDest;
         }
 
-        public ValidationException addValidationError(String error, boolean continueValidation, Object... args) {
+        public ValidationException addValidationError(String error, Object... args) {
             if (validationException == null) {
                 validationException = new ValidationException();
             }
 
             validationException.addValidationError(getMessage(error, args));
-            if (continueValidation == false) {
-                throw validationException;
-            }
 
             return validationException;
         }
@@ -217,7 +219,7 @@ public final class SourceDestValidator {
     }
 
     interface SourceDestValidation {
-        void validate(Context context);
+        void validate(Context context, ActionListener<Context> listener);
     }
 
     // note: this is equivalent to the default for search requests
@@ -229,7 +231,7 @@ public final class SourceDestValidator {
     public static final SourceDestValidation DESTINATION_IN_SOURCE_VALIDATION = new DestinationInSourceValidation();
     public static final SourceDestValidation DESTINATION_SINGLE_INDEX_VALIDATION = new DestinationSingleIndexValidation();
 
-    // set of default validation collections
+    // set of default validation collections, if you want to automatically benefit from new validators, use those
     public static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Arrays.asList(SOURCE_MISSING_VALIDATION, REMOTE_SOURCE_VALIDATION);
 
     public static final List<SourceDestValidation> ALL_VALIDATIONS = Arrays.asList(
@@ -274,11 +276,11 @@ public final class SourceDestValidator {
      * @param listener result listener
      */
     public void validate(
-        ClusterState clusterState,
-        String[] source,
-        String dest,
-        List<SourceDestValidation> validations,
-        ActionListener<Boolean> listener
+        final ClusterState clusterState,
+        final String[] source,
+        final String dest,
+        final List<SourceDestValidation> validations,
+        final ActionListener<Boolean> listener
     ) {
         Context context = new Context(
             clusterState,
@@ -291,18 +293,21 @@ public final class SourceDestValidator {
             license
         );
 
-        // validation exception might gets thrown if validation stops early
-        try {
-            for (SourceDestValidation validation : validations) {
-                validation.validate(context);
+        ActionListener<Context> validationListener = ActionListener.wrap(c -> {
+            if (c.getValidationException() != null) {
+                listener.onFailure(context.getValidationException());
+            } else {
+                listener.onResponse(true);
             }
-        } catch (ValidationException e) {}
+        }, listener::onFailure);
 
-        if (context.getValidationException() != null) {
-            listener.onFailure(context.getValidationException());
-            return;
+        for (int i = validations.size() - 1; i >= 0; i--) {
+            final SourceDestValidation validation = validations.get(i);
+            final ActionListener<Context> previousValidationListener = validationListener;
+            validationListener = ActionListener.wrap(c -> { validation.validate(c, previousValidationListener); }, listener::onFailure);
         }
-        listener.onResponse(true);
+
+        validationListener.onResponse(context);
     }
 
     /**
@@ -337,24 +342,26 @@ public final class SourceDestValidator {
     static class SourceMissingValidation implements SourceDestValidation {
 
         @Override
-        public void validate(Context context) {
+        public void validate(Context context, ActionListener<Context> listener) {
             try {
                 // non-trivia: if source contains a wildcard index, which does not resolve to a concrete index
                 // the resolved indices might be empty, but we can check if source contained something, this works because
                 // of no wildcard index is involved the resolve would have thrown an exception
                 if (context.resolveSource().isEmpty() && context.resolveRemoteSource().isEmpty() && context.getSource().length == 0) {
-                    context.addValidationError(SOURCE_INDEX_MISSING, true, Strings.arrayToCommaDelimitedString(context.getSource()));
+                    context.addValidationError(SOURCE_INDEX_MISSING, Strings.arrayToCommaDelimitedString(context.getSource()));
                 }
             } catch (IndexNotFoundException e) {
-                context.addValidationError(e.getMessage(), true);
+                context.addValidationError(e.getMessage());
             }
+            listener.onResponse(context);
         }
     }
 
     static class RemoteSourceEnabledAndRemoteLicenseValidation implements SourceDestValidation {
         @Override
-        public void validate(Context context) {
+        public void validate(Context context, ActionListener<Context> listener) {
             if (context.resolveRemoteSource().isEmpty()) {
+                listener.onResponse(context);
                 return;
             }
 
@@ -362,7 +369,8 @@ public final class SourceDestValidator {
             // we can only check this node at the moment, clusters with mixed CCS enabled/disabled nodes are not supported,
             // see gh#50033
             if (context.isRemoteSearchEnabled() == false) {
-                context.addValidationError(NEEDS_REMOTE_CLUSTER_SEARCH, true, context.resolveRemoteSource(), context.getNodeName());
+                context.addValidationError(NEEDS_REMOTE_CLUSTER_SEARCH, context.resolveRemoteSource(), context.getNodeName());
+                listener.onResponse(context);
                 return;
             }
 
@@ -371,89 +379,76 @@ public final class SourceDestValidator {
             try {
                 remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
             } catch (NoSuchRemoteClusterException e) {
-                context.addValidationError(e.getMessage(), true);
+                context.addValidationError(e.getMessage());
+                listener.onResponse(context);
                 return;
             } catch (Exception e) {
-                context.addValidationError(ERROR_REMOTE_CLUSTER_SEARCH, true, e.getMessage());
+                context.addValidationError(ERROR_REMOTE_CLUSTER_SEARCH, e.getMessage());
+                listener.onResponse(context);
                 return;
             }
 
-            CountDownLatch latch = new CountDownLatch(1);
-
-            context.getRemoteClusterLicenseChecker()
-                .checkRemoteClusterLicenses(remoteAliases, new LatchedActionListener<>(ActionListener.wrap(response -> {
-                    if (response.isSuccess() == false) {
-                        if (response.remoteClusterLicenseInfo().licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
-                            context.addValidationError(
-                                REMOTE_CLUSTER_LICENSE_INACTIVE,
-                                true,
-                                response.remoteClusterLicenseInfo().clusterAlias()
-                            );
-                        } else {
-                            context.addValidationError(
-                                FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE,
-                                true,
-                                response.remoteClusterLicenseInfo().clusterAlias(),
-                                context.getLicense(),
-                                response.remoteClusterLicenseInfo().licenseInfo().getType()
-                            );
-                        }
-                    }
-                },
-                    e -> {
+            context.getRemoteClusterLicenseChecker().checkRemoteClusterLicenses(remoteAliases, ActionListener.wrap(response -> {
+                if (response.isSuccess() == false) {
+                    if (response.remoteClusterLicenseInfo().licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
+                        context.addValidationError(REMOTE_CLUSTER_LICENSE_INACTIVE, response.remoteClusterLicenseInfo().clusterAlias());
+                    } else {
                         context.addValidationError(
-                            UNKNOWN_REMOTE_CLUSTER_LICENSE,
-                            true,
+                            FEATURE_NOT_LICENSED_REMOTE_CLUSTER_LICENSE,
+                            response.remoteClusterLicenseInfo().clusterAlias(),
                             context.getLicense(),
-                            remoteAliases,
-                            e.getMessage()
+                            response.remoteClusterLicenseInfo().licenseInfo().getType()
                         );
                     }
-                ), latch));
-
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                context.addValidationError(TIMEOUT_CHECK_REMOTE_CLUSTER_LICENSE, true, context.getLicense(), remoteAliases);
-            }
+                }
+                listener.onResponse(context);
+            }, e -> {
+                context.addValidationError(UNKNOWN_REMOTE_CLUSTER_LICENSE, context.getLicense(), remoteAliases, e.getMessage());
+                listener.onResponse(context);
+            }));
         }
     }
 
     static class DestinationInSourceValidation implements SourceDestValidation {
 
         @Override
-        public void validate(Context context) {
+        public void validate(Context context, ActionListener<Context> listener) {
             final String destIndex = context.getDest();
 
             for (String src : context.getSource()) {
                 if (Regex.simpleMatch(src, destIndex)) {
-                    context.addValidationError(DEST_IN_SOURCE, true, destIndex, src);
+                    context.addValidationError(DEST_IN_SOURCE, destIndex, src);
+
+                    // todo: revisit
+                    listener.onResponse(context);
                     return;
                 }
             }
 
             if (context.resolvedSource.contains(destIndex)) {
-                context.addValidationError(DEST_IN_SOURCE, true, destIndex, Strings.arrayToCommaDelimitedString(context.getSource()));
+                context.addValidationError(DEST_IN_SOURCE, destIndex, Strings.arrayToCommaDelimitedString(context.getSource()));
+                listener.onResponse(context);
                 return;
             }
 
             if (context.resolvedSource.contains(context.resolveDest())) {
                 context.addValidationError(
                     DEST_IN_SOURCE,
-                    true,
                     context.resolveDest(),
                     Strings.collectionToCommaDelimitedString(context.resolveSource())
                 );
-                return;
             }
+
+            listener.onResponse(context);
         }
     }
 
     static class DestinationSingleIndexValidation implements SourceDestValidation {
 
         @Override
-        public void validate(Context context) {
+        public void validate(Context context, ActionListener<Context> listener) {
             context.resolveDest();
+            listener.onResponse(context);
         }
     }
 

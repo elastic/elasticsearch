@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
@@ -537,28 +538,32 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     // CCS tests: at time of writing it wasn't possible to mock RemoteClusterService, therefore it's not possible
     // to test the whole validation but test RemoteSourceEnabledAndRemoteLicenseValidation
-    public void testRemoteSourceBasic() {
-        Context context = new SourceDestValidator.Context(
-            CLUSTER_STATE,
-            new IndexNameExpressionResolver(),
-            remoteClusterService,
-            remoteClusterLicenseCheckerBasic,
-            new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
-            "dest",
-            "node_id",
-            "license"
+    public void testRemoteSourceBasic() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                new IndexNameExpressionResolver(),
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
+                "dest",
+                "node_id",
+                "license"
+            )
         );
 
-        Context spyContext = spy(context);
-        when(spyContext.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
+        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
         RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
 
-        validator.validate(spyContext);
-        assertNull(context.getValidationException());
+        assertValidationWithContext(
+            listener -> validator.validate(context, listener),
+            c -> { assertNull(c.getValidationException()); },
+            null
+        );
     }
 
-    public void testRemoteSourcePlatinum() {
-        Context context = spy(
+    public void testRemoteSourcePlatinum() throws InterruptedException {
+        final Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
                 new IndexNameExpressionResolver(),
@@ -572,21 +577,22 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
 
         when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
-        RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
-        validator.validate(context);
+        final RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
 
-        assertNotNull(context.getValidationException());
-        assertEquals(1, context.getValidationException().validationErrors().size());
-        assertThat(
-            context.getValidationException().validationErrors().get(0),
-            equalTo(
-                "License check failed for remote cluster alias ["
-                    + REMOTE_BASIC
-                    + "], at least a [platinum] license is required, found license [basic]"
-            )
-        );
+        assertValidationWithContext(listener -> validator.validate(context, listener), c -> {
+            assertNotNull(c.getValidationException());
+            assertEquals(1, c.getValidationException().validationErrors().size());
+            assertThat(
+                c.getValidationException().validationErrors().get(0),
+                equalTo(
+                    "License check failed for remote cluster alias ["
+                        + REMOTE_BASIC
+                        + "], at least a [platinum] license is required, found license [basic]"
+                )
+            );
+        }, null);
 
-        context = spy(
+        final Context context2 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
                 new IndexNameExpressionResolver(),
@@ -598,13 +604,15 @@ public class SourceDestValidatorTests extends ESTestCase {
                 "license"
             )
         );
-        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
+        when(context2.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
 
-        validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
-        validator.validate(context);
-        assertNull(context.getValidationException());
+        assertValidationWithContext(
+            listener -> validator.validate(context2, listener),
+            c -> { assertNull(c.getValidationException()); },
+            null
+        );
 
-        context = spy(
+        final Context context3 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
                 new IndexNameExpressionResolver(),
@@ -616,13 +624,16 @@ public class SourceDestValidatorTests extends ESTestCase {
                 "platinum"
             )
         );
-        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
+        when(context3.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
 
-        validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
-        validator.validate(context);
-        assertNull(context.getValidationException());
+        final RemoteSourceEnabledAndRemoteLicenseValidation validator3 = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        assertValidationWithContext(
+            listener -> validator3.validate(context3, listener),
+            c -> { assertNull(c.getValidationException()); },
+            null
+        );
 
-        context = spy(
+        final Context context4 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
                 new IndexNameExpressionResolver(),
@@ -634,15 +645,18 @@ public class SourceDestValidatorTests extends ESTestCase {
                 "trial"
             )
         );
-        when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
+        when(context4.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
 
-        validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
-        validator.validate(context);
-        assertNull(context.getValidationException());
+        final RemoteSourceEnabledAndRemoteLicenseValidation validator4 = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        assertValidationWithContext(
+            listener -> validator4.validate(context4, listener),
+            c -> { assertNull(c.getValidationException()); },
+            null
+        );
     }
 
-    public void testRemoteSourceLicenseInActive() {
-        Context context = spy(
+    public void testRemoteSourceLicenseInActive() throws InterruptedException {
+        final Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
                 new IndexNameExpressionResolver(),
@@ -656,18 +670,18 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
 
         when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
-        RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
-        validator.validate(context);
-
-        assertNotNull(context.getValidationException());
-        assertEquals(1, context.getValidationException().validationErrors().size());
-        assertThat(
-            context.getValidationException().validationErrors().get(0),
-            equalTo("License check failed for remote cluster alias [" + REMOTE_BASIC + "], license is not active")
-        );
+        final RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
+        assertValidationWithContext(listener -> validator.validate(context, listener), c -> {
+            assertNotNull(c.getValidationException());
+            assertEquals(1, c.getValidationException().validationErrors().size());
+            assertThat(
+                c.getValidationException().validationErrors().get(0),
+                equalTo("License check failed for remote cluster alias [" + REMOTE_BASIC + "], license is not active")
+            );
+        }, null);
     }
 
-    public void testRemoteSourceDoesNotExist() {
+    public void testRemoteSourceDoesNotExist() throws InterruptedException {
         Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
@@ -684,10 +698,11 @@ public class SourceDestValidatorTests extends ESTestCase {
         when(context.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_BASIC));
         RemoteSourceEnabledAndRemoteLicenseValidation validator = new RemoteSourceEnabledAndRemoteLicenseValidation();
 
-        validator.validate(context);
-        assertNotNull(context.getValidationException());
-        assertEquals(1, context.getValidationException().validationErrors().size());
-        assertThat(context.getValidationException().validationErrors().get(0), equalTo("no such remote cluster: [non_existing_remote]"));
+        assertValidationWithContext(listener -> validator.validate(context, listener), c -> {
+            assertNotNull(c.getValidationException());
+            assertEquals(1, c.getValidationException().validationErrors().size());
+            assertThat(c.getValidationException().validationErrors().get(0), equalTo("no such remote cluster: [non_existing_remote]"));
+        }, null);
     }
 
     public void testRequestValidation() {
@@ -729,6 +744,35 @@ public class SourceDestValidatorTests extends ESTestCase {
                 fail("expected an exception but got a response");
             } else {
                 assertThat(r, equalTo(expected));
+            }
+        }, e -> {
+            if (onException == null) {
+                logger.error("got unexpected exception", e);
+                fail("got unexpected exception: " + e.getMessage());
+            } else if (e instanceof ValidationException) {
+                onException.accept((ValidationException) e);
+            } else {
+                fail("got unexpected exception type: " + e);
+            }
+        }), latch);
+
+        function.accept(listener);
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
+    }
+
+    private void assertValidationWithContext(
+        Consumer<ActionListener<Context>> function,
+        CheckedConsumer<Context, ? extends Exception> onAnswer,
+        Consumer<ValidationException> onException
+    ) throws InterruptedException {
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        LatchedActionListener<Context> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            if (onAnswer == null) {
+                fail("expected an exception but got a response");
+            } else {
+                onAnswer.accept(r);
             }
         }, e -> {
             if (onException == null) {

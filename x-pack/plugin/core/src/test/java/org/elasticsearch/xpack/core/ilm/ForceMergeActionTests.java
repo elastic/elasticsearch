@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.lucene.codecs.Codec;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -35,20 +36,21 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     static ForceMergeAction randomInstance() {
-        return new ForceMergeAction(randomIntBetween(1, 100), randomBoolean());
+        return new ForceMergeAction(randomIntBetween(1, 100), createRandomCompressionSettings());
+    }
+
+    static Codec createRandomCompressionSettings() {
+        if(randomBoolean()) {
+            return Codec.getDefault();
+        }
+        return Codec.forName(CodecService.BEST_COMPRESSION_CODEC);
     }
 
     @Override
     protected ForceMergeAction mutateInstance(ForceMergeAction instance) {
         int maxNumSegments = instance.getMaxNumSegments();
-        boolean bestCompression = instance.isBestCompression();
-        if(randomBoolean()) {
-            maxNumSegments = maxNumSegments + randomIntBetween(1, 10);
-        }
-        else {
-            bestCompression = !bestCompression;
-        }
-        return new ForceMergeAction(maxNumSegments, bestCompression);
+        maxNumSegments = maxNumSegments + randomIntBetween(1, 10);
+        return new ForceMergeAction(maxNumSegments, Codec.getDefault());
     }
 
     @Override
@@ -83,7 +85,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         CloseIndexStep firstStep = (CloseIndexStep) steps.get(0);
         UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
         OpenIndexStep thirdStep = (OpenIndexStep) steps.get(2);
-        WaitForIndexGreenStep fourthStep = (WaitForIndexGreenStep) steps.get(3);
+        WaitForIndexColorStep fourthStep = (WaitForIndexColorStep) steps.get(3);
         ForceMergeStep fifthStep = (ForceMergeStep) steps.get(4);
         assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME)));
         assertThat(firstStep.getNextStepKey(), equalTo(secondStep.getKey()));
@@ -92,7 +94,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(secondStep.getNextStepKey(), equalTo(thirdStep.getKey()));
         assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, OpenIndexStep.NAME)));
         assertThat(thirdStep.getNextStepKey(), equalTo(fourthStep));
-        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitForIndexGreenStep.NAME)));
+        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitForIndexColorStep.NAME)));
         assertThat(fourthStep.getNextStepKey(), equalTo(fifthStep));
         assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
         assertThat(fifthStep.getNextStepKey(), equalTo(nextStepKey));
@@ -107,13 +109,13 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     public void testInvalidNegativeSegmentNumber() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), false));
+        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), Codec.getDefault()));
         assertThat(r.getMessage(), equalTo("[max_num_segments] must be a positive integer"));
     }
 
     public void testToSteps() {
         ForceMergeAction instance = createTestInstance();
-        if (instance.isBestCompression()) {
+        if (CodecService.BEST_COMPRESSION_CODEC.equals(instance.getCodec().getName())) {
             assertBestCompression(instance);
         }
         else {

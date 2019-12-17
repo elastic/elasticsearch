@@ -110,10 +110,20 @@ public class BoundingBoxTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         for (String field : randomSubsetOf(List.of("top", "bottom", "left", "right"))) {
             switch (field) {
-                case "top": builder.field("top", boundingBox.top()); break;
-                case "bottom": builder.field("bottom", boundingBox.bottom()); break;
-                case "left": builder.field("left", boundingBox.left()); break;
-                case "right": builder.field("right", boundingBox.right()); break;
+                case "top":
+                    builder.field("top", boundingBox.top());
+                    break;
+                case "bottom":
+                    builder.field("bottom", boundingBox.bottom());
+                    break;
+                case "left":
+                    builder.field("left", boundingBox.left());
+                    break;
+                case "right":
+                    builder.field("right", boundingBox.right());
+                    break;
+                default:
+                    throw new IllegalStateException("unexpected branching");
             }
         }
         builder.endObject();

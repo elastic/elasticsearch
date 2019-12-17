@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -140,6 +141,16 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         } catch (Exception e) {
             throw new AssertionError("Failed to wait for pending tasks to complete", e);
         }
+    }
+
+    protected DeleteExpiredDataAction.Response deleteExpiredData() throws Exception {
+        DeleteExpiredDataAction.Response response = client().execute(DeleteExpiredDataAction.INSTANCE,
+            new DeleteExpiredDataAction.Request()).get();
+
+        // We need to refresh to ensure the deletion is visible
+        client().admin().indices().prepareRefresh("*").get();
+
+        return response;
     }
 
     @Override

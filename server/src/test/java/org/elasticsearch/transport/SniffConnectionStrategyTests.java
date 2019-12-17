@@ -655,11 +655,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD, "192.168.0.1:8080"),
             new Tuple<>(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS, "2"));
 
-        RemoteConnectionStrategy.ConnectionStrategy simple = RemoteConnectionStrategy.ConnectionStrategy.PROXY;
+        RemoteConnectionStrategy.ConnectionStrategy proxy = RemoteConnectionStrategy.ConnectionStrategy.PROXY;
 
         String clusterName = "cluster_name";
         Settings settings = Settings.builder()
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), simple.name())
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), proxy.name())
             .build();
 
         Set<Setting<?>> clusterSettings = new HashSet<>();
@@ -675,7 +675,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
             String expected = "Setting \"" + concreteSetting.getKey() + "\" cannot be used with the configured " +
-                "\"cluster.remote.cluster_name.mode\" [required=SNIFF, configured=SIMPLE]";
+                "\"cluster.remote.cluster_name.mode\" [required=SNIFF, configured=PROXY]";
             assertEquals(expected, iae.getMessage());
         }
     }

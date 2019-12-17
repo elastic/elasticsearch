@@ -185,27 +185,31 @@ public class LucenePersistedStateFactory {
     }
 
     public static class OnDiskState {
-        public final String nodeId;
-        public final Path dataPath;
+        private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
+
+        private final String nodeId;
+        private final Path dataPath;
         public final long currentTerm;
         public final long lastAcceptedVersion;
         public final MetaData metaData;
 
-        public OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, MetaData metaData) {
+        private OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, MetaData metaData) {
             this.nodeId = nodeId;
             this.dataPath = dataPath;
             this.currentTerm = currentTerm;
             this.lastAcceptedVersion = lastAcceptedVersion;
             this.metaData = metaData;
         }
-    }
 
-    public static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
+        public boolean empty() {
+            return this == NO_ON_DISK_STATE;
+        }
+    }
 
     public OnDiskState loadBestOnDiskState() throws IOException {
         String committedClusterUuid = null;
         Path committedClusterUuidPath = null;
-        OnDiskState bestOnDiskState = NO_ON_DISK_STATE;
+        OnDiskState bestOnDiskState = OnDiskState.NO_ON_DISK_STATE;
         OnDiskState maxCurrentTermOnDiskState = bestOnDiskState;
 
         // We use a write-all-read-one strategy: metadata is written to every data path when accepting it, which means it is mostly
@@ -240,7 +244,7 @@ public class LucenePersistedStateFactory {
 
                     long acceptedTerm = onDiskState.metaData.coordinationMetaData().term();
                     long maxAcceptedTerm = bestOnDiskState.metaData.coordinationMetaData().term();
-                    if (bestOnDiskState == NO_ON_DISK_STATE
+                    if (bestOnDiskState.empty()
                         || acceptedTerm > maxAcceptedTerm
                         || (acceptedTerm == maxAcceptedTerm
                             && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
@@ -489,7 +493,7 @@ public class LucenePersistedStateFactory {
         private final String nodeId;
         private final BigArrays bigArrays;
 
-        public Writer(List<MetaDataIndexWriter> metaDataIndexWriters, String nodeId, BigArrays bigArrays) {
+        private Writer(List<MetaDataIndexWriter> metaDataIndexWriters, String nodeId, BigArrays bigArrays) {
             this.metaDataIndexWriters = metaDataIndexWriters;
             this.nodeId = nodeId;
             this.bigArrays = bigArrays;

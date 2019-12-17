@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
-    protected static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
+    private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
     static final String STOP_WARNING_MSG =
             DELIMITER +
@@ -91,7 +91,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     public static Tuple<Long, ClusterState> loadTermAndClusterState(LucenePersistedStateFactory psf,
                                                                     Environment env) throws IOException {
         final LucenePersistedStateFactory.OnDiskState bestOnDiskState = psf.loadBestOnDiskState();
-        if (bestOnDiskState == LucenePersistedStateFactory.NO_ON_DISK_STATE) {
+        if (bestOnDiskState.empty()) {
             throw new ElasticsearchException(CS_MISSING_MSG);
         }
         return Tuple.tuple(bestOnDiskState.currentTerm, clusterState(env, bestOnDiskState));

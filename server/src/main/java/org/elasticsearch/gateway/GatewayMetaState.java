@@ -80,16 +80,20 @@ public class GatewayMetaState implements Closeable {
 
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
-                LucenePersistedStateFactory.OnDiskState onDiskState = lucenePersistedStateFactory.loadBestOnDiskState();
+                final LucenePersistedStateFactory.OnDiskState onDiskState = lucenePersistedStateFactory.loadBestOnDiskState();
 
-                if (onDiskState == LucenePersistedStateFactory.NO_ON_DISK_STATE) {
+                MetaData metaData = onDiskState.metaData;
+                long lastAcceptedVersion = onDiskState.lastAcceptedVersion;
+                long currentTerm = onDiskState.currentTerm;
+
+                if (onDiskState.empty() == false) {
                     assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 :
                         "legacy metadata loader is not needed anymore from v9 onwards";
                     final Tuple<Manifest, MetaData> legacyState = metaStateService.loadFullState();
                     if (legacyState.v1().isEmpty() == false) {
-                        onDiskState = new LucenePersistedStateFactory.OnDiskState(lucenePersistedStateFactory.getNodeId(),
-                            null, legacyState.v1().getCurrentTerm(),
-                            legacyState.v1().getClusterStateVersion(), legacyState.v2());
+                        metaData = legacyState.v2();
+                        lastAcceptedVersion = legacyState.v1().getClusterStateVersion();
+                        currentTerm = legacyState.v1().getCurrentTerm();
                     }
                 }
 
@@ -99,11 +103,11 @@ public class GatewayMetaState implements Closeable {
                 try {
                     final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
                         ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                            .version(onDiskState.lastAcceptedVersion)
-                            .metaData(upgradeMetaDataForNode(onDiskState.metaData, metaDataIndexUpgradeService, metaDataUpgrader))
+                            .version(lastAcceptedVersion)
+                            .metaData(upgradeMetaDataForNode(metaData, metaDataIndexUpgradeService, metaDataUpgrader))
                             .build());
                     lucenePersistedState = new LucenePersistedStateFactory.LucenePersistedState(
-                        persistenceWriter, onDiskState.currentTerm, clusterState);
+                        persistenceWriter, currentTerm, clusterState);
                     // Write the whole state out to be sure it's fresh and using the latest format. Called during initialisation, so that
                     // (1) throwing an IOException is enough to halt the node, and
                     // (2) the index is currently empty since it was opened with IndexWriterConfig.OpenMode.CREATE
@@ -111,7 +115,7 @@ public class GatewayMetaState implements Closeable {
                     // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance,
                     // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
                     // by this version of Elasticsearch. TODO TBD should we avoid indexing when possible?
-                    persistenceWriter.writeFullStateAndCommit(onDiskState.currentTerm, clusterState);
+                    persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
                     metaStateService.deleteAll(); // delete legacy files
                     success = true;
                 } finally {

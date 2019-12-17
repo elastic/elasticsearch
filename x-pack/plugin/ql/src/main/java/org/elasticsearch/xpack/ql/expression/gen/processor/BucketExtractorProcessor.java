@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ql.expression.gen.processor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,7 +45,7 @@ public class BucketExtractorProcessor implements Processor {
     @Override
     public Object process(Object input) {
         if (!(input instanceof Bucket)) {
-            throw new SqlIllegalArgumentException("Expected an agg bucket but received {}", input);
+            throw new QlIllegalArgumentException("Expected an agg bucket but received {}", input);
         }
         return extractor.extract((Bucket) input);
     }

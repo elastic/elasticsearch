@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
 import org.elasticsearch.xpack.ql.capabilities.Resolvable;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,7 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolv
     }
 
     @Override
-    public void collectFields(SqlSourceBuilder sourceBuilder) {
+    public void collectFields(QlSourceBuilder sourceBuilder) {
         children().forEach(c -> c.collectFields(sourceBuilder));
     }
 

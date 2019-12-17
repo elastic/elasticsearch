@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 
 import java.util.ArrayList;

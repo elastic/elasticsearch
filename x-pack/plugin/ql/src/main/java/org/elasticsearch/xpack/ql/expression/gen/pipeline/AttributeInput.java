@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 /**
  * An input that must first be rewritten against the rest of the query
@@ -36,7 +36,7 @@ public class AttributeInput extends NonExecutableInput<Attribute> {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         // Nothing to extract
     }
 }

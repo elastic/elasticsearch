@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.execution.search;
+package org.elasticsearch.xpack.ql.execution.search;
 
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -17,7 +17,7 @@ public interface FieldExtraction {
      * in order to fetch the field. This can include tracking the score,
      * {@code _source} fields, doc values fields, and script fields.
      */
-    void collectFields(SqlSourceBuilder sourceBuilder);
+    void collectFields(QlSourceBuilder sourceBuilder);
 
     /**
      * Is this aggregation supported in an "aggregation only" query

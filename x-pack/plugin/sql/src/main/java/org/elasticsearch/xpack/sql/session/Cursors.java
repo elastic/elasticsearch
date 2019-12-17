@@ -9,6 +9,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractors;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.ql.expression.literal.Literals;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -17,8 +19,6 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.CompositeAggCursor;
 import org.elasticsearch.xpack.sql.execution.search.PivotCursor;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractors;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
 

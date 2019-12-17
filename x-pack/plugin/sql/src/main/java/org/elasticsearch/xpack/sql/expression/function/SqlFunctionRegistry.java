@@ -115,10 +115,11 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 public class SqlFunctionRegistry extends FunctionRegistry {
 
     public SqlFunctionRegistry() {
-        super(functions());
+        super(new SqlFunctionTypeRegistry());
+        register(functions());
     }
 
-    private static FunctionDefinition[] functions() {
+    private FunctionDefinition[] functions() {
         return new FunctionDefinition[] {
         // Aggregate functions
                 def(Avg.class, Avg::new, "AVG"),

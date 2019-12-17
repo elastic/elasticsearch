@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 /**
  * Implementation common to most subclasses of
@@ -22,7 +22,7 @@ abstract class CommonNonExecutableInput<T> extends NonExecutableInput<T> {
 
     @Override
     public final Processor asProcessor() {
-        throw new SqlIllegalArgumentException("Unresolved input - needs resolving first");
+        throw new QlIllegalArgumentException("Unresolved input - needs resolving first");
     }
 
     @Override
@@ -31,7 +31,7 @@ abstract class CommonNonExecutableInput<T> extends NonExecutableInput<T> {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         // Nothing to extract
     }
 }

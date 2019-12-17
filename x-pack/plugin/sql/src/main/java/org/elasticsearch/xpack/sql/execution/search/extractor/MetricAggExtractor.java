@@ -20,10 +20,10 @@ import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -47,7 +47,7 @@ public class MetricAggExtractor implements BucketExtractor {
         this.name = name;
         this.property = property;
         this.innerKey = innerKey;
-        this. isDateTimeBased =isDateTimeBased;
+        this.isDateTimeBased = isDateTimeBased;
         this.zoneId = zoneId;
     }
 

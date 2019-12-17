@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.execution.search;
+package org.elasticsearch.xpack.ql.execution.search;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
@@ -20,15 +20,15 @@ import java.util.Set;
  * {@link FieldExtraction} that can "build" whatever needs to be extracted from
  * the resulting ES document as a field.
  */
-public class SqlSourceBuilder {
+public class QlSourceBuilder {
     // The LinkedHashMaps preserve the order of the fields in the response
-    final Set<String> sourceFields = new LinkedHashSet<>();
-    final Set<FieldAndFormat> docFields = new LinkedHashSet<>();
-    final Map<String, Script> scriptFields = new LinkedHashMap<>();
+    private final Set<String> sourceFields = new LinkedHashSet<>();
+    private final Set<FieldAndFormat> docFields = new LinkedHashSet<>();
+    private final Map<String, Script> scriptFields = new LinkedHashMap<>();
 
     boolean trackScores = false;
 
-    public SqlSourceBuilder() {
+    public QlSourceBuilder() {
     }
 
     /**
@@ -70,5 +70,9 @@ public class SqlSourceBuilder {
         }
         docFields.forEach(field -> sourceBuilder.docValueField(field.field, field.format));
         scriptFields.forEach(sourceBuilder::scriptField);
+    }
+
+    public boolean noSource() {
+        return sourceFields.isEmpty();
     }
 }

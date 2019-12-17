@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ql.expression.gen.processor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,7 +45,7 @@ public class HitExtractorProcessor implements Processor {
     @Override
     public Object process(Object input) {
         if (!(input instanceof SearchHit)) {
-            throw new SqlIllegalArgumentException("Expected a SearchHit but received {}", input);
+            throw new QlIllegalArgumentException("Expected a SearchHit but received {}", input);
         }
         return extractor.extract((SearchHit) input);
     }

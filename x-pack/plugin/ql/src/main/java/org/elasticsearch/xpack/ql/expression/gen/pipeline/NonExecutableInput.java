@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 public abstract class NonExecutableInput<T> extends LeafInput<T> {
     NonExecutableInput(Source source, Expression expression, T context) {
@@ -22,6 +22,6 @@ public abstract class NonExecutableInput<T> extends LeafInput<T> {
 
     @Override
     public Processor asProcessor() {
-        throw new SqlIllegalArgumentException("Unresolved input - needs resolving first");
+        throw new QlIllegalArgumentException("Unresolved input - needs resolving first");
     }
 }

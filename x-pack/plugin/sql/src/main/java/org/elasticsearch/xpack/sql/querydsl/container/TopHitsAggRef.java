@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
 
 /**
  * Reference to a TopHits aggregation.

@@ -3,14 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ql.expression.gen.pipeline;
+package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ScoreExtractor;
 
 import java.util.List;
@@ -53,7 +54,7 @@ public class ScorePipe extends Pipe {
     }
 
     @Override
-    public void collectFields(SqlSourceBuilder sourceBuilder) {
+    public void collectFields(QlSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores();
     }
 }

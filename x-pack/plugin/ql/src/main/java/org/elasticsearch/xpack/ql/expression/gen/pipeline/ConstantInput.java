@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 public class ConstantInput extends LeafInput<Object> {
 
@@ -39,7 +39,7 @@ public class ConstantInput extends LeafInput<Object> {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         // Nothing to collect
     }
 }

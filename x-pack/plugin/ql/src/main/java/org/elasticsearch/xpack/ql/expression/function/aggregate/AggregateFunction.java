@@ -3,8 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.function.aggregate;
+package org.elasticsearch.xpack.ql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.List;
 import java.util.Objects;
@@ -61,7 +61,7 @@ public abstract class AggregateFunction extends Function {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new SqlIllegalArgumentException("Aggregate functions cannot be scripted");
+        throw new QlIllegalArgumentException("Aggregate functions cannot be scripted");
     }
 
     @Override

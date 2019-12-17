@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.io.IOException;
 

@@ -54,7 +54,7 @@ public class ShowFunctions extends Command {
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.asJavaRegex() : null);
 
         listener.onResponse(of(session, functions.stream()
-                .map(f -> asList(f.name(), f.type().name()))
+                .map(f -> asList(f.name(), f.type()))
                 .collect(toList())));
     }
 

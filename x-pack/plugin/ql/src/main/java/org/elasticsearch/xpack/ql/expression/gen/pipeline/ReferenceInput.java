@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
     public ReferenceInput(Source source, Expression expression, FieldExtraction context) {
@@ -32,7 +32,7 @@ public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         context().collectFields(sourceBuilder);
     }
 }

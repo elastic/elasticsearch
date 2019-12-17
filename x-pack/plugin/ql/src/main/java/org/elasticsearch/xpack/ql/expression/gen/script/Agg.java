@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 
 class Agg extends Param<AggregateFunction> {
 

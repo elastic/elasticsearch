@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.processor.BucketExtractorProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 
 public class AggExtractorInput extends LeafInput<BucketExtractor> {
 
@@ -45,7 +45,7 @@ public class AggExtractorInput extends LeafInput<BucketExtractor> {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         // Nothing to collect
     }
 }

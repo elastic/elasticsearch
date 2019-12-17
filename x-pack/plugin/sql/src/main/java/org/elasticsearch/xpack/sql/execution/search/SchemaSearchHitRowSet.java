@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 
 import java.util.BitSet;

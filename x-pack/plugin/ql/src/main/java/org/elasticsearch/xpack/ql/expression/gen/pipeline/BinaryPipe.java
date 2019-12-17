@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 import java.util.Arrays;
 import java.util.List;
@@ -66,7 +66,7 @@ public abstract class BinaryPipe extends Pipe {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         left.collectFields(sourceBuilder);
         right.collectFields(sourceBuilder);
     }

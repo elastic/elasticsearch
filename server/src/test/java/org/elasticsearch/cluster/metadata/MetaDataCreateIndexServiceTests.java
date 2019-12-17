@@ -577,37 +577,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
     }
 
-    private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {
-        IndexTemplateMetaData.Builder builder = templateMetaDataBuilder("template1", "te*");
-        configurator.accept(builder);
-        return builder.build();
-    }
-
-    private IndexTemplateMetaData.Builder templateMetaDataBuilder(String name, String pattern) {
-        return IndexTemplateMetaData
-            .builder(name)
-            .patterns(Collections.singletonList(pattern));
-    }
-
-    private CompressedXContent createMapping(String fieldName, String fieldType) {
-        try {
-            final String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("_doc")
-                        .startObject("properties")
-                            .startObject(fieldName)
-                                .field("type", fieldType)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
-
-            return new CompressedXContent(mapping);
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToRuntime(e);
-        }
-    }
-
     public void testInvalidAliasName() {
         final String[] invalidAliasNames = new String[] { "-alias1", "+alias2", "_alias3", "a#lias", "al:ias", ".", ".." };
         String aliasName = randomFrom(invalidAliasNames);
@@ -858,4 +827,36 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, sourceIndexMetaData);
         assertThat(targetRoutingNumberOfShards, is(6));
     }
+
+    private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {
+        IndexTemplateMetaData.Builder builder = templateMetaDataBuilder("template1", "te*");
+        configurator.accept(builder);
+        return builder.build();
+    }
+
+    private IndexTemplateMetaData.Builder templateMetaDataBuilder(String name, String pattern) {
+        return IndexTemplateMetaData
+            .builder(name)
+            .patterns(Collections.singletonList(pattern));
+    }
+
+    private CompressedXContent createMapping(String fieldName, String fieldType) {
+        try {
+            final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject(fieldName)
+                .field("type", fieldType)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject());
+
+            return new CompressedXContent(mapping);
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
+    }
+
 }

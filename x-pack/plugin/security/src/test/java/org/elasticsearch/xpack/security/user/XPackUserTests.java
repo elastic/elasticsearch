@@ -34,6 +34,7 @@ public class XPackUserTests extends ESTestCase {
         for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
             assertThat(predicate.test(index), Matchers.is(false));
         }
+        assertThat(predicate.test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), Matchers.is(false));
     }
 
     public void testXPackUserCanReadAuditTrail() {

@@ -322,6 +322,32 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
     }
 
+    public void testAsyncSearchIndicesPermissions() {
+        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final String asyncSearchIndex = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
+        final MetaData metaData = new MetaData.Builder()
+                .put(new IndexMetaData.Builder(asyncSearchIndex)
+                        .settings(indexSettings)
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .build(), true)
+                .build();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
+
+        // allow_restricted_indices: false
+        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");
+        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
+                Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
+        assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(false));
+
+        // allow_restricted_indices: true
+        group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, true, "*");
+        authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
+                Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
+        assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
+    }
+
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
     }

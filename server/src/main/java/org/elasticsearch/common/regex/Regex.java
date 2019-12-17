@@ -44,6 +44,13 @@ public class Regex {
         return str.indexOf('*') != -1;
     }
 
+    /**
+     * Is the str a lucene type of pattern
+     */
+    public static boolean isLuceneRegex(String str) {
+        return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
+    }
+
     public static boolean isMatchAllPattern(String str) {
         return str.equals("*");
     }

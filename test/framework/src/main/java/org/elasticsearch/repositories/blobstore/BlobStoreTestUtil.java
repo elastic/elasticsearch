@@ -100,7 +100,7 @@ public final class BlobStoreTestUtil {
 
     public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
         try (InputStream input = container.readBlob(blobName)) {
-            // drain input stream full to avoid warnings from SDKs like S3 that don't like closing streams mid-way
+            // Drain input stream fully to avoid warnings from SDKs like S3 that don't like closing streams mid-way
             while (input.read(SINK) >= 0);
             return true;
         } catch (NoSuchFileException e) {

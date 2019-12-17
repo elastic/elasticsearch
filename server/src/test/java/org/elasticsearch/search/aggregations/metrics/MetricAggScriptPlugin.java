@@ -19,15 +19,15 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.search.lookup.LeafDocLookup;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.search.lookup.LeafDocLookup;
 
 /**
  * Provides a number of dummy scripts for tests.
@@ -51,6 +51,9 @@ public class MetricAggScriptPlugin extends MockScriptPlugin {
 
     /** Script to return the {@code _value} provided by aggs framework. */
     public static final String VALUE_SCRIPT = "_value";
+
+    /** Script to return a random double */
+    public static final String RANDOM_SCRIPT = "Math.random()";
 
     @Override
     public String pluginScriptLang() {
@@ -86,6 +89,15 @@ public class MetricAggScriptPlugin extends MockScriptPlugin {
             int inc = getInc.apply(vars);
             return ((Number) vars.get("_value")).doubleValue() + inc;
         });
+        return scripts;
+    }
+
+    @Override
+    protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+        scripts.put("Math.random()", vars -> Math.random());
+
         return scripts;
     }
 }

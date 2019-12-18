@@ -347,6 +347,25 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
     }
 
+    // Test SearchHit "equals" fix for SearchHit with null "fields"
+    // The parsed copy of SearchHits should be equal to the original one.
+    public void testSearchHitEqualsWithNullFields() throws IOException {
+        XContentType xContentType = XContentType.JSON;
+        SearchHit original = new SearchHit(0, null, null);
+        BytesReference originalBytes = toXContent(original, xContentType, true);
+
+        SearchHit parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parser.nextToken(); // jump to first START_OBJECT
+            parsed = SearchHit.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertEquals(original, parsed);
+        assertEquals(original.hashCode(), parsed.hashCode());
+    }
+
     static Explanation createExplanation(int depth) {
         String description = randomAlphaOfLengthBetween(5, 20);
         float value = randomFloat();

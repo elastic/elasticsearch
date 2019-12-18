@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -104,6 +105,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
             .addSettingsUpdateConsumer(ELASTICSEARCH_COLLECTION_ENABLED, this::setElasticsearchCollectionEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED, this::setMonitoringActive);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INTERVAL, this::setInterval);
+
+        HttpExporter.loadSettings(settings);
     }
 
     void setElasticsearchCollectionEnabled(final boolean enabled) {

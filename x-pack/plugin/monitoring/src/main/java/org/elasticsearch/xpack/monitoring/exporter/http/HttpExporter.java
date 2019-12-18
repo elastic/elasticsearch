@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +49,7 @@ import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -285,8 +288,17 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope,
-                        Property.Filtered),
+                        Property.Filtered,
+                        Property.Deprecated),
                     TYPE_DEPENDENCY);
+    /**
+     * Secure password for basic auth.
+     */
+    public static final Setting.AffixSetting<SecureString> SECURE_AUTH_PASSWORD_SETTING =
+        Setting.affixKeySetting(
+            "xpack.monitoring.exporters.",
+            "secure_auth_password",
+            key -> SecureSetting.secureString(key, null));
     /**
      * The SSL settings.
      *
@@ -401,6 +413,7 @@ public class HttpExporter extends Exporter {
      */
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
+    private static final Map<String, String> SECURE_AUTH_PASSWORDS = new HashMap<>();
     private final ThreadContext threadContext;
     private final DateFormatter dateTimeFormatter;
 
@@ -689,6 +702,14 @@ public class HttpExporter extends Exporter {
         builder.setRequestConfigCallback(new TimeoutRequestConfigCallback(connectTimeout, socketTimeout));
     }
 
+    public static void loadSettings(Settings settings) {
+        for (final String namespace : SECURE_AUTH_PASSWORD_SETTING.getNamespaces(settings)) {
+            final Setting<?> s = SECURE_AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace);
+            final String password = s.get(settings).toString();
+            SECURE_AUTH_PASSWORDS.put(namespace, password);
+        }
+    }
+
     /**
      * Creates the optional {@link CredentialsProvider} with the username/password to use with <em>all</em> requests for user
      * authentication.
@@ -700,7 +721,10 @@ public class HttpExporter extends Exporter {
     @Nullable
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        final String password = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+
+        final String password = SECURE_AUTH_PASSWORDS.containsKey(config.name())
+            ? SECURE_AUTH_PASSWORDS.get(config.name())
+            : AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
@@ -868,6 +892,7 @@ public class HttpExporter extends Exporter {
     public static List<Setting.AffixSetting<?>> getSettings() {
         return Arrays.asList(HOST_SETTING, TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, AUTH_PASSWORD_SETTING, AUTH_USERNAME_SETTING,
                 BULK_TIMEOUT_SETTING, CONNECTION_READ_TIMEOUT_SETTING, CONNECTION_TIMEOUT_SETTING, PIPELINE_CHECK_TIMEOUT_SETTING,
-                PROXY_BASE_PATH_SETTING, SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING);
+                PROXY_BASE_PATH_SETTING, SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING,
+                SECURE_AUTH_PASSWORD_SETTING);
     }
 }

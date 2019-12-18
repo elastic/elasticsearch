@@ -839,7 +839,6 @@ public abstract class AbstractScopedSettings {
         final Settings.Builder builder = Settings.builder();
         boolean changed = false; // track if any settings were upgraded
         for (final String key : settings.keySet()) {
-//            final Setting<?> setting = getRaw(key);
            boolean settingUpgraded = false;
             for (Map.Entry<Setting<?>, SettingUpgrader<?>> entry : settingUpgraders.entrySet()) {
                 Setting<?> setting = entry.getKey();
@@ -868,26 +867,6 @@ public abstract class AbstractScopedSettings {
                 // the setting does not have an upgrader, copy the setting
                 builder.copy(key, settings);
             }
-//            final SettingUpgrader<?> upgrader = settingUpgraders.get(setting);
-//            if (upgrader == null) {
-//                // the setting does not have an upgrader, copy the setting
-//                builder.copy(key, settings);
-//            } else {
-//                // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
-//                changed = true;
-//                // noinspection ConstantConditions
-//                if (setting.getConcreteSetting(key).isListSetting()) {
-//                    final List<String> value = settings.getAsList(key);
-//                    final String upgradedKey = upgrader.getKey(key);
-//                    final List<String> upgradedValue = upgrader.getListValue(value);
-//                    builder.putList(upgradedKey, upgradedValue);
-//                } else {
-//                    final String value = settings.get(key);
-//                    final String upgradedKey = upgrader.getKey(key);
-//                    final String upgradedValue = upgrader.getValue(value);
-//                    builder.put(upgradedKey, upgradedValue);
-//                }
-//            }
         }
         // we only return a new instance if there was an upgrade
         return changed ? builder.build() : settings;

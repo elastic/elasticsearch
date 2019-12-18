@@ -169,6 +169,58 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
+    public void testInferNestedFields() {
+        // Build a tree with 2 nodes and 3 leaves using 2 features
+        // The leaves have unique values 0.1, 0.2, 0.3
+        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
+        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
+        builder.addLeaf(rootNode.getRightChild(), 0.3);
+        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
+        builder.addLeaf(leftChildNode.getLeftChild(), 0.1);
+        builder.addLeaf(leftChildNode.getRightChild(), 0.2);
+
+        List<String> featureNames = Arrays.asList("foo.baz", "bar.biz");
+        Tree tree = builder.setFeatureNames(featureNames).build();
+
+        // This feature vector should hit the right child of the root node
+        Map<String, Object> featureMap = new HashMap<String, Object>() {{
+            put("foo", new HashMap<String, Object>(){{
+                put("baz", 0.6);
+            }});
+            put("bar", new HashMap<String, Object>(){{
+                put("biz", 0.0);
+            }});
+        }};
+        assertThat(0.3,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+
+        // This should hit the left child of the left child of the root node
+        // i.e. it takes the path left, left
+        featureMap = new HashMap<String, Object>() {{
+            put("foo", new HashMap<String, Object>(){{
+                put("baz", 0.3);
+            }});
+            put("bar", new HashMap<String, Object>(){{
+                put("biz", 0.7);
+            }});
+        }};
+        assertThat(0.1,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+
+        // This should hit the right child of the left child of the root node
+        // i.e. it takes the path left, right
+        featureMap = new HashMap<String, Object>() {{
+            put("foo", new HashMap<String, Object>(){{
+                put("baz", 0.3);
+            }});
+            put("bar", new HashMap<String, Object>(){{
+                put("biz", 0.9);
+            }});
+        }};
+        assertThat(0.2,
+            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+    }
+
     public void testTreeClassificationProbability() {
         // Build a tree with 2 nodes and 3 leaves using 2 features
         // The leaves have unique values 0.1, 0.2, 0.3

@@ -37,7 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a capturing function reference.
+ * Represents a capturing function reference.  For member functions that require a this reference, ie not static.
  */
 public final class ECapturingFunctionRef extends AExpression implements ILambda {
     private final String variable;

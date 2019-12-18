@@ -56,7 +56,7 @@ Recovery::
 * Migrate peer recovery from translog to retention lease {pull}49448[#49448] (issue: {issue}45136[#45136])
 
 SQL::
-* SQL: COUNT DISTINCT returns 0 instead of NULL for no matching docs {pull}50037[#50037] (issue: {issue}50013[#50013])
+* COUNT DISTINCT returns 0 instead of NULL for no matching docs {pull}50037[#50037] (issue: {issue}50013[#50013])
 * SQL: fix LOCATE function optional parameter handling  {pull}49666[#49666] (issue: {issue}49557[#49557])
 * SQL: fix NULL handling for FLOOR and CEIL functions {pull}49644[#49644] (issue: {issue}49556[#49556])
 * SQL: handle NULL arithmetic operations with INTERVALs {pull}49633[#49633] (issue: {issue}49297[#49297])

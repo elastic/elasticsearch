@@ -173,8 +173,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.sniff.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.sniff.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -229,8 +229,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.sniff.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.sniff.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -275,7 +275,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(seedTransport.getLocalDiscoNode());
             TimeValue pingSchedule;
             Settings.Builder settingsBuilder = Settings.builder();
-            settingsBuilder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
+            settingsBuilder.putList("cluster.remote.cluster_1.sniff.seeds", seedNode.getAddress().toString());
             if (randomBoolean()) {
                 pingSchedule = TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 settingsBuilder.put(TransportSettings.PING_SCHEDULE.getKey(), pingSchedule).build();
@@ -322,8 +322,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.sniff.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.sniff.seeds", cluster2Seed.getAddress().toString());
                 TimeValue pingSchedule1 = // randomBoolean() ? TimeValue.MINUS_ONE :
                     TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule1);
@@ -690,10 +690,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (MockTransportService remoteSeedTransport = startTransport("seed", new CopyOnWriteArrayList<>(), Version.CURRENT)) {
                 String seed = remoteSeedTransport.getLocalDiscoNode().getAddress().toString();
                 service.validate(Settings.builder().put("cluster.remote.foo.skip_unavailable", randomBoolean())
-                        .put("cluster.remote.foo.seeds", seed).build(), true);
+                        .put("cluster.remote.foo.sniff.seeds", seed).build(), true);
                 service.validate(Settings.builder().put("cluster.remote.foo.sniff.seeds", seed).build(), true);
 
-                AbstractScopedSettings service2 = new ClusterSettings(Settings.builder().put("cluster.remote.foo.seeds", seed).build(),
+                AbstractScopedSettings service2 = new ClusterSettings(
+                        Settings.builder().put("cluster.remote.foo.sniff.seeds", seed).build(),
                         new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
                                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
                 service2.validate(Settings.builder().put("cluster.remote.foo.skip_unavailable", randomBoolean()).build(), false);
@@ -794,7 +795,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedNode);
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.sniff.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
             try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();
@@ -814,13 +815,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     private static Settings createSettings(String clusterAlias, List<String> seeds) {
         Settings.Builder builder = Settings.builder();
-        if (randomBoolean()) {
-            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                Strings.collectionToCommaDelimitedString(seeds));
-        } else {
-            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                Strings.collectionToCommaDelimitedString(seeds));
-        }
+        builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            Strings.collectionToCommaDelimitedString(seeds));
         return builder.build();
     }
 }

@@ -19,9 +19,10 @@ Freezes an index.
 [[freeze-index-api-desc]]
 ==== {api-description-title}
 
-A frozen index has almost no overhead on the cluster (except
-for maintaining its metadata in memory), and is blocked for write operations.
-See <<frozen-indices>> and <<unfreeze-index-api>>.
+A frozen index has almost no overhead on the cluster (except for maintaining its
+metadata in memory) and is read-only. Read-only indices are blocked for write
+operations, such as <<indexing,docs-index_>> or <<indices-forcemerge,force
+merges>>. See <<frozen-indices>> and <<unfreeze-index-api>>.
 
 IMPORTANT: Freezing an index will close the index and reopen it within the same
 API call. This causes primaries to not be allocated for a short amount of time

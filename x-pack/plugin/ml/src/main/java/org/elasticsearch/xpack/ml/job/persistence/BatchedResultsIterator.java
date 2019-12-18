@@ -10,6 +10,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.utils.persistence.BatchedDocumentsIterator;
 
 public abstract class BatchedResultsIterator<T> extends BatchedDocumentsIterator<Result<T>> {
 

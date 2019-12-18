@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -86,7 +87,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     @Override
     public void process(Map<String, Object> fields) {
-        Object value = fields.get(field);
+        Object value = MapHelper.dig(field, fields);
         if (value == null) {
             return;
         }

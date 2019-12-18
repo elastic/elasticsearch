@@ -21,7 +21,7 @@ public class StWkttosqlProcessorTests extends ESTestCase {
         Object result = proc.process("POINT (10 20)");
         assertThat(result, instanceOf(GeoShape.class));
         GeoShape geoShape = (GeoShape) result;
-        assertEquals("point (10.0 20.0)", geoShape.toString());
+        assertEquals("POINT (10.0 20.0)", geoShape.toString());
     }
 
     public void testTypeCheck() {
@@ -46,6 +46,6 @@ public class StWkttosqlProcessorTests extends ESTestCase {
         Object result = proc.process("POLYGON ((3 1 5, 4 2 4, 5 3 3))");
         assertThat(result, instanceOf(GeoShape.class));
         GeoShape geoShape = (GeoShape) result;
-        assertEquals("polygon ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))", geoShape.toString());
+        assertEquals("POLYGON ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))", geoShape.toString());
     }
 }

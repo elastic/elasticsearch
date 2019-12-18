@@ -69,8 +69,8 @@ integTest.runner {
   if (!snapshot) {
     // these tests attempt to install basic/internal licenses signed against the dev/public.key
     // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are whitelisted in non-snapshot test runs
-    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*'])
+    // private key, these tests are blacklisted in non-snapshot test runs
+    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
   dependsOn copyKeyCerts

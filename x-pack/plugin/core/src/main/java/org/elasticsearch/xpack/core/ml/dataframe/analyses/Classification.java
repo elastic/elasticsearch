@@ -39,6 +39,8 @@ public class Classification implements DataFrameAnalysis {
     public static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
 
+    private static final String STATE_DOC_ID_SUFFIX = "_classification_state#1";
+
     private static final ConstructingObjectParser<Classification, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Classification, Void> STRICT_PARSER = createParser(false);
 
@@ -119,7 +121,7 @@ public class Classification implements DataFrameAnalysis {
         predictionFieldName = in.readOptionalString();
         numTopClasses = in.readOptionalVInt();
         trainingPercent = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             randomizeSeed = in.readOptionalLong();
         } else {
             randomizeSeed = Randomness.get().nextLong();
@@ -163,7 +165,7 @@ public class Classification implements DataFrameAnalysis {
         out.writeOptionalString(predictionFieldName);
         out.writeOptionalVInt(numTopClasses);
         out.writeDouble(trainingPercent);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalLong(randomizeSeed);
         }
     }
@@ -180,7 +182,7 @@ public class Classification implements DataFrameAnalysis {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
         builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
-        if (version.onOrAfter(Version.CURRENT)) {
+        if (version.onOrAfter(Version.V_7_6_0)) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
         builder.endObject();
@@ -251,12 +253,17 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public boolean persistsState() {
-        return false;
+        return true;
     }
 
     @Override
     public String getStateDocId(String jobId) {
-        throw new UnsupportedOperationException();
+        return jobId + STATE_DOC_ID_SUFFIX;
+    }
+
+    public static String extractJobIdFromStateDoc(String stateDocId) {
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 
     @Override

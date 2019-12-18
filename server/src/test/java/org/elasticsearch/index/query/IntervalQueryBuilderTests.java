@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -49,6 +50,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@Seed("7C8CF72786D90C17")
 public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQueryBuilder> {
 
     @Override
@@ -86,7 +88,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     private IntervalsSourceProvider createRandomSource(int depth, boolean useScripts) {
-        if (depth > 3) {
+        if (depth > 2) {
             return createRandomMatch(depth + 1, useScripts);
         }
         switch (randomInt(20)) {

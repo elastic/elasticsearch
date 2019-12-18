@@ -38,7 +38,7 @@ Features/Java High Level REST Client::
 * Support es7 node http publish_address format {pull}49279[#49279] (issue: {issue}48950[#48950])
 
 Geo::
-* Geo: Fix handling of circles in legacy geo_shape queries {pull}49410[#49410] (issue: {issue}49296[#49296])
+* Fix handling of circles in legacy geo_shape queries {pull}49410[#49410] (issue: {issue}49296[#49296])
 
 Infra/Packaging::
 * Extend systemd timeout during startup {pull}49784[#49784] (issue: {issue}49593[#49593])

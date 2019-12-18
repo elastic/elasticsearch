@@ -431,6 +431,52 @@ sorted by the `id` value in ascending order.
 percentage.
 end::data-frame-analytics-stats[]
 
+tag::datafeed-id[]
+A numerical character string that uniquely identifies the
+{dfeed}. This identifier can contain lowercase alphanumeric characters (a-z
+and 0-9), hyphens, and underscores. It must start and end with alphanumeric
+characters.
+end::datafeed-id[]
+
+tag::datafeed-id-wildcard[]
+Identifier for the {dfeed}. It can be a {dfeed} identifier or a wildcard
+expression.
+end::datafeed-id-wildcard[]
+
+tag::decompress-definition[]
+Specifies whether the included model definition should be returned as a JSON map (`true`) or 
+in a custom compressed format (`false`). Defaults to `true`.
+end::decompress-definition[]
+
+tag::delayed-data-check-config[]
+Specifies whether the {dfeed} checks for missing data and the size of the
+window. For example: `{"enabled": true, "check_window": "1h"}`.
++
+--
+The {dfeed} can optionally search over indices that have already been read in
+an effort to determine whether any data has subsequently been added to the index.
+If missing data is found, it is a good indication that the `query_delay` option
+is set too low and the data is being indexed after the {dfeed} has passed that
+moment in time. See 
+{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
+
+This check runs only on real-time {dfeeds}.
+
+The configuration object has the following properties:
+
+`enabled`::
+(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+Defaults to `true`.
+
+`check_window`::
+(<<time-units,time units>>) The window of time that is searched for late data.
+This window of time ends with the latest finalized bucket. It defaults to
+`null`, which causes an appropriate `check_window` to be calculated when the
+real-time {dfeed} runs. In particular, the default `check_window` span
+calculation is based on the maximum of `2h` or `8 * bucket_span`.
+--
+end::delayed-data-check-config[]
+
 tag::dependent-variable[]
 Defines which field of the document is to be predicted. 
 This parameter is supplied by field name and must match one of the fields in 
@@ -600,6 +646,23 @@ tag::groups[]
 A list of job groups. A job can belong to no groups or many.
 end::groups[]
 
+tag::include-model-definition[]
+Specifies if the model definition should be returned in the response. Defaults 
+to `false`. When `true`, only a single model must match the ID patterns 
+provided, otherwise a bad request is returned.
+end::include-model-definition[]
+
+tag::indices[]
+An array of index names. Wildcards are supported. For example:
+`["it_ops_metrics", "server*"]`.
++
+--
+NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
+not be set to `false` on any {ml} nodes.
+
+--
+end::indices[]
+
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
 over, or partition fields that are used in the detector configuration. You might 
@@ -709,6 +772,21 @@ individual {olscores} to obtain the overall {olscore}. We recommend to use the
 ensemble method. Available methods are `lof`, `ldof`, `distance_kth_nn`, 
 `distance_knn`.
 end::method[]
+
+tag::mode[]
+There are three available modes: 
++
+--
+* `auto`: The chunk size is dynamically calculated. This is the default and
+recommended value.
+* `manual`: Chunking is applied according to the specified `time_span`.
+* `off`: No chunking is applied.
+--
+end::mode[]
+
+tag::model-id[]
+The unique identifier of the trained {infer} model.
+end::model-id[]
 
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for 

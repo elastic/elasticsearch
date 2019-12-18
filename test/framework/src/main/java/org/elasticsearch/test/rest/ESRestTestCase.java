@@ -75,6 +75,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -449,6 +450,13 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * A set of ILM policies that should be preserved between runs.
+     */
+    protected Set<String> preserveILMPolicyIds() {
+        return Collections.singleton("ilm-history-ilm-policy");
+    }
+
+    /**
      * Returns whether to preserve auto-follow patterns. Defaults to not
      * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
@@ -545,7 +553,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
-            deleteAllILMPolicies();
+            deleteAllILMPolicies(preserveILMPolicyIds());
         }
 
         if (hasXPack && false == preserveAutoFollowPatternsUponCompletion()) {
@@ -680,7 +688,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
-    private static void deleteAllILMPolicies() throws IOException {
+    private static void deleteAllILMPolicies(Set<String> exclusions) throws IOException {
         Map<String, Object> policies;
 
         try {
@@ -699,9 +707,15 @@ public abstract class ESRestTestCase extends ESTestCase {
             return;
         }
 
-        for (String policyName : policies.keySet()) {
-            adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
-        }
+        policies.keySet().stream()
+            .filter(p -> exclusions.contains(p) == false)
+            .forEach(policyName -> {
+                try {
+                    adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
+                } catch (IOException e) {
+                    throw new RuntimeException("failed to delete policy: " + policyName, e);
+                }
+            });
     }
 
     private static void deleteAllSLMPolicies() throws IOException {

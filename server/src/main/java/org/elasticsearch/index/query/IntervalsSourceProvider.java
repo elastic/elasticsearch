@@ -836,6 +836,18 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
             return new IntervalFilter(intervals, type);
         }
+
+        String getType() {
+            return type;
+        }
+
+        IntervalsSourceProvider getFilter() {
+            return filter;
+        }
+
+        Script getScript() {
+            return script;
+        }
     }
 
 

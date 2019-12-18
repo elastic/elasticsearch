@@ -794,16 +794,22 @@ public class SearchModule {
     }
 
     private void registerIntervalsSourceProviders() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Match.NAME, IntervalsSourceProvider.Match::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Combine.NAME, IntervalsSourceProvider.Combine::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Disjunction.NAME, IntervalsSourceProvider.Disjunction::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new));
+        namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
+    }
+
+    public static List<NamedWriteableRegistry.Entry> getIntervalsSourceProviderNamedWritables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Match.NAME, IntervalsSourceProvider.Match::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Combine.NAME, IntervalsSourceProvider.Combine::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Disjunction.NAME, IntervalsSourceProvider.Disjunction::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new)
+        );
     }
 
     private void registerQuery(QuerySpec<?> spec) {

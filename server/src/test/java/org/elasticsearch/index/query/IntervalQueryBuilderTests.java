@@ -85,7 +85,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
-    private IntervalsSourceProvider createRandomSource(int depth, boolean useScripts) {
+    private static IntervalsSourceProvider createRandomSource(int depth, boolean useScripts) {
         if (depth > 3) {
             return createRandomMatch(depth + 1, useScripts);
         }
@@ -114,18 +114,22 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         }
     }
 
-    private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth, boolean useScripts) {
+    private static IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth, boolean useScripts) {
         if (depth < 3 && randomInt(20) > 18) {
-            if (useScripts == false || randomBoolean()) {
-                return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1, false), randomFrom(filters));
-            }
-            return new IntervalsSourceProvider.IntervalFilter(
-                new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap()));
+            return createRandomNonNullFilter(depth, useScripts);
         }
         return null;
     }
 
-    private IntervalsSourceProvider createRandomMatch(int depth, boolean useScripts) {
+    static IntervalsSourceProvider.IntervalFilter createRandomNonNullFilter(int depth, boolean useScripts) {
+        if (useScripts == false || randomBoolean()) {
+            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1, false), randomFrom(filters));
+        }
+        return new IntervalsSourceProvider.IntervalFilter(
+            new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap()));
+    }
+
+    static IntervalsSourceProvider createRandomMatch(int depth, boolean useScripts) {
         String useField = rarely() ? MASKED_FIELD : null;
         int wordCount = randomInt(4) + 1;
         List<String> words = new ArrayList<>();

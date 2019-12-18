@@ -140,6 +140,8 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         try (BlobStoreRepository repository =
                  new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random())) {
             clusterService.addStateApplier(event -> repository.updateState(event.state()));
+            // Apply state once to initialize repo properly like RepositoriesService would
+            repository.updateState(clusterService.state());
             repository.start();
 
             // We create a snap- blob for snapshot "foo" in the first generation

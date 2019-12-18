@@ -295,6 +295,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
             SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
             SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            SimpleConnectionStrategy.INCLUDE_SERVER_NAME,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,

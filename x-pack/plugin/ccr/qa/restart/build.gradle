@@ -32,7 +32,7 @@ testClusters.'follow-cluster' {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds',
+  setting 'cluster.remote.leader_cluster.sniff.seeds',
     { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}\"" }
   nameCustomization = { 'follow' }
 }

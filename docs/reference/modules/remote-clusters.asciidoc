@@ -81,10 +81,10 @@ nodes. For example:
 cluster:
     remote:
         cluster_one: <1>
-            seeds: 127.0.0.1:9300 <2>
+            sniff.seeds: 127.0.0.1:9300 <2>
             transport.ping_schedule: 30s <3>
-        cluster_two: 
-            seeds: 127.0.0.1:9301
+        cluster_two:
+            sniff.seeds: 127.0.0.1:9301
             transport.compress: true <4>
             skip_unavailable: true <5>
 
@@ -99,7 +99,7 @@ seed node in the remote cluster.
 <5> Disconnected remote clusters are optional for `cluster_two`.
 
 For more information about the optional transport settings, see
-<<modules-transport>>. 
+<<modules-transport>>.
 
 
 If you use <<cluster-update-settings,cluster settings>>, the remote clusters
@@ -113,20 +113,20 @@ PUT _cluster/settings
     "cluster": {
       "remote": {
         "cluster_one": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9300"
           ],
           "transport.ping_schedule": "30s"
         },
         "cluster_two": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9301"
           ],
           "transport.compress": true,
           "skip_unavailable": true
         },
         "cluster_three": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9302"
           ]
         }
@@ -149,13 +149,13 @@ PUT _cluster/settings
     "cluster": {
       "remote": {
         "cluster_one": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9300"
           ],
           "transport.ping_schedule": "60s"
         },
         "cluster_two": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9301"
           ],
           "transport.compress": false
@@ -181,7 +181,7 @@ PUT _cluster/settings
     "cluster": {
       "remote": {
         "cluster_two": { <1>
-          "seeds": null,
+          "sniff.seeds": null,
           "skip_unavailable": null,
           "transport": {
             "compress": null

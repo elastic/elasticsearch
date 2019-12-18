@@ -175,16 +175,16 @@ teardown:
       cluster.get_settings:
         include_defaults: true
 
-  - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
+  - set: { defaults.cluster.remote.my_remote_cluster.sniff.seeds.0: remote_ip }
 
   - do:
       cluster.put_settings:
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {transient: {cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip}}
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }

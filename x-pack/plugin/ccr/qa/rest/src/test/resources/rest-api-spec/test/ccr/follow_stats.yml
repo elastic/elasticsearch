@@ -14,10 +14,10 @@
       cluster.put_settings:
         body:
           transient:
-            cluster.remote.local.seeds: $local_ip
+            cluster.remote.local.sniff.seeds: $local_ip
         flat_settings: true
 
-  - match: {transient: {cluster.remote.local.seeds: $local_ip}}
+  - match: {transient: {cluster.remote.local.sniff.seeds: $local_ip}}
 
   - do:
       indices.create:

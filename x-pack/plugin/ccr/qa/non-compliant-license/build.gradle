@@ -31,7 +31,7 @@ task 'follow-cluster'(type: RestIntegTestTask) {
 testClusters.'follow-cluster' {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds',
+  setting 'cluster.remote.leader_cluster.sniff.seeds',
     { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
 }
 

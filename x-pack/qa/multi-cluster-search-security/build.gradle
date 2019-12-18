@@ -43,7 +43,7 @@ testClusters.'mixed-cluster' {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.my_remote_cluster.seeds', {
+  setting 'cluster.remote.my_remote_cluster.sniff.seeds', {
     testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }
   setting 'cluster.remote.connections_per_cluster', "1"

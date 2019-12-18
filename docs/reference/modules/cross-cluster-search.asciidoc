@@ -29,17 +29,17 @@ PUT _cluster/settings
     "cluster": {
       "remote": {
         "cluster_one": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9300"
           ]
         },
         "cluster_two": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9301"
           ]
         },
         "cluster_three": {
-          "seeds": [
+          "sniff.seeds": [
             "127.0.0.1:9302"
           ]
         }

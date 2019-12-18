@@ -98,7 +98,7 @@ PUT /_cluster/settings
     "cluster" : {
       "remote" : {
         "leader" : {
-          "seeds" : [
+          "sniff.seeds" : [
             "127.0.0.1:9300" <1>
           ]
         }

@@ -58,10 +58,10 @@ PUT _cluster/settings
     "cluster": {
       "remote": {
         "one": {
-          "seeds": [ "10.0.1.1:9300" ]
+          "sniff.seeds": [ "10.0.1.1:9300" ]
         },
         "two": {
-          "seeds": [ "10.0.2.1:9300" ]
+          "sniff.seeds": [ "10.0.2.1:9300" ]
         }
       }
     }
@@ -86,7 +86,7 @@ First, enable cluster `one` to perform cross cluster search on remote cluster
 PUT _cluster/settings
 {
   "persistent": {
-    "cluster.remote.two.seeds": [ "10.0.2.1:9300" ]
+    "cluster.remote.two.sniff.seeds": [ "10.0.2.1:9300" ]
   }
 }
 -----------------------------------------------------------

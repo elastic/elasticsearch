@@ -34,7 +34,7 @@ task "middle-cluster"(type: RestIntegTestTask) {
 testClusters."middle-cluster" {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds',
+  setting 'cluster.remote.leader_cluster.sniff.seeds',
     { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
 }
 
@@ -55,9 +55,9 @@ testClusters."follow-cluster" {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds',
+  setting 'cluster.remote.leader_cluster.sniff.seeds',
     { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
-  setting 'cluster.remote.middle_cluster.seeds',
+  setting 'cluster.remote.middle_cluster.sniff.seeds',
     { "\"${testClusters."middle-cluster".getAllTransportPortURI().join(",")}\"" }
 }
 

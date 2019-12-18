@@ -85,7 +85,6 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
                 final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
                 final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
 
-                logger.error(settings);
                 assertFalse(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace("foo").exists(settings));
 
                 assertTrue(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo")

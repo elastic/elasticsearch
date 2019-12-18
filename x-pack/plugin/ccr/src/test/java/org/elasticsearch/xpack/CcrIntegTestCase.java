@@ -235,7 +235,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             builder.put(followerClusterSettings());
         }
         if (configureRemoteClusterViaNodeSettings() && leaderSeedAddress != null) {
-            builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
+            builder.put("cluster.remote.leader_cluster.sniff.seeds", leaderSeedAddress);
         }
         return new NodeConfigurationSource() {
             @Override

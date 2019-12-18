@@ -118,7 +118,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (leaderRemoteClusterSeed != null) {
             logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity("{\"persistent\": {\"cluster.remote.leader.seeds\": \"" + leaderRemoteClusterSeed + "\"}}");
+            request.setJsonEntity("{\"persistent\": {\"cluster.remote.leader.sniff.seeds\": \"" + leaderRemoteClusterSeed + "\"}}");
             assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
             if (followerClient != null) {
                 assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
@@ -133,7 +133,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (followerRemoteClusterSeed != null) {
             logger.info("Configuring follower remote cluster [{}]", followerRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity("{\"persistent\": {\"cluster.remote.follower.seeds\": \"" + followerRemoteClusterSeed + "\"}}");
+            request.setJsonEntity("{\"persistent\": {\"cluster.remote.follower.sniff.seeds\": \"" + followerRemoteClusterSeed + "\"}}");
             assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
             assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
         } else {

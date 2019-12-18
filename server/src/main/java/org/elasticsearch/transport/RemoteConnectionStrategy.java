@@ -57,7 +57,7 @@ import java.util.stream.Stream;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
-    enum ConnectionStrategy {
+    public enum ConnectionStrategy {
         SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::enablementSettings,
             SniffConnectionStrategy::infoReader) {
             @Override

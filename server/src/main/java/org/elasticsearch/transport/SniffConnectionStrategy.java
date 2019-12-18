@@ -483,13 +483,16 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return Objects.equals(oldProxy, newProxy) == false;
     }
 
-    static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
-
+    public static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
+        public static final String NAME = "sniff";
+        public static final String SEEDS = "seeds";
+        public static final String NUM_NODES_CONNECTED = "num_nodes_connected";
+        public static final String MAX_CONNECTIONS_PER_CLUSTER = "max_connections_per_cluster";
         final List<String> seedNodes;
         final int maxConnectionsPerCluster;
         final int numNodesConnected;
 
-        SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
+        public SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
             this.seedNodes = seedNodes;
             this.maxConnectionsPerCluster = maxConnectionsPerCluster;
             this.numNodesConnected = numNodesConnected;
@@ -503,13 +506,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray("seeds");
+            builder.startArray(SEEDS);
             for (String address : seedNodes) {
                 builder.value(address);
             }
             builder.endArray();
-            builder.field("num_nodes_connected", numNodesConnected);
-            builder.field("max_connections_per_cluster", maxConnectionsPerCluster);
+            builder.field(NUM_NODES_CONNECTED, numNodesConnected);
+            builder.field(MAX_CONNECTIONS_PER_CLUSTER, maxConnectionsPerCluster);
             return builder;
         }
 
@@ -527,7 +530,19 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public String modeName() {
-            return "sniff";
+            return NAME;
+        }
+
+        public List<String> getSeedNodes() {
+            return seedNodes;
+        }
+
+        public int getMaxConnectionsPerCluster() {
+            return maxConnectionsPerCluster;
+        }
+
+        public int getNumNodesConnected() {
+            return numNodesConnected;
         }
 
         @Override

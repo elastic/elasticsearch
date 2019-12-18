@@ -23,12 +23,12 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
+import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -42,6 +42,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
@@ -331,11 +332,15 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getInfos().size(), equalTo(1));
         RemoteConnectionInfo info = response.getInfos().get(0);
         assertThat(info.getClusterAlias(), equalTo(clusterAlias));
-        assertThat(info.getSeedNodes(), equalTo(seeds));
-        assertThat(info.getNumNodesConnected(), equalTo(1));
-        assertThat(info.getConnectionsPerCluster(), equalTo(connectionsPerCluster));
         assertThat(info.getInitialConnectionTimeout(), equalTo(initialConnectionTimeout));
         assertThat(info.isSkipUnavailable(), equalTo(skipUnavailable));
+        assertThat(info.getModeInfo().modeName(), equalTo(SniffConnectionStrategy.SniffModeInfo.NAME));
+        assertThat(info.getModeInfo().isConnected(), equalTo(true));
+        assertThat(info.getModeInfo().modeType(), equalTo(RemoteConnectionStrategy.ConnectionStrategy.SNIFF));
+        SniffConnectionStrategy.SniffModeInfo sniffModeInfo = (SniffConnectionStrategy.SniffModeInfo) info.getModeInfo();
+        assertThat(sniffModeInfo.getMaxConnectionsPerCluster(), equalTo(connectionsPerCluster));
+        assertThat(sniffModeInfo.getNumNodesConnected(), equalTo(1));
+        assertThat(sniffModeInfo.getSeedNodes(), equalTo(seeds));
     }
 
 }

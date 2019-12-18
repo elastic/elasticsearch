@@ -255,13 +255,16 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         return oldSeeds.equals(newSeeds) == false;
     }
 
-    static class SimpleModeInfo implements RemoteConnectionInfo.ModeInfo {
-
+    public static class SimpleModeInfo implements RemoteConnectionInfo.ModeInfo {
+        public static final String NAME = "simple";
+        public static final String ADDRESSES = "addresses";
+        public static final String NUM_SOCKETS_CONNECTED = "num_sockets_connected";
+        public static final String MAX_SOCKET_CONNECTIONS = "max_socket_connections";
         private final List<String> addresses;
         private final int maxSocketConnections;
         private final int numSocketsConnected;
 
-        SimpleModeInfo(List<String> addresses, int maxSocketConnections, int numSocketsConnected) {
+        public SimpleModeInfo(List<String> addresses, int maxSocketConnections, int numSocketsConnected) {
             this.addresses = addresses;
             this.maxSocketConnections = maxSocketConnections;
             this.numSocketsConnected = numSocketsConnected;
@@ -275,13 +278,13 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray("addresses");
+            builder.startArray(ADDRESSES);
             for (String address : addresses) {
                 builder.value(address);
             }
             builder.endArray();
-            builder.field("num_sockets_connected", numSocketsConnected);
-            builder.field("max_socket_connections", maxSocketConnections);
+            builder.field(NUM_SOCKETS_CONNECTED, numSocketsConnected);
+            builder.field(MAX_SOCKET_CONNECTIONS, maxSocketConnections);
             return builder;
         }
 
@@ -299,7 +302,19 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public String modeName() {
-            return "simple";
+            return NAME;
+        }
+
+        public List<String> getAddresses() {
+            return addresses;
+        }
+
+        public int getMaxSocketConnections() {
+            return maxSocketConnections;
+        }
+
+        public int getNumSocketsConnected() {
+            return numSocketsConnected;
         }
 
         @Override

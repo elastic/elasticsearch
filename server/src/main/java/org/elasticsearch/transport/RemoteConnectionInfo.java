@@ -35,37 +35,51 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 /**
  * This class encapsulates all remote cluster information to be rendered on
  * {@code _remote/info} requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
-    private static final String SEEDS = "seeds";
     private static final String CONNECTED = "connected";
-    private static final String NUM_NODES_CONNECTED = "num_nodes_connected";
-    private static final String MAX_CONNECTIONS_PER_CLUSTER = "max_connections_per_cluster";
+    private static final String MODE = "mode";
     private static final String INITIAL_CONNECT_TIMEOUT = "initial_connect_timeout";
     private static final String SKIP_UNAVAILABLE = "skip_unavailable";
 
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RemoteConnectionInfo, String> PARSER = new ConstructingObjectParser<>(
-            "remote_connection_info", true,
-            (args, clusterAlias) -> new RemoteConnectionInfo(
-                    clusterAlias,
-                    (List<String>) args[0],
-                    (int) args[1],
-                    (int) args[2],
-                    TimeValue.parseTimeValue((String)args[3], INITIAL_CONNECT_TIMEOUT),
-                    (boolean) args[4]
-            )
-    );
+    private static final ConstructingObjectParser<RemoteConnectionInfo, String> PARSER = new ConstructingObjectParser<>(
+            "RemoteConnectionInfoObjectParser",
+            false,
+            (args, clusterAlias) -> {
+                String mode = (String) args[1];
+                ModeInfo modeInfo;
+                if (mode.equals(SimpleConnectionStrategy.SimpleModeInfo.NAME)) {
+                    modeInfo = new SimpleConnectionStrategy.SimpleModeInfo((List<String>) args[4], (int) args[5], (int) args[6]);
+                } else if (mode.equals(SniffConnectionStrategy.SniffModeInfo.NAME)) {
+                    modeInfo = new SniffConnectionStrategy.SniffModeInfo((List<String>) args[7], (int) args[8], (int) args[9]);
+                } else {
+                    throw new IllegalArgumentException("mode cannot be " + mode);
+                }
+                return new RemoteConnectionInfo(clusterAlias,
+                        modeInfo,
+                        TimeValue.parseTimeValue((String) args[2], INITIAL_CONNECT_TIMEOUT),
+                        (boolean) args[3]);
+            });
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField(SEEDS));
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(MAX_CONNECTIONS_PER_CLUSTER));
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(NUM_NODES_CONNECTED));
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(INITIAL_CONNECT_TIMEOUT));
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(SKIP_UNAVAILABLE));
+        PARSER.declareBoolean(constructorArg(), new ParseField(CONNECTED));
+        PARSER.declareString(constructorArg(), new ParseField(MODE));
+        PARSER.declareString(constructorArg(), new ParseField(INITIAL_CONNECT_TIMEOUT));
+        PARSER.declareBoolean(constructorArg(), new ParseField(SKIP_UNAVAILABLE));
+
+        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(SimpleConnectionStrategy.SimpleModeInfo.ADDRESSES));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(SimpleConnectionStrategy.SimpleModeInfo.MAX_SOCKET_CONNECTIONS));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(SimpleConnectionStrategy.SimpleModeInfo.NUM_SOCKETS_CONNECTED));
+
+        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.SEEDS));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.MAX_CONNECTIONS_PER_CLUSTER));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.NUM_NODES_CONNECTED));
     }
 
     final ModeInfo modeInfo;
@@ -73,7 +87,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     final String clusterAlias;
     final boolean skipUnavailable;
 
-    RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
+    public RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
         this.modeInfo = modeInfo;
         this.initialConnectionTimeout = initialConnectionTimeout;
@@ -107,6 +121,18 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return clusterAlias;
     }
 
+    public ModeInfo getModeInfo() {
+        return modeInfo;
+    }
+
+    public TimeValue getInitialConnectionTimeout() {
+        return initialConnectionTimeout;
+    }
+
+    public boolean isSkipUnavailable() {
+        return skipUnavailable;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // TODO: Change to 7.6 after backport
@@ -136,11 +162,11 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(clusterAlias);
         {
-            builder.field("connected", modeInfo.isConnected());
-            builder.field("mode", modeInfo.modeName());
+            builder.field(CONNECTED, modeInfo.isConnected());
+            builder.field(MODE, modeInfo.modeName());
             modeInfo.toXContent(builder, params);
-            builder.field("initial_connect_timeout", initialConnectionTimeout);
-            builder.field("skip_unavailable", skipUnavailable);
+            builder.field(INITIAL_CONNECT_TIMEOUT, initialConnectionTimeout.getStringRep());
+            builder.field(SKIP_UNAVAILABLE, skipUnavailable);
         }
         builder.endObject();
         return builder;

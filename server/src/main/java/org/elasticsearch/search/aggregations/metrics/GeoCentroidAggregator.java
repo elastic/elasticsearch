@@ -88,6 +88,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                 latCompensations = bigArrays.grow(latCompensations, bucket + 1);
                 weightCompensations = bigArrays.grow(weightCompensations, bucket + 1);
                 counts = bigArrays.grow(counts, bucket + 1);
+                dimensionalShapeTypes = bigArrays.grow(dimensionalShapeTypes, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
@@ -112,17 +113,19 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                         MultiGeoValues.GeoValue value = values.nextValue();
                         int compares = DimensionalShapeType.COMPARATOR.compare(shapeType, value.dimensionalShapeType());
                         if (compares < 0) {
-                            compensatedSumLat.reset(value.lat(), 0.0);
-                            compensatedSumLon.reset(value.lon(), 0.0);
-                            compensatedSumWeight.reset(value.weight(), 0.0);
+                            double coordinateWeight = value.weight();
+                            compensatedSumLat.reset(coordinateWeight * value.lat(), 0.0);
+                            compensatedSumLon.reset(coordinateWeight * value.lon(), 0.0);
+                            compensatedSumWeight.reset(coordinateWeight, 0.0);
                             dimensionalShapeTypes.set(bucket, (byte) value.dimensionalShapeType().ordinal());
                         } else if (compares == 0) {
+                            double coordinateWeight = value.weight();
                             // weighted latitude
-                            compensatedSumLat.add(value.lat());
+                            compensatedSumLat.add(coordinateWeight * value.lat());
                             // weighted longitude
-                            compensatedSumLon.add(value.lon());
+                            compensatedSumLon.add(coordinateWeight * value.lon());
                             // weight
-                            compensatedSumWeight.add(value.weight());
+                            compensatedSumWeight.add(coordinateWeight);
                         }
 
                     }

@@ -47,8 +47,8 @@ public class TriangleTreeWriter {
 
     /*** Serialize the interval tree in the provided data output */
     public void writeTo(ByteBuffersDataOutput out) throws IOException {
-        out.writeLong(Double.doubleToLongBits(centroidCalculator.getX()));
-        out.writeLong(Double.doubleToLongBits(centroidCalculator.getY()));
+        out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
+        out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
         centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
         out.writeInt(extent.top);

@@ -169,7 +169,7 @@ public class CentroidCalculator {
          */
         private void visitSignedRing(LinearRing ring, int sign) {
             for (int i = 0; i < ring.length() - 1; i++) {
-                double weight = ring.getX(i) * ring.getY(i + 1) + ring.getY(i) * ring.getX(i + 1);
+                double weight = ring.getX(i + 1) * ring.getY(i) - ring.getX(i) * ring.getY(i + 1);
                 calculator.addCoordinate((ring.getX(i) + ring.getX(i + 1)) / 2, (ring.getY(i) + ring.getY(i + 1)) / 2, sign * weight);
             }
         }

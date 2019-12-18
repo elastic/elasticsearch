@@ -98,8 +98,8 @@ public class TriangleTreeTests extends ESTestCase {
             // centroid is calculated using original double values but then loses precision as it is serialized as an integer
             int encodedCentroidX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(((double) minX + maxX) / 2);
             int encodedCentroidY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(((double) minY + maxY) / 2);
-            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX), reader.getWeightedCentroidX(), 0.0000001);
-            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY), reader.getWeightedCentroidY(), 0.0000001);
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX), reader.getUnweightedCentroidX(), 0.0000001);
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY), reader.getUnweightedCentroidY(), 0.0000001);
 
             // box-query touches bottom-left corner
             assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX),

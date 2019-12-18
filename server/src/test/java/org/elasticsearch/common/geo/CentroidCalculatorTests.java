@@ -44,12 +44,12 @@ public class CentroidCalculatorTests extends ESTestCase {
             System.arraycopy(y, 0, subY, 0, i + 1);
             Geometry geometry  = new Line(subX, subY);
             calculator = new CentroidCalculator(geometry);
-            assertThat(calculator.getX(), equalTo(xRunningAvg[i]));
-            assertThat(calculator.getY(), equalTo(yRunningAvg[i]));
+            assertEquals(xRunningAvg[i], calculator.getX(), 0.000001);
+            assertEquals(yRunningAvg[i], calculator.getY(), 0.000001);
         }
         CentroidCalculator otherCalculator = new CentroidCalculator(new Point(0, 0));
         calculator.addFrom(otherCalculator);
-        assertThat(calculator.getX(), equalTo(50.0));
-        assertThat(calculator.getY(), equalTo(5.0));
+        assertEquals(55.0, calculator.getX(), 0.0000001);
+        assertEquals(5.5, calculator.getY(), 0.0000001);
     }
 }

@@ -7,23 +7,16 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
@@ -35,7 +28,7 @@ public class AsyncSearchTemplateRegistry extends IndexTemplateRegistry {
     // version 1: initial
     public static final String INDEX_TEMPLATE_VERSION = "1";
     public static final String ASYNC_SEARCH_TEMPLATE_VERSION_VARIABLE = "xpack.async-search.template.version";
-    public static final String ASYNC_SEARCH_TEMPLATE_NAME = ".async-search";
+    public static final String ASYNC_SEARCH_TEMPLATE_NAME = "async-search";
 
     public static final String ASYNC_SEARCH_POLICY_NAME = "async-search-ilm-policy";
 
@@ -72,24 +65,5 @@ public class AsyncSearchTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return INDEX_LIFECYCLE_ORIGIN;
-    }
-
-    public boolean validate(ClusterState state) {
-        boolean allTemplatesPresent = getTemplateConfigs().stream()
-            .map(IndexTemplateConfig::getTemplateName)
-            .allMatch(name -> state.metaData().getTemplates().containsKey(name));
-
-        Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional
-            .<IndexLifecycleMetadata>ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE))
-            .map(IndexLifecycleMetadata::getPolicies);
-        Set<String> policyNames = getPolicyConfigs().stream()
-            .map(LifecyclePolicyConfig::getPolicyName)
-            .collect(Collectors.toSet());
-
-        boolean allPoliciesPresent = maybePolicies
-            .map(policies -> policies.keySet()
-                .containsAll(policyNames))
-            .orElse(false);
-        return allTemplatesPresent && allPoliciesPresent;
     }
 }

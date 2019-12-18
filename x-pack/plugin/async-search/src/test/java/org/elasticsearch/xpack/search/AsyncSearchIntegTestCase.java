@@ -103,7 +103,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     /**
      * Wait the removal of the document decoded from the provided {@link AsyncSearchId}.
      */
-    protected void waitTaskRemoval(String id) throws Exception {
+    protected void ensureTaskRemoval(String id) throws Exception {
         AsyncSearchId searchId = AsyncSearchId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
@@ -117,7 +117,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     /**
      * Wait the completion of the {@link TaskId} decoded from the provided {@link AsyncSearchId}.
      */
-    protected void waitTaskCompletion(String id) throws Exception {
+    protected void ensureTaskCompletion(String id) throws Exception {
         assertBusy(() -> {
             TaskId taskId = AsyncSearchId.decode(id).getTaskId();
             try {
@@ -156,15 +156,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         resetPluginsLatch(shardLatchMap);
         request.source().query(new BlockQueryBuilder(shardLatchMap));
 
-        final AsyncSearchResponse initial;
-        {
-            AsyncSearchResponse resp = client().execute(SubmitAsyncSearchAction.INSTANCE, request).get();
-            while (resp.getPartialResponse().getSuccessfulShards() == -1) {
-                resp = client().execute(GetAsyncSearchAction.INSTANCE,
-                    new GetAsyncSearchAction.Request(resp.id(), TimeValue.timeValueSeconds(1), resp.getVersion(), true)).get();
-            }
-            initial = resp;
-        }
+        final AsyncSearchResponse initial = client().execute(SubmitAsyncSearchAction.INSTANCE, request).get();
 
         assertTrue(initial.hasPartialResponse());
         assertThat(initial.status(), equalTo(RestStatus.PARTIAL_CONTENT));

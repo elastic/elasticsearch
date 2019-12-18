@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -20,7 +23,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,7 +42,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.INDEX_TEMPLATE_VERSION;
@@ -52,26 +55,79 @@ class AsyncSearchStoreService {
     private static final Logger logger = LogManager.getLogger(AsyncSearchStoreService.class);
 
     static final String ASYNC_SEARCH_ALIAS = ASYNC_SEARCH_TEMPLATE_NAME + "-" + INDEX_TEMPLATE_VERSION;
+    static final String ASYNC_SEARCH_INDEX_PREFIX = ASYNC_SEARCH_ALIAS + "-";
     static final String RESULT_FIELD = "result";
     static final String HEADERS_FIELD = "headers";
 
     private final Client client;
     private final NamedWriteableRegistry registry;
-    private final Random random;
 
     AsyncSearchStoreService(Client client, NamedWriteableRegistry registry) {
         this.client = new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN);
         this.registry = registry;
-        this.random = new Random(System.nanoTime());
+    }
+
+    /**
+     * Checks if the async-search index exists, and if not, creates it.
+     * The provided {@link ActionListener} is called with the index name that should
+     * be used to store the response.
+     */
+    void ensureAsyncSearchIndex(ClusterState state, ActionListener<String> andThen) {
+        final String initialIndexName = ASYNC_SEARCH_INDEX_PREFIX + "000001";
+        final AliasOrIndex current = state.metaData().getAliasAndIndexLookup().get(ASYNC_SEARCH_ALIAS);
+        final AliasOrIndex initialIndex = state.metaData().getAliasAndIndexLookup().get(initialIndexName);
+        if (current == null && initialIndex == null) {
+            // No alias or index exists with the expected names, so create the index with appropriate alias
+            client.admin().indices().prepareCreate(initialIndexName)
+                .setWaitForActiveShards(1)
+                .addAlias(new Alias(ASYNC_SEARCH_ALIAS).writeIndex(true))
+                .execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse response) {
+                        andThen.onResponse(initialIndexName);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof ResourceAlreadyExistsException) {
+                            // The index didn't exist before we made the call, there was probably a race - just ignore this
+                            andThen.onResponse(initialIndexName);
+                        } else {
+                            andThen.onFailure(e);
+                        }
+                    }
+                });
+        } else if (current == null) {
+            // alias does not exist but initial index does, something is broken
+            andThen.onFailure(new IllegalStateException("async-search index [" + initialIndexName +
+                "] already exists but does not have alias [" + ASYNC_SEARCH_ALIAS + "]"));
+        } else if (current.isAlias() && current instanceof AliasOrIndex.Alias) {
+            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) current;
+            if (alias.getWriteIndex() != null) {
+                // The alias exists and has a write index, so we're good
+                andThen.onResponse(alias.getWriteIndex().getIndex().getName());
+            } else {
+                // The alias does not have a write index, so we can't index into it
+                andThen.onFailure(new IllegalStateException("async-search alias [" + ASYNC_SEARCH_ALIAS + "] does not have a write index"));
+            }
+        } else if (current.isAlias() == false) {
+            // This is not an alias, error out
+            andThen.onFailure(new IllegalStateException("async-search alias [" + ASYNC_SEARCH_ALIAS +
+                "] already exists as concrete index"));
+        } else {
+            logger.error("unexpected IndexOrAlias for [{}]: [{}]", ASYNC_SEARCH_ALIAS, current);
+            andThen.onFailure(new IllegalStateException("unexpected IndexOrAlias for async-search index"));
+            assert false : ASYNC_SEARCH_ALIAS + " cannot be both an alias and not an alias simultaneously";
+        }
     }
 
     /**
      * Store an empty document in the .async-search index that is used
      * as a place-holder for the future response.
      */
-    void storeInitialResponse(Map<String, String> headers, ActionListener<IndexResponse> listener) {
-        IndexRequest request = new IndexRequest(ASYNC_SEARCH_ALIAS)
-            .id(UUIDs.randomBase64UUID(random))
+    void storeInitialResponse(Map<String, String> headers, String index, String docID, ActionListener<IndexResponse> listener) {
+        IndexRequest request = new IndexRequest(index)
+            .id(docID)
             .source(Collections.singletonMap(HEADERS_FIELD, headers), XContentType.JSON);
         client.index(request, listener);
     }

@@ -59,6 +59,10 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
     protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
         try {
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
+            if (searchId.getIndexName().startsWith(AsyncSearchStoreService.ASYNC_SEARCH_ALIAS) == false) {
+                listener.onFailure(new IllegalArgumentException("invalid id [" + request.getId() + "] that references the wrong index ["
+                    + searchId.getIndexName() + "]"));
+            }
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId())) {
                 getSearchResponseFromTask(request, searchId, wrapCleanupListener(request, searchId, listener));
             } else {
@@ -142,7 +146,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
 
     void waitForCompletion(GetAsyncSearchAction.Request request, AsyncSearchTask task,
                            long startMs, ActionListener<AsyncSearchResponse> listener) {
-        final AsyncSearchResponse response = task.getAsyncResponse(false);
+        final AsyncSearchResponse response = task.getAsyncResponse(false, false);
         if (response == null) {
             // the search task is not fully initialized
             Runnable runnable = threadPool.preserveContext(() -> waitForCompletion(request, task, startMs, listener));
@@ -150,20 +154,20 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         } else {
             try {
                 if (response.isRunning() == false) {
-                    listener.onResponse(response);
+                    listener.onResponse(task.getAsyncResponse(true, request.isCleanOnCompletion()));
                 } else if (request.getWaitForCompletion().getMillis() < (threadPool.relativeTimeInMillis() - startMs)) {
                     if (response.getVersion() <= request.getLastVersion()) {
                         // return a not-modified response
                         listener.onResponse(new AsyncSearchResponse(response.id(), response.getVersion(), true));
                     } else {
-                        listener.onResponse(task.getAsyncResponse(true));
+                        listener.onResponse(task.getAsyncResponse(true, request.isCleanOnCompletion()));
                     }
                 } else {
                     Runnable runnable = threadPool.preserveContext(() -> waitForCompletion(request, task, startMs, listener));
                     threadPool.schedule(runnable, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
                 }
-            } catch (Exception e) {
-                listener.onFailure(e);
+            } catch (Exception exc) {
+                listener.onFailure(exc);
             }
         }
     }

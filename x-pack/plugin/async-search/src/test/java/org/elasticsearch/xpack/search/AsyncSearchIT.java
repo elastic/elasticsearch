@@ -109,7 +109,7 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                     assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
                 }
             }
-            waitTaskRemoval(response.id());
+            ensureTaskRemoval(response.id());
         }
     }
 
@@ -154,7 +154,7 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                     }
                 }
             }
-            waitTaskRemoval(response.id());
+            ensureTaskRemoval(response.id());
         }
     }
 
@@ -164,13 +164,13 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                  assertBlockingIterator(indexName, new SearchSourceBuilder(), 0, 2)) {
             initial = it.next();
         }
-        waitTaskCompletion(initial.id());
+        ensureTaskCompletion(initial.id());
         restartTaskNode(initial.id());
         AsyncSearchResponse response = getAsyncSearch(initial.id());
         assertTrue(response.isFinalResponse());
         assertFalse(response.isRunning());
         assertFalse(response.hasPartialResponse());
-        waitTaskRemoval(response.id());
+        ensureTaskRemoval(response.id());
     }
 
     public void testDeleteCancelRunningTask() throws Exception {
@@ -180,8 +180,8 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
         initial = it.next();
         deleteAsyncSearch(initial.id());
         it.close();
-        waitTaskCompletion(initial.id());
-        waitTaskRemoval(initial.id());
+        ensureTaskCompletion(initial.id());
+        ensureTaskRemoval(initial.id());
     }
 
     public void testDeleteCleanupIndex() throws Exception {
@@ -192,8 +192,8 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
         AsyncSearchResponse response = it.next();
         deleteAsyncSearch(response.id());
         it.close();
-        waitTaskCompletion(response.id());
-        waitTaskRemoval(response.id());
+        ensureTaskCompletion(response.id());
+        ensureTaskRemoval(response.id());
     }
 
     public void testCleanupOnFailure() throws Exception {
@@ -202,12 +202,12 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                  assertBlockingIterator(indexName, new SearchSourceBuilder(), numShards, 2)) {
             initial = it.next();
         }
-        waitTaskCompletion(initial.id());
+        ensureTaskCompletion(initial.id());
         AsyncSearchResponse response = getAsyncSearch(initial.id());
         assertTrue(response.hasFailed());
         assertTrue(response.hasPartialResponse());
         assertThat(response.getPartialResponse().getTotalShards(), equalTo(numShards));
         assertThat(response.getPartialResponse().getShardFailures(), equalTo(numShards));
-        waitTaskRemoval(initial.id());
+        ensureTaskRemoval(initial.id());
     }
 }

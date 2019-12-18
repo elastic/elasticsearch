@@ -40,7 +40,7 @@ import java.util.Objects;
  * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
-public class BoundingBox implements ToXContentObject, Writeable {
+public class GeoBoundingBox implements ToXContentObject, Writeable {
     private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
@@ -58,12 +58,12 @@ public class BoundingBox implements ToXContentObject, Writeable {
     private final GeoPoint topLeft;
     private final GeoPoint bottomRight;
 
-    public BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
+    public GeoBoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
     }
 
-    public BoundingBox(StreamInput input) throws IOException {
+    public GeoBoundingBox(StreamInput input) throws IOException {
         this.topLeft = input.readGeoPoint();
         this.bottomRight = input.readGeoPoint();
     }
@@ -130,7 +130,7 @@ public class BoundingBox implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BoundingBox that = (BoundingBox) o;
+        GeoBoundingBox that = (GeoBoundingBox) o;
         return topLeft.equals(that.topLeft) &&
             bottomRight.equals(that.bottomRight);
     }
@@ -148,7 +148,7 @@ public class BoundingBox implements ToXContentObject, Writeable {
     /**
      * Parses the bounding box and returns bottom, top, left, right coordinates
      */
-    public static BoundingBox parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public static GeoBoundingBox parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse bounding box. Expected start object but found [{}]", token);
@@ -219,11 +219,11 @@ public class BoundingBox implements ToXContentObject, Writeable {
             }
             GeoPoint topLeft = new GeoPoint(envelope.getMaxLat(), envelope.getMinLon());
             GeoPoint bottomRight = new GeoPoint(envelope.getMinLat(), envelope.getMaxLon());
-            return new BoundingBox(topLeft, bottomRight);
+            return new GeoBoundingBox(topLeft, bottomRight);
         }
         GeoPoint topLeft = new GeoPoint(top, left);
         GeoPoint bottomRight = new GeoPoint(bottom, right);
-        return new BoundingBox(topLeft, bottomRight);
+        return new GeoBoundingBox(topLeft, bottomRight);
     }
 
 }

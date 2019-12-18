@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.geo.BoundingBox;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -31,14 +31,14 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.geo.BoundingBox.BOTTOM_RIGHT_FIELD;
-import static org.elasticsearch.common.geo.BoundingBox.BOUNDS_FIELD;
-import static org.elasticsearch.common.geo.BoundingBox.LAT_FIELD;
-import static org.elasticsearch.common.geo.BoundingBox.LON_FIELD;
-import static org.elasticsearch.common.geo.BoundingBox.TOP_LEFT_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.BOTTOM_RIGHT_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.BOUNDS_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.LAT_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.LON_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
 
 public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
-    private BoundingBox boundingBox;
+    private GeoBoundingBox geoBoundingBox;
 
     @Override
     public String getType() {
@@ -47,20 +47,20 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (boundingBox != null) {
-            boundingBox.toXContent(builder, params);
+        if (geoBoundingBox != null) {
+            geoBoundingBox.toXContent(builder, params);
         }
         return builder;
     }
 
     @Override
     public GeoPoint topLeft() {
-        return boundingBox.topLeft();
+        return geoBoundingBox.topLeft();
     }
 
     @Override
     public GeoPoint bottomRight() {
-        return boundingBox.bottomRight();
+        return geoBoundingBox.bottomRight();
     }
 
     private static final ObjectParser<ParsedGeoBounds, Void> PARSER = new ObjectParser<>(ParsedGeoBounds.class.getSimpleName(), true,
@@ -76,7 +76,7 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
     static {
         declareAggregationFields(PARSER);
         PARSER.declareObject((agg, bbox) -> {
-            agg.boundingBox = new BoundingBox(bbox.v1(), bbox.v2());
+            agg.geoBoundingBox = new GeoBoundingBox(bbox.v1(), bbox.v2());
         }, BOUNDS_PARSER, BOUNDS_FIELD);
 
         BOUNDS_PARSER.declareObject(constructorArg(), GEO_POINT_PARSER, TOP_LEFT_FIELD);

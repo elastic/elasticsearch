@@ -28,7 +28,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.geo.BoundingBox;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,7 +68,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     /** Name of field holding geo coordinates to compute the bounding box on.*/
     private final String fieldName;
-    private BoundingBox boundingBox = new BoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
+    private GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
     /** How to deal with incorrect coordinates.*/
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
     /** How the query should be run. */
@@ -93,7 +93,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public GeoBoundingBoxQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();
-        boundingBox = new BoundingBox(in);
+        geoBoundingBox = new GeoBoundingBox(in);
         type = GeoExecType.readFromStream(in);
         validationMethod = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
@@ -102,7 +102,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        boundingBox.writeTo(out);
+        geoBoundingBox.writeTo(out);
         type.writeTo(out);
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
@@ -145,8 +145,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 // we do not check longitudes as the query generation code can deal with flipped left/right values
         }
 
-        boundingBox.topLeft().reset(top, left);
-        boundingBox.bottomRight().reset(bottom, right);
+        geoBoundingBox.topLeft().reset(top, left);
+        geoBoundingBox.bottomRight().reset(bottom, right);
         return this;
     }
 
@@ -180,12 +180,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     /** Returns the top left corner of the bounding box. */
     public GeoPoint topLeft() {
-        return boundingBox.topLeft();
+        return geoBoundingBox.topLeft();
     }
 
     /** Returns the bottom right corner of the bounding box. */
     public GeoPoint bottomRight() {
-        return boundingBox.bottomRight();
+        return geoBoundingBox.bottomRight();
     }
 
     /**
@@ -278,8 +278,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             return null;
         }
 
-        GeoPoint topLeft = boundingBox.topLeft();
-        GeoPoint bottomRight = boundingBox.bottomRight();
+        GeoPoint topLeft = geoBoundingBox.topLeft();
+        GeoPoint bottomRight = geoBoundingBox.bottomRight();
 
         QueryValidationException validationException = null;
         // For everything post 2.0 validate latitude and longitude unless validation was explicitly turned off
@@ -321,8 +321,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             throw new QueryShardException(context, "couldn't validate latitude/ longitude values", exception);
         }
 
-        GeoPoint luceneTopLeft = new GeoPoint(boundingBox.topLeft());
-        GeoPoint luceneBottomRight = new GeoPoint(boundingBox.bottomRight());
+        GeoPoint luceneTopLeft = new GeoPoint(geoBoundingBox.topLeft());
+        GeoPoint luceneBottomRight = new GeoPoint(geoBoundingBox.bottomRight());
         if (GeoValidationMethod.isCoerce(validationMethod)) {
             // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
             // the complete longitude range so need to set longitude to the complete longitude range
@@ -354,7 +354,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.startObject(NAME);
 
         builder.startObject(fieldName);
-        boundingBox.toXContentFragment(builder, false);
+        geoBoundingBox.toXContentFragment(builder, false);
         builder.endObject();
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(TYPE_FIELD.getPreferredName(), type);
@@ -376,7 +376,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
         // bottom (minLat), top (maxLat), left (minLon), right (maxLon)
-        BoundingBox bbox = null;
+        GeoBoundingBox bbox = null;
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -384,7 +384,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 try {
-                    bbox = BoundingBox.parseBoundingBox(parser);
+                    bbox = GeoBoundingBox.parseBoundingBox(parser);
                     fieldName = currentFieldName;
                 } catch (Exception e) {
                     throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, e.getMessage());
@@ -426,7 +426,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     protected boolean doEquals(GeoBoundingBoxQueryBuilder other) {
-        return Objects.equals(boundingBox, other.boundingBox) &&
+        return Objects.equals(geoBoundingBox, other.geoBoundingBox) &&
                 Objects.equals(type, other.type) &&
                 Objects.equals(validationMethod, other.validationMethod) &&
                 Objects.equals(fieldName, other.fieldName) &&
@@ -435,7 +435,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(boundingBox, type, validationMethod, fieldName, ignoreUnmapped);
+        return Objects.hash(geoBoundingBox, type, validationMethod, fieldName, ignoreUnmapped);
     }
 
     @Override

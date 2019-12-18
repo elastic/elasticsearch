@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@code GeoJSONShapeParser}
  */
-public class BoundingBoxTests extends ESTestCase {
+public class GeoBoundingBoxTests extends ESTestCase {
 
     public void testInvalidParseInvalidWKT() throws IOException {
         XContentBuilder bboxBuilder = XContentFactory.jsonBuilder()
@@ -44,7 +44,7 @@ public class BoundingBoxTests extends ESTestCase {
             .endObject();
         XContentParser parser = createParser(bboxBuilder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> BoundingBox.parseBoundingBox(parser));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
         assertThat(e.getMessage(), equalTo("failed to parse WKT bounding box"));
     }
 
@@ -55,72 +55,72 @@ public class BoundingBoxTests extends ESTestCase {
             .endObject();
         XContentParser parser = createParser(bboxBuilder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> BoundingBox.parseBoundingBox(parser));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
         assertThat(e.getMessage(), equalTo("failed to parse WKT bounding box. [POINT] found. expected [ENVELOPE]"));
     }
 
     public void testWKT() throws IOException {
-        BoundingBox boundingBox = randomBBox();
-        assertBBox(boundingBox,
+        GeoBoundingBox geoBoundingBox = randomBBox();
+        assertBBox(geoBoundingBox,
             XContentFactory.jsonBuilder()
                 .startObject()
-                .field("wkt", boundingBox.toString())
+                .field("wkt", geoBoundingBox.toString())
                 .endObject()
         );
     }
 
     public void testTopBottomLeftRight() throws Exception {
-        BoundingBox boundingBox = randomBBox();
-        assertBBox(boundingBox,
+        GeoBoundingBox geoBoundingBox = randomBBox();
+        assertBBox(geoBoundingBox,
             XContentFactory.jsonBuilder()
                 .startObject()
-                .field("top", boundingBox.top())
-                .field("bottom", boundingBox.bottom())
-                .field("left", boundingBox.left())
-                .field("right", boundingBox.right())
+                .field("top", geoBoundingBox.top())
+                .field("bottom", geoBoundingBox.bottom())
+                .field("left", geoBoundingBox.left())
+                .field("right", geoBoundingBox.right())
                 .endObject()
         );
     }
 
     public void testTopLeftBottomRight() throws Exception {
-        BoundingBox boundingBox = randomBBox();
-        assertBBox(boundingBox,
+        GeoBoundingBox geoBoundingBox = randomBBox();
+        assertBBox(geoBoundingBox,
             XContentFactory.jsonBuilder()
                 .startObject()
-                .field("top_left", boundingBox.topLeft())
-                .field("bottom_right", boundingBox.bottomRight())
+                .field("top_left", geoBoundingBox.topLeft())
+                .field("bottom_right", geoBoundingBox.bottomRight())
                 .endObject()
         );
     }
 
     public void testTopRightBottomLeft() throws Exception {
-        BoundingBox boundingBox = randomBBox();
-        assertBBox(boundingBox,
+        GeoBoundingBox geoBoundingBox = randomBBox();
+        assertBBox(geoBoundingBox,
             XContentFactory.jsonBuilder()
                 .startObject()
-                .field("top_right", new GeoPoint(boundingBox.top(), boundingBox.right()))
-                .field("bottom_left", new GeoPoint(boundingBox.bottom(), boundingBox.left()))
+                .field("top_right", new GeoPoint(geoBoundingBox.top(), geoBoundingBox.right()))
+                .field("bottom_left", new GeoPoint(geoBoundingBox.bottom(), geoBoundingBox.left()))
                 .endObject()
         );
     }
 
     // test that no exception is thrown. BBOX parsing is not validated
     public void testNullTopBottomLeftRight() throws Exception {
-        BoundingBox boundingBox = randomBBox();
+        GeoBoundingBox geoBoundingBox = randomBBox();
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         for (String field : randomSubsetOf(List.of("top", "bottom", "left", "right"))) {
             switch (field) {
                 case "top":
-                    builder.field("top", boundingBox.top());
+                    builder.field("top", geoBoundingBox.top());
                     break;
                 case "bottom":
-                    builder.field("bottom", boundingBox.bottom());
+                    builder.field("bottom", geoBoundingBox.bottom());
                     break;
                 case "left":
-                    builder.field("left", boundingBox.left());
+                    builder.field("left", geoBoundingBox.left());
                     break;
                 case "right":
-                    builder.field("right", boundingBox.right());
+                    builder.field("right", geoBoundingBox.right());
                     break;
                 default:
                     throw new IllegalStateException("unexpected branching");
@@ -129,21 +129,21 @@ public class BoundingBoxTests extends ESTestCase {
         builder.endObject();
         try (XContentParser parser = createParser(builder)) {
             parser.nextToken();
-            BoundingBox.parseBoundingBox(parser);
+            GeoBoundingBox.parseBoundingBox(parser);
         }
     }
 
-    private void assertBBox(BoundingBox expected, XContentBuilder builder) throws IOException {
+    private void assertBBox(GeoBoundingBox expected, XContentBuilder builder) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             parser.nextToken();
-            assertThat(BoundingBox.parseBoundingBox(parser), equalTo(expected));
+            assertThat(GeoBoundingBox.parseBoundingBox(parser), equalTo(expected));
         }
     }
 
-    private BoundingBox randomBBox() {
+    private GeoBoundingBox randomBBox() {
         double topLat = GeometryTestUtils.randomLat();
         double bottomLat = randomDoubleBetween(GeoUtils.MIN_LAT, topLat, true);
-        return new BoundingBox(new GeoPoint(topLat, GeometryTestUtils.randomLon()),
+        return new GeoBoundingBox(new GeoPoint(topLat, GeometryTestUtils.randomLon()),
             new GeoPoint(bottomLat, GeometryTestUtils.randomLon()));
     }
 }

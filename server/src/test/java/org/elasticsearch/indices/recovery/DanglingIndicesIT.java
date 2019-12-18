@@ -200,7 +200,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         });
 
         final RestoreDanglingIndexRequest request = new RestoreDanglingIndexRequest();
-        request.setIndexIds(new String[] { danglingIndexUUID.get() });
+        request.setIndexUuid(danglingIndexUUID.get());
 
         final RestoreDanglingIndexResponse restoreResponse = client().admin().cluster().restoreDanglingIndex(request).actionGet();
 
@@ -217,7 +217,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(1, buildSettings(false));
 
         final RestoreDanglingIndexRequest request = new RestoreDanglingIndexRequest();
-        request.setIndexIds(new String[] { "NonExistentUUID", "AnotherNonExistentUUID" });
+        request.setIndexUuid("NonExistentUUID");
 
         boolean noExceptionThrown = false;
         try {
@@ -227,7 +227,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(
                 e.getMessage(),
-                containsString("Dangling index list missing some specified UUIDs: [NonExistentUUID, AnotherNonExistentUUID]")
+                containsString("No dangling index found for UUID [NonExistentUUID]")
             );
         }
 

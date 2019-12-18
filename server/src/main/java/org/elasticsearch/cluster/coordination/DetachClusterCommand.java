@@ -23,7 +23,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -50,10 +50,10 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        final LucenePersistedStateFactory psf = createLucenePersistedStateFactory(dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
-        final ClusterState oldClusterState = loadTermAndClusterState(psf, env).v2();
+        final ClusterState oldClusterState = loadTermAndClusterState(persistedClusterStateService, env).v2();
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
             .metaData(updateMetaData(oldClusterState.metaData())).build();
         terminal.println(Terminal.Verbosity.VERBOSE,
@@ -61,7 +61,7 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
         confirm(terminal, CONFIRMATION_MSG);
 
-        try (LucenePersistedStateFactory.Writer writer = psf.createWriter()) {
+        try (PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter()) {
             writer.writeFullStateAndCommit(updateCurrentTerm(), newClusterState);
         }
 

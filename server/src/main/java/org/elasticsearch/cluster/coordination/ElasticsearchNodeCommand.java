@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesModule;
 
 import java.io.IOException;
@@ -71,26 +71,26 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         super(description);
     }
 
-    public static LucenePersistedStateFactory createLucenePersistedStateFactory(Path[] dataPaths) throws IOException {
+    public static PersistedClusterStateService createPersistedClusterStateService(Path[] dataPaths) throws IOException {
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
         if (nodeMetaData == null) {
             throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
         }
 
         String nodeId = nodeMetaData.nodeId();
-        return new LucenePersistedStateFactory(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE, true);
+        return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE, true);
     }
 
-    public static ClusterState clusterState(Environment environment, LucenePersistedStateFactory.OnDiskState onDiskState) {
+    public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {
         return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(environment.settings()))
             .version(onDiskState.lastAcceptedVersion)
             .metaData(onDiskState.metaData)
             .build();
     }
 
-    public static Tuple<Long, ClusterState> loadTermAndClusterState(LucenePersistedStateFactory psf,
+    public static Tuple<Long, ClusterState> loadTermAndClusterState(PersistedClusterStateService psf,
                                                                     Environment env) throws IOException {
-        final LucenePersistedStateFactory.OnDiskState bestOnDiskState = psf.loadBestOnDiskState();
+        final PersistedClusterStateService.OnDiskState bestOnDiskState = psf.loadBestOnDiskState();
         if (bestOnDiskState.empty()) {
             throw new ElasticsearchException(CS_MISSING_MSG);
         }

@@ -30,7 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -175,7 +175,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths()).map(path -> path.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))
+        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths())
+            .map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
             .toArray(Path[]::new));
 
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
@@ -190,7 +191,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths()).map(path -> path.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))
+        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths())
+            .map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
             .toArray(Path[]::new));
 
         expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
@@ -272,7 +274,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
         MockTerminal terminal = unsafeBootstrap(environmentMaster1);
-        MetaData metaData = ElasticsearchNodeCommand.createLucenePersistedStateFactory(nodeEnvironment.nodeDataPaths())
+        MetaData metaData = ElasticsearchNodeCommand.createPersistedClusterStateService(nodeEnvironment.nodeDataPaths())
             .loadBestOnDiskState().metaData;
         assertThat(terminal.getOutput(), containsString(
             String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,

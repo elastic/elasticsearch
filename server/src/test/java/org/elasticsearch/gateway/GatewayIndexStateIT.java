@@ -548,15 +548,15 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     }
 
     private void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {
-        Map<String, LucenePersistedStateFactory> lucenePersistedStateFactories = Stream.of(internalCluster().getNodeNames())
+        Map<String, PersistedClusterStateService> lucenePersistedStateFactories = Stream.of(internalCluster().getNodeNames())
             .collect(Collectors.toMap(Function.identity(),
-                nodeName -> internalCluster().getInstance(LucenePersistedStateFactory.class, nodeName)));
+                nodeName -> internalCluster().getInstance(PersistedClusterStateService.class, nodeName)));
         final ClusterState clusterState = clusterStateBuilder.build();
         internalCluster().fullRestart(new RestartCallback(){
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                final LucenePersistedStateFactory lucenePersistedStateFactory = lucenePersistedStateFactories.get(nodeName);
-                try (LucenePersistedStateFactory.Writer writer = lucenePersistedStateFactory.createWriter()) {
+                final PersistedClusterStateService lucenePersistedStateFactory = lucenePersistedStateFactories.get(nodeName);
+                try (PersistedClusterStateService.Writer writer = lucenePersistedStateFactory.createWriter()) {
                     writer.writeFullStateAndCommit(clusterState.term(), clusterState);
                 }
                 return super.onNodeStopped(nodeName);

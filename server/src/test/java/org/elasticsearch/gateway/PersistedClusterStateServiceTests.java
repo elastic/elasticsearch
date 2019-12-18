@@ -30,7 +30,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
@@ -41,13 +40,13 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,10 +62,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LucenePersistedStateFactoryTests extends ESTestCase {
+public class PersistedClusterStateServiceTests extends ESTestCase {
 
-    private LucenePersistedStateFactory newPersistedStateFactory(NodeEnvironment nodeEnvironment) {
-        return new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(),
+    private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
+        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(),
             usually()
                 ? BigArrays.NON_RECYCLING_INSTANCE
                 : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()));
@@ -74,46 +73,41 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
     public void testPersistsAndReloadsTerm() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final long newTerm = randomNonNegativeLong();
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                assertThat(persistedState.getCurrentTerm(), equalTo(0L));
-                persistedState.setCurrentTerm(newTerm);
-                assertThat(persistedState.getCurrentTerm(), equalTo(newTerm));
+            assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(0L));
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(newTerm, ClusterState.EMPTY_STATE);
+                assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
             }
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                assertThat(persistedState.getCurrentTerm(), equalTo(newTerm));
-            }
+            assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
         }
     }
 
     public void testPersistsAndReloadsGlobalMetadata() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final String clusterUUID = UUIDs.randomBase64UUID(random());
             final long version = randomLongBetween(1L, Long.MAX_VALUE);
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+            ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(0L, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .clusterUUID(clusterUUID)
                         .clusterUUIDCommitted(true)
                         .version(version))
                     .incrementVersion().build());
-                assertThat(persistedState.getLastAcceptedState().metaData().clusterUUID(), equalTo(clusterUUID));
-                assertTrue(persistedState.getLastAcceptedState().metaData().clusterUUIDCommitted());
-            }
-
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
+                clusterState = loadPersistedClusterState(persistedClusterStateService);
                 assertThat(clusterState.metaData().clusterUUID(), equalTo(clusterUUID));
                 assertTrue(clusterState.metaData().clusterUUIDCommitted());
                 assertThat(clusterState.metaData().version(), equalTo(version));
+            }
 
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(0L, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .clusterUUID(clusterUUID)
                         .clusterUUIDCommitted(true)
@@ -121,12 +115,19 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                     .incrementVersion().build());
             }
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                assertThat(clusterState.metaData().clusterUUID(), equalTo(clusterUUID));
-                assertTrue(clusterState.metaData().clusterUUIDCommitted());
-                assertThat(clusterState.metaData().version(), equalTo(version + 1));
-            }
+            clusterState = loadPersistedClusterState(persistedClusterStateService);
+            assertThat(clusterState.metaData().clusterUUID(), equalTo(clusterUUID));
+            assertTrue(clusterState.metaData().clusterUUIDCommitted());
+            assertThat(clusterState.metaData().version(), equalTo(version + 1));
+        }
+    }
+
+    private static void writeState(Writer writer, long currentTerm, ClusterState clusterState,
+                                   ClusterState previousState) throws IOException {
+        if (randomBoolean() || clusterState.term() != previousState.term() || writer.fullStateWritten == false) {
+            writer.writeFullStateAndCommit(currentTerm, clusterState);
+        } else {
+            writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
         }
     }
 
@@ -140,26 +141,25 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final HashSet<Path> unimportantPaths = Arrays.stream(dataPaths).collect(Collectors.toCollection(HashSet::new));
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setCurrentTerm(randomLongBetween(1L, Long.MAX_VALUE));
-                persistedState.setLastAcceptedState(
+            final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                writeState(writer, staleTerm,
                     ClusterState.builder(clusterState).version(staleVersion)
                         .metaData(MetaData.builder(clusterState.metaData()).coordinationMetaData(
-                            CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(staleTerm).build())).build());
+                            CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(staleTerm).build())).build(),
+                    clusterState);
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[]{randomFrom(dataPaths)})) {
             unimportantPaths.remove(nodeEnvironment.nodeDataPaths()[0]);
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(writer, freshTerm,
                     ClusterState.builder(clusterState).version(freshVersion)
                         .metaData(MetaData.builder(clusterState.metaData()).coordinationMetaData(
-                            CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(freshTerm).build())).build());
+                            CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(freshTerm).build())).build(),
+                    clusterState);
             }
         }
 
@@ -169,20 +169,11 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         // verify that the freshest state is chosen
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                assertThat(persistedState.getLastAcceptedState().term(), equalTo(freshTerm));
-                assertThat(persistedState.getLastAcceptedState().version(), equalTo(freshVersion));
-            }
-        }
-
-        // verify that the freshest state was rewritten to each data path
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[]{randomFrom(dataPaths)})) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                assertThat(persistedState.getLastAcceptedState().term(), equalTo(freshTerm));
-                assertThat(persistedState.getLastAcceptedState().version(), equalTo(freshVersion));
-            }
+            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService(nodeEnvironment)
+                .loadBestOnDiskState();
+            final ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metaData);
+            assertThat(clusterState.term(), equalTo(freshTerm));
+            assertThat(clusterState.version(), equalTo(freshVersion));
         }
     }
 
@@ -194,19 +185,19 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
             nodeIds[0] = nodeEnvironment.nodeId();
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                persistedState.setLastAcceptedState(
-                    ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writer.writeFullStateAndCommit(0L,
+                    ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
             nodeIds[1] = nodeEnvironment.nodeId();
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                persistedState.setLastAcceptedState(
-                    ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writer.writeFullStateAndCommit(0L,
+                    ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
             }
         }
 
@@ -218,7 +209,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             final String message = expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message,
                 allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
             assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
@@ -236,17 +227,18 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         // first establish consistent node IDs and write initial metadata
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                assertFalse(persistedState.getLastAcceptedState().metaData().clusterUUIDCommitted());
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                assertFalse(clusterState.metaData().clusterUUIDCommitted());
+                writer.writeFullStateAndCommit(0L, clusterState);
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                assertFalse(clusterState.metaData().clusterUUIDCommitted());
+                writer.writeFullStateAndCommit(0L, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .clusterUUID(clusterUUID1)
                         .clusterUUIDCommitted(true)
@@ -256,10 +248,10 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                assertFalse(clusterState.metaData().clusterUUIDCommitted());
+                writer.writeFullStateAndCommit(0L, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .clusterUUID(clusterUUID2)
                         .clusterUUIDCommitted(true)
@@ -270,7 +262,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             final String message = expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message,
                 allOf(containsString("mismatched cluster UUIDs in metadata"), containsString(clusterUUID1), containsString(clusterUUID2)));
             assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths1),
@@ -294,40 +286,41 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final long staleVersion = staleTerm == freshTerm ? randomLongBetween(1L, freshVersion - 1) : randomLongBetween(1L, Long.MAX_VALUE);
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setCurrentTerm(staleCurrentTerm);
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                assertFalse(clusterState.metaData().clusterUUIDCommitted());
+                writeState(writer, staleCurrentTerm, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData()).version(1)
                         .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(staleTerm).build()))
                     .version(staleVersion)
-                    .build());
+                    .build(),
+                    clusterState);
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                persistedState.setCurrentTerm(freshCurrentTerm);
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(writer, freshCurrentTerm, clusterState, clusterState);
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService(nodeEnvironment)
+                    .loadBestOnDiskState();
+                final ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metaData);
+                writeState(writer, onDiskState.currentTerm, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData()).version(2)
                         .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(freshTerm).build()))
                     .version(freshVersion)
-                    .build());
+                    .build(), clusterState);
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             final String message = expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(
                     containsString("inconsistent terms found"),
                     containsString(Long.toString(staleCurrentTerm)),
@@ -343,8 +336,8 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory
-                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+            final PersistedClusterStateService persistedClusterStateService
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -358,11 +351,10 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                     };
                 }
             };
-            final long newTerm = randomNonNegativeLong();
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                persistedState.setCurrentTerm(newTerm);
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                final long newTerm = randomNonNegativeLong();
                 final ClusterState newState = ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .clusterUUID(UUIDs.randomBase64UUID(random()))
@@ -370,7 +362,8 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                         .version(randomLongBetween(1L, Long.MAX_VALUE)))
                     .incrementVersion().build();
                 throwException.set(true);
-                assertThat(expectThrows(UncheckedIOException.class, () -> persistedState.setLastAcceptedState(newState)).getMessage(),
+                assertThat(expectThrows(IOException.class, () ->
+                        writeState(writer, newTerm, newState, clusterState)).getMessage(),
                     containsString("simulated"));
             }
         }
@@ -380,8 +373,8 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory
-                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+            final PersistedClusterStateService persistedClusterStateService
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -394,11 +387,10 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                     };
                 }
             };
-            final long newTerm = randomNonNegativeLong();
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                persistedState.setCurrentTerm(newTerm);
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                final long newTerm = randomNonNegativeLong();
                 final ClusterState newState = ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .clusterUUID(UUIDs.randomBase64UUID(random()))
@@ -406,7 +398,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                         .version(randomLongBetween(1L, Long.MAX_VALUE)))
                     .incrementVersion().build();
                 throwException.set(true);
-                assertThat(expectThrows(IOError.class, () -> persistedState.setLastAcceptedState(newState)).getMessage(),
+                assertThat(expectThrows(IOError.class, () -> writeState(writer, newTerm, newState, clusterState)).getMessage(),
                     containsString("simulated"));
             }
         }
@@ -417,14 +409,14 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         // isn't there any more
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                persistedState.setLastAcceptedState(
-                    ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(writer, 0L, ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
+                    clusterState);
             }
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
                 try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -433,7 +425,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             }
 
             final String message = expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("no global metadata found"), containsString(brokenPath.toString())));
         }
     }
@@ -447,16 +439,16 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                persistedState.setLastAcceptedState(
-                    ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(writer, 0L, ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
+                    clusterState);
             }
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                     indexWriter.addIndexes(dupDirectory);
                     indexWriter.commit();
@@ -464,7 +456,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             }
 
             final String message = expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
         }
     }
@@ -481,27 +473,27 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             final String indexUUID = UUIDs.randomBase64UUID(random());
             final String indexName = randomAlphaOfLength(10);
 
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
-                    .metaData(MetaData.builder(clusterState.metaData())
-                        .version(1L)
-                        .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(1L).build())
-                        .put(IndexMetaData.builder(indexName)
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(writer, 0L, ClusterState.builder(clusterState)
+                        .metaData(MetaData.builder(clusterState.metaData())
                             .version(1L)
-                            .settings(Settings.builder()
-                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                                .put(IndexMetaData.SETTING_INDEX_UUID, indexUUID))))
-                    .incrementVersion().build());
+                            .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(1L).build())
+                            .put(IndexMetaData.builder(indexName)
+                                .version(1L)
+                                .settings(Settings.builder()
+                                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                    .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexMetaData.SETTING_INDEX_UUID, indexUUID))))
+                        .incrementVersion().build(),
+                    clusterState);
             }
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                     indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
                     indexWriter.addIndexes(dupDirectory);
@@ -510,7 +502,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             }
 
             final String message = expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(
                 containsString("duplicate metadata found"),
                 containsString(brokenPath.toString()),
@@ -521,7 +513,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
     public void testPersistsAndReloadsIndexMetadataIffVersionOrTermChanges() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final long globalVersion = randomLongBetween(1L, Long.MAX_VALUE);
             final String indexUUID = UUIDs.randomBase64UUID(random());
             final long indexMetaDataVersion = randomLongBetween(1L, Long.MAX_VALUE);
@@ -529,91 +521,85 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             final long oldTerm = randomLongBetween(1L, Long.MAX_VALUE - 1);
             final long newTerm = randomLongBetween(oldTerm + 1, Long.MAX_VALUE);
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
-                    .metaData(MetaData.builder(clusterState.metaData())
-                        .version(globalVersion)
-                        .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(oldTerm).build())
-                        .put(IndexMetaData.builder("test")
-                            .version(indexMetaDataVersion - 1) // -1 because it's incremented in .put()
-                            .settings(Settings.builder()
-                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                                .put(IndexMetaData.SETTING_INDEX_UUID, indexUUID))))
-                    .incrementVersion().build());
-            }
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                writeState(writer, 0L, ClusterState.builder(clusterState)
+                        .metaData(MetaData.builder(clusterState.metaData())
+                            .version(globalVersion)
+                            .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(oldTerm).build())
+                            .put(IndexMetaData.builder("test")
+                                .version(indexMetaDataVersion - 1) // -1 because it's incremented in .put()
+                                .settings(Settings.builder()
+                                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                    .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexMetaData.SETTING_INDEX_UUID, indexUUID))))
+                        .incrementVersion().build(),
+                    clusterState);
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                final IndexMetaData indexMetaData = clusterState.metaData().index("test");
+
+                clusterState = loadPersistedClusterState(persistedClusterStateService);
+                IndexMetaData indexMetaData = clusterState.metaData().index("test");
                 assertThat(indexMetaData.getIndexUUID(), equalTo(indexUUID));
                 assertThat(indexMetaData.getVersion(), equalTo(indexMetaDataVersion));
                 assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetaData.getSettings()), equalTo(0));
-
                 // ensure we do not wastefully persist the same index metadata version by making a bad update with the same version
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
-                    .metaData(MetaData.builder(clusterState.metaData())
-                        .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
+                writer.writeIncrementalStateAndCommit(0L, clusterState, ClusterState.builder(clusterState)
+                        .metaData(MetaData.builder(clusterState.metaData())
+                            .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
                                 .put(indexMetaData.getSettings())
                                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)).build(), false))
-                    .incrementVersion().build());
-            }
+                        .incrementVersion().build());
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                final IndexMetaData indexMetaData = clusterState.metaData().index("test");
+                clusterState = loadPersistedClusterState(persistedClusterStateService);
+                indexMetaData = clusterState.metaData().index("test");
+                assertThat(indexMetaData.getIndexUUID(), equalTo(indexUUID));
                 assertThat(indexMetaData.getVersion(), equalTo(indexMetaDataVersion));
                 assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetaData.getSettings()), equalTo(0));
-
                 // ensure that we do persist the same index metadata version by making an update with a higher version
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
-                    .metaData(MetaData.builder(clusterState.metaData())
-                        .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
-                            .put(indexMetaData.getSettings())
-                            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)).build(), true))
-                    .incrementVersion().build());
-            }
+                writeState(writer, 0L, ClusterState.builder(clusterState)
+                        .metaData(MetaData.builder(clusterState.metaData())
+                            .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
+                                .put(indexMetaData.getSettings())
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)).build(), true))
+                        .incrementVersion().build(),
+                    clusterState);
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                final IndexMetaData indexMetaData = clusterState.metaData().index("test");
+                clusterState = loadPersistedClusterState(persistedClusterStateService);
+                indexMetaData = clusterState.metaData().index("test");
                 assertThat(indexMetaData.getVersion(), equalTo(indexMetaDataVersion + 1));
                 assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetaData.getSettings()), equalTo(2));
-
                 // ensure that we also persist the index metadata when the term changes
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
-                    .metaData(MetaData.builder(clusterState.metaData())
-                        .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(newTerm).build())
-                        .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
-                            .put(indexMetaData.getSettings())
-                            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 3)).build(), false))
-                    .incrementVersion().build());
+                writeState(writer, 0L, ClusterState.builder(clusterState)
+                        .metaData(MetaData.builder(clusterState.metaData())
+                            .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(newTerm).build())
+                            .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
+                                .put(indexMetaData.getSettings())
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 3)).build(), false))
+                        .incrementVersion().build(),
+                    clusterState);
             }
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                final IndexMetaData indexMetaData = clusterState.metaData().index("test");
-                assertThat(indexMetaData.getIndexUUID(), equalTo(indexUUID));
-                assertThat(indexMetaData.getVersion(), equalTo(indexMetaDataVersion + 1));
-                assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetaData.getSettings()), equalTo(3));
-            }
+            final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+            final IndexMetaData indexMetaData = clusterState.metaData().index("test");
+            assertThat(indexMetaData.getIndexUUID(), equalTo(indexUUID));
+            assertThat(indexMetaData.getVersion(), equalTo(indexMetaDataVersion + 1));
+            assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetaData.getSettings()), equalTo(3));
         }
     }
 
     public void testPersistsAndReloadsIndexMetadataForMultipleIndices() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
 
             final long term = randomLongBetween(1L, Long.MAX_VALUE);
             final String addedIndexUuid = UUIDs.randomBase64UUID(random());
             final String updatedIndexUuid = UUIDs.randomBase64UUID(random());
             final String deletedIndexUuid = UUIDs.randomBase64UUID(random());
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                writeState(writer, 0L, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .version(clusterState.metaData().version() + 1)
                         .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(term).build())
@@ -631,11 +617,12 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                             .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                             .put(IndexMetaData.SETTING_INDEX_UUID, deletedIndexUuid))))
-                    .incrementVersion().build());
+                    .incrementVersion().build(),
+                    clusterState);
             }
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
 
                 assertThat(clusterState.metaData().indices().size(), equalTo(2));
                 assertThat(clusterState.metaData().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
@@ -643,7 +630,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                     equalTo(1));
                 assertThat(clusterState.metaData().index("deleted").getIndexUUID(), equalTo(deletedIndexUuid));
 
-                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                writeState(writer, 0L, ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
                         .version(clusterState.metaData().version() + 1)
                         .remove("deleted")
@@ -658,35 +645,34 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                 .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                                 .put(IndexMetaData.SETTING_INDEX_UUID, addedIndexUuid))))
-                    .incrementVersion().build());
+                    .incrementVersion().build(),
+                    clusterState);
             }
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
+            final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
 
-                assertThat(clusterState.metaData().indices().size(), equalTo(2));
-                assertThat(clusterState.metaData().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
-                assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metaData().index("updated").getSettings()),
-                    equalTo(2));
-                assertThat(clusterState.metaData().index("added").getIndexUUID(), equalTo(addedIndexUuid));
-                assertThat(clusterState.metaData().index("deleted"), nullValue());
-            }
+            assertThat(clusterState.metaData().indices().size(), equalTo(2));
+            assertThat(clusterState.metaData().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
+            assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metaData().index("updated").getSettings()),
+                equalTo(2));
+            assertThat(clusterState.metaData().index("added").getIndexUUID(), equalTo(addedIndexUuid));
+            assertThat(clusterState.metaData().index("deleted"), nullValue());
         }
     }
 
     public void testReloadsMetadataAcrossMultipleSegments() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
 
             final int writes = between(5, 20);
             final List<Index> indices = new ArrayList<>(writes);
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
+            try (Writer writer = persistedClusterStateService.createWriter()) {
                 for (int i = 0; i < writes; i++) {
                     final Index index = new Index("test-" + i, UUIDs.randomBase64UUID(random()));
                     indices.add(index);
-                    final ClusterState clusterState = persistedState.getLastAcceptedState();
-                    persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                    final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                    writeState(writer, 0L, ClusterState.builder(clusterState)
                         .metaData(MetaData.builder(clusterState.metaData())
                             .version(i + 2)
                             .put(IndexMetaData.builder(index.getName())
@@ -695,16 +681,15 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                                     .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                                     .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID()))))
-                        .incrementVersion().build());
+                        .incrementVersion().build(),
+                        clusterState);
                 }
             }
 
-            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
-                final ClusterState clusterState = persistedState.getLastAcceptedState();
-                for (Index index : indices) {
-                    final IndexMetaData indexMetaData = clusterState.metaData().index(index.getName());
-                    assertThat(indexMetaData.getIndexUUID(), equalTo(index.getUUID()));
-                }
+            final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+            for (Index index : indices) {
+                final IndexMetaData indexMetaData = clusterState.metaData().index(index.getName());
+                assertThat(indexMetaData.getIndexUUID(), equalTo(index.getUUID()));
             }
         }
     }
@@ -731,13 +716,9 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             .build());
     }
 
-    private static CoordinationState.PersistedState loadPersistedState(LucenePersistedStateFactory persistedStateFactory)
-        throws IOException {
-        final LucenePersistedStateFactory.OnDiskState onDiskState = persistedStateFactory.loadBestOnDiskState();
-        LucenePersistedStateFactory.Writer writer = persistedStateFactory.createWriter();
-        ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metaData);
-        writer.writeFullStateAndCommit(onDiskState.currentTerm, clusterState);
-        return new LucenePersistedStateFactory.LucenePersistedState(writer, onDiskState.currentTerm, clusterState);
+    private static ClusterState loadPersistedClusterState(PersistedClusterStateService persistedClusterStateService) throws IOException {
+        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
+        return clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metaData);
     }
 
     private static ClusterState clusterStateFromMetadata(long version, MetaData metaData) {

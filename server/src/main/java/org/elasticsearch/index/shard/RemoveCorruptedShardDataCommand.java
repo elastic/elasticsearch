@@ -155,7 +155,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
             indexMetaData = clusterState.metaData().index(indexName);
         }
-        
+
         if (indexMetaData == null) {
             throw new ElasticsearchException("Unable to find index in cluster state");
         }
@@ -241,7 +241,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
     public void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment environment) throws IOException {
         warnAboutIndexBackup(terminal);
 
-        final ClusterState clusterState = loadTermAndClusterState(createLucenePersistedStateFactory(dataPaths), environment).v2();
+        final ClusterState clusterState = loadTermAndClusterState(createPersistedClusterStateService(dataPaths), environment).v2();
 
         findAndProcessShardPath(options, environment, dataPaths, clusterState, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();

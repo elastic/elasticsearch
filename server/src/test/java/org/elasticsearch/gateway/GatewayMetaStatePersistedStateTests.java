@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationState;
-import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -33,12 +32,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +74,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
         gateway.start(settings, nodeEnvironment, xContentRegistry());
         final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
-        assertThat(persistedState, not(instanceOf(InMemoryPersistedState.class)));
+        assertThat(persistedState, instanceOf(GatewayMetaState.LucenePersistedState.class));
         return persistedState;
     }
 
@@ -271,6 +274,38 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
         } finally {
             IOUtils.close(gateway);
+        }
+    }
+
+    public void testStatePersistedOnLoad() throws IOException {
+        // open LucenePersistedState to make sure that cluster state is written out to each data path
+        final PersistedClusterStateService persistedClusterStateService =
+            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE);
+        final ClusterState state = createClusterState(randomNonNegativeLong(),
+            MetaData.builder().clusterUUID(randomAlphaOfLength(10)).build());
+        try (GatewayMetaState.LucenePersistedState ignored = new GatewayMetaState.LucenePersistedState(
+            persistedClusterStateService.createWriter(), 42L, state)) {
+
+        }
+
+        nodeEnvironment.close();
+
+        // verify that the freshest state was rewritten to each data path
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(42L));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metaData(onDiskState.metaData).build());
+            }
         }
     }
 

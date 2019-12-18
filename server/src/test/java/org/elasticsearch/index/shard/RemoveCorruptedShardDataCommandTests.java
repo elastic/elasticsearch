@@ -49,7 +49,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -154,8 +154,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeId, Version.CURRENT), dataPaths);
 
-            try (LucenePersistedStateFactory.Writer writer =
-                     ElasticsearchNodeCommand.createLucenePersistedStateFactory(dataPaths).createWriter()) {
+            try (PersistedClusterStateService.Writer writer =
+                     ElasticsearchNodeCommand.createPersistedClusterStateService(dataPaths).createWriter()) {
                 writer.writeFullStateAndCommit(1L, clusterState);
             }
         }

@@ -106,8 +106,8 @@ import java.util.function.IntPredicate;
  *
  * (the last-accepted term is recorded in MetaData → CoordinationMetaData so does not need repeating here)
  */
-public class LucenePersistedStateFactory {
-    private static final Logger logger = LogManager.getLogger(LucenePersistedStateFactory.class);
+public class PersistedClusterStateService {
+    private static final Logger logger = LogManager.getLogger(PersistedClusterStateService.class);
     private static final String CURRENT_TERM_KEY = "current_term";
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
@@ -127,12 +127,12 @@ public class LucenePersistedStateFactory {
     private final BigArrays bigArrays;
     private final boolean preserveUnknownCustoms;
 
-    public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
+    public PersistedClusterStateService(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
         this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, false);
     }
 
-    public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
-                                       boolean preserveUnknownCustoms) {
+    public PersistedClusterStateService(Path[] dataPaths, String nodeId, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
+                                        boolean preserveUnknownCustoms) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -144,6 +144,9 @@ public class LucenePersistedStateFactory {
         return nodeId;
     }
 
+    /**
+     * Creates a new disk-based writer for cluster states
+     */
     public Writer createWriter() throws IOException {
         final List<MetaDataIndexWriter> metaDataIndexWriters = new ArrayList<>();
         final List<Closeable> closeables = new ArrayList<>();
@@ -206,6 +209,9 @@ public class LucenePersistedStateFactory {
         }
     }
 
+    /**
+     * Loads the best available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
+     */
     public OnDiskState loadBestOnDiskState() throws IOException {
         String committedClusterUuid = null;
         Path committedClusterUuidPath = null;
@@ -238,7 +244,7 @@ public class LucenePersistedStateFactory {
                         }
                     }
 
-                    if (maxCurrentTermOnDiskState.currentTerm < onDiskState.currentTerm || maxCurrentTermOnDiskState.dataPath == null) {
+                    if (maxCurrentTermOnDiskState.empty() || maxCurrentTermOnDiskState.currentTerm < onDiskState.currentTerm) {
                         maxCurrentTermOnDiskState = onDiskState;
                     }
 
@@ -428,70 +434,13 @@ public class LucenePersistedStateFactory {
         }
     }
 
-    /**
-     * Encapsulates the incremental writing of metadata to a collection of {@link MetaDataIndexWriter}s.
-     */
-    public static class LucenePersistedState implements CoordinationState.PersistedState, Closeable {
-
-        private long currentTerm;
-        private ClusterState lastAcceptedState;
-        private final Writer persistenceWriter;
-
-        LucenePersistedState(Writer persistenceWriter, long currentTerm,
-                             ClusterState lastAcceptedState) {
-            this.persistenceWriter = persistenceWriter;
-            this.currentTerm = currentTerm;
-            this.lastAcceptedState = lastAcceptedState;
-        }
-
-        @Override
-        public long getCurrentTerm() {
-            return currentTerm;
-        }
-
-        @Override
-        public ClusterState getLastAcceptedState() {
-            return lastAcceptedState;
-        }
-
-        @Override
-        public void setCurrentTerm(long currentTerm) {
-            persistenceWriter.commit(currentTerm, lastAcceptedState.version());
-            this.currentTerm = currentTerm;
-        }
-
-        @Override
-        public void setLastAcceptedState(ClusterState clusterState) {
-            try {
-                if (clusterState.term() != lastAcceptedState.term()) {
-                    // TODO: Node tool violates this: assert clusterState.term() > lastAcceptedState.term() :
-                    //  clusterState.term() + " vs " + lastAcceptedState.term();
-                    // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state, so
-                    // it's simplest to write everything again.
-                    persistenceWriter.overwriteMetaData(clusterState.metaData());
-                } else {
-                    // Within the same currentTerm, we _can_ use metadata versions to skip unnecessary writing.
-                    persistenceWriter.updateMetaData(lastAcceptedState.metaData(), clusterState.metaData());
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
-            persistenceWriter.commit(currentTerm, clusterState.version());
-            lastAcceptedState = clusterState;
-        }
-
-        @Override
-        public void close() throws IOException {
-            persistenceWriter.close();
-        }
-    }
-
     public static class Writer implements Closeable {
 
         private final List<MetaDataIndexWriter> metaDataIndexWriters;
         private final String nodeId;
         private final BigArrays bigArrays;
+
+        boolean fullStateWritten = false;
 
         private Writer(List<MetaDataIndexWriter> metaDataIndexWriters, String nodeId, BigArrays bigArrays) {
             this.metaDataIndexWriters = metaDataIndexWriters;
@@ -505,13 +454,24 @@ public class LucenePersistedStateFactory {
         public void writeFullStateAndCommit(long currentTerm, ClusterState clusterState) throws IOException {
             overwriteMetaData(clusterState.metaData());
             commit(currentTerm, clusterState.version());
+            fullStateWritten = true;
+        }
+
+        /**
+         * Updates and commits the given cluster state update
+         */
+        void writeIncrementalStateAndCommit(long currentTerm, ClusterState previousClusterState,
+                                            ClusterState clusterState) throws IOException {
+            assert fullStateWritten : "Need to write full state first before doing incremental writes";
+            updateMetaData(previousClusterState.metaData(), clusterState.metaData());
+            commit(currentTerm, clusterState.version());
         }
 
         /**
          * Update the persisted metadata to match the given cluster state by removing any stale or unnecessary documents and adding any
          * updated documents.
          */
-        void updateMetaData(MetaData previouslyWrittenMetaData, MetaData metaData) throws IOException {
+        private void updateMetaData(MetaData previouslyWrittenMetaData, MetaData metaData) throws IOException {
             assert previouslyWrittenMetaData.coordinationMetaData().term() == metaData.coordinationMetaData().term();
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only",
                 metaData.coordinationMetaData().term());
@@ -562,7 +522,7 @@ public class LucenePersistedStateFactory {
         /**
          * Update the persisted metadata to match the given cluster state by removing all existing documents and then adding new documents.
          */
-        void overwriteMetaData(MetaData metaData) throws IOException {
+        private void overwriteMetaData(MetaData metaData) throws IOException {
             for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                 metaDataIndexWriter.deleteAll();
             }
@@ -572,7 +532,7 @@ public class LucenePersistedStateFactory {
         /**
          * Add documents for the metadata of the given cluster state, assuming that there are currently no documents.
          */
-        void addMetaData(MetaData metaData) throws IOException {
+        private void addMetaData(MetaData metaData) throws IOException {
             try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(metaData)) {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                     metaDataIndexWriter.updateGlobalMetaData(globalMetaDataDocument.getDocument());
@@ -595,7 +555,7 @@ public class LucenePersistedStateFactory {
             }
         }
 
-        private void commit(long currentTerm, long lastAcceptedVersion) {
+        public void commit(long currentTerm, long lastAcceptedVersion) {
             try {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                     metaDataIndexWriter.commit(nodeId, currentTerm, lastAcceptedVersion);

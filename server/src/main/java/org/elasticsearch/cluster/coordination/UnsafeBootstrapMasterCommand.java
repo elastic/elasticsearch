@@ -28,7 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -78,9 +78,9 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
     }
 
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        final LucenePersistedStateFactory psf = createLucenePersistedStateFactory(dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(dataPaths);
 
-        final Tuple<Long, ClusterState> state = loadTermAndClusterState(psf, env);
+        final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = state.v2();
 
         final MetaData metaData = oldClusterState.metaData();
@@ -96,8 +96,10 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
         CoordinationMetaData newCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
             .clearVotingConfigExclusions()
-            .lastAcceptedConfiguration(new CoordinationMetaData.VotingConfiguration(Collections.singleton(psf.getNodeId())))
-            .lastCommittedConfiguration(new CoordinationMetaData.VotingConfiguration(Collections.singleton(psf.getNodeId())))
+            .lastAcceptedConfiguration(new CoordinationMetaData.VotingConfiguration(
+                Collections.singleton(persistedClusterStateService.getNodeId())))
+            .lastCommittedConfiguration(new CoordinationMetaData.VotingConfiguration(
+                Collections.singleton(persistedClusterStateService.getNodeId())))
             .build();
 
         Settings persistentSettings = Settings.builder()
@@ -120,7 +122,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
         confirm(terminal, CONFIRMATION_MSG);
 
-        try (LucenePersistedStateFactory.Writer writer = psf.createWriter()) {
+        try (PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter()) {
             writer.writeFullStateAndCommit(state.v1(), newClusterState);
         }
 

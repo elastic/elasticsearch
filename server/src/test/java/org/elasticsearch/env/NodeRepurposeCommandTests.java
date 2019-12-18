@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -98,8 +98,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         Environment environment = TestEnvironment.newEnvironment(noDataMasterSettings);
         if (randomBoolean()) {
             try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
-                try (LucenePersistedStateFactory.Writer writer =
-                         ElasticsearchNodeCommand.createLucenePersistedStateFactory(env.nodeDataPaths()).createWriter()) {
+                try (PersistedClusterStateService.Writer writer =
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(env.nodeDataPaths()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
                 }
             }
@@ -226,8 +226,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         Environment environment = TestEnvironment.newEnvironment(settings);
         try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
             if (writeClusterState) {
-                try (LucenePersistedStateFactory.Writer writer =
-                         ElasticsearchNodeCommand.createLucenePersistedStateFactory(env.nodeDataPaths()).createWriter()) {
+                try (PersistedClusterStateService.Writer writer =
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(env.nodeDataPaths()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
                         .metaData(MetaData.builder().put(IndexMetaData.builder(INDEX.getName())
                             .settings(Settings.builder().put("index.version.created", Version.CURRENT)

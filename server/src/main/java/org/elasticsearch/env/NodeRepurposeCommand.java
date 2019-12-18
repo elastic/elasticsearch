@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 
 import java.io.IOException;
@@ -95,9 +95,9 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         Set<Path> indexPaths = uniqueParentPaths(shardDataPaths, indexMetaDataPaths);
 
-        final LucenePersistedStateFactory psf = createLucenePersistedStateFactory(dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(dataPaths);
 
-        final MetaData metaData = loadClusterState(terminal, env, psf).metaData();
+        final MetaData metaData = loadClusterState(terminal, env, persistedClusterStateService).metaData();
         if (indexPaths.isEmpty() && metaData.indices().isEmpty()) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_DATA_TO_CLEAN_UP_FOUND);
             return;
@@ -117,7 +117,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         removePaths(terminal, indexPaths); // clean-up shard dirs
         // clean-up all metadata dirs
-        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))
+        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
             .toArray(Path[]::new));
         MetaDataStateFormat.deleteMetaState(dataPaths);
         IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
@@ -135,9 +135,9 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             return;
         }
 
-        final LucenePersistedStateFactory psf = createLucenePersistedStateFactory(dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(dataPaths);
 
-        final MetaData metaData = loadClusterState(terminal, env, psf).metaData();
+        final MetaData metaData = loadClusterState(terminal, env, persistedClusterStateService).metaData();
 
         final Set<Path> indexPaths = uniqueParentPaths(shardDataPaths);
         final Set<String> indexUUIDs = indexUUIDsFor(indexPaths);
@@ -155,7 +155,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         terminal.println("Node successfully repurposed to master and no-data.");
     }
 
-    private ClusterState loadClusterState(Terminal terminal, Environment env, LucenePersistedStateFactory psf) throws IOException {
+    private ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         return clusterState(env, psf.loadBestOnDiskState());
     }

@@ -62,7 +62,7 @@ SQL::
 * Handle NULL arithmetic operations with INTERVALs {pull}49633[#49633] (issue: {issue}49297[#49297])
 * Fix issue with GROUP BY YEAR() {pull}49559[#49559] (issue: {issue}49386[#49386])
 * Fix issue with CASE/IIF pre-calculating results {pull}49553[#49553] (issue: {issue}49388[#49388])
-* SQL: Fix issue with folding of CASE/IIF {pull}49449[#49449] (issue: {issue}49387[#49387])
+* Fix issue with folding of CASE/IIF {pull}49449[#49449] (issue: {issue}49387[#49387])
 * SQL: Fix issues with WEEK/ISO_WEEK/DATEDIFF {pull}49405[#49405] (issues: {issue}48209[#48209], {issue}49376[#49376])
 
 Snapshot/Restore::

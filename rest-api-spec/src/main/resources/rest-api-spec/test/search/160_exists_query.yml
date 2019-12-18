@@ -601,20 +601,6 @@ setup:
   - match: {hits.total: 4}
 
 ---
-"Test exists query on _type field":
-
-  - do:
-      search:
-          rest_total_hits_as_int: true
-          index: test
-          body:
-            query:
-              exists:
-                field: _type
-
-  - match: {hits.total: 4}
-
----
 "Test exists query on _routing field":
   - do:
       search:

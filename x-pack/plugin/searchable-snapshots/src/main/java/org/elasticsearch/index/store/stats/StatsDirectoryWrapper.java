@@ -65,7 +65,7 @@ public class StatsDirectoryWrapper extends FilterDirectory {
         /**
          * The last read position is kept around in order to detect (non)contiguous reads
          **/
-        private final AtomicLong lastReadPosition;
+        private long lastReadPosition;
         /**
          * Indicate if the IndexInput is a clone (or slice)
          **/
@@ -75,7 +75,6 @@ public class StatsDirectoryWrapper extends FilterDirectory {
             super("StatsIndexInputWrapper(" + indexInput + ")");
             this.input = Objects.requireNonNull(indexInput);
             this.stats = Objects.requireNonNull(stats);
-            this.lastReadPosition = new AtomicLong();
         }
 
         @Override
@@ -102,10 +101,10 @@ public class StatsDirectoryWrapper extends FilterDirectory {
         @Override
         public byte readByte() throws IOException {
             final long filePointer = getFilePointer();
-
             final byte readByte = input.readByte();
             if (readByte != -1) {
-                stats.incrementBytesRead(lastReadPosition.getAndUpdate(l -> getFilePointer()) == filePointer);
+                stats.incrementBytesRead(lastReadPosition == filePointer);
+                lastReadPosition = getFilePointer();
             }
             return readByte;
         }
@@ -114,7 +113,8 @@ public class StatsDirectoryWrapper extends FilterDirectory {
         public void readBytes(byte[] b, int offset, int len) throws IOException {
             final long filePointer = getFilePointer();
             input.readBytes(b, offset, len);
-            stats.incrementBytesRead(lastReadPosition.getAndUpdate(l -> getFilePointer()) == filePointer, len);
+            stats.incrementBytesRead(lastReadPosition == filePointer, len);
+            lastReadPosition = getFilePointer();
         }
 
         @Override

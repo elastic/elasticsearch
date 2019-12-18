@@ -160,10 +160,10 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "_doc"))
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("name", "test"))
                 .execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 

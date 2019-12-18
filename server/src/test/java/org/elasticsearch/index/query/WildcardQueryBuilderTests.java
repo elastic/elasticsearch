@@ -133,19 +133,13 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 
-    public void testTypeField() throws IOException {
-        WildcardQueryBuilder builder = QueryBuilders.wildcardQuery("_type", "doc*");
-        builder.doToQuery(createShardContext());
-        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
-    }
-    
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }   
-    
+    }
+
     public void testRewriteIndexQueryNotMatchNone() throws IOException {
         String fullIndexName = getIndex().getName();
         String firstHalfOfIndexName = fullIndexName.substring(0,fullIndexName.length()/2);
@@ -153,5 +147,5 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(WildcardQueryBuilder.class));
-    }      
+    }
 }

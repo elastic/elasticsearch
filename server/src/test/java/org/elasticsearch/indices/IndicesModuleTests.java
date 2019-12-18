@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -87,11 +87,11 @@ public class IndicesModuleTests extends ESTestCase {
     });
 
     private static String[] EXPECTED_METADATA_FIELDS = new String[]{IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
+            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, NestedPathFieldMapper.NAME,
             VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
     private static String[] EXPECTED_METADATA_FIELDS_6x = new String[]{AllFieldMapper.NAME, IgnoredFieldMapper.NAME,
-        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
+        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, NestedPathFieldMapper.NAME,
         VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
 

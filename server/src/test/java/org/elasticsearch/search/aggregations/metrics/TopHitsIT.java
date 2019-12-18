@@ -1201,7 +1201,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(
-                        topHits("hits").sort(SortBuilders.fieldSort("_type"))
+                        topHits("hits").sort(SortBuilders.fieldSort("_seq_no"))
                     )
                 )
                 .get();
@@ -1223,7 +1223,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(
-                        topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_type"))
+                        topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_seq_no"))
                     )
                 )
                 .get();

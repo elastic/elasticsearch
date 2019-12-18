@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -257,17 +256,6 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
-        }
-    }
-
-    public void testTypeFieldDeprecation() {
-        IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
-
-            ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
-                context, null, TypeFieldMapper.NAME, null, null, null, null);
-            assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
         }
     }
 

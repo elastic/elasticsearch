@@ -54,7 +54,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -156,7 +156,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
         builtInMetadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
         builtInMetadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
-        builtInMetadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
+        builtInMetadataMappers.put(NestedPathFieldMapper.NAME, new NestedPathFieldMapper.TypeParser());
         builtInMetadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
         //_field_names must be added last so that it has a chance to see all the other mappers

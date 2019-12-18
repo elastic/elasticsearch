@@ -45,7 +45,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
 
-public class TypeFieldMapperTests extends ESSingleNodeTestCase {
+public class NestedPathFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -67,7 +67,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         DirectoryReader r = DirectoryReader.open(w);
         w.close();
 
-        MappedFieldType ft = mapperService.fullName(TypeFieldMapper.NAME);
+        MappedFieldType ft = mapperService.fullName(NestedPathFieldMapper.NAME);
         IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));
@@ -85,6 +85,6 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
         ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
-        assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(TypeFieldMapper.NAME)));
+        assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(NestedPathFieldMapper.NAME)));
     }
 }

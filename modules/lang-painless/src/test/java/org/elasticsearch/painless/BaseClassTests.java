@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,7 +65,7 @@ public class BaseClassTests extends ScriptTestCase {
 
     public abstract static class Gets {
 
-        public interface Factory  {
+        public interface Factory {
             Gets newInstance(String testString, int testInt, Map<String, Object> params);
         }
 
@@ -112,7 +111,7 @@ public class BaseClassTests extends ScriptTestCase {
     }
 
     public abstract static class NoArgs {
-        public interface Factory  {
+        public interface Factory {
             NoArgs newInstance();
         }
 

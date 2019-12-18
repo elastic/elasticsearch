@@ -90,8 +90,7 @@ public class TriangleTreeTests extends ESTestCase {
             int maxY = randomIntBetween(1, 40);
             double[] x = new double[]{minX, maxX, maxX, minX, minX};
             double[] y = new double[]{minY, minY, maxY, maxY, minY};
-            Geometry rectangle = randomBoolean() ?
-                new Polygon(new LinearRing(x, y), Collections.emptyList()) : new Rectangle(minX, maxX, maxY, minY);
+            Geometry rectangle = new Rectangle(minX, maxX, maxY, minY);
             TriangleTreeReader reader = triangleTreeReader(rectangle, GeoShapeCoordinateEncoder.INSTANCE);
 
             Extent expectedExtent  = getExtentFromBox(minX, minY, maxX, maxY);
@@ -99,8 +98,8 @@ public class TriangleTreeTests extends ESTestCase {
             // centroid is calculated using original double values but then loses precision as it is serialized as an integer
             int encodedCentroidX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(((double) minX + maxX) / 2);
             int encodedCentroidY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(((double) minY + maxY) / 2);
-            assertThat(reader.getCentroidX(), equalTo(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX)));
-            assertThat(reader.getCentroidY(), equalTo(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY)));
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX), reader.getWeightedCentroidX(), 0.0000001);
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY), reader.getWeightedCentroidY(), 0.0000001);
 
             // box-query touches bottom-left corner
             assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX),

@@ -124,6 +124,11 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public double weight() {
+            return 1.0;
+        }
+
+        @Override
         public double lat() {
             return geoPoint.lat();
         }
@@ -174,8 +179,13 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public double weight() {
+            return reader.getSumCentroidWeight();
+        }
+
+        @Override
         public double lat() {
-            return reader.getCentroidY();
+            return reader.getWeightedCentroidY();
         }
 
         /**
@@ -183,7 +193,7 @@ public abstract class MultiGeoValues {
          */
         @Override
         public double lon() {
-            return reader.getCentroidX();
+            return reader.getWeightedCentroidX();
         }
 
         public static GeoShapeValue missing(String missing) {
@@ -229,6 +239,7 @@ public abstract class MultiGeoValues {
         BoundingBox boundingBox();
         GeoRelation relate(Rectangle rectangle);
         DimensionalShapeType dimensionalShapeType();
+        double weight();
     }
 
     public static class BoundingBox {

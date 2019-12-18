@@ -43,7 +43,7 @@ public class CentroidCalculator {
     private double compY;
     private double sumX;
     private double sumY;
-    private int count;
+    private double sumWeight;
     private DimensionalShapeType dimensionalShapeType;
 
     public CentroidCalculator(Geometry geometry) {
@@ -51,7 +51,7 @@ public class CentroidCalculator {
         this.compX = 0.0;
         this.sumY = 0.0;
         this.compY = 0.0;
-        this.count = 0;
+        this.sumWeight = 0.0;
         CentroidCalculatorVisitor visitor = new CentroidCalculatorVisitor(this);
         geometry.visit(visitor);
         this.dimensionalShapeType = DimensionalShapeType.forGeometry(geometry);
@@ -60,22 +60,22 @@ public class CentroidCalculator {
     /**
      * adds a single coordinate to the running sum and count of coordinates
      * for centroid calculation
-     *
-     * @param x the x-coordinate of the point
+     *  @param x the x-coordinate of the point
      * @param y the y-coordinate of the point
+     * @param weight the associated weight of the coordinate
      */
-    private void addCoordinate(double x, double y) {
-        double correctedX = x - compX;
+    private void addCoordinate(double x, double y, double weight) {
+        double correctedX = weight * x - compX;
         double newSumX = sumX + correctedX;
         compX = (newSumX - sumX) - correctedX;
         sumX = newSumX;
 
-        double correctedY = y - compY;
+        double correctedY = weight * y - compY;
         double newSumY = sumY + correctedY;
         compY = (newSumY - sumY) - correctedY;
         sumY = newSumY;
 
-        count += 1;
+        sumWeight += weight;
     }
 
     /**
@@ -87,27 +87,38 @@ public class CentroidCalculator {
      * @param otherCalculator the other centroid calculator to add from
      */
     public void addFrom(CentroidCalculator otherCalculator) {
-        addCoordinate(otherCalculator.sumX, otherCalculator.sumY);
-        // adjust count
-        count += otherCalculator.count - 1;
-        dimensionalShapeType = DimensionalShapeType.max(dimensionalShapeType, otherCalculator.dimensionalShapeType);
+        int compared = DimensionalShapeType.COMPARATOR.compare(dimensionalShapeType, otherCalculator.dimensionalShapeType);
+        if (compared < 0) {
+            sumWeight = otherCalculator.sumWeight;
+            dimensionalShapeType = otherCalculator.dimensionalShapeType;
+            sumX = otherCalculator.sumX;
+            sumY = otherCalculator.sumY;
+            compX = otherCalculator.compX;
+            compY = otherCalculator.compY;
+        } else if (compared == 0) {
+            addCoordinate(otherCalculator.sumX, otherCalculator.sumY, otherCalculator.sumWeight);
+        }
     }
 
     /**
      * @return the x-coordinate centroid
      */
     public double getX() {
-        return sumX / count;
+        return sumX / sumWeight;
     }
 
     /**
      * @return the y-coordinate centroid
      */
     public double getY() {
-        return sumY / count;
+        return sumY / sumWeight;
     }
 
-    public DimensionalShapeType getDimensionalShapeType() {
+    double sumWeight() {
+        return sumWeight;
+    }
+
+    DimensionalShapeType getDimensionalShapeType() {
         return dimensionalShapeType;
     }
 
@@ -121,8 +132,7 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Circle circle) {
-            calculator.addCoordinate(circle.getX(), circle.getY());
-            return null;
+            throw new IllegalArgumentException("invalid shape type found [Circle] while calculating centroid");
         }
 
         @Override
@@ -135,18 +145,33 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Line line) {
-            for (int i = 0; i < line.length(); i++) {
-                calculator.addCoordinate(line.getX(i), line.getY(i));
+            for (int i = 0; i < line.length() - 1; i++) {
+                double diffX = line.getX(i) - line.getX(i + 1);
+                double diffY = line.getY(i) - line.getY(i + 1);
+                double x = (line.getX(i) + line.getX(i + 1)) / 2;
+                double y = (line.getY(i) + line.getY(i + 1)) / 2;
+                calculator.addCoordinate(x, y, Math.sqrt(diffX * diffX + diffY * diffY));
             }
             return null;
         }
 
         @Override
         public Void visit(LinearRing ring) {
+            throw new UnsupportedOperationException("should not visit LinearRing");
+        }
+
+        /**
+         * visits a {@link LinearRing} with an associated sign to signal whether it is
+         * an inner or outer ring of a {@link Polygon}.
+         *
+         * @param ring the ring to visit
+         * @param sign 1 for outer-ring, -1 for inner-ring.
+         */
+        private void visitSignedRing(LinearRing ring, int sign) {
             for (int i = 0; i < ring.length() - 1; i++) {
-                calculator.addCoordinate(ring.getX(i), ring.getY(i));
+                double weight = ring.getX(i) * ring.getY(i + 1) + ring.getY(i) * ring.getX(i + 1);
+                calculator.addCoordinate((ring.getX(i) + ring.getX(i + 1)) / 2, (ring.getY(i) + ring.getY(i + 1)) / 2, sign * weight);
             }
-            return null;
         }
 
         @Override
@@ -175,22 +200,26 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Point point) {
-            calculator.addCoordinate(point.getX(), point.getY());
+            calculator.addCoordinate(point.getX(), point.getY(), 1.0);
             return null;
         }
 
         @Override
         public Void visit(Polygon polygon) {
-            // TODO: incorporate holes into centroid calculation
-            return visit(polygon.getPolygon());
+            visitSignedRing(polygon.getPolygon(), 1);
+            for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                visitSignedRing(polygon.getHole(i), -1);
+            }
+            return null;
         }
 
         @Override
         public Void visit(Rectangle rectangle) {
-            calculator.addCoordinate(rectangle.getMinX(), rectangle.getMinY());
-            calculator.addCoordinate(rectangle.getMinX(), rectangle.getMaxY());
-            calculator.addCoordinate(rectangle.getMaxX(), rectangle.getMinY());
-            calculator.addCoordinate(rectangle.getMaxX(), rectangle.getMaxY());
+            double sumX = rectangle.getMaxX() + rectangle.getMinX();
+            double sumY = rectangle.getMaxY() + rectangle.getMinY();
+            double diffX = rectangle.getMaxX() - rectangle.getMinX();
+            double diffY = rectangle.getMaxY() - rectangle.getMinY();
+            calculator.addCoordinate(sumX / 2, sumY / 2, Math.abs(diffX * diffY));
             return null;
         }
     }

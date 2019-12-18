@@ -33,7 +33,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * relations against the serialized triangle tree.
  */
 public class TriangleTreeReader {
-    private static final int CENTROID_HEADER_SIZE_IN_BYTES = 9;
+    private static final int CENTROID_HEADER_SIZE_IN_BYTES = 25; // x-coord (4), y-coord (4), shape-type (1), sum-weight (8)
 
     private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
@@ -77,22 +77,27 @@ public class TriangleTreeReader {
     /**
      * returns the X coordinate of the centroid.
      */
-    public double getCentroidX() {
+    public double getWeightedCentroidX() {
         input.setPosition(0);
-        return coordinateEncoder.decodeX(input.readInt());
+        return Double.longBitsToDouble(input.readLong());
     }
 
     /**
      * returns the Y coordinate of the centroid.
      */
-    public double getCentroidY() {
-        input.setPosition(4);
-        return coordinateEncoder.decodeY(input.readInt());
+    public double getWeightedCentroidY() {
+        input.setPosition(8);
+        return Double.longBitsToDouble(input.readLong());
     }
 
     public DimensionalShapeType getDimensionalShapeType() {
-        input.setPosition(8);
+        input.setPosition(16);
         return DimensionalShapeType.readFrom(input);
+    }
+
+    public double getSumCentroidWeight() {
+        input.setPosition(17);
+        return Double.longBitsToDouble(input.readLong());
     }
 
     /**

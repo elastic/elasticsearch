@@ -90,7 +90,7 @@ public class BindingsTests extends ScriptTestCase {
         public static final String[] PARAMETERS = { "test", "bound" };
         public int getTestValue() {return 7;}
         public abstract int execute(int test, int bound);
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             BindingsTestScript newInstance();
         }
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bindings_test", Factory.class);

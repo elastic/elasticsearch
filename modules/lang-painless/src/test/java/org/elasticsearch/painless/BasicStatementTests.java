@@ -261,7 +261,7 @@ public class BasicStatementTests extends ScriptTestCase {
     }
 
     public abstract static class OneArg {
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             OneArg newInstance();
         }
 

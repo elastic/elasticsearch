@@ -1026,7 +1026,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             true);
 
         // Index a document
-        index(client(), index +"-1", "1", "foo", "bar");
+        index(client(), index + "-1", "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
         client().performRequest(refreshIndex);
 
@@ -1067,7 +1067,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             false);
 
         // Index a document
-        index(client(), index +"-1", "1", "foo", "bar");
+        index(client(), index + "-1", "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
         client().performRequest(refreshIndex);
 

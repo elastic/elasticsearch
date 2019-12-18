@@ -102,7 +102,8 @@ public class ILMHistoryItem implements ToXContentObject {
             // In the unlikely case that we cannot generate an exception string,
             // try the best way can to encapsulate the error(s) with at least
             // the message
-            exceptionString = "unable to generate exception string: " + e.getMessage() + "; original exception: " + exception.getMessage();
+            exceptionString = "unable to generate the ILM error details due to: " + e.getMessage() +
+                "; the ILM error was: " + exception.getMessage();
         }
         return exceptionString;
     }

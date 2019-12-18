@@ -295,7 +295,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertModelStatePersisted(stateDocId());
 
         // Delete the config straight from the config index
-        DeleteResponse deleteResponse = client().prepareDelete(".ml-config", DataFrameAnalyticsConfig.documentId(jobId))
+        DeleteResponse deleteResponse = client().prepareDelete().setIndex(".ml-config").setId(DataFrameAnalyticsConfig.documentId(jobId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute().actionGet();
         assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
 

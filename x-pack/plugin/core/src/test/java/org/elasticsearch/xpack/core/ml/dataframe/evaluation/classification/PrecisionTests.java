@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -15,6 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockCardinality;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilters;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
@@ -45,7 +47,23 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     }
 
     public static Precision createRandom() {
-        return new Precision();
+        Integer size = randomBoolean() ? null : randomIntBetween(1, 1000);
+        return new Precision(size);
+    }
+
+    public void testConstructor_SizeValidationFailures() {
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new Precision(-1));
+            assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
+        }
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new Precision(0));
+            assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
+        }
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new Precision(1001));
+            assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
+        }
     }
 
     public void testProcess() {
@@ -53,6 +71,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
             mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME),
             mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
             mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
+            mockCardinality(Precision.CARDINALITY_OF_ACTUAL_CLASS, 15),
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
@@ -60,7 +79,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
         precision.process(aggs);
 
         assertThat(precision.aggs("act", "pred"), isTuple(empty(), empty()));
-        assertThat(precision.getResult().get(), equalTo(new Precision.Result(List.of(), 0.8123)));
+        assertThat(precision.getResult().get(), equalTo(new Precision.Result(List.of(), 0.8123, 5)));
     }
 
     public void testProcess_GivenMissingAgg() {

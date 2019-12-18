@@ -28,7 +28,8 @@ public class PrecisionResultTests extends AbstractWireSerializingTestCase<Result
             classes.add(new PerClassResult(classNames.get(i), precision));
         }
         double avgPrecision = randomDoubleBetween(0.0, 1.0, true);
-        return new Result(classes, avgPrecision);
+        long otherClassCount = randomNonNegativeLong();
+        return new Result(classes, avgPrecision, otherClassCount);
     }
 
     @Override

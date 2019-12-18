@@ -19,9 +19,9 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * {@link RecallMetric} is a metric that answers the question:
@@ -46,14 +47,30 @@ public class RecallMetric implements EvaluationMetric {
 
     public static final String NAME = "recall";
 
-    private static final ObjectParser<RecallMetric, Void> PARSER = new ObjectParser<>(NAME, true, RecallMetric::new);
+    public static final ParseField SIZE = new ParseField("size");
+
+    private static final ConstructingObjectParser<RecallMetric, Void> PARSER = createParser();
+
+    private static ConstructingObjectParser<RecallMetric, Void> createParser() {
+        ConstructingObjectParser<RecallMetric, Void>  parser =
+            new ConstructingObjectParser<>(NAME, true, args -> new RecallMetric((Integer) args[0]));
+        parser.declareInt(optionalConstructorArg(), SIZE);
+        return parser;
+    }
 
     public static RecallMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RecallMetric() {}
+    private final Integer size;
 
+    public RecallMetric() {
+        this(null);
+    }
+
+    public RecallMetric(@Nullable Integer size) {
+        this.size = size;
+    }
     @Override
     public String getName() {
         return NAME;
@@ -62,6 +79,9 @@ public class RecallMetric implements EvaluationMetric {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (size != null) {
+            builder.field(SIZE.getPreferredName(), size);
+        }
         builder.endObject();
         return builder;
     }
@@ -70,26 +90,29 @@ public class RecallMetric implements EvaluationMetric {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return true;
+        RecallMetric that = (RecallMetric) o;
+        return Objects.equals(this.size, that.size);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(NAME);
+        return Objects.hash(size);
     }
 
     public static class Result implements EvaluationMetric.Result {
 
         private static final ParseField CLASSES = new ParseField("classes");
         private static final ParseField AVG_RECALL = new ParseField("avg_recall");
+        private static final ParseField OTHER_CLASS_COUNT = new ParseField("other_class_count");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1], (long) a[2]));
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), AVG_RECALL);
+            PARSER.declareLong(constructorArg(), OTHER_CLASS_COUNT);
         }
 
         public static Result fromXContent(XContentParser parser) {
@@ -100,10 +123,13 @@ public class RecallMetric implements EvaluationMetric {
         private final List<PerClassResult> classes;
         /** Average of per-class recalls. */
         private final double avgRecall;
+        /** Number of classes that were not included in the per-class results because there were too many of them. */
+        private final long otherClassCount;
 
-        public Result(List<PerClassResult> classes, double avgRecall) {
+        public Result(List<PerClassResult> classes, double avgRecall, long otherClassCount) {
             this.classes = Collections.unmodifiableList(Objects.requireNonNull(classes));
             this.avgRecall = avgRecall;
+            this.otherClassCount = otherClassCount;
         }
 
         @Override
@@ -119,11 +145,16 @@ public class RecallMetric implements EvaluationMetric {
             return avgRecall;
         }
 
+        public long getOtherClassCount() {
+            return otherClassCount;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CLASSES.getPreferredName(), classes);
             builder.field(AVG_RECALL.getPreferredName(), avgRecall);
+            builder.field(OTHER_CLASS_COUNT.getPreferredName(), otherClassCount);
             builder.endObject();
             return builder;
         }
@@ -134,12 +165,13 @@ public class RecallMetric implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes)
-                && this.avgRecall == that.avgRecall;
+                && this.avgRecall == that.avgRecall
+                && this.otherClassCount == that.otherClassCount;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classes, avgRecall);
+            return Objects.hash(classes, avgRecall, otherClassCount);
         }
     }
 

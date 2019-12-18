@@ -3386,17 +3386,19 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.Result precisionResult =
                 response.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME); // <3>
-            double precision = accuracyResult.getOverallAccuracy(); // <4>
+            double precision = precisionResult.getAvgPrecision(); // <4>
+            long precisionOtherClassCount = precisionResult.getOtherClassCount(); // <5>
 
             org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result recallResult =
-                response.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME); // <5>
-            double recall = accuracyResult.getOverallAccuracy(); // <6>
+                response.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME); // <6>
+            double recall = recallResult.getAvgRecall(); // <7>
+            long recallOtherClassCount = precisionResult.getOtherClassCount(); // <8>
 
             MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
-                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <7>
+                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <9>
 
-            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <8>
-            long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <9>
+            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <10>
+            long otherClassCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <11>
             // end::evaluate-data-frame-results-classification
 
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
@@ -3406,11 +3408,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 precisionResult.getMetricName(),
                 equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME));
             assertThat(precision, equalTo(0.6));
+            assertThat(precisionOtherClassCount, equalTo(0L));
 
             assertThat(
                 recallResult.getMetricName(),
                 equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME));
             assertThat(recall, equalTo(0.6));
+            assertThat(recallOtherClassCount, equalTo(0L));
 
             assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
             assertThat(
@@ -3432,7 +3436,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                             4L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
                             0L))));
-            assertThat(otherClassesCount, equalTo(0L));
+            assertThat(otherClassCount, equalTo(0L));
         }
     }
 

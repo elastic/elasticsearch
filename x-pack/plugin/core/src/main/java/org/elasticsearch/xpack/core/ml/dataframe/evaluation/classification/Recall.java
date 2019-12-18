@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -37,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -52,27 +54,52 @@ public class Recall implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("recall");
 
+    public static final ParseField SIZE = new ParseField("size");
+
     private static final String PAINLESS_TEMPLATE = "doc[''{0}''].value == doc[''{1}''].value";
     private static final String AGG_NAME_PREFIX = "classification_recall_";
     static final String BY_ACTUAL_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
     static final String PER_ACTUAL_CLASS_RECALL_AGG_NAME = AGG_NAME_PREFIX + "per_actual_class_recall";
     static final String AVG_RECALL_AGG_NAME = AGG_NAME_PREFIX + "avg_recall";
+    static final String CARDINALITY_OF_ACTUAL_CLASS = AGG_NAME_PREFIX + "cardinality_of_actual_class";
 
     private static String buildScript(Object...args) {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 
-    private static final ObjectParser<Recall, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Recall::new);
+    private static final ConstructingObjectParser<Recall, Void> PARSER = createParser();
+
+    private static ConstructingObjectParser<Recall, Void> createParser() {
+        ConstructingObjectParser<Recall, Void> parser =
+            new ConstructingObjectParser<>(NAME.getPreferredName(), true, args -> new Recall((Integer) args[0]));
+        parser.declareInt(optionalConstructorArg(), SIZE);
+        return parser;
+    }
 
     public static Recall fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
+    private static final int DEFAULT_SIZE = 10;
+    private static final int MAX_SIZE = 1000;
+
+    private final int size;
     private EvaluationMetricResult result;
 
-    public Recall() {}
+    public Recall() {
+        this((Integer) null);
+    }
 
-    public Recall(StreamInput in) throws IOException {}
+    public Recall(@Nullable Integer size) {
+        if (size != null && (size <= 0 || size > MAX_SIZE)) {
+            throw ExceptionsHelper.badRequestException("[{}] must be an integer in [1, {}]", SIZE.getPreferredName(), MAX_SIZE);
+        }
+        this.size = size != null ? size : DEFAULT_SIZE;
+    }
+
+    public Recall(StreamInput in) throws IOException {
+        this.size = in.readVInt();
+    }
 
     @Override
     public String getWriteableName() {
@@ -92,8 +119,11 @@ public class Recall implements EvaluationMetric {
         Script script = new Script(buildScript(actualField, predictedField));
         return Tuple.tuple(
             List.of(
+                AggregationBuilders.cardinality(CARDINALITY_OF_ACTUAL_CLASS)
+                    .field(actualField),
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
+                    .size(size)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             List.of(
                 PipelineAggregatorBuilders.avgBucket(
@@ -105,16 +135,18 @@ public class Recall implements EvaluationMetric {
     public void process(Aggregations aggs) {
         if (result == null &&
                 aggs.get(BY_ACTUAL_CLASS_AGG_NAME) instanceof Terms &&
-                aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
+                aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue &&
+                aggs.get(CARDINALITY_OF_ACTUAL_CLASS) instanceof Cardinality) {
             Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
             NumericMetricsAggregation.SingleValue avgRecallAgg = aggs.get(AVG_RECALL_AGG_NAME);
+            Cardinality cardinalityAgg = aggs.get(CARDINALITY_OF_ACTUAL_CLASS);
             List<PerClassResult> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
             for (Terms.Bucket bucket : byActualClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();
                 NumericMetricsAggregation.SingleValue recallAgg = bucket.getAggregations().get(PER_ACTUAL_CLASS_RECALL_AGG_NAME);
                 classes.add(new PerClassResult(className, recallAgg.value()));
             }
-            result = new Result(classes, avgRecallAgg.value());
+            result = new Result(classes, avgRecallAgg.value(), Math.max(cardinalityAgg.getValue() - size, 0));
         }
     }
 
@@ -125,11 +157,13 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(size);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(SIZE.getPreferredName(), size);
         builder.endObject();
         return builder;
     }
@@ -138,26 +172,29 @@ public class Recall implements EvaluationMetric {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return true;
+        Recall that = (Recall) o;
+        return Objects.equals(this.size, that.size);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(NAME.getPreferredName());
+        return Objects.hash(size);
     }
 
     public static class Result implements EvaluationMetricResult {
 
         private static final ParseField CLASSES = new ParseField("classes");
         private static final ParseField AVG_RECALL = new ParseField("avg_recall");
+        private static final ParseField OTHER_CLASS_COUNT = new ParseField("other_class_count");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1], (long) a[2]));
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), AVG_RECALL);
+            PARSER.declareLong(constructorArg(), OTHER_CLASS_COUNT);
         }
 
         public static Result fromXContent(XContentParser parser) {
@@ -168,15 +205,19 @@ public class Recall implements EvaluationMetric {
         private final List<PerClassResult> classes;
         /** Average of per-class recalls. */
         private final double avgRecall;
+        /** Number of classes that were not included in the per-class results because there were too many of them. */
+        private final long otherClassCount;
 
-        public Result(List<PerClassResult> classes, double avgRecall) {
+        public Result(List<PerClassResult> classes, double avgRecall, long otherClassCount) {
             this.classes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(classes, CLASSES));
             this.avgRecall = avgRecall;
+            this.otherClassCount = otherClassCount;
         }
 
         public Result(StreamInput in) throws IOException {
             this.classes = Collections.unmodifiableList(in.readList(PerClassResult::new));
             this.avgRecall = in.readDouble();
+            this.otherClassCount = in.readVLong();
         }
 
         @Override
@@ -197,10 +238,15 @@ public class Recall implements EvaluationMetric {
             return avgRecall;
         }
 
+        public long getOtherClassCount() {
+            return otherClassCount;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(classes);
             out.writeDouble(avgRecall);
+            out.writeVLong(otherClassCount);
         }
 
         @Override
@@ -208,6 +254,7 @@ public class Recall implements EvaluationMetric {
             builder.startObject();
             builder.field(CLASSES.getPreferredName(), classes);
             builder.field(AVG_RECALL.getPreferredName(), avgRecall);
+            builder.field(OTHER_CLASS_COUNT.getPreferredName(), otherClassCount);
             builder.endObject();
             return builder;
         }
@@ -218,12 +265,13 @@ public class Recall implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes)
-                && this.avgRecall == that.avgRecall;
+                && this.avgRecall == that.avgRecall
+                && this.otherClassCount == that.otherClassCount;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classes, avgRecall);
+            return Objects.hash(classes, avgRecall, otherClassCount);
         }
     }
 

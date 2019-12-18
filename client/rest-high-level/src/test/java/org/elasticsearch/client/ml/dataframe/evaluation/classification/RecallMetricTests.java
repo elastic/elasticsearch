@@ -33,7 +33,8 @@ public class RecallMetricTests extends AbstractXContentTestCase<RecallMetric> {
     }
 
     static RecallMetric createRandom() {
-        return new RecallMetric();
+        Integer size = randomBoolean() ? randomIntBetween(1, 1000) : null;
+        return new RecallMetric(size);
     }
 
     @Override

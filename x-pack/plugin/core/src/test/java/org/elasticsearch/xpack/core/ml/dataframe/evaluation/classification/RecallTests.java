@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -15,6 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockCardinality;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.TupleMatchers.isTuple;
@@ -44,13 +46,30 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
     }
 
     public static Recall createRandom() {
-        return new Recall();
+        Integer size = randomBoolean() ? null : randomIntBetween(1, 1000);
+        return new Recall(size);
+    }
+
+    public void testConstructor_SizeValidationFailures() {
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new Recall(-1));
+            assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
+        }
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new Recall(0));
+            assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
+        }
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new Recall(1001));
+            assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
+        }
     }
 
     public void testProcess() {
         Aggregations aggs = new Aggregations(Arrays.asList(
             mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME),
             mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123),
+            mockCardinality(Recall.CARDINALITY_OF_ACTUAL_CLASS, 15),
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
@@ -58,7 +77,7 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
         recall.process(aggs);
 
         assertThat(recall.aggs("act", "pred"), isTuple(empty(), empty()));
-        assertThat(recall.getResult().get(), equalTo(new Recall.Result(List.of(), 0.8123)));
+        assertThat(recall.getResult().get(), equalTo(new Recall.Result(List.of(), 0.8123, 5)));
     }
 
     public void testProcess_GivenMissingAgg() {

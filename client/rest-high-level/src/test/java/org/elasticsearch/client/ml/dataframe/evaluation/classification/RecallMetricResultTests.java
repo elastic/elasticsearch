@@ -47,7 +47,8 @@ public class RecallMetricResultTests extends AbstractXContentTestCase<Result> {
             classes.add(new PerClassResult(classNames.get(i), recall));
         }
         double avgRecall = randomDoubleBetween(0.0, 1.0, true);
-        return new Result(classes, avgRecall);
+        long otherClassCount = randomNonNegativeLong();
+        return new Result(classes, avgRecall, otherClassCount);
     }
 
     @Override

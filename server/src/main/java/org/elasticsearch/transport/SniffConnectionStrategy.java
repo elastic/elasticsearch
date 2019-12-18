@@ -68,7 +68,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS_OLD = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
         "cluster.remote.",
         "seeds",
         (ns, key) -> Setting.listSetting(
@@ -83,24 +83,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             Setting.Property.Dynamic,
             Setting.Property.NodeScope));
 
-    /**
-     * A list of initial seed nodes to discover eligible nodes from the remote cluster
-     */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "sniff.seeds",
-        (ns, key) -> Setting.listSetting(key,
-            REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(ns),
-            s -> {
-                // validate seed address
-                parsePort(s);
-                return s;
-            },
-            s -> REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(ns).get(s),
-            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope));
-
 
     /**
      * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
@@ -110,7 +92,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
         "cluster.remote.",
-        "sniff.proxy",
+        "proxy",
         (ns, key) -> Setting.simpleString(
             key,
             new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF, s -> {
@@ -138,7 +120,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<Integer> REMOTE_NODE_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
-        "sniff.node_connections",
+        "node_connections",
         (ns, key) -> intSetting(
             key,
             REMOTE_CONNECTIONS_PER_CLUSTER,
@@ -194,7 +176,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
-        return Stream.of(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD);
+        return Stream.of(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
     }
 
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {

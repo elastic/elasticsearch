@@ -62,7 +62,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_ADDRESSES = Setting.affixKeySetting(
         "cluster.remote.",
-        "proxy.addresses",
+        "proxy_addresses",
         (ns, key) -> Setting.listSetting(key, Collections.emptyList(), s -> {
                 // validate address
                 parsePort(s);
@@ -75,7 +75,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<Integer> REMOTE_SOCKET_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
-        "proxy.socket_connections",
+        "proxy_socket_connections",
         (ns, key) -> intSetting(key, 18, 1, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
@@ -84,7 +84,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<Boolean> INCLUDE_SERVER_NAME = Setting.affixKeySetting(
         "cluster.remote.",
-        "proxy.include_server_name",
+        "include_server_name",
         (ns, key) -> boolSetting(key, false, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 

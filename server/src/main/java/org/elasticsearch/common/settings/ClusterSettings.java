@@ -296,7 +296,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             ProxyConnectionStrategy.INCLUDE_SERVER_NAME,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,

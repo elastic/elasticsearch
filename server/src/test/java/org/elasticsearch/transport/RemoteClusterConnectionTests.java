@@ -628,13 +628,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     private static Settings buildSniffSettings(String clusterAlias, List<String> seedNodes) {
         Settings.Builder builder = Settings.builder();
         builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "sniff");
-        if (randomBoolean()) {
-            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                Strings.collectionToCommaDelimitedString(seedNodes));
-        } else {
-            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                Strings.collectionToCommaDelimitedString(seedNodes));
-        }
+        builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            Strings.collectionToCommaDelimitedString(seedNodes));
         return builder.build();
     }
 }

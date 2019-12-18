@@ -38,9 +38,8 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
      */
     public void testBodyConsumed() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        final RestHasPrivilegesAction action = new RestHasPrivilegesAction(Settings.EMPTY, mock(RestController.class),
-            mock(SecurityContext.class), licenseState);
-        when(licenseState.isSecurityAvailable()).thenReturn(false);
+        final RestHasPrivilegesAction action =
+            new RestHasPrivilegesAction(Settings.EMPTY, mock(RestController.class), mock(SecurityContext.class), licenseState);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withPath("/_security/user/_has_privileges/")

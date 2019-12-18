@@ -1030,20 +1030,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
         client().performRequest(refreshIndex);
 
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-indexing-complete"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-follow-shard-tasks"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "pause-follower-index"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "close-follower-index"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "unfollow-follower-index"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "open-follower-index"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-yellow-step"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "check-rollover-ready"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "attempt-rollover"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "update-rollover-lifecycle-date"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "set-indexing-complete"));
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "completed"));
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-indexing-complete"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-follow-shard-tasks"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "pause-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "close-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "unfollow-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "open-follower-index"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-yellow-step"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "attempt-rollover"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "update-rollover-lifecycle-date"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "set-indexing-complete"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "completed"), 30, TimeUnit.SECONDS);
 
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"));
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
     }
 
     public void testHistoryIsWrittenWithFailure() throws Exception {
@@ -1071,9 +1071,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
         client().performRequest(refreshIndex);
 
-        assertBusy(() -> {
-            assertHistoryIsPresent(policy, index + "-1", false, "ERROR");
-        });
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", false, "ERROR"), 30, TimeUnit.SECONDS);
     }
 
     public void testHistoryIsWrittenWithDeletion() throws Exception {
@@ -1104,7 +1102,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             assertHistoryIsPresent(policy, index, true, "delete", "delete", "wait-for-shard-history-leases");
             assertHistoryIsPresent(policy, index, true, "delete", "delete", "complete");
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own

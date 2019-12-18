@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -47,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.settings.Settings.builder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -58,7 +60,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_shards");
         request.patterns(Collections.singletonList("test_shards*"));
 
-        request.settings(Settings.builder()
+        request.settings(builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0")
             .put("index.shard.check_on_startup", "blargh").build());
 
@@ -75,7 +77,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(Collections.singletonList("_test_shards*"));
-        request.settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0").build());
+        request.settings(builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0").build());
 
         List<Throwable> throwables = putTemplate(xContentRegistry(), request);
         assertEquals(throwables.size(), 1);
@@ -156,7 +158,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-                null,
+                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
@@ -189,7 +191,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 indicesService,
                 null,
                 null,
-                null,
+                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
                 null,
                 null,
                 xContentRegistry(),

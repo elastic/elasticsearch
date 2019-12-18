@@ -55,12 +55,19 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
         final RestHasPrivilegesAction action = new RestHasPrivilegesAction(Settings.EMPTY, mock(RestController.class),
             mock(SecurityContext.class), licenseState);
         when(licenseState.isSecurityAvailable()).thenReturn(false);
-        final FakeRestRequest request = new FakeRestRequest();
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
-        action.handleRequest(request, channel, mock(NodeClient.class));
-        assertThat(channel.capturedResponse(), notNullValue());
-        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(channel.capturedResponse().content().utf8ToString(), containsString("current license is non-compliant for [security]"));
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                .withPath("/_security/user/_has_privileges/")
+                .withContent(new BytesArray(bodyBuilder.toString()), XContentType.JSON)
+                .build();
+            final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+            action.handleRequest(request, channel, mock(NodeClient.class));
+            assertThat(channel.capturedResponse(), notNullValue());
+            assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(
+                channel.capturedResponse().content().utf8ToString(),
+                containsString("current license is non-compliant for [security]"));
+        }
     }
 
 }

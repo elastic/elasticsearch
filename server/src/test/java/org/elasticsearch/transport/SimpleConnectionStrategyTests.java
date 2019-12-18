@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -35,6 +36,7 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -291,7 +293,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections,  addresses(address), Collections.singletonList(addressSupplier))) {
+                         numOfConnections,  addresses(address), Collections.singletonList(addressSupplier), false)) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
@@ -384,6 +386,39 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
             String expected = "Setting \"" + concreteSetting.getKey() + "\" cannot be used with the configured " +
                 "\"cluster.remote.cluster_name.mode\" [required=SIMPLE, configured=SNIFF]";
             assertEquals(expected, iae.getMessage());
+        }
+    }
+
+    public void testServerNameAttributes() {
+        Settings bindSettings = Settings.builder().put(TransportSettings.BIND_HOST.getKey(), "localhost").build();
+        try (MockTransportService transport1 = startTransport("node1", Version.CURRENT, bindSettings)) {
+            TransportAddress address1 = transport1.boundAddress().publishAddress();
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                ArrayList<String> addresses = new ArrayList<>();
+                addresses.add("localhost:" + address1.getPort());
+
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                int numOfConnections = randomIntBetween(4, 8);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         numOfConnections, addresses, true)) {
+                    assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(strategy.assertNoRunningConnections());
+
+                    DiscoveryNode discoveryNode = connectionManager.getAllConnectedNodes().stream().findFirst().get();
+                    assertEquals("localhost", discoveryNode.getAttributes().get("server_name"));
+                }
+            }
         }
     }
 

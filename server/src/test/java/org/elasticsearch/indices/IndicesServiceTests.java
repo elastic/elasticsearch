@@ -223,7 +223,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexMetaData firstMetaData = clusterService.state().metaData().index("test");
         assertTrue(test.hasShard(0));
-        ShardPath firstPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
+        ShardPath firstPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0),
+            test.getIndexSettings().customDataPath());
 
         expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetaData));
         assertTrue(firstPath.exists());
@@ -246,7 +247,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
-        ShardPath secondPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
+        ShardPath secondPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0),
+            test.getIndexSettings().customDataPath());
         assertTrue(secondPath.exists());
 
         expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetaData));
@@ -266,7 +268,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(indexShard.routingEntry().started());
 
         final ShardPath shardPath = indexShard.shardPath();
-        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings), shardPath);
+        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings.customDataPath()),
+            shardPath);
 
         final IndicesService indicesService = getIndicesService();
         expectThrows(ShardLockObtainFailedException.class, () ->

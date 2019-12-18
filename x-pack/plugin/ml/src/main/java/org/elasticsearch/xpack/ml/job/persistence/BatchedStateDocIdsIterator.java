@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ml.utils.persistence.BatchedDocumentsIterator;
 
 /**
  * Iterates through the state doc ids

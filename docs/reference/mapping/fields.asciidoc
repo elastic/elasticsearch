@@ -1,8 +1,8 @@
 [[mapping-fields]]
 == Meta-Fields
 
-Each document has metadata associated with it, such as the `_index`, mapping
-<<mapping-type-field,`_type`>>, and `_id` meta-fields.  The behaviour of some of these meta-fields
+Each document has metadata associated with it, such as the `_index`
+and `_id` meta-fields.  The behaviour of some of these meta-fields
 can be customised when a mapping type is created.
 
 [float]

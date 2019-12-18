@@ -28,7 +28,7 @@ A mapping type has:
 
 Meta-fields are used to customize how a document's metadata associated is
 treated. Examples of meta-fields include the document's
-<<mapping-index-field,`_index`>>, <<mapping-type-field,`_type`>>,
+<<mapping-index-field,`_index`>>,
 <<mapping-id-field,`_id`>>,  and <<mapping-source-field,`_source`>> fields.
 
 <<mapping-types,Fields>> or _properties_::

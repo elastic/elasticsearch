@@ -47,8 +47,7 @@ public class PrecisionMetricResultTests extends AbstractXContentTestCase<Result>
             classes.add(new PerClassResult(classNames.get(i), precision));
         }
         double avgPrecision = randomDoubleBetween(0.0, 1.0, true);
-        long otherClassCount = randomNonNegativeLong();
-        return new Result(classes, avgPrecision, otherClassCount);
+        return new Result(classes, avgPrecision);
     }
 
     @Override

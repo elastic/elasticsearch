@@ -657,7 +657,6 @@ setup:
           - class_name: "mouse"
             precision: 1.0  # 1 out of 1
         avg_precision: 0.7222222222222222
-        other_class_count: 0
 ---
 "Test classification recall":
   - do:
@@ -684,7 +683,6 @@ setup:
           - class_name: "mouse"
             recall: 0.5  # 1 out of 2
         avg_recall: 0.611111111111111
-        other_class_count: 0
 ---
 "Test classification multiclass_confusion_matrix":
   - do:

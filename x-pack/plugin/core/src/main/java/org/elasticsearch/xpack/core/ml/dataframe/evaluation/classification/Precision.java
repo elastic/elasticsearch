@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -43,7 +42,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -59,54 +57,29 @@ public class Precision implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("precision");
 
-    public static final ParseField SIZE = new ParseField("size");
-
     private static final String PAINLESS_TEMPLATE = "doc[''{0}''].value == doc[''{1}''].value";
     private static final String AGG_NAME_PREFIX = "classification_precision_";
     static final String ACTUAL_CLASSES_NAMES_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
     static final String BY_PREDICTED_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_predicted_class";
     static final String PER_PREDICTED_CLASS_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "per_predicted_class_precision";
     static final String AVG_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "avg_precision";
-    static final String CARDINALITY_OF_ACTUAL_CLASS = AGG_NAME_PREFIX + "cardinality_of_actual_class";
 
     private static Script buildScript(Object...args) {
         return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
     }
 
-    private static final ConstructingObjectParser<Precision, Void> PARSER = createParser();
-
-    private static ConstructingObjectParser<Precision, Void> createParser() {
-        ConstructingObjectParser<Precision, Void> parser =
-            new ConstructingObjectParser<>(NAME.getPreferredName(), true, args -> new Precision((Integer) args[0]));
-        parser.declareInt(optionalConstructorArg(), SIZE);
-        return parser;
-    }
+    private static final ObjectParser<Precision, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Precision::new);
 
     public static Precision fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private static final int DEFAULT_SIZE = 10;
-    private static final int MAX_SIZE = 1000;
-
-    private final int size;
     private List<String> topActualClassNames;
     private EvaluationMetricResult result;
 
-    public Precision() {
-        this((Integer) null);
-    }
+    public Precision() {}
 
-    public Precision(@Nullable Integer size) {
-        if (size != null && (size <= 0 || size > MAX_SIZE)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be an integer in [1, {}]", SIZE.getPreferredName(), MAX_SIZE);
-        }
-        this.size = size != null ? size : DEFAULT_SIZE;
-    }
-
-    public Precision(StreamInput in) throws IOException {
-        this.size = in.readVInt();
-    }
+    public Precision(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -125,8 +98,7 @@ public class Precision implements EvaluationMetric {
                 List.of(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
                         .field(actualField)
-                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                        .size(size)),
+                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))),
                 List.of());
         }
         if (result == null) {  // This is step 2
@@ -137,8 +109,6 @@ public class Precision implements EvaluationMetric {
             Script script = buildScript(actualField, predictedField);
             return Tuple.tuple(
                 List.of(
-                    AggregationBuilders.cardinality(CARDINALITY_OF_ACTUAL_CLASS)
-                        .field(actualField),
                     AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)
                         .subAggregation(AggregationBuilders.avg(PER_PREDICTED_CLASS_PRECISION_AGG_NAME).script(script))),
                 List.of(
@@ -157,11 +127,9 @@ public class Precision implements EvaluationMetric {
         }
         if (result == null &&
                 aggs.get(BY_PREDICTED_CLASS_AGG_NAME) instanceof Filters &&
-                aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue &&
-                aggs.get(CARDINALITY_OF_ACTUAL_CLASS) instanceof Cardinality) {
+                aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Filters byPredictedClassAgg = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
             NumericMetricsAggregation.SingleValue avgPrecisionAgg = aggs.get(AVG_PRECISION_AGG_NAME);
-            Cardinality cardinalityAgg = aggs.get(CARDINALITY_OF_ACTUAL_CLASS);
             List<PerClassResult> classes = new ArrayList<>(byPredictedClassAgg.getBuckets().size());
             for (Filters.Bucket bucket : byPredictedClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();
@@ -171,7 +139,7 @@ public class Precision implements EvaluationMetric {
                     classes.add(new PerClassResult(className, precision));
                 }
             }
-            result = new Result(classes, avgPrecisionAgg.value(), Math.max(cardinalityAgg.getValue() - size, 0));
+            result = new Result(classes, avgPrecisionAgg.value());
         }
     }
 
@@ -182,13 +150,11 @@ public class Precision implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(size);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(SIZE.getPreferredName(), size);
         builder.endObject();
         return builder;
     }
@@ -197,30 +163,26 @@ public class Precision implements EvaluationMetric {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Precision that = (Precision) o;
-        return Objects.equals(this.size, that.size);
+        return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(size);
+        return Objects.hashCode(NAME.getPreferredName());
     }
 
     public static class Result implements EvaluationMetricResult {
 
         private static final ParseField CLASSES = new ParseField("classes");
         private static final ParseField AVG_PRECISION = new ParseField("avg_precision");
-        private static final ParseField OTHER_CLASS_COUNT = new ParseField("other_class_count");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "precision_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1], (long) a[2]));
+            new ConstructingObjectParser<>("precision_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), AVG_PRECISION);
-            PARSER.declareLong(constructorArg(), OTHER_CLASS_COUNT);
         }
 
         public static Result fromXContent(XContentParser parser) {
@@ -231,19 +193,15 @@ public class Precision implements EvaluationMetric {
         private final List<PerClassResult> classes;
         /** Average of per-class precisions. */
         private final double avgPrecision;
-        /** Number of classes that were not included in the per-class results because there were too many of them. */
-        private final long otherClassCount;
 
-        public Result(List<PerClassResult> classes, double avgPrecision, long otherClassCount) {
+        public Result(List<PerClassResult> classes, double avgPrecision) {
             this.classes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(classes, CLASSES));
             this.avgPrecision = avgPrecision;
-            this.otherClassCount = otherClassCount;
         }
 
         public Result(StreamInput in) throws IOException {
             this.classes = Collections.unmodifiableList(in.readList(PerClassResult::new));
             this.avgPrecision = in.readDouble();
-            this.otherClassCount = in.readVLong();
         }
 
         @Override
@@ -264,15 +222,10 @@ public class Precision implements EvaluationMetric {
             return avgPrecision;
         }
 
-        public long getOtherClassCount() {
-            return otherClassCount;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(classes);
             out.writeDouble(avgPrecision);
-            out.writeVLong(otherClassCount);
         }
 
         @Override
@@ -280,7 +233,6 @@ public class Precision implements EvaluationMetric {
             builder.startObject();
             builder.field(CLASSES.getPreferredName(), classes);
             builder.field(AVG_PRECISION.getPreferredName(), avgPrecision);
-            builder.field(OTHER_CLASS_COUNT.getPreferredName(), otherClassCount);
             builder.endObject();
             return builder;
         }
@@ -291,13 +243,12 @@ public class Precision implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes)
-                && this.avgPrecision == that.avgPrecision
-                && this.otherClassCount == that.otherClassCount;
+                && this.avgPrecision == that.avgPrecision;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classes, avgPrecision, otherClassCount);
+            return Objects.hash(classes, avgPrecision);
         }
     }
 

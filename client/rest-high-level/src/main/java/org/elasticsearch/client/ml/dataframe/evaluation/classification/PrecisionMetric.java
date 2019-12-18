@@ -19,9 +19,9 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * {@link PrecisionMetric} is a metric that answers the question:
@@ -47,30 +46,13 @@ public class PrecisionMetric implements EvaluationMetric {
 
     public static final String NAME = "precision";
 
-    public static final ParseField SIZE = new ParseField("size");
-
-    private static final ConstructingObjectParser<PrecisionMetric, Void> PARSER = createParser();
-
-    private static ConstructingObjectParser<PrecisionMetric, Void> createParser() {
-        ConstructingObjectParser<PrecisionMetric, Void>  parser =
-            new ConstructingObjectParser<>(NAME, true, args -> new PrecisionMetric((Integer) args[0]));
-        parser.declareInt(optionalConstructorArg(), SIZE);
-        return parser;
-    }
+    private static final ObjectParser<PrecisionMetric, Void> PARSER = new ObjectParser<>(NAME, true, PrecisionMetric::new);
 
     public static PrecisionMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private final Integer size;
-
-    public PrecisionMetric() {
-        this(null);
-    }
-
-    public PrecisionMetric(@Nullable Integer size) {
-        this.size = size;
-    }
+    public PrecisionMetric() {}
 
     @Override
     public String getName() {
@@ -80,9 +62,6 @@ public class PrecisionMetric implements EvaluationMetric {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (size != null) {
-            builder.field(SIZE.getPreferredName(), size);
-        }
         builder.endObject();
         return builder;
     }
@@ -91,30 +70,26 @@ public class PrecisionMetric implements EvaluationMetric {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PrecisionMetric that = (PrecisionMetric) o;
-        return Objects.equals(this.size, that.size);
+        return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(size);
+        return Objects.hashCode(NAME);
     }
 
     public static class Result implements EvaluationMetric.Result {
 
         private static final ParseField CLASSES = new ParseField("classes");
         private static final ParseField AVG_PRECISION = new ParseField("avg_precision");
-        private static final ParseField OTHER_CLASS_COUNT = new ParseField("other_class_count");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "precision_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1], (long) a[2]));
+            new ConstructingObjectParser<>("precision_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), AVG_PRECISION);
-            PARSER.declareLong(constructorArg(), OTHER_CLASS_COUNT);
         }
 
         public static Result fromXContent(XContentParser parser) {
@@ -125,13 +100,10 @@ public class PrecisionMetric implements EvaluationMetric {
         private final List<PerClassResult> classes;
         /** Average of per-class precisions. */
         private final double avgPrecision;
-        /** Number of classes that were not included in the per-class results because there were too many of them. */
-        private final long otherClassCount;
 
-        public Result(List<PerClassResult> classes, double avgPrecision, long otherClassCount) {
+        public Result(List<PerClassResult> classes, double avgPrecision) {
             this.classes = Collections.unmodifiableList(Objects.requireNonNull(classes));
             this.avgPrecision = avgPrecision;
-            this.otherClassCount = otherClassCount;
         }
 
         @Override
@@ -147,16 +119,11 @@ public class PrecisionMetric implements EvaluationMetric {
             return avgPrecision;
         }
 
-        public long getOtherClassCount() {
-            return otherClassCount;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CLASSES.getPreferredName(), classes);
             builder.field(AVG_PRECISION.getPreferredName(), avgPrecision);
-            builder.field(OTHER_CLASS_COUNT.getPreferredName(), otherClassCount);
             builder.endObject();
             return builder;
         }
@@ -167,13 +134,12 @@ public class PrecisionMetric implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes)
-                && this.avgPrecision == that.avgPrecision
-                && this.otherClassCount == that.otherClassCount;
+                && this.avgPrecision == that.avgPrecision;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classes, avgPrecision, otherClassCount);
+            return Objects.hash(classes, avgPrecision);
         }
     }
 

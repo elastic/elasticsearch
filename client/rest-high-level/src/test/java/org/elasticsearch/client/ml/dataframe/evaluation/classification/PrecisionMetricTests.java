@@ -33,8 +33,7 @@ public class PrecisionMetricTests extends AbstractXContentTestCase<PrecisionMetr
     }
 
     static PrecisionMetric createRandom() {
-        Integer size = randomBoolean() ? randomIntBetween(1, 1000) : null;
-        return new PrecisionMetric(size);
+        return new PrecisionMetric();
     }
 
     @Override

@@ -1860,7 +1860,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                         // 3 out of 4 examples labeled as "dog" were classified correctly
                         new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("dog", 0.75))));
             assertThat(precisionResult.getAvgPrecision(), equalTo(0.675));
-            assertThat(precisionResult.getOtherClassCount(), equalTo(0L));
         }
         {  // Recall
             EvaluateDataFrameRequest evaluateDataFrameRequest =
@@ -1894,7 +1893,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                         // no examples labeled as "ant" were classified correctly
                         new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("ant", 0.0))));
             assertThat(recallResult.getAvgRecall(), equalTo(0.45));
-            assertThat(recallResult.getOtherClassCount(), equalTo(0L));
         }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
             EvaluateDataFrameRequest evaluateDataFrameRequest =

@@ -116,7 +116,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(45.0 / 75));
     }
 
-    public void testEvaluate_PrecisionMetricWithDefaultSize() {
+    public void testEvaluate_Precision() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision())));
@@ -136,30 +136,9 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     new Precision.PerClassResult("fox", 1.0 / 15),
                     new Precision.PerClassResult("mouse", 1.0 / 15))));
         assertThat(precisionResult.getAvgPrecision(), equalTo(5.0 / 75));
-        assertThat(precisionResult.getOtherClassCount(), equalTo(0L));
     }
 
-    public void testEvaluate_PrecisionMetricWithUserProvidedSize() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision(2))));
-
-        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
-        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
-
-        Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(0);
-        assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
-        assertThat(
-            precisionResult.getClasses(),
-            equalTo(
-                List.of(
-                    new Precision.PerClassResult("ant", 1.0 / 15),
-                    new Precision.PerClassResult("cat", 1.0 / 15))));
-        assertThat(precisionResult.getAvgPrecision(), equalTo(5.0 / 75));
-        assertThat(precisionResult.getOtherClassCount(), equalTo(3L));
-    }
-
-    public void testEvaluate_RecallMetricWithDefaultSize() {
+    public void testEvaluate_Recall() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall())));
@@ -179,27 +158,6 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     new Recall.PerClassResult("fox", 1.0 / 15),
                     new Recall.PerClassResult("mouse", 1.0 / 15))));
         assertThat(recallResult.getAvgRecall(), equalTo(5.0 / 75));
-        assertThat(recallResult.getOtherClassCount(), equalTo(0L));
-    }
-
-    public void testEvaluate_RecallMetricWithUserProvidedSize() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall(2))));
-
-        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
-        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
-
-        Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(0);
-        assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
-        assertThat(
-            recallResult.getClasses(),
-            equalTo(
-                List.of(
-                    new Recall.PerClassResult("ant", 1.0 / 15),
-                    new Recall.PerClassResult("cat", 1.0 / 15))));
-        assertThat(recallResult.getAvgRecall(), equalTo(5.0 / 75));
-        assertThat(recallResult.getOtherClassCount(), equalTo(3L));
     }
 
     public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {

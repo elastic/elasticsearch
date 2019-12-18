@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,6 +58,7 @@ public class Recall implements EvaluationMetric {
     static final String BY_ACTUAL_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
     static final String PER_ACTUAL_CLASS_RECALL_AGG_NAME = AGG_NAME_PREFIX + "per_actual_class_recall";
     static final String AVG_RECALL_AGG_NAME = AGG_NAME_PREFIX + "avg_recall";
+    private static String ACTUAL_FIELD_METADATA_KEY = "actual_field";
 
     private static Script buildScript(Object...args) {
         return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
@@ -68,11 +70,23 @@ public class Recall implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
+    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+
+    private final int maxClassesCardinality;
     private EvaluationMetricResult result;
 
-    public Recall() {}
+    public Recall() {
+        this((Integer) null);
+    }
 
-    public Recall(StreamInput in) throws IOException {}
+    // Visible for testing
+    public Recall(@Nullable Integer maxClassesCardinality) {
+        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
+    }
+
+    public Recall(StreamInput in) throws IOException {
+        this.maxClassesCardinality = DEFAULT_MAX_CLASSES_CARDINALITY;
+    }
 
     @Override
     public String getWriteableName() {
@@ -94,6 +108,8 @@ public class Recall implements EvaluationMetric {
             List.of(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
+                    .size(maxClassesCardinality)
+                    .setMetaData(Collections.singletonMap(ACTUAL_FIELD_METADATA_KEY, actualField))
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             List.of(
                 PipelineAggregatorBuilders.avgBucket(
@@ -107,6 +123,13 @@ public class Recall implements EvaluationMetric {
                 aggs.get(BY_ACTUAL_CLASS_AGG_NAME) instanceof Terms &&
                 aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
+            if (byActualClassAgg.getSumOfOtherDocCounts() > 0) {
+                // This means there were more than {@code maxClassesCardinality} buckets.
+                // We cannot calculate average recall accurately, so we fail.
+                throw ExceptionsHelper.badRequestException(
+                    "Cannot calculate average recall. Cardinality of field [{}] is too high",
+                    byActualClassAgg.getMetaData().get(ACTUAL_FIELD_METADATA_KEY));
+            }
             NumericMetricsAggregation.SingleValue avgRecallAgg = aggs.get(AVG_RECALL_AGG_NAME);
             List<PerClassResult> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
             for (Terms.Bucket bucket : byActualClassAgg.getBuckets()) {

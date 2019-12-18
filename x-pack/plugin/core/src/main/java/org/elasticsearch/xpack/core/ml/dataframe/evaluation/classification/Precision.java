@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -63,6 +64,7 @@ public class Precision implements EvaluationMetric {
     static final String BY_PREDICTED_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_predicted_class";
     static final String PER_PREDICTED_CLASS_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "per_predicted_class_precision";
     static final String AVG_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "avg_precision";
+    private static String ACTUAL_FIELD_METADATA_KEY = "actual_field";
 
     private static Script buildScript(Object...args) {
         return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
@@ -74,12 +76,24 @@ public class Precision implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
+    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+
+    private final int maxClassesCardinality;
     private List<String> topActualClassNames;
     private EvaluationMetricResult result;
 
-    public Precision() {}
+    public Precision() {
+        this((Integer) null);
+    }
 
-    public Precision(StreamInput in) throws IOException {}
+    // Visible for testing
+    public Precision(@Nullable Integer maxClassesCardinality) {
+        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
+    }
+
+    public Precision(StreamInput in) throws IOException {
+        this.maxClassesCardinality = DEFAULT_MAX_CLASSES_CARDINALITY;
+    }
 
     @Override
     public String getWriteableName() {
@@ -98,7 +112,9 @@ public class Precision implements EvaluationMetric {
                 List.of(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
                         .field(actualField)
-                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))),
+                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                        .size(maxClassesCardinality)
+                        .setMetaData(Collections.singletonMap(ACTUAL_FIELD_METADATA_KEY, actualField))),
                 List.of());
         }
         if (result == null) {  // This is step 2
@@ -122,8 +138,16 @@ public class Precision implements EvaluationMetric {
     @Override
     public void process(Aggregations aggs) {
         if (topActualClassNames == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
-            Terms termsAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
-            topActualClassNames = termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());
+            Terms topActualClassesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
+            if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {
+                // This means there were more than {@code maxClassesCardinality} buckets.
+                // We cannot calculate average precision accurately, so we fail.
+                throw ExceptionsHelper.badRequestException(
+                    "Cannot calculate average precision. Cardinality of field [{}] is too high",
+                    topActualClassesAgg.getMetaData().get(ACTUAL_FIELD_METADATA_KEY));
+            }
+            topActualClassNames =
+                topActualClassesAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());
         }
         if (result == null &&
                 aggs.get(BY_PREDICTED_CLASS_AGG_NAME) instanceof Filters &&

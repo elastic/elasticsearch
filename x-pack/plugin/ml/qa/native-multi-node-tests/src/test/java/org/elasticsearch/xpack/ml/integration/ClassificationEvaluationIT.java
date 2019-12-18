@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -20,6 +21,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -138,6 +140,15 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(precisionResult.getAvgPrecision(), equalTo(5.0 / 75));
     }
 
+    public void testEvaluate_Precision_CardinalityTooHigh() {
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> evaluateDataFrame(
+                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision(4)))));
+        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
+    }
+
     public void testEvaluate_Recall() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
@@ -158,6 +169,15 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     new Recall.PerClassResult("fox", 1.0 / 15),
                     new Recall.PerClassResult("mouse", 1.0 / 15))));
         assertThat(recallResult.getAvgRecall(), equalTo(5.0 / 75));
+    }
+
+    public void testEvaluate_Recall_CardinalityTooHigh() {
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> evaluateDataFrame(
+                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall(4)))));
+        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
     }
 
     public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {

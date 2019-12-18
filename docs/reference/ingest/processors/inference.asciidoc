@@ -52,7 +52,7 @@ Specifies the field to which the inference prediction is written. Defaults to
 
 `results_field`::
 (Optional, string)
-Specifies the field to which the inference prediction is written. Defaults to 
+The field that is added to incoming documents to contain the inference prediction. Defaults to 
 `predicted_value`.
 
 `num_top_classes`::

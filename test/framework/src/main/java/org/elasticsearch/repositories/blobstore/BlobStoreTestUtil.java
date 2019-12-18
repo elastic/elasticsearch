@@ -194,7 +194,9 @@ public final class BlobStoreTestUtil {
             for (SnapshotId snapshotId : repositoryData.getSnapshots(idx)) {
                 indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, idx));
             }
-            assertEquals(indexMetaGenerationsExpected, indexMetaGenerationsFound);
+            // TODO: assertEquals(indexMetaGenerationsExpected, indexMetaGenerationsFound); requires cleanup functionality for
+            //       index meta generations blobs
+            assertTrue(indexMetaGenerationsFound.containsAll(indexMetaGenerationsExpected));
         }
     }
 

@@ -15,7 +15,7 @@ ingested in the pipeline.
 | `model_id`      | yes       | -                              | (String) The ID of the model to load and infer against.
 | `target_field`     | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
 | `field_mappings`   | yes       | -                              | (Object) Maps the document field names to the known field names of the model.
-| `inference_config` | yes       | -                              | (Object) Contains the inference type and its options. There are two types: `regression` and `classification`.
+| `inference_config` | yes       | -                              | (Object) Contains the inference type and its options. There are two types: <<inference-processor-regression-opt,`regression`>> and <<inference-processor-classification-opt,`classification`>>.
 include::common-options.asciidoc[]
 |======
 

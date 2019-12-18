@@ -1,0 +1,57 @@
+package org.elasticsearch.index.query;
+
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+
+import java.io.IOException;
+
+import static org.elasticsearch.index.query.IntervalsSourceProvider.Wildcard;
+
+public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTestCase<Wildcard> {
+
+    @Override
+    protected Wildcard createTestInstance() {
+        return new Wildcard(
+            randomAlphaOfLength(10),
+            randomBoolean() ? randomAlphaOfLength(10) : null,
+            randomBoolean() ? randomAlphaOfLength(10) : null
+        );
+    }
+
+    @Override
+    protected Wildcard mutateInstance(Wildcard instance) throws IOException {
+        String Wildcard = instance.getPattern();
+        String analyzer = instance.getAnalyzer();
+        String useField = instance.getUseField();
+        switch (between(0, 2)) {
+            case 0:
+                Wildcard += "a";
+                break;
+            case 1:
+                analyzer = randomAlphaOfLength(5);
+                break;
+            case 2:
+                useField = useField == null ? randomAlphaOfLength(5) : null;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Wildcard(Wildcard, analyzer, useField);
+    }
+
+    @Override
+    protected Writeable.Reader<Wildcard> instanceReader() {
+        return Wildcard::new;
+    }
+
+    @Override
+    protected Wildcard doParseInstance(XContentParser parser) throws IOException {
+        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+        }
+        Wildcard Wildcard = (Wildcard) IntervalsSourceProvider.fromXContent(parser);
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        return Wildcard;
+    }
+}

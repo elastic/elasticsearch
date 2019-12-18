@@ -414,15 +414,19 @@ public final class SourceDestValidator {
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             final String destIndex = context.getDest();
+            boolean foundSourceInDest = false;
 
             for (String src : context.getSource()) {
                 if (Regex.simpleMatch(src, destIndex)) {
                     context.addValidationError(DEST_IN_SOURCE, destIndex, src);
-
-                    // todo: revisit
-                    listener.onResponse(context);
-                    return;
+                    // do not return immediately but collect all errors and than return
+                    foundSourceInDest = true;
                 }
+            }
+
+            if (foundSourceInDest) {
+                listener.onResponse(context);
+                return;
             }
 
             if (context.resolvedSource.contains(destIndex)) {

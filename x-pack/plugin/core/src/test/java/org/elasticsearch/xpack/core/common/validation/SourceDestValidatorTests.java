@@ -412,6 +412,30 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
     }
 
+    public void testCheck_GivenDestIndexMatchesMultipleSourceIndices() throws InterruptedException {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { "source-1", "source-*", "sou*" },
+                SOURCE_2,
+                SourceDestValidator.ALL_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(2, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [source-*]")
+                );
+                assertThat(
+                    e.validationErrors().get(1),
+                    equalTo("Destination index [" + SOURCE_2 + "] is included in source expression [sou*]")
+                );
+            }
+        );
+    }
+
     public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() throws InterruptedException {
         assertValidation(
             listener -> simpleNonRemoteValidator.validate(

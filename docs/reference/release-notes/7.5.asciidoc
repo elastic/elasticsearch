@@ -69,7 +69,7 @@ Snapshot/Restore::
 * Fix Index Deletion during Snapshot Finalization {pull}50202[#50202] (issues: {issue}45689[#45689], {issue}50200[#50200])
 
 Transform::
-* [Transform] Fix possible audit logging disappearance after rolling upgrade {pull}49731[#49731] (issue: {issue}49730[#49730])
+* Fix possible audit logging disappearance after rolling upgrade {pull}49731[#49731] (issue: {issue}49730[#49730])
 
 
 [[release-notes-7.5.0]]

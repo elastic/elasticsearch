@@ -740,6 +740,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Runs cleanup actions on the repository. Increments the repository state id by one before executing any modifications on the
      * repository.
      * TODO: Add shard level cleanups
+     * TODO: Add unreferenced index metadata cleanup
      * <ul>
      *     <li>Deleting stale indices {@link #cleanupStaleIndices}</li>
      *     <li>Deleting unreferenced root level blobs {@link #cleanupStaleRootFiles}</li>

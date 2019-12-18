@@ -167,6 +167,15 @@ public final class RepositoryData {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Returns a map of {@link IndexId} to {@link String} containing all the {@link IndexId} and the
+     * {@link org.elasticsearch.cluster.metadata.IndexMetaData} blob name in it that can be removed after removing the given snapshot from
+     * the repository.
+     * NOTE: Does not return a mapping for {@link IndexId} values that will be removed completely from the repository.
+     *
+     * @param snapshotId SnapshotId to remove
+     * @return map of index to index metadata blob id to delete
+     */
     public Map<IndexId, String> indexMetaDataToRemoveAfterRemovingSnapshot(SnapshotId snapshotId) {
         Collection<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotId);
         final Set<String> allHashes = indexMetaDataGenerations.lookup.entrySet().stream()

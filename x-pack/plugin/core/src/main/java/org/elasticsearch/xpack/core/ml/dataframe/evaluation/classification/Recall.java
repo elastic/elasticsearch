@@ -63,8 +63,8 @@ public class Recall implements EvaluationMetric {
     static final String AVG_RECALL_AGG_NAME = AGG_NAME_PREFIX + "avg_recall";
     static final String CARDINALITY_OF_ACTUAL_CLASS = AGG_NAME_PREFIX + "cardinality_of_actual_class";
 
-    private static String buildScript(Object...args) {
-        return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
+    private static Script buildScript(Object...args) {
+        return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
     }
 
     private static final ConstructingObjectParser<Recall, Void> PARSER = createParser();
@@ -116,7 +116,7 @@ public class Recall implements EvaluationMetric {
         if (result != null) {
             return Tuple.tuple(List.of(), List.of());
         }
-        Script script = new Script(buildScript(actualField, predictedField));
+        Script script = buildScript(actualField, predictedField);
         return Tuple.tuple(
             List.of(
                 AggregationBuilders.cardinality(CARDINALITY_OF_ACTUAL_CLASS)

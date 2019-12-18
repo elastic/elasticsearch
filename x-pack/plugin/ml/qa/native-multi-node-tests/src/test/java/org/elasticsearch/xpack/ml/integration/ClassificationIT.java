@@ -491,23 +491,19 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         {   // Precision
             Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(2);
             assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
-            List<Precision.PerClassResult> classes = precisionResult.getClasses();
-            assertThat(
-                classes.stream().map(Precision.PerClassResult::getClassName).collect(toList()),
-                equalTo(dependentVariableValuesAsStrings));
-            classes.forEach(
-                klass -> assertThat(klass.getPrecision(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
+            for (Precision.PerClassResult klass : precisionResult.getClasses()) {
+                assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
+                assertThat(klass.getPrecision(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+            }
         }
 
         {   // Recall
             Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(3);
             assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
-            List<Recall.PerClassResult> classes = recallResult.getClasses();
-            assertThat(
-                classes.stream().map(Recall.PerClassResult::getClassName).collect(toList()),
-                equalTo(dependentVariableValuesAsStrings));
-            classes.forEach(
-                klass -> assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
+            for (Recall.PerClassResult klass : recallResult.getClasses()) {
+                assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
+                assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+            }
         }
     }
 

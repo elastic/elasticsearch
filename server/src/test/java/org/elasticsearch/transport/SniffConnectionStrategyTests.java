@@ -680,6 +680,12 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
+    @Override
+    protected boolean enableWarningsCheck() {
+        // We currently test with deprecated seed setting
+        return false;
+    }
+
     private static List<String> seedNodes(final DiscoveryNode... seedNodes) {
         return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toList());
     }

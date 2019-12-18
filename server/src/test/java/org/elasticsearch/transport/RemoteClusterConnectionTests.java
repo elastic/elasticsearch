@@ -105,6 +105,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         return startTransport(id, knownNodes, version, threadPool, Settings.EMPTY);
     }
 
+    @Override
+    protected boolean enableWarningsCheck() {
+        // We currently test with the deprecated seeds setting.
+        return false;
+    }
+
     public static MockTransportService startTransport(
         final String id,
         final List<DiscoveryNode> knownNodes,

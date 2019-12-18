@@ -104,7 +104,7 @@ public final class MapHelper {
     }
 
     private static String mergePath(String[] path, int start, int end) {
-        if (start == end + 1) { // early exit, no need to create sb
+        if (start + 1 == end) { // early exit, no need to create sb
             return path[start];
         }
 

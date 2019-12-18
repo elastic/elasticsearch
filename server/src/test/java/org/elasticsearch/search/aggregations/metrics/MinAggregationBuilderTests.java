@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-public class MinTests extends AbstractNumericMetricTestCase<MinAggregationBuilder> {
+public class MinAggregationBuilderTests extends AbstractNumericMetricTestCase<MinAggregationBuilder> {
 
     @Override
     protected MinAggregationBuilder doCreateTestAggregatorFactory() {

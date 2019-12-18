@@ -192,7 +192,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                             if (Files.exists(shardPathLocation) == false) {
                                 continue;
                             }
-                            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
+                            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
                                 new Path[]{shardPathLocation}, nodePath.path);
                             if (shardPath != null) {
                                 consumer.accept(shardPath);

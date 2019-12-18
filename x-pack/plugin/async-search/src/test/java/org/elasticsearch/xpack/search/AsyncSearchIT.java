@@ -23,10 +23,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AsyncSearchIT extends AsyncSearchIntegTestCase {
@@ -209,5 +212,22 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
         assertThat(response.getPartialResponse().getTotalShards(), equalTo(numShards));
         assertThat(response.getPartialResponse().getShardFailures(), equalTo(numShards));
         ensureTaskRemoval(initial.id());
+    }
+
+    public void testInvalidId() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new String[] { indexName });
+        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        SearchResponseIterator it =
+            assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
+        AsyncSearchResponse response = it.next();
+        AsyncSearchId original = AsyncSearchId.decode(response.id());
+        String invalid = AsyncSearchId.encode("another_index", original.getDocId(), original.getTaskId());
+        ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch(invalid));
+        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exc.getMessage(), containsString("invalid id"));
+        while (it.hasNext()) {
+            response = it.next();
+        }
+        assertTrue(response.isFinalResponse());
     }
 }

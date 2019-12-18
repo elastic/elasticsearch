@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.search.AsyncSearchStoreService.ASYNC_SEARCH_INDEX_PREFIX;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
     private static final Logger logger = LogManager.getLogger(TransportGetAsyncSearchAction.class);
@@ -59,7 +60,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
     protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
         try {
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
-            if (searchId.getIndexName().startsWith(AsyncSearchStoreService.ASYNC_SEARCH_ALIAS) == false) {
+            if (searchId.getIndexName().startsWith(ASYNC_SEARCH_INDEX_PREFIX) == false) {
                 listener.onFailure(new IllegalArgumentException("invalid id [" + request.getId() + "] that references the wrong index ["
                     + searchId.getIndexName() + "]"));
             }

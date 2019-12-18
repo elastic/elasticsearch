@@ -21,12 +21,12 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
 
     @Override
     protected Wildcard mutateInstance(Wildcard instance) throws IOException {
-        String Wildcard = instance.getPattern();
+        String wildcard = instance.getPattern();
         String analyzer = instance.getAnalyzer();
         String useField = instance.getUseField();
         switch (between(0, 2)) {
             case 0:
-                Wildcard += "a";
+                wildcard += "a";
                 break;
             case 1:
                 analyzer = randomAlphaOfLength(5);
@@ -37,7 +37,7 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Wildcard(Wildcard, analyzer, useField);
+        return new Wildcard(wildcard, analyzer, useField);
     }
 
     @Override
@@ -50,8 +50,8 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             parser.nextToken();
         }
-        Wildcard Wildcard = (Wildcard) IntervalsSourceProvider.fromXContent(parser);
+        Wildcard wildcard = (Wildcard) IntervalsSourceProvider.fromXContent(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        return Wildcard;
+        return wildcard;
     }
 }

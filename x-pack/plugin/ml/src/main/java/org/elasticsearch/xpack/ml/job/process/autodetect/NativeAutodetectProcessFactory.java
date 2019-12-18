@@ -91,7 +91,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
                 processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash);
+                filesToDelete, resultsParser, onProcessCrash, processConnectTimeout);
         try {
             autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
             return autodetect;

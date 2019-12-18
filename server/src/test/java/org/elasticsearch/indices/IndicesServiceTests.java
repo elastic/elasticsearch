@@ -248,7 +248,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
-        ShardPath path = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
+        ShardPath path = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0),
+            test.getIndexSettings().customDataPath());
         assertTrue(path.exists());
 
         try {
@@ -281,7 +282,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(indexShard.routingEntry().started());
 
         final ShardPath shardPath = indexShard.shardPath();
-        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings), shardPath);
+        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings.customDataPath()),
+            shardPath);
 
         final IndicesService indicesService = getIndicesService();
         expectThrows(ShardLockObtainFailedException.class, () ->

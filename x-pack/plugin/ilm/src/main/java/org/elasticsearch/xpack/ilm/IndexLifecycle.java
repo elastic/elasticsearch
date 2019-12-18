@@ -94,6 +94,8 @@ import org.elasticsearch.xpack.ilm.action.TransportRemoveIndexLifecyclePolicyAct
 import org.elasticsearch.xpack.ilm.action.TransportRetryAction;
 import org.elasticsearch.xpack.ilm.action.TransportStartILMAction;
 import org.elasticsearch.xpack.ilm.action.TransportStopILMAction;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
 import org.elasticsearch.xpack.slm.SLMFeatureSet;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
@@ -131,6 +133,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
+    private final SetOnce<ILMHistoryStore> ilmHistoryStore = new SetOnce<>();
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
@@ -172,6 +175,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
+            LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
@@ -188,8 +192,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         }
         final List<Object> components = new ArrayList<>();
         if (ilmEnabled) {
+            // This registers a cluster state listener, so appears unused but is not.
+            @SuppressWarnings("unused")
+            ILMHistoryTemplateRegistry ilmTemplateRegistry =
+                new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+            ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService));
             indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
-                getClock(), System::currentTimeMillis, xContentRegistry));
+                getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
             components.add(indexLifecycleInitialisationService.get());
         }
         if (slmEnabled) {
@@ -317,7 +326,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     @Override
     public void close() {
         try {
-            IOUtils.close(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotRetentionService.get());
+            IOUtils.close(indexLifecycleInitialisationService.get(), ilmHistoryStore.get(),
+                snapshotLifecycleService.get(), snapshotRetentionService.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close index lifecycle services", e);
         }

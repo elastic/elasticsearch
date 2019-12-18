@@ -32,6 +32,7 @@ import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -133,6 +134,23 @@ public final class IndexMetaDataGenerations {
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaDataHashes);
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(hashes, lookup);
+    }
+
+    @Override
+    public boolean equals(Object that) {
+        if (this == that) {
+            return true;
+        }
+        if (that instanceof IndexMetaDataGenerations == false) {
+            return false;
+        }
+        final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
+        return lookup.equals(other.lookup) && hashes.equals(other.hashes);
+    }
+
     /**
      * Serialize and return the hex encoded SHA256 of {@link IndexMetaData}.
      *
@@ -157,9 +175,5 @@ public final class IndexMetaDataGenerations {
             throw new AssertionError("No actual IO happens here", e);
         }
         return MessageDigests.toHexString(digest.digest());
-    }
-
-    private static String lookupKey(SnapshotId snapshotId, IndexId indexId) {
-        return snapshotId.getUUID() + "-" + indexId.getId();
     }
 }

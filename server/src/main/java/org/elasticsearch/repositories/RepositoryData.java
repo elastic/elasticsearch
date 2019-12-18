@@ -323,12 +323,13 @@ public final class RepositoryData {
                    && snapshotStates.equals(that.snapshotStates)
                    && indices.equals(that.indices)
                    && indexSnapshots.equals(that.indexSnapshots)
-                   && shardGenerations.equals(that.shardGenerations);
+                   && shardGenerations.equals(that.shardGenerations)
+                   && indexMetaDataGenerations.equals(that.indexMetaDataGenerations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots, shardGenerations);
+        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots, shardGenerations, indexMetaDataGenerations);
     }
 
     /**

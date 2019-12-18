@@ -33,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -267,6 +268,54 @@ public class RepositoryDataTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("Detected a corrupted repository, " +
                 "index [docs/_id] references an unknown snapshot uuid [null]"));
         }
+    }
+
+    // Test removing snapshot from random data where no two snapshots share any index metadata blobs
+    public void testIndexMetaDataToRemoveAfterRemovingSnapshotNoSharing() {
+        final RepositoryData repositoryData = generateRandomRepoData();
+        final SnapshotId snapshotId = randomFrom(repositoryData.getSnapshotIds());
+        final IndexMetaDataGenerations indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();
+        final Collection<IndexId> indicesToUpdate = repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId);
+        final Map<IndexId, String> hashesToRemove = indexMetaDataGenerations.lookup.get(snapshotId).entrySet().stream()
+            .filter(e -> indicesToUpdate.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> indexMetaDataGenerations.getIndexMetaBlobId(e.getValue())));
+        assertEquals(repositoryData.indexMetaDataToRemoveAfterRemovingSnapshot(snapshotId), hashesToRemove);
+    }
+
+    // Test removing snapshot from random data that has some or all index metadata shared
+    public void testIndexMetaDataToRemoveAfterRemovingSnapshotWithSharing() {
+        final RepositoryData repositoryData = generateRandomRepoData();
+        final ShardGenerations.Builder builder = ShardGenerations.builder();
+        final SnapshotId otherSnapshotId = randomFrom(repositoryData.getSnapshotIds());
+        final Collection<IndexId> indicesInOther = repositoryData.getIndices().values()
+            .stream()
+            .filter(index -> repositoryData.getSnapshots(index).contains(otherSnapshotId))
+            .collect(Collectors.toSet());
+        for (IndexId indexId : indicesInOther) {
+            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
+        }
+        final Map<IndexId, String> newIndices = new HashMap<>();
+        final Map<String, String> newHashes = new HashMap<>();
+        final Map<IndexId, String> removeFromOther = new HashMap<>();
+        for (IndexId indexId : randomSubsetOf(repositoryData.getIndices().values())) {
+            if (indicesInOther.contains(indexId)) {
+                removeFromOther.put(indexId, repositoryData.indexMetaDataGenerations().indexMetaBlobId(otherSnapshotId, indexId));
+            }
+            final String hash = randomAlphaOfLength(256);
+            newIndices.put(indexId, hash);
+            newHashes.put(hash, UUIDs.randomBase64UUID(random()));
+            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
+        }
+        final ShardGenerations shardGenerations = builder.build();
+        final Map<IndexId, String> indexLookup = new HashMap<>(repositoryData.indexMetaDataGenerations().lookup.get(otherSnapshotId));
+        indexLookup.putAll(newIndices);
+        final SnapshotId newSnapshot = new SnapshotId(randomAlphaOfLength(7), UUIDs.randomBase64UUID(random()));
+
+        RepositoryData newRepoData =
+            repositoryData.addSnapshot(newSnapshot, SnapshotState.SUCCESS, shardGenerations, indexLookup, newHashes);
+        assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshot(newSnapshot), newIndices.entrySet().stream().collect(
+            Collectors.toMap(Map.Entry::getKey, e -> newHashes.get(e.getValue()))));
+        assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshot(otherSnapshotId), removeFromOther);
     }
 
     public static RepositoryData generateRandomRepoData() {

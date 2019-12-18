@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -66,6 +67,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        // this is needed for isInternal
+        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);

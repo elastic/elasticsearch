@@ -75,10 +75,6 @@ Valid rules include:
 * <<intervals-wildcard,`wildcard`>>
 * <<intervals-all_of,`all_of`>>
 * <<intervals-any_of,`any_of`>>
-* <<interval_filter,`filter`>>
-
-All rules except the `filter` rule can appear on the top level of the query,
-while the `filter` rule can only be nested inside `match`, `all_of` and `any_of`.
 --
 
 [[intervals-match]]

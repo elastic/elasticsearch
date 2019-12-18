@@ -23,47 +23,94 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 
-import java.util.Objects;
-
 public class AssignmentNode extends BinaryNode {
 
-    protected final Location location;
-    protected final boolean pre;
-    protected final boolean post;
-    protected final Operation operation;
-    protected final boolean read;
-    protected final boolean cat;
-    protected final PainlessCast there;
-    protected final PainlessCast back;
+    /* ---- begin node data ---- */
 
-    public AssignmentNode(
-            Location location,
-            boolean pre,
-            boolean post,
-            Operation operation,
-            boolean read,
-            boolean cat,
-            PainlessCast there,
-            PainlessCast back
-    ) {
-        this.location = Objects.requireNonNull(location);
+    protected boolean pre;
+    protected boolean post;
+    protected Operation operation;
+    protected boolean read;
+    protected boolean cat;
+    protected PainlessCast there;
+    protected PainlessCast back;
+
+    public AssignmentNode setPre(boolean pre) {
         this.pre = pre;
+        return this;
+    }
+
+    public boolean getPre() {
+        return pre;
+    }
+
+    public AssignmentNode setPost(boolean post) {
         this.post = post;
-        this.operation = Objects.requireNonNull(operation);
+        return this;
+    }
+
+    public boolean getPost() {
+        return post;
+    }
+
+    public AssignmentNode setOperation(Operation operation) {
+        this.operation = operation;
+        return this;
+    }
+
+    public Operation getOperation() {
+        return operation;
+    }
+
+    public AssignmentNode setRead(boolean read) {
         this.read = read;
+        return this;
+    }
+
+    public boolean getRead() {
+        return read;
+    }
+
+    public AssignmentNode setCat(boolean cat) {
         this.cat = cat;
+        return this;
+    }
+
+    public boolean getCat() {
+        return cat;
+    }
+
+    public AssignmentNode setThere(PainlessCast there) {
         this.there = there;
+        return this;
+    }
+
+    public PainlessCast getThere() {
+        return there;
+    }
+
+    public AssignmentNode setBack(PainlessCast back) {
         this.back = back;
+        return this;
+    }
+
+    public PainlessCast getBack() {
+        return back;
+    }
+
+    /* ---- end node data ---- */
+
+    public AssignmentNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         // For the case where the assignment represents a String concatenation

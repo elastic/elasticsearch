@@ -22,33 +22,121 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
-public class CallDefNode extends ArgumentsNode<ExpressionNode> {
+public class CallDefNode extends ArgumentsNode {
 
-    protected final Location location;
-    protected final String name;
-    protected final String recipe;
-    protected final List<String> pointers;
-    protected final List<Class<?>> parameterTypes;
+    /* ---- begin node data ---- */
 
-    public CallDefNode(Location location, String name, String recipe, List<String> pointers, List<Class<?>> parameterTypes) {
-        this.location = location;
-        this.name = Objects.requireNonNull(name);
-        this.recipe = Objects.requireNonNull(recipe);
-        this.pointers = Collections.unmodifiableList(Objects.requireNonNull(pointers));
-        this.parameterTypes = Collections.unmodifiableList(Objects.requireNonNull(parameterTypes));
+    protected String name;
+    protected String recipe;
+    protected List<String> pointers;
+    protected List<Class<?>> parameterTypes;
+
+    public CallDefNode setName(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public CallDefNode setRecipe(String recipe) {
+        this.recipe = recipe;
+        return this;
+    }
+
+    public String getRecipe() {
+        return recipe;
+    }
+
+    public CallDefNode addPointer(String pointer) {
+        pointers.add(pointer);
+        return this;
+    }
+
+    public CallDefNode setPointer(int index, String pointer) {
+        pointers.set(index, pointer);
+        return this;
+    }
+
+    public String getPointer(int index) {
+        return pointers.get(index);
+    }
+
+    public CallDefNode removePointer(String pointer) {
+        pointers.remove(pointer);
+        return this;
+    }
+
+    public CallDefNode removePointer(int index) {
+        pointers.remove(index);
+        return this;
+    }
+
+    public int getPointersSize() {
+        return pointers.size();
+    }
+
+    public List<String> getPointers() {
+        return pointers;
+    }
+
+    public CallDefNode clearPointers() {
+        pointers.clear();
+        return this;
+    }
+
+    public CallDefNode addParameterType(Class<?> parameterType) {
+        parameterTypes.add(parameterType);
+        return this;
+    }
+
+    public CallDefNode setParameterType(int index, Class<?> parameterType) {
+        parameterTypes.set(index, parameterType);
+        return this;
+    }
+
+    public Class<?> getParameterType(int index) {
+        return parameterTypes.get(index);
+    }
+
+    public CallDefNode removeParameterType(Class<?> parameterType) {
+        parameterTypes.remove(parameterType);
+        return this;
+    }
+
+    public CallDefNode removeParameterType(int index) {
+        parameterTypes.remove(index);
+        return this;
+    }
+
+    public int getParameterTypesSize() {
+        return parameterTypes.size();
+    }
+
+    public List<Class<?>> getParameterTypes() {
+        return parameterTypes;
+    }
+
+    public CallDefNode clearParameterTypes() {
+        parameterTypes.clear();
+        return this;
+    }
+    
+    /* ---- end node data ---- */
+
+    public CallDefNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         for (ExpressionNode argumentNode : argumentNodes) {

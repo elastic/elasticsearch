@@ -19,19 +19,10 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Label;
 
-public class CallNode extends PrefixNode {
+public abstract class StatementNode implements IRNode {
 
-    public CallNode() {
-        // do nothing
-    }
-
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefixNode.write(classWriter, methodWriter, globals);
-        childNode.write(classWriter, methodWriter, globals);
-    }
+    protected Label continueLabel = null;
+    protected Label breakLabel = null;
 }

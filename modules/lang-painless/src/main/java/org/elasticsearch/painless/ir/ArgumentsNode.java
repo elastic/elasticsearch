@@ -21,30 +21,35 @@ package org.elasticsearch.painless.ir;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public abstract class ArgumentsNode extends ExpressionNode {
 
+    /* ---- begin tree structure ---- */
+
     protected List<ExpressionNode> argumentNodes = new ArrayList<>();
 
-    public void addArgumentNode(ExpressionNode argumentNode) {
+    public ArgumentsNode addArgumentNode(ExpressionNode argumentNode) {
         argumentNodes.add(argumentNode);
+        return this;
     }
 
-    public void setArgumentNode(int index, ExpressionNode argumentNode) {
+    public ArgumentsNode setArgumentNode(int index, ExpressionNode argumentNode) {
         argumentNodes.set(index, argumentNode);
+        return this;
     }
 
     public ExpressionNode getArgumentNode(int index) {
         return argumentNodes.get(index);
     }
 
-    public void removeArgumentNode(ExpressionNode expressionNode) {
-        argumentNodes.remove(expressionNode);
+    public ArgumentsNode removeArgumentNode(ExpressionNode argumentNode) {
+        argumentNodes.remove(argumentNode);
+        return this;
     }
 
-    public void removeArgumentNode(int index) {
+    public ArgumentsNode removeArgumentNode(int index) {
         argumentNodes.remove(index);
+        return this;
     }
 
     public int getArgumentsSize() {
@@ -55,7 +60,14 @@ public abstract class ArgumentsNode extends ExpressionNode {
         return argumentNodes;
     }
 
-    public void clearArgumentNodes() {
+    public ArgumentsNode clearArgumentNodes() {
         argumentNodes.clear();
+        return this;
+    }
+
+    /* ---- end tree structure ---- */
+
+    public ArgumentsNode() {
+        // do nothing
     }
 }

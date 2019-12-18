@@ -21,34 +21,29 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
-
 public class BraceSubNode extends UnaryNode {
 
-    protected final Location location;
-
-    public BraceSubNode(Location location) {
-        this.location = Objects.requireNonNull(location);
+    public BraceSubNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         setup(classWriter, methodWriter, globals);
         load(classWriter, methodWriter, globals);
     }
 
     @Override
-    public int accessElementCount() {
+    protected int accessElementCount() {
         return 2;
     }
 
     @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.write(classWriter, methodWriter, globals);
 
         Label noFlip = new Label();
@@ -62,13 +57,13 @@ public class BraceSubNode extends UnaryNode {
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         methodWriter.arrayLoad(MethodWriter.getType(getType()));
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         methodWriter.arrayStore(MethodWriter.getType(getType()));
     }

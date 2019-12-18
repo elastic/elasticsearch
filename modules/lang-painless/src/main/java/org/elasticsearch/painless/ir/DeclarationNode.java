@@ -17,66 +17,42 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
-import java.util.Set;
 
-/**
- * Represents a single variable declaration.
- */
-public final class SDeclaration extends AStatement {
+public class DeclarationNode extends StatementNode {
 
-    private final DType type;
-    private final String name;
-    private AExpression expression;
+    protected ExpressionNode expressionNode;
 
-    Variable variable = null;
+    public void setExpressionNode(ExpressionNode childNode) {
+        this.expressionNode = childNode;
+    }
 
-    public SDeclaration(Location location, DType type, String name, AExpression expression) {
-        super(location);
+    public ExpressionNode getExpressionNode() {
+        return expressionNode;
+    }
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.expression = expression;
+    protected final Location location;
+    protected final Variable variable;
+
+    public DeclarationNode(Location location, Variable variable) {
+        this.location = Objects.requireNonNull(location);
+        this.variable = Objects.requireNonNull(variable);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
-
-        if (expression != null) {
-            expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, locals);
-            expression = expression.cast(scriptRoot, locals);
-        }
-
-        variable = locals.addVariable(location, resolvedType.getType(), name, false);
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
-        if (expression == null) {
+        if (expressionNode == null) {
             Class<?> sort = variable.clazz;
 
             if (sort == void.class || sort == boolean.class || sort == byte.class ||
@@ -92,17 +68,9 @@ public final class SDeclaration extends AStatement {
                 methodWriter.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
-            expression.write(classWriter, methodWriter, globals);
+            expressionNode.write(classWriter, methodWriter, globals);
         }
 
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
-    }
-
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
-        }
-        return singleLineToString(type, name, expression);
     }
 }

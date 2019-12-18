@@ -22,32 +22,57 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.def;
 
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class BinaryMathNode extends ShiftNode {
 
-    protected final Location location;
-    protected final Operation operation;
-    protected final boolean cat;
-    protected final boolean originallyExplicit; // record whether there was originally an explicit cast
+    /* ---- begin node data ---- */
 
-    public BinaryMathNode(Location location, Operation operation, boolean cat, boolean originallyExplicit) {
-        this.location = Objects.requireNonNull(location);
-        this.operation = Objects.requireNonNull(operation);
+    protected Operation operation;
+    protected boolean cat;
+    protected boolean originallyExplicit; // record whether there was originally an explicit cast
+
+    public BinaryMathNode setOperation(Operation operation) {
+        this.operation = operation;
+        return this;
+    }
+
+    public Operation getOperation() {
+        return operation;
+    }
+
+    public BinaryMathNode setCat(boolean cat) {
         this.cat = cat;
+        return this;
+    }
+
+    public boolean getCat() {
+        return cat;
+    }
+
+    public BinaryMathNode setOriginallExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
+        return this;
+    }
+
+    public boolean getOriginallyExplicit() {
+        return originallyExplicit;
+    }
+
+    /* ---- end node data ---- */
+
+    public BinaryMathNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         if (getType() == String.class && operation == Operation.ADD) {

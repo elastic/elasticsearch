@@ -21,26 +21,34 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
+public class BooleanNode extends BinaryNode {
 
-public final class BooleanNode extends BinaryNode {
+    /* ---- begin node data ---- */
 
-    private final Location location;
-    private final Operation operation;
+    protected Operation operation;
 
-    public BooleanNode(Location location, Operation operation) {
-        this.location = Objects.requireNonNull(location);
-        this.operation = Objects.requireNonNull(operation);
+    public BooleanNode setOperation(Operation operation) {
+        this.operation = operation;
+        return this;
+    }
+
+    public Operation getOperation() {
+        return operation;
+    }
+
+    /* ---- end node data ---- */
+
+    public BooleanNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         if (operation == Operation.AND) {

@@ -21,26 +21,42 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
-import java.util.Objects;
-
 public class CallSubNode extends ArgumentsNode {
 
-    protected final Location location;
-    protected final PainlessMethod method;
-    protected final Class<?> box;
+    /* ---- begin node data ---- */
 
-    public CallSubNode(Location location, PainlessMethod method, Class<?> box) {
-        this.location = Objects.requireNonNull(location);
-        this.method = Objects.requireNonNull(method);
-        this.box = Objects.requireNonNull(box);
+    protected PainlessMethod method;
+    protected Class<?> box;
+
+    public CallSubNode setMethod(PainlessMethod method) {
+        this.method = method;
+        return this;
+    }
+
+    public PainlessMethod getMethod() {
+        return method;
+    }
+
+    public CallSubNode setBox(Class<?> box) {
+        this.box = box;
+        return this;
+    }
+
+    public Class<?> getPost() {
+        return box;
+    }
+
+    /* ---- end node data ---- */
+
+    public CallSubNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         if (box.isPrimitive()) {

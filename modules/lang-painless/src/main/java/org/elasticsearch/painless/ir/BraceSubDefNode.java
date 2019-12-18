@@ -22,33 +22,28 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
-import java.util.Objects;
-
 public class BraceSubDefNode extends UnaryNode {
 
-    protected final Location location;
-
-    public BraceSubDefNode(Location location) {
-        this.location = Objects.requireNonNull(location);
+    public BraceSubDefNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         setup(classWriter, methodWriter, globals);
         load(classWriter, methodWriter, globals);
     }
 
     @Override
-    public int accessElementCount() {
+    protected int accessElementCount() {
         return 2;
     }
 
     @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.dup();
         childNode.write(classWriter, methodWriter, globals);
         Type methodType = Type.getMethodType(
@@ -57,7 +52,7 @@ public class BraceSubDefNode extends UnaryNode {
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         Type methodType =
@@ -66,7 +61,7 @@ public class BraceSubDefNode extends UnaryNode {
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         Type methodType = Type.getMethodType(Type.getType(void.class), Type.getType(Object.class),

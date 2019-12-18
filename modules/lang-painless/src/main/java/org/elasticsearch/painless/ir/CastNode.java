@@ -21,24 +21,32 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 
-import java.util.Objects;
-
 public class CastNode extends UnaryNode {
 
-    protected final Location location;
-    protected final PainlessCast cast;
+    /* ---- begin node data ---- */
 
-    CastNode(Location location, PainlessCast cast) {
-        this.location = Objects.requireNonNull(location);
-        this.cast = Objects.requireNonNull(cast);
+    protected PainlessCast cast;
+
+    public CastNode setCast(PainlessCast cast) {
+        this.cast = cast;
+        return this;
+    }
+
+    public PainlessCast getCast() {
+        return cast;
+    }
+
+    /* ---- end node data ---- */
+
+    public CastNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.write(classWriter, methodWriter, globals);
         methodWriter.writeDebugInfo(location);
         methodWriter.writeCast(cast);

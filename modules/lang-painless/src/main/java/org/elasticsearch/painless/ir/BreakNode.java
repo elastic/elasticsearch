@@ -23,36 +23,14 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 
-public class BraceNode extends PrefixNode {
+public class BreakNode extends StatementNode {
 
-    public BraceNode() {
+    public BreakNode() {
         // do nothing
     }
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefixNode.write(classWriter, methodWriter, globals);
-        childNode.write(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    protected int accessElementCount() {
-        return childNode.accessElementCount();
-    }
-
-    @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefixNode.write(classWriter, methodWriter, globals);
-        childNode.setup(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        childNode.load(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        childNode.store(classWriter, methodWriter, globals);
+        methodWriter.goTo(breakLabel);
     }
 }

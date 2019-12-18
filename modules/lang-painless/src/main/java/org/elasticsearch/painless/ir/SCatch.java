@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
@@ -32,66 +32,39 @@ import org.objectweb.asm.Opcodes;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * Represents a catch block as part of a try-catch block.
- */
-public final class SCatch extends AStatement {
+public class CatchNode extends StatementNode {
 
-    private final DType baseException;
-    private final SDeclaration declaration;
-    private final SBlock block;
+    /* --- begin tree structure --- */
+
+    protected DeclarationNode declarationNode;
+
+    public void setChildNode(ExpressionNode declarationNode) {
+        this.declarationNode = declarationNode;
+    }
+
+    public ExpressionNode getChildNode() {
+        return declarationNode;
+    }
+
+    /* --- end tree structure, begin node data --- */
+
+    protected final Location location;
+    protected boolean allEscape;
+
+    /* --- end node date --- */
+
+    public CatchNode(Location location) {
+        this.location = Objects.requireNonNull(location);
+    }
+
+
 
     Label begin = null;
     Label end = null;
     Label exception = null;
 
-    public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
-        super(location);
-
-        this.baseException = Objects.requireNonNull(baseException);
-        this.declaration = Objects.requireNonNull(declaration);
-        this.block = block;
-    }
-
     @Override
-    void extractVariables(Set<String> variables) {
-        declaration.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        declaration.analyze(scriptRoot, locals);
-
-        Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
-        Class<?> type = declaration.variable.clazz;
-
-        if (baseType.isAssignableFrom(type) == false) {
-            throw createError(new ClassCastException(
-                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
-        }
-
-        if (block != null) {
-            block.lastSource = lastSource;
-            block.inLoop = inLoop;
-            block.lastLoop = lastLoop;
-            block.analyze(scriptRoot, locals);
-
-            methodEscape = block.methodEscape;
-            loopEscape = block.loopEscape;
-            allEscape = block.allEscape;
-            anyContinue = block.anyContinue;
-            anyBreak = block.anyBreak;
-            statementCount = block.statementCount;
-        }
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
         Label jump = new Label();
@@ -111,10 +84,5 @@ public final class SCatch extends AStatement {
         if (exception != null && (block == null || !block.allEscape)) {
             methodWriter.goTo(exception);
         }
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(baseException, declaration, block);
     }
 }

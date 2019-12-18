@@ -151,6 +151,11 @@ public final class IndexMetaDataGenerations {
         return lookup.equals(other.lookup) && hashes.equals(other.hashes);
     }
 
+    @Override
+    public String toString() {
+        return "IndexMetaDataGenerations{lookup:" + lookup + "}{hashes:" + hashes + "}";
+    }
+
     /**
      * Serialize and return the hex encoded SHA256 of {@link IndexMetaData}.
      *

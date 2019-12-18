@@ -163,7 +163,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.unlike(randomUnlikeItems);
         }
         if (randomBoolean()) {
-            queryBuilder.maxQueryTerms(randomInt(25));
+            queryBuilder.maxQueryTerms(randomIntBetween(1, 25));
         }
         if (randomBoolean()) {
             queryBuilder.minTermFreq(randomInt(5));
@@ -338,6 +338,16 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertThat(mltQuery.getLikeText(), equalTo("something"));
         assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
         assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
+    }
+
+    public void testValidateMaxQueryTerms() {
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
+            () -> new MoreLikeThisQueryBuilder(new String[]{"name.first", "name.last"}, new String[]{"something"}, null).maxQueryTerms(0));
+        assertThat(e1.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+            () -> new MoreLikeThisQueryBuilder(new String[]{"name.first", "name.last"}, new String[]{"something"}, null).maxQueryTerms(-3));
+        assertThat(e2.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
     }
 
     public void testItemSerialization() throws IOException {

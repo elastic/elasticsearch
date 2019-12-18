@@ -10,22 +10,30 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClassificationConfigTests extends AbstractWireSerializingTestCase<ClassificationConfig> {
 
     public static ClassificationConfig randomClassificationConfig() {
-        return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10));
+        return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+            );
     }
 
     public void testFromMap() {
-        ClassificationConfig expected = new ClassificationConfig(0);
+        ClassificationConfig expected = ClassificationConfig.EMPTY_PARAMS;
         assertThat(ClassificationConfig.fromMap(Collections.emptyMap()), equalTo(expected));
 
-        expected = new ClassificationConfig(3);
-        assertThat(ClassificationConfig.fromMap(Collections.singletonMap(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 3)),
-            equalTo(expected));
+        expected = new ClassificationConfig(3, "foo", "bar");
+        Map<String, Object> configMap = new HashMap<>();
+        configMap.put(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
+        configMap.put(ClassificationConfig.RESULTS_FIELD.getPreferredName(), "foo");
+        configMap.put(ClassificationConfig.TOP_CLASSES_RESULTS_FIELD.getPreferredName(), "bar");
+        assertThat(ClassificationConfig.fromMap(configMap), equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {

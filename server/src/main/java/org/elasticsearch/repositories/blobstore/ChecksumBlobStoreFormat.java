@@ -114,13 +114,6 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         return readBlob(blobContainer, blobName);
     }
 
-    /**
-     * Deletes obj in the blob container
-     */
-    public void delete(BlobContainer blobContainer, String name) throws IOException {
-        blobContainer.deleteBlob(blobName(name));
-    }
-
     public String blobName(String name) {
         return String.format(Locale.ROOT, blobNameFormat, name);
     }

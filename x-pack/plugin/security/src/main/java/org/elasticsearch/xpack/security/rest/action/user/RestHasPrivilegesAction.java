@@ -70,11 +70,15 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        /*
+         * Consume the body immediately. This ensures that if there is a body and we later reject the request (e.g., because security is not
+         * enabled) that the REST infrastructure will not reject the request for not having consumed the body.
+         */
+        final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
         final String username = getUsername(request);
         if (username == null) {
             return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
         }
-        final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
         HasPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareHasPrivileges(username, content.v2(), content.v1());
         return channel -> requestBuilder.execute(new RestBuilderListener<HasPrivilegesResponse>(channel) {
             @Override

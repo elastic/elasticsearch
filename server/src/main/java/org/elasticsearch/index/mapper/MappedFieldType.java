@@ -54,6 +54,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -508,6 +509,6 @@ public abstract class MappedFieldType extends FieldType {
      */
     public void setMeta(Map<String, String> meta) {
         checkIfFrozen();
-        this.meta = Map.copyOf(Objects.requireNonNull(meta));
+        this.meta = Collections.unmodifiableMap(new HashMap<>(Objects.requireNonNull(meta)));
     }
 }

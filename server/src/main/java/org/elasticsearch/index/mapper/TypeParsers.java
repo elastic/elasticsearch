@@ -209,8 +209,8 @@ public class TypeParsers {
         }
         final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
         final Function<Object, String> stringCast = String.class::cast;
-        Map<String, String> checkedMeta = meta.entrySet().stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast)));
+        Map<String, String> checkedMeta = Collections.unmodifiableMap(meta.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast))));
         builder.meta(checkedMeta);
     }
 

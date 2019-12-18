@@ -59,8 +59,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     private static Map<String, Set<String>> mapToMapOfSets(Map<String, String> map) {
         final Function<Map.Entry<String, String>, String> entryValueFunction = Map.Entry::getValue;
-        return map.entrySet().stream().collect(
-                Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(Set::of)));
+        return Collections.unmodifiableMap(map.entrySet().stream().collect(
+                Collectors.toMap(Map.Entry::getKey, entryValueFunction.andThen(Arrays::asList).andThen(HashSet::new)
+                        .andThen(Collections::unmodifiableSet))));
     }
 
     private final String name;
@@ -201,7 +202,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (parser, context) -> parser.map(HashMap::new, p -> Set.copyOf(p.list())), META_FIELD);
+                (parser, context) -> parser.map(HashMap::new, p -> Collections.unmodifiableSet(new HashSet<>(p.list()))), META_FIELD);
     }
 
     /**
@@ -381,9 +382,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 nonAggregatableIndices = null;
             }
             final Function<Map.Entry<String, Set<String>>, Set<String>> entryValueFunction = Map.Entry::getValue;
-            Map<String, Set<String>> immutableMeta = meta.entrySet().stream()
-                    .collect(Collectors.toUnmodifiableMap(
-                            Map.Entry::getKey, entryValueFunction.andThen(Set::copyOf)));
+            Map<String, Set<String>> immutableMeta = Collections.unmodifiableMap(meta.entrySet().stream()
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey, entryValueFunction.andThen(HashSet::new).andThen(Collections::unmodifiableSet))));
             return new FieldCapabilities(name, type, isSearchable, isAggregatable,
                 indices, nonSearchableIndices, nonAggregatableIndices, immutableMeta);
         }

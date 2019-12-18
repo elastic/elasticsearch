@@ -19,20 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
-import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
-import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
-import static org.hamcrest.core.IsEqual.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -53,13 +40,14 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
@@ -231,14 +219,14 @@ public class TypeParsersTests extends ESTestCase {
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null);
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", 3));
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", 3));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("veryloooooooooooongkey", 3L)));
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("veryloooooooooooongkey", 3L)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]",
@@ -246,8 +234,14 @@ public class TypeParsersTests extends ESTestCase {
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of(
-                    "foo1", 3L, "foo2", 4L, "foo3", 5L, "foo4", 6L, "foo5", 7L, "foo6", 8L)));
+            Map<String, String> meta = new HashMap<>();
+            meta.put("foo1", "3");
+            meta.put("foo2", "3");
+            meta.put("foo3", "3");
+            meta.put("foo4", "3");
+            meta.put("foo5", "3");
+            meta.put("foo6", "3");
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", meta));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]",
@@ -255,7 +249,7 @@ public class TypeParsersTests extends ESTestCase {
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("foo", Map.of("bar", "baz"))));
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("foo", ImmutableMap.of("bar", "baz"))));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] values can only be strings, but got Map1[{bar=baz}] for field [foo]",
@@ -263,7 +257,7 @@ public class TypeParsersTests extends ESTestCase {
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("bar", "baz", "foo", 3)));
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("bar", "baz", "foo", 3)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]",
@@ -273,7 +267,7 @@ public class TypeParsersTests extends ESTestCase {
         {
             Map<String, String> meta = new HashMap<>();
             meta.put("foo", null);
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", meta));
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", meta));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] values can't be null (field [foo])",
@@ -284,7 +278,7 @@ public class TypeParsersTests extends ESTestCase {
             String longString = IntStream.range(0, 51)
                     .mapToObj(Integer::toString)
                     .collect(Collectors.joining());
-            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("foo", longString)));
+            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("foo", longString)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));

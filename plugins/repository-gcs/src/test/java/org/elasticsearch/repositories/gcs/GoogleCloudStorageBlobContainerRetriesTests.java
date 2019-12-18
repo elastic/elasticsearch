@@ -74,7 +74,7 @@ import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.repositories.ESBlobStoreContainerTestCase.randomBytes;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;

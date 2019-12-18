@@ -48,11 +48,11 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         Job.Builder job = createJob("relocation-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        ensureGreen();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         AcknowledgedResponse openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertTrue(openJobResponse.isAcknowledged());
+        ensureGreen();
 
         // Record which node the job starts off on
         String origJobNode = awaitJobOpenedAndAssigned(job.getId(), null);

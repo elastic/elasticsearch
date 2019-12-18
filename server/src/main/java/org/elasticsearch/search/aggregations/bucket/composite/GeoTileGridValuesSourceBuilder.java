@@ -113,7 +113,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
             CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, GeoTileUtils::longEncode);
-            return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(), missingBucket());
+            return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
+                missingBucket(), script() != null);
         } else {
             throw new IllegalArgumentException("invalid source, expected geo_point, got " + orig.getClass().getSimpleName());
         }

@@ -10,6 +10,8 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,8 @@ public class RunTask extends DefaultTestClustersTask {
 
     private static final Logger logger = Logging.getLogger(RunTask.class);
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
+
+    public static final String DATA_DIR_SETTING = "run.datadir";
 
     private Boolean debug = false;
 
@@ -46,13 +50,25 @@ public class RunTask extends DefaultTestClustersTask {
                 entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
                 entry -> entry.getValue().toString()
             ));
+        Path baseDataPath = null;
+        String dataPathSetting = System.getProperty(DATA_DIR_SETTING);
+        if (dataPathSetting != null) {
+            baseDataPath = Paths.get(dataPathSetting).toAbsolutePath();
+        }
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
             httpPort++;
             cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
             transportPort++;
+            Path clusterDataPath = null;
+            if (baseDataPath != null) {
+                clusterDataPath = baseDataPath.resolve(cluster.getName());
+            }
             for (ElasticsearchNode node : cluster.getNodes()) {
                 additionalSettings.forEach(node::setting);
+                if (clusterDataPath != null) {
+                    node.setDataPath(clusterDataPath.resolve(node.getName()));
+                }
                 if (debug) {
                     logger.lifecycle(
                         "Running elasticsearch in debug mode, {} suspending until connected on debugPort {}",

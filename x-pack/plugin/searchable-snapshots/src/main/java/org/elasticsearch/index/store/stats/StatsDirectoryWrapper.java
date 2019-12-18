@@ -184,11 +184,8 @@ public class StatsDirectoryWrapper extends FilterDirectory {
         }
 
         void incrementSeekCount(final long n) {
-            if (n >= 0) {
-                forwardSeeks.add(n);
-            } else {
-                backwardSeeks.add(n != Long.MIN_VALUE ? -n : 0L);
-            }
+            LongConsumer incSeekCount = n >= 0 ? forwardSeeks::add : backwardSeeks::add;
+            incSeekCount.accept(n);
         }
 
         void incrementBytesRead(final boolean contiguous) {

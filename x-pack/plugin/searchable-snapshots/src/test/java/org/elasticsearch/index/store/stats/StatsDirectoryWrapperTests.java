@@ -207,7 +207,7 @@ public class StatsDirectoryWrapperTests extends ESTestCase {
             for (long i = 1; i < 10; i++) {
                 final long seekTo = randomLongBetween(0L, input.getFilePointer());
 
-                long delta = input.getFilePointer() - seekTo;
+                long delta = seekTo - input.getFilePointer();
                 if (delta == 0L) {
                     break;
                 }
@@ -277,10 +277,10 @@ public class StatsDirectoryWrapperTests extends ESTestCase {
                     assertThat(stats.getBackwardSeeks().getCount(), equalTo(backwardSeekCount + 1L));
                     backwardSeekCount = stats.getBackwardSeeks().getCount();
 
-                    assertThat(stats.getBackwardSeeks().getMin(), equalTo(Math.min(minBackwardSeekValue, Math.abs(delta))));
+                    assertThat(stats.getBackwardSeeks().getMin(), equalTo(Math.min(minBackwardSeekValue, delta)));
                     minBackwardSeekValue = stats.getBackwardSeeks().getMin();
 
-                    assertThat(stats.getBackwardSeeks().getMax(), equalTo(Math.max(maxBackwardSeekValue, Math.abs(delta))));
+                    assertThat(stats.getBackwardSeeks().getMax(), equalTo(Math.max(maxBackwardSeekValue, delta)));
                     maxBackwardSeekValue = stats.getBackwardSeeks().getMax();
                 }
             }
@@ -393,6 +393,9 @@ public class StatsDirectoryWrapperTests extends ESTestCase {
     public void testRandomReads() throws Exception {
         try (StatsDirectoryWrapper directory = new StatsDirectoryWrapper(createDirectory())) {
             for (String fileName : directory.listAll()) {
+                if (fileName.startsWith("extra") || fileName.equals("write.lock")) {
+                    continue;
+                }
                 try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
 
                     IndexInputStats.Counter totalReads = directory.getStatsOrNull(fileName).getTotalReads();

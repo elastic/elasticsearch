@@ -209,7 +209,8 @@ public class GatewayMetaState implements Closeable {
         private ClusterState lastAcceptedState;
         private final PersistedClusterStateService.Writer persistenceWriter;
 
-        LucenePersistedState(PersistedClusterStateService.Writer persistenceWriter, long currentTerm, ClusterState lastAcceptedState) throws IOException {
+        LucenePersistedState(PersistedClusterStateService.Writer persistenceWriter, long currentTerm, ClusterState lastAcceptedState)
+            throws IOException {
             this.persistenceWriter = persistenceWriter;
             this.currentTerm = currentTerm;
             this.lastAcceptedState = lastAcceptedState;

@@ -410,12 +410,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             Combine combine = (Combine) o;
             return Objects.equals(subSources, combine.subSources) &&
-                ordered == combine.ordered && maxGaps == combine.maxGaps;
+                ordered == combine.ordered &&
+                maxGaps == combine.maxGaps &&
+                Objects.equals(filter, combine.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources, ordered, maxGaps);
+            return Objects.hash(subSources, ordered, maxGaps, filter);
         }
 
         @Override
@@ -468,6 +470,22 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Combine fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
+        }
+
+        List<IntervalsSourceProvider> getSubSources() {
+            return subSources;
+        }
+
+        boolean isOrdered() {
+            return ordered;
+        }
+
+        int getMaxGaps() {
+            return maxGaps;
+        }
+
+        IntervalFilter getFilter() {
+            return filter;
         }
     }
 

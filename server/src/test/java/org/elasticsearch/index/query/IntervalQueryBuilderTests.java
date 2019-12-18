@@ -93,25 +93,31 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             case 0:
             case 1:
                 int orCount = randomInt(4) + 1;
-                List<IntervalsSourceProvider> orSources = new ArrayList<>();
-                for (int i = 0; i < orCount; i++) {
-                    orSources.add(createRandomSource(depth + 1, useScripts));
-                }
+                List<IntervalsSourceProvider> orSources = createRandomSourceList(depth, useScripts, orCount);
                 return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts));
             case 2:
             case 3:
-                int count = randomInt(5) + 1;
-                List<IntervalsSourceProvider> subSources = new ArrayList<>();
-                for (int i = 0; i < count; i++) {
-                    subSources.add(createRandomSource(depth + 1, useScripts));
-                }
-                boolean ordered = randomBoolean();
-                int maxGaps = randomInt(5) - 1;
-                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1, useScripts);
-                return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+                return createRandomCombine(depth, useScripts);
             default:
                 return createRandomMatch(depth + 1, useScripts);
         }
+    }
+
+    static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
+        int count = randomInt(5) + 1;
+        List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
+        boolean ordered = randomBoolean();
+        int maxGaps = randomInt(5) - 1;
+        IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1, useScripts);
+        return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+    }
+
+    static List<IntervalsSourceProvider> createRandomSourceList(int depth, boolean useScripts, int count) {
+        List<IntervalsSourceProvider> subSources = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            subSources.add(createRandomSource(depth + 1, useScripts));
+        }
+        return subSources;
     }
 
     private static IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth, boolean useScripts) {

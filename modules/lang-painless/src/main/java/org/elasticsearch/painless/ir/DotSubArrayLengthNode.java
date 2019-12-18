@@ -17,26 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ir.ExpressionNode;
-
-import java.util.Objects;
 
 public class DotSubArrayLengthNode extends ExpressionNode {
 
-    protected final Location location;
-
-    public DotSubArrayLengthNode(Location location) {
-        this.location = Objects.requireNonNull(location);
+    public DotSubArrayLengthNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         methodWriter.arrayLength();
     }

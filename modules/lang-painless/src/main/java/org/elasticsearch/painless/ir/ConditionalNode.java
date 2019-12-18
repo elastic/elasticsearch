@@ -21,33 +21,33 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
-
 public class ConditionalNode extends BinaryNode {
 
-    protected Location location;
-
-    public ConditionalNode(Location location) {
-        this.location = Objects.requireNonNull(location);
-    }
+    /* ---- begin tree structure ---- */
 
     protected ExpressionNode conditionNode;
 
-    public void setConditionNode(ExpressionNode conditionNode) {
+    public ConditionalNode setConditionNode(ExpressionNode conditionNode) {
         this.conditionNode = conditionNode;
+        return this;
     }
 
     public ExpressionNode getConditionNode() {
         return conditionNode;
     }
 
+    /* ---- end tree structure ---- */
+
+    public ConditionalNode() {
+        // do nothing
+    }
+
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         Label fals = new Label();

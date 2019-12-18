@@ -21,22 +21,17 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 
-import java.util.Objects;
-
 public class NullSafeSubNode extends UnaryNode {
 
-    protected Location location;
-
-    public NullSafeSubNode(Location location) {
-        this.location = Objects.requireNonNull(location);
+    public NullSafeSubNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         Label end = new Label();

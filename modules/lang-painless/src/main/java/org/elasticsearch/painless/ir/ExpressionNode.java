@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless.ir;
 
-public abstract class ExpressionNode implements IRNode {
+public abstract class ExpressionNode extends IRNode {
+
+    /* ---- begin tree structure ---- */
 
     protected TypeNode typeNode;
-
-    public ExpressionNode() {
-        // do nothing
-    }
 
     public void setTypeNode(TypeNode typeNode) {
         this.typeNode = typeNode;
@@ -41,5 +39,11 @@ public abstract class ExpressionNode implements IRNode {
 
     public String getCanonicalTypeName() {
         return typeNode.getCanonicalTypeName();
+    }
+
+    /* ---- end tree structure ---- */
+
+    public ExpressionNode() {
+        // do nothing
     }
 }

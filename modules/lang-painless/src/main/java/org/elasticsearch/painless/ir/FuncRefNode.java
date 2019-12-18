@@ -22,26 +22,34 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-
-import java.util.Objects;
 
 public class FuncRefNode extends ExpressionNode {
 
-    protected final Location location;
-    protected final FunctionRef functionRef;
+    /* ---- begin node data ---- */
 
-    public FuncRefNode(Location location, FunctionRef functionRef) {
-        this.location = Objects.requireNonNull(location);
-        this.functionRef = functionRef;
+    protected FunctionRef funcRef;
+
+    public FuncRefNode setFuncRef(FunctionRef funcRef) {
+        this.funcRef = funcRef;
+        return this;
+    }
+
+    public FunctionRef getFuncRef() {
+        return funcRef;
+    }
+
+    /* ---- end node data ---- */
+
+    public FuncRefNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (functionRef != null) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        if (funcRef != null) {
             methodWriter.writeDebugInfo(location);
-            methodWriter.invokeLambdaCall(functionRef);
+            methodWriter.invokeLambdaCall(funcRef);
         } else {
             // dynamic interface: placeholder for run-time lookup
             methodWriter.push((String)null);

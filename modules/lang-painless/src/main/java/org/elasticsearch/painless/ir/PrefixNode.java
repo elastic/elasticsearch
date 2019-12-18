@@ -21,11 +21,9 @@ package org.elasticsearch.painless.ir;
 
 public abstract class PrefixNode extends UnaryNode {
 
-    protected ExpressionNode prefixNode;
+    /* ---- begin tree structure ---- */
 
-    public PrefixNode() {
-        // do nothing
-    }
+    protected ExpressionNode prefixNode;
 
     public void setPrefixNode(ExpressionNode prefixNode) {
         this.prefixNode = prefixNode;
@@ -33,5 +31,11 @@ public abstract class PrefixNode extends UnaryNode {
 
     public ExpressionNode getPrefixNode() {
         return prefixNode;
+    }
+
+    /* ---- end tree structure ---- */
+
+    public PrefixNode() {
+        // do nothing
     }
 }

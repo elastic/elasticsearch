@@ -29,18 +29,37 @@ import java.util.Objects;
 
 public class MapSubShortcutNode extends UnaryNode {
 
-    protected final Location location;
-    protected final PainlessMethod setter;
-    protected final PainlessMethod getter;
+    /* ---- begin node data ---- */
 
-    public MapSubShortcutNode(Location location, PainlessMethod setter, PainlessMethod getter) {
-        this.location = Objects.requireNonNull(location);
+    protected PainlessMethod setter;
+    protected PainlessMethod getter;
+
+    public MapSubShortcutNode setSetter(PainlessMethod setter) {
         this.setter = setter;
+        return this;
+    }
+
+    public PainlessMethod getSetter() {
+        return setter;
+    }
+
+    public MapSubShortcutNode setGetter(PainlessMethod getter) {
         this.getter = getter;
+        return this;
+    }
+
+    public PainlessMethod getGetter() {
+        return getter;
+    }
+
+    /* ---- end node data ---- */
+
+    public MapSubShortcutNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.write(classWriter, methodWriter, globals);
 
         methodWriter.writeDebugInfo(location);
@@ -52,17 +71,17 @@ public class MapSubShortcutNode extends UnaryNode {
     }
 
     @Override
-    public int accessElementCount() {
+    protected int accessElementCount() {
         return 2;
     }
 
     @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.write(classWriter, methodWriter, globals);
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(getter);
 
@@ -72,7 +91,7 @@ public class MapSubShortcutNode extends UnaryNode {
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());

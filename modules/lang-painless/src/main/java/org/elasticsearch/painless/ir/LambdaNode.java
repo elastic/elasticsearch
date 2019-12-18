@@ -23,37 +23,82 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 import java.util.List;
-import java.util.Objects;
 
 public class LambdaNode extends ExpressionNode {
 
-    protected final Location location;
-    protected final List<Variable> captures;
-    protected final FunctionRef functionRef;
+    /* ---- begin node data ---- */
 
-    public LambdaNode(Location location, List<Variable> captures, FunctionRef functionRef) {
-        this.location = Objects.requireNonNull(location);
-        this.captures = Objects.requireNonNull(captures);
-        this.functionRef = Objects.requireNonNull(functionRef);
+    protected List<Variable> captures;
+    protected FunctionRef funcRef;
+
+    public LambdaNode setFuncRef(FunctionRef funcRef) {
+        this.funcRef = funcRef;
+        return this;
+    }
+
+    public FunctionRef getFuncRef() {
+        return funcRef;
+    }
+
+    public LambdaNode addCaptureNode(Variable capture) {
+        captures.add(capture);
+        return this;
+    }
+
+    public LambdaNode setCaptureNode(int index, Variable capture) {
+        captures.set(index, capture);
+        return this;
+    }
+
+    public Variable getCaptureNode(int index) {
+        return captures.get(index);
+    }
+
+    public LambdaNode removeCaptureNode(Variable capture) {
+        captures.remove(capture);
+        return this;
+    }
+
+    public LambdaNode removeCaptureNode(int index) {
+        captures.remove(index);
+        return this;
+    }
+
+    public int getCapturesSize() {
+        return captures.size();
+    }
+
+    public List<Variable> getCaptures() {
+        return captures;
+    }
+
+    public LambdaNode clearCaptures() {
+        captures.clear();
+        return this;
+    }
+    
+    /* ---- end node data ---- */
+
+    public LambdaNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        if (functionRef != null) {
+        if (funcRef != null) {
             methodWriter.writeDebugInfo(location);
             // load captures
             for (Variable capture : captures) {
                 methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
 
-            methodWriter.invokeLambdaCall(functionRef);
+            methodWriter.invokeLambdaCall(funcRef);
         } else {
             // placeholder
             methodWriter.push((String)null);

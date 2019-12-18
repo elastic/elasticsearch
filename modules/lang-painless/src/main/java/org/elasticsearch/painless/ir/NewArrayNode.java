@@ -21,21 +21,31 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class NewArrayNode extends ArgumentsNode {
 
-    protected final Location location;
-    protected final boolean initialize;
+    /* ---- begin node data ---- */
 
-    public NewArrayNode(Location location, boolean initialize) {
-        this.location = location;
+    protected boolean initialize;
+
+    public NewArrayNode setInitialize(boolean initialize) {
         this.initialize = initialize;
+        return this;
+    }
+
+    public boolean getInitialize() {
+        return initialize;
+    }
+
+    /* ---- end node data ---- */
+
+    public NewArrayNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         if (initialize) {

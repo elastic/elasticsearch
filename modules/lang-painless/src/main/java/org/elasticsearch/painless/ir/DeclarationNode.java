@@ -22,34 +22,45 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
-
 public class DeclarationNode extends StatementNode {
+
+    /* ---- begin tree structure ---- */
 
     protected ExpressionNode expressionNode;
 
-    public void setExpressionNode(ExpressionNode childNode) {
+    public DeclarationNode setExpressionNode(ExpressionNode childNode) {
         this.expressionNode = childNode;
+        return this;
     }
 
     public ExpressionNode getExpressionNode() {
         return expressionNode;
     }
 
-    protected final Location location;
-    protected final Variable variable;
+    /* ---- end tree structure, begin node data ---- */
 
-    public DeclarationNode(Location location, Variable variable) {
-        this.location = Objects.requireNonNull(location);
-        this.variable = Objects.requireNonNull(variable);
+    protected Variable variable;
+
+    public DeclarationNode setCaptured(Variable variable) {
+        this.variable = variable;
+        return this;
+    }
+
+    public Variable getCaptured() {
+        return variable;
+    }
+
+    /* ---- end node data ---- */
+
+    public DeclarationNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
         if (expressionNode == null) {

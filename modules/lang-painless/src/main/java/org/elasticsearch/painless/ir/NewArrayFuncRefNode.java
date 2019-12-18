@@ -22,26 +22,34 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.util.Objects;
+public class NewArrayFuncRefNode extends ExpressionNode {
 
-public final class NewArrayFuncRefNode extends ExpressionNode {
+    /* ---- begin node data ---- */
 
-    protected final Location location;
-    protected final FunctionRef functionRef;
+    protected FunctionRef funcRef;
 
-    public NewArrayFuncRefNode(Location location, FunctionRef functionRef) {
-        this.location = Objects.requireNonNull(location);
-        this.functionRef = Objects.requireNonNull(functionRef);
+    public NewArrayFuncRefNode setFuncRef(FunctionRef funcRef) {
+        this.funcRef = funcRef;
+        return this;
+    }
+
+    public FunctionRef getFuncRef() {
+        return funcRef;
+    }
+
+    /* ---- end node data ---- */
+
+    public NewArrayFuncRefNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (functionRef != null) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        if (funcRef != null) {
             methodWriter.writeDebugInfo(location);
-            methodWriter.invokeLambdaCall(functionRef);
+            methodWriter.invokeLambdaCall(funcRef);
         } else {
             // push a null instruction as a placeholder for future lambda instructions
             methodWriter.push((String)null);

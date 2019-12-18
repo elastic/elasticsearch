@@ -26,21 +26,19 @@ import org.objectweb.asm.Type;
 
 public class InstanceofNode extends UnaryNode {
 
-    protected final boolean isPrimitiveResult;
-
-    public InstanceofNode(boolean isPrimitiveResult) {
-        this.isPrimitiveResult = isPrimitiveResult;
-    }
+    /* ---- begin tree structure ---- */
 
     protected TypeNode expressionTypeNode;
     protected TypeNode resolvedTypeNode;
 
-    public void setExpressionTypeNode(TypeNode expressionTypeNode) {
+    public InstanceofNode setExpressionTypeNode(TypeNode expressionTypeNode) {
         this.expressionTypeNode = expressionTypeNode;
+        return this;
     }
 
-    public void setResolvedTypeNode(TypeNode resolvedTypeNode) {
+    public InstanceofNode setResolvedTypeNode(TypeNode resolvedTypeNode) {
         this.resolvedTypeNode = resolvedTypeNode;
+        return this;
     }
 
     public TypeNode setExpressionTypeNode() {
@@ -51,8 +49,27 @@ public class InstanceofNode extends UnaryNode {
         return resolvedTypeNode;
     }
 
+    /* ---- end tree structure, begin node data ---- */
+
+    protected boolean isPrimitiveResult;
+
+    public InstanceofNode setPrimitiveResult(boolean isPrimitiveResult) {
+        this.isPrimitiveResult = isPrimitiveResult;
+        return this;
+    }
+
+    public boolean isPrimitiveResult() {
+        return isPrimitiveResult;
+    }
+
+    /* ---- end node data ---- */
+
+    public InstanceofNode() {
+        // do nothing
+    }
+
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.write(classWriter, methodWriter, globals);
 
         // primitive types

@@ -21,28 +21,44 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
-import java.util.Objects;
-
 public final class NewObjectNode extends ArgumentsNode {
 
-    protected final Location location;
-    protected final PainlessConstructor constructor;
-    protected final boolean read;
+    /* ---- begin node data ---- */
 
-    public NewObjectNode(Location location, PainlessConstructor constructor, boolean read) {
-        this.location = Objects.requireNonNull(location);
-        this.constructor = Objects.requireNonNull(constructor);
+    protected PainlessConstructor constructor;
+    protected boolean read;
+
+    public NewObjectNode setConstructor(PainlessConstructor constructor) {
+        this.constructor = constructor;
+        return this;
+    }
+
+    public PainlessConstructor getConstructor() {
+        return constructor;
+    }
+
+    public NewObjectNode setRead(boolean read) {
         this.read = read;
+        return this;
+    }
+
+    public boolean getRead() {
+        return read;
+    }
+
+    /* ---- end node data ---- */
+
+    public NewObjectNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.newInstance(MethodWriter.getType(getType()));

@@ -31,7 +31,7 @@ public class NullNode extends ExpressionNode {
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.visitInsn(Opcodes.ACONST_NULL);
     }
 }

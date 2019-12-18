@@ -21,41 +21,56 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
-
 public class ListSubShortcutNode extends UnaryNode {
 
-    protected final Location location;
-    protected final PainlessMethod setter;
-    protected final PainlessMethod getter;
+    /* ---- begin node data ---- */
 
-    public ListSubShortcutNode(Location location, PainlessMethod setter, PainlessMethod getter) {
+    protected PainlessMethod setter;
+    protected PainlessMethod getter;
 
-        this.location = Objects.requireNonNull(location);
+    public ListSubShortcutNode setSetter(PainlessMethod setter) {
         this.setter = setter;
+        return this;
+    }
+
+    public PainlessMethod getSetter() {
+        return setter;
+    }
+
+    public ListSubShortcutNode setGetter(PainlessMethod getter) {
         this.getter = getter;
+        return this;
+    }
+
+    public PainlessMethod getGetter() {
+        return getter;
+    }
+
+    /* ---- end node data ---- */
+
+    public ListSubShortcutNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         setup(classWriter, methodWriter, globals);
         load(classWriter, methodWriter, globals);
     }
 
     @Override
-    public int accessElementCount() {
+    protected int accessElementCount() {
         return 2;
     }
 
     @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.write(classWriter, methodWriter, globals);
 
         Label noFlip = new Label();
@@ -69,7 +84,7 @@ public class ListSubShortcutNode extends UnaryNode {
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(getter);
 
@@ -79,7 +94,7 @@ public class ListSubShortcutNode extends UnaryNode {
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());

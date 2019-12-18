@@ -21,25 +21,33 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.objectweb.asm.Type;
 
-import java.util.Objects;
-
 public class DotSubNode extends ExpressionNode {
 
-    protected final Location location;
-    protected final PainlessField field;
+    /* ---- begin node data ---- */
 
-    public DotSubNode(Location location, PainlessField field) {
-        this.location = Objects.requireNonNull(location);
-        this.field = Objects.requireNonNull(field);
+    protected PainlessField field;
+
+    public DotSubNode setField(PainlessField field) {
+        this.field = field;
+        return this;
+    }
+
+    public PainlessField getField() {
+        return field;
+    }
+
+    /* ---- end node data ---- */
+    
+    public DotSubNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
@@ -52,17 +60,17 @@ public class DotSubNode extends ExpressionNode {
     }
 
     @Override
-    public int accessElementCount() {
+    protected int accessElementCount() {
         return 1;
     }
 
     @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter,Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter,Globals globals) {
         // Do nothing.
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter,Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter,Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
@@ -75,7 +83,7 @@ public class DotSubNode extends ExpressionNode {
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter,Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter,Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {

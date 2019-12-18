@@ -21,26 +21,42 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
-import java.util.Objects;
-
 public class DotSubShortcutNode extends ExpressionNode {
 
-    protected final Location location;
-    protected final PainlessMethod getter;
-    protected final PainlessMethod setter;
+    /* ---- begin node data ---- */
 
-    public DotSubShortcutNode(Location location, String value, String type, PainlessMethod getter, PainlessMethod setter) {
-        this.location = Objects.requireNonNull(location);
-        this.getter = getter;
+    protected PainlessMethod setter;
+    protected PainlessMethod getter;
+
+    public DotSubShortcutNode setSetter(PainlessMethod setter) {
         this.setter = setter;
+        return this;
+    }
+
+    public PainlessMethod getSetter() {
+        return setter;
+    }
+
+    public DotSubShortcutNode setGetter(PainlessMethod getter) {
+        this.getter = getter;
+        return this;
+    }
+
+    public PainlessMethod getGetter() {
+        return getter;
+    }
+
+    /* ---- end node data ---- */
+
+    public DotSubShortcutNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.invokeMethodCall(getter);
@@ -51,17 +67,17 @@ public class DotSubShortcutNode extends ExpressionNode {
     }
 
     @Override
-    public int accessElementCount() {
+    protected int accessElementCount() {
         return 1;
     }
 
     @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         // do nothing
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.invokeMethodCall(getter);
@@ -72,7 +88,7 @@ public class DotSubShortcutNode extends ExpressionNode {
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.invokeMethodCall(setter);

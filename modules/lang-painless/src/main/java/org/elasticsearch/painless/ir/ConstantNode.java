@@ -23,18 +23,29 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.util.Objects;
+public class ConstantNode extends ExpressionNode {
 
-public class ConstantNode implements IRNode {
+    /* ---- begin node data ---- */
 
-    protected final Object constant;
+    protected Object constant;
+
+    public ConstantNode setConstant(Object constant) {
+        this.constant = constant;
+        return this;
+    }
+
+    public Object getConstant() {
+        return constant;
+    }
+
+    /* ---- end node data ---- */
     
-    ConstantNode(Object constant) {
-        this.constant = Objects.requireNonNull(constant);
+    ConstantNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if      (constant instanceof String)    methodWriter.push((String)constant);
         else if (constant instanceof Double)    methodWriter.push((double)constant);
         else if (constant instanceof Float)     methodWriter.push((float)constant);

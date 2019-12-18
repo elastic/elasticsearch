@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -30,31 +29,24 @@ import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public class MapInitializationNode extends ExpressionNode {
 
-    protected final Location location;
-    protected final PainlessConstructor constructor;
-    protected final PainlessMethod method;
-
-    public MapInitializationNode(Location location, PainlessConstructor constructor, PainlessMethod method) {
-        this.location = Objects.requireNonNull(location);
-        this.constructor = Objects.requireNonNull(constructor);
-        this.method = Objects.requireNonNull(method);
-    }
+    /* ---- begin tree structure ---- */
 
     protected final List<ExpressionNode> keyNodes = new ArrayList<>();
     protected final List<ExpressionNode> valueNodes = new ArrayList<>();
 
-    public void addArgumentNode(ExpressionNode keyNode, ExpressionNode valueNode) {
+    public MapInitializationNode addArgumentNode(ExpressionNode keyNode, ExpressionNode valueNode) {
         keyNodes.add(keyNode);
         valueNodes.add(valueNode);
+        return this;
     }
 
-    public void setArgumentNode(int index, ExpressionNode keyNode, ExpressionNode valueNode) {
+    public MapInitializationNode setArgumentNode(int index, ExpressionNode keyNode, ExpressionNode valueNode) {
         keyNodes.set(index, keyNode);
         valueNodes.set(index, valueNode);
+        return this;
     }
 
     public ExpressionNode getKeyNode(int index) {
@@ -72,9 +64,10 @@ public class MapInitializationNode extends ExpressionNode {
         };
     }
 
-    public void removeArgumentNode(int index) {
+    public MapInitializationNode removeArgumentNode(int index) {
         keyNodes.remove(index);
         valueNodes.remove(index);
+        return this;
     }
 
     public int getArgumentsSize() {
@@ -89,13 +82,43 @@ public class MapInitializationNode extends ExpressionNode {
         return valueNodes;
     }
 
-    public void clearArgumentNodes() {
+    public MapInitializationNode clearArgumentNodes() {
         keyNodes.clear();
         valueNodes.clear();
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    protected PainlessConstructor constructor;
+    protected PainlessMethod method;
+
+    public MapInitializationNode setConstructor(PainlessConstructor constructor) {
+        this.constructor = constructor;
+        return this;
+    }
+
+    public PainlessConstructor getConstructor() {
+        return constructor;
+    }
+
+    public MapInitializationNode setMethod(PainlessMethod method) {
+        this.method = method;
+        return this;
+    }
+
+    public PainlessMethod getMethod() {
+        return method;
+    }
+
+    /* ---- end node data ---- */
+
+    public MapInitializationNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.newInstance(MethodWriter.getType(getType()));

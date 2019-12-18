@@ -22,42 +22,31 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-
-import java.util.Objects;
 
 public class DotSubDefNode extends ExpressionNode {
 
-    protected final Location location;
-    protected final String value;
+    /* ---- begin node data ---- */
 
-    public DotSubDefNode(Location location, String value) {
-        this.location = Objects.requireNonNull(location);
-        this.value = Objects.requireNonNull(value);
+    protected String value;
+
+    public DotSubDefNode setValue(String value) {
+        this.value = value;
+        return this;
     }
 
-    @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(getType()), org.objectweb.asm.Type.getType(Object.class));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
+    public String getValue() {
+        return value;
     }
 
-    @Override
-    public int accessElementCount() {
-        return 1;
-    }
+    /* ---- end node data ---- */
 
-    @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    public DotSubDefNode() {
         // do nothing
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
@@ -66,7 +55,26 @@ public class DotSubDefNode extends ExpressionNode {
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected int accessElementCount() {
+        return 1;
+    }
+
+    @Override
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        // do nothing
+    }
+
+    @Override
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(getType()), org.objectweb.asm.Type.getType(Object.class));
+        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
+    }
+
+    @Override
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(

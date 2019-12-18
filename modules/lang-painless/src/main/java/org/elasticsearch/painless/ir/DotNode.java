@@ -26,33 +26,33 @@ import org.elasticsearch.painless.MethodWriter;
 public class DotNode extends PrefixNode {
 
     public DotNode() {
-
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         prefixNode.write(classWriter, methodWriter, globals);
         childNode.write(classWriter, methodWriter, globals);
     }
 
     @Override
-    public int accessElementCount() {
+    protected int accessElementCount() {
         return childNode.accessElementCount();
     }
 
     @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         prefixNode.write(classWriter, methodWriter, globals);
         childNode.setup(classWriter, methodWriter, globals);
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.load(classWriter, methodWriter, globals);
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         childNode.store(classWriter, methodWriter, globals);
     }
 }

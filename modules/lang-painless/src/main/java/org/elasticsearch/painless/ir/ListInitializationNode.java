@@ -21,29 +21,45 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
-import java.util.Objects;
-
 public class ListInitializationNode extends ArgumentsNode {
 
-    protected final Location location;
-    protected final PainlessConstructor constructor;
-    protected final PainlessMethod method;
+    /* ---- begin node data ---- */
 
-    public ListInitializationNode(Location location, PainlessConstructor constructor, PainlessMethod method) {
-        this.location = Objects.requireNonNull(location);
-        this.constructor = Objects.requireNonNull(constructor);
-        this.method = Objects.requireNonNull(method);
+    protected PainlessConstructor constructor;
+    protected PainlessMethod method;
+
+    public ListInitializationNode setConstructor(PainlessConstructor constructor) {
+        this.constructor = constructor;
+        return this;
+    }
+
+    public PainlessConstructor getConstructor() {
+        return constructor;
+    }
+
+    public ListInitializationNode setMethod(PainlessMethod method) {
+        this.method = method;
+        return this;
+    }
+
+    public PainlessMethod getMethod() {
+        return method;
+    }
+
+    /* ---- end node data ---- */
+
+    public ListInitializationNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.newInstance(MethodWriter.getType(getType()));

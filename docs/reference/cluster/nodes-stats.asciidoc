@@ -895,6 +895,537 @@ Total number of buffer pool classes loaded since the JVM started.
 (integer)
 Total number of buffer pool classes unloaded since the JVM started.
 
+[[cluster-nodes-stats-api-response-body-threadpool]]
+===== `threadpool` section
+
+`thread_pool.analyze.threads`::
+(integer)
+Number of threads in the `analyze` thread pool.
+
+`thread_pool.analyze.queue`::
+(integer)
+Number of tasks in queue for the `analyze` thread pool.
+
+`thread_pool.analyze.active`::
+(integer)
+Number of active threads in the `analyze` thread pool.
+
+`thread_pool.analyze.rejected`::
+(integer)
+Number of tasks rejected by the `analyze` thread pool executor.
+
+`thread_pool.analyze.largest`::
+(integer)
+Highest number of active threads in the `analyze` thread pool.
+
+`thread_pool.analyze.completed`::
+(integer)
+Number of tasks completed by the `analyze` thread pool executor.
+
+`thread_pool.ccr.threads`::
+(integer)
+Number of threads in the `ccr` ({ccr}) thread pool.
+
+`thread_pool.ccr.queue`::
+(integer)
+Number of tasks in queue for the `ccr` thread pool.
+
+`thread_pool.ccr.active`::
+(integer)
+Number of active threads in the `ccr` thread pool.
+
+`thread_pool.ccr.rejected`::
+(integer)
+Number of tasks rejected by the `ccr` thread pool executor.
+
+`thread_pool.ccr.largest`::
+(integer)
+Highest number of active threads in the `ccr` thread pool.
+
+`thread_pool.ccr.completed`::
+(integer)
+Number of tasks completed by the `ccr` thread pool executor.
+
+`thread_pool.fetch_shard_started.threads`::
+(integer)
+Number of threads in the `fetch_shard_started` thread pool.
+
+`thread_pool.fetch_shard_started.queue`::
+(integer)
+Number of tasks in queue for the `fetch_shard_started` thread pool.
+
+`thread_pool.fetch_shard_started.active`::
+(integer)
+Number of active threads in the `fetch_shard_started` thread pool.
+
+`thread_pool.fetch_shard_started.rejected`::
+(integer)
+Number of tasks rejected by the `fetch_shard_started` thread pool executor.
+
+`thread_pool.fetch_shard_started.largest`::
+(integer)
+Highest number of active threads in the `fetch_shard_started` thread pool.
+
+`thread_pool.fetch_shard_started.completed`::
+(integer)
+Number of tasks completed by the `fetch_shard_started` thread pool executor.
+
+`thread_pool.fetch_shard_store.threads`::
+(integer)
+Number of threads in the `fetch_shard_store` thread pool.
+
+`thread_pool.fetch_shard_store.queue`::
+(integer)
+Number of tasks in queue for the `fetch_shard_store` thread pool.
+
+`thread_pool.fetch_shard_store.active`::
+(integer)
+Number of active threads in the `fetch_shard_store` thread pool.
+
+`thread_pool.fetch_shard_store.rejected`::
+(integer)
+Number of tasks rejected by the `fetch_shard_store` thread pool executor.
+
+`thread_pool.fetch_shard_store.largest`::
+(integer)
+Highest number of active threads in the `fetch_shard_store` thread pool.
+
+`thread_pool.fetch_shard_store.completed`::
+(integer)
+Number of tasks completed by the `fetch_shard_store` thread pool executor.
+
+`thread_pool.flush.threads`::
+(integer)
+Number of threads in the `flush` thread pool.
+
+`thread_pool.flush.queue`::
+(integer)
+Number of tasks in queue for the `flush` thread pool.
+
+`thread_pool.flush.active`::
+(integer)
+Number of active threads in the `flush` thread pool.
+
+`thread_pool.flush.rejected`::
+(integer)
+Number of tasks rejected by the `flush` thread pool executor.
+
+`thread_pool.flush.largest`::
+(integer)
+Highest number of active threads in the `flush` thread pool.
+
+`thread_pool.flush.completed`::
+(integer)
+Number of tasks completed by the `flush` thread pool executor.
+
+`thread_pool.force_merge.threads`::
+(integer)
+Number of threads in the `force_merge` thread pool.
+
+`thread_pool.force_merge.queue`::
+(integer)
+Number of tasks in queue for the `force_merge` thread pool.
+
+`thread_pool.force_merge.active`::
+(integer)
+Number of active threads in the `force_merge` thread pool.
+
+`thread_pool.force_merge.rejected`::
+(integer)
+Number of tasks rejected by the `force_merge` thread pool executor.
+
+`thread_pool.force_merge.largest`::
+(integer)
+Highest number of active threads in the `force_merge` thread pool.
+
+`thread_pool.force_merge.completed`::
+(integer)
+Number of tasks completed by the `force_merge` thread pool executor.
+
+`thread_pool.generic.threads`::
+(integer)
+Number of threads in the `generic` thread pool.
+
+`thread_pool.generic.queue`::
+(integer)
+Number of tasks in queue for the `generic` thread pool.
+
+`thread_pool.generic.active`::
+(integer)
+Number of active threads in the `generic` thread pool.
+
+`thread_pool.generic.rejected`::
+(integer)
+Number of tasks rejected by the `generic` thread pool executor.
+
+`thread_pool.generic.largest`::
+(integer)
+Highest number of active threads in the `generic` thread pool.
+
+`thread_pool.generic.completed`::
+(integer)
+Number of tasks completed by the `generic` thread pool executor.
+
+`thread_pool.get.threads`::
+(integer)
+Number of threads in the `get` thread pool.
+
+`thread_pool.get.queue`::
+(integer)
+Number of tasks in queue for the `get` thread pool.
+
+`thread_pool.get.active`::
+(integer)
+Number of active threads in the `get` thread pool.
+
+`thread_pool.get.rejected`::
+(integer)
+Number of tasks rejected by the `get` thread pool executor.
+
+`thread_pool.get.largest`::
+(integer)
+Highest number of active threads in the `get` thread pool.
+
+`thread_pool.get.completed`::
+(integer)
+Number of tasks completed by the `get` thread pool executor.
+
+`thread_pool.listener.threads`::
+(integer)
+Number of threads in the `listener` thread pool.
+
+`thread_pool.listener.queue`::
+(integer)
+Number of tasks in queue for the `listener` thread pool.
+
+`thread_pool.listener.active`::
+(integer)
+Number of active threads in the `listener` thread pool.
+
+`thread_pool.listener.rejected`::
+(integer)
+Number of tasks rejected by the `listener` thread pool executor.
+
+`thread_pool.listener.largest`::
+(integer)
+Highest number of active threads in the `listener` thread pool.
+
+`thread_pool.listener.completed`::
+(integer)
+Number of tasks completed by the `listener` thread pool executor.
+
+`thread_pool.management.threads`::
+(integer)
+Number of threads in the `management` thread pool.
+
+`thread_pool.management.queue`::
+(integer)
+Number of tasks in queue for the `management` thread pool.
+
+`thread_pool.management.active`::
+(integer)
+Number of active threads in the `management` thread pool.
+
+`thread_pool.management.rejected`::
+(integer)
+Number of tasks rejected by the `management` thread pool executor.
+
+`thread_pool.management.largest`::
+(integer)
+Highest number of active threads in the `management` thread pool.
+
+`thread_pool.management.completed`::
+(integer)
+Number of tasks completed by the `management` thread pool executor.
+
+`thread_pool.ml_datafeed.threads`::
+(integer)
+Number of threads in the `ml_datafeed` thread pool.
+
+`thread_pool.ml_datafeed.queue`::
+(integer)
+Number of tasks in queue for the `ml_datafeed` thread pool.
+
+`thread_pool.ml_datafeed.active`::
+(integer)
+Number of active threads in the `ml_datafeed` thread pool.
+
+`thread_pool.ml_datafeed.rejected`::
+(integer)
+Number of tasks rejected by the `ml_datafeed` thread pool executor.
+
+`thread_pool.ml_datafeed.largest`::
+(integer)
+Highest number of active threads in the `ml_datafeed` thread pool.
+
+`thread_pool.ml_datafeed.completed`::
+(integer)
+Number of tasks completed by the `ml_datafeed` thread pool executor.
+
+`thread_pool.ml_job_comms.threads`::
+(integer)
+Number of threads in the `ml_jobs_comms` thread pool.
+
+`thread_pool.ml_job_comms.queue`::
+(integer)
+Number of tasks in queue for the `ml_jobs_comms` thread pool.
+
+`thread_pool.ml_job_comms.active`::
+(integer)
+Number of active threads in the `ml_jobs_comms` thread pool.
+
+`thread_pool.ml_job_comms.rejected`::
+(integer)
+Number of tasks rejected by the `ml_jobs_comms` thread pool executor.
+
+`thread_pool.ml_job_comms.largest`::
+(integer)
+Highest number of active threads in the `ml_jobs_comms` thread pool.
+
+`thread_pool.ml_job_comms.completed`::
+(integer)
+Number of tasks completed by the `ml_jobs_comms` thread pool executor.
+
+`thread_pool.ml_utility.threads`::
+(integer)
+Number of threads in the `ml_utlitity` thread pool.
+
+`thread_pool.ml_utility.queue`::
+(integer)
+Number of tasks in queue for the `ml_utlitity` thread pool.
+
+`thread_pool.ml_utility.active`::
+(integer)
+Number of active threads in the `ml_utlitity` thread pool.
+
+`thread_pool.ml_utility.rejected`::
+(integer)
+Number of tasks rejected by the `ml_utlitity` thread pool executor.
+
+`thread_pool.ml_utility.largest`::
+(integer)
+Highest number of active threads in the `ml_utlitity` thread pool.
+
+`thread_pool.ml_utility.completed`::
+(integer)
+Number of tasks completed by the `ml_utlitity` thread pool executor.
+
+`thread_pool.refresh.threads`::
+(integer)
+Number of threads in the `refresh` thread pool.
+
+`thread_pool.refresh.queue`::
+(integer)
+Number of tasks in queue for the `refresh` thread pool.
+
+`thread_pool.refresh.active`::
+(integer)
+Number of active threads in the `refresh` thread pool.
+
+`thread_pool.refresh.rejected`::
+(integer)
+Number of tasks rejected by the `refresh` thread pool executor.
+
+`thread_pool.refresh.largest`::
+(integer)
+Highest number of active threads in the `refresh` thread pool.
+
+`thread_pool.refresh.completed`::
+(integer)
+Number of tasks completed by the `refresh` thread pool executor.
+
+`thread_pool.rollup_indexing.threads`::
+(integer)
+Number of threads in the `rollup_indexing` thread pool.
+
+`thread_pool.rollup_indexing.queue`::
+(integer)
+Number of tasks in queue for the `rollup_indexing` thread pool.
+
+`thread_pool.rollup_indexing.active`::
+(integer)
+Number of active threads in the `rollup_indexing` thread pool.
+
+`thread_pool.rollup_indexing.rejected`::
+(integer)
+Number of tasks rejected by the `rollup_indexing` thread pool executor.
+
+`thread_pool.rollup_indexing.largest`::
+(integer)
+Highest number of active threads in the `rollup_indexing` thread pool.
+
+`thread_pool.rollup_indexing.completed`::
+(integer)
+Number of tasks completed by the `rollup_indexing` thread pool executor.
+
+`thread_pool.search.threads`::
+(integer)
+Number of threads in the `search` thread pool.
+
+`thread_pool.search.queue`::
+(integer)
+Number of tasks in queue for the `search` thread pool.
+
+`thread_pool.search.active`::
+(integer)
+Number of active threads in the `search` thread pool.
+
+`thread_pool.search.rejected`::
+(integer)
+Number of tasks rejected by the `search` thread pool executor.
+
+`thread_pool.search.largest`::
+(integer)
+Highest number of active threads in the `search` thread pool.
+
+`thread_pool.search.completed`::
+(integer)
+Number of tasks completed by the `search` thread pool executor.
+
+`thread_pool.search_throttled.threads`::
+(integer)
+Number of threads in the `search_throttled` thread pool.
+
+`thread_pool.search_throttled.queue`::
+(integer)
+Number of tasks in queue for the `search_throttled` thread pool.
+
+`thread_pool.search_throttled.active`::
+(integer)
+Number of active threads in the `search_throttled` thread pool.
+
+`thread_pool.search_throttled.rejected`::
+(integer)
+Number of tasks rejected by the `search_throttled` thread pool executor.
+
+`thread_pool.search_throttled.largest`::
+(integer)
+Highest number of active threads in the `search_throttled` thread pool.
+
+`thread_pool.search_throttled.completed`::
+(integer)
+Number of tasks completed by the `search_throttled` thread pool executor.
+
+`thread_pool.security-token-key.threads`::
+(integer)
+Number of threads in the `security-token-key` thread pool.
+
+`thread_pool.security-token-key.queue`::
+(integer)
+Number of tasks in queue for the `security-token-key` thread pool.
+
+`thread_pool.security-token-key.active`::
+(integer)
+Number of active threads in the `security-token-key` thread pool.
+
+`thread_pool.security-token-key.rejected`::
+(integer)
+Number of tasks rejected by the `security-token-key` thread pool executor.
+
+`thread_pool.security-token-key.largest`::
+(integer)
+Highest number of active threads in the `security-token-key` thread pool.
+
+`thread_pool.security-token-key.completed`::
+(integer)
+Number of tasks completed by the `security-token-key` thread pool executor.
+
+`thread_pool.snapshot.threads`::
+(integer)
+Number of threads in the `snapshot` thread pool.
+
+`thread_pool.snapshot.queue`::
+(integer)
+Number of tasks in queue for the `snapshot` thread pool.
+
+`thread_pool.snapshot.active`::
+(integer)
+Number of active threads in the `snapshot` thread pool.
+
+`thread_pool.snapshot.rejected`::
+(integer)
+Number of tasks rejected by the `snapshot` thread pool executor.
+
+`thread_pool.snapshot.largest`::
+(integer)
+Highest number of active threads in the `snapshot` thread pool.
+
+`thread_pool.snapshot.completed`::
+(integer)
+Number of tasks completed by the `snapshot` thread pool executor.
+
+`thread_pool.warmer.threads`::
+(integer)
+Number of threads in the `warmer` thread pool.
+
+`thread_pool.warmer.queue`::
+(integer)
+Number of tasks in queue for the `warmer` thread pool.
+
+`thread_pool.warmer.active`::
+(integer)
+Number of active threads in the `warmer` thread pool.
+
+`thread_pool.warmer.rejected`::
+(integer)
+Number of tasks rejected by the `warmer` thread pool executor.
+
+`thread_pool.warmer.largest`::
+(integer)
+Highest number of active threads in the `warmer` thread pool.
+
+`thread_pool.warmer.completed`::
+(integer)
+Number of tasks completed by the `warmer` thread pool executor.
+
+`thread_pool.watcher.threads`::
+(integer)
+Number of threads in the `watcher` thread pool.
+
+`thread_pool.watcher.queue`::
+(integer)
+Number of tasks in queue for the `watcher` thread pool.
+
+`thread_pool.watcher.active`::
+(integer)
+Number of active threads in the `watcher` thread pool.
+
+`thread_pool.watcher.rejected`::
+(integer)
+Number of tasks rejected by the `watcher` thread pool executor.
+
+`thread_pool.watcher.largest`::
+(integer)
+Highest number of active threads in the `watcher` thread pool.
+
+`thread_pool.watcher.completed`::
+(integer)
+Number of tasks completed by the `watcher` thread pool executor.
+
+`thread_pool.write.threads`::
+(integer)
+Number of threads in the `write` thread pool.
+
+`thread_pool.write.queue`::
+(integer)
+Number of threads in the `write` thread pool.
+
+`thread_pool.write.active`::
+(integer)
+Number of active threads in the `write` thread pool.
+
+`thread_pool.write.rejected`::
+(integer)
+Number of tasks rejected by the `write` thread pool executor.
+
+`thread_pool.write.largest`::
+(integer)
+Highest number of active threads in the `write` thread pool.
+
+`thread_pool.write.completed`::
+(integer)
+Number of tasks completed by the `write` thread pool executor.
+
 [[cluster-nodes-stats-api-response-body-ingest]]
 ===== `ingest` section
 

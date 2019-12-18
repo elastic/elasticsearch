@@ -960,7 +960,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } else if (indexSettings.hasCustomDataPath()) {
                 // lets see if it's on a custom path (return false if the shared doesn't exist)
                 // we don't need to delete anything that is not there
-                return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId)) ?
+                return Files.exists(nodeEnv.resolveCustomLocation(indexSettings.customDataPath(), shardId)) ?
                         ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
                         ShardDeletionCheckResult.NO_FOLDER_FOUND;
             } else {

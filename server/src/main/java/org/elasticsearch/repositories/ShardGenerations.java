@@ -55,6 +55,13 @@ public final class ShardGenerations {
     }
 
     /**
+     * Returns the total number of shards tracked by this instance.
+     */
+    public int totalShards() {
+        return shardGenerations.values().stream().mapToInt(List::size).sum();
+    }
+
+    /**
      * Returns all indices for which shard generations are tracked.
      *
      * @return indices for which shard generations are tracked

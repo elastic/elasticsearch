@@ -324,7 +324,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             List<String> seedNodes = addresses(node3, node1, node2);
             Collections.shuffle(seedNodes, random());
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT,
+           threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();
                 int maxNumConnections = randomIntBetween(1, 5);
@@ -335,9 +336,10 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
                     assertNotNull(remoteConnectionInfo);
-                    assertEquals(0, remoteConnectionInfo.numNodesConnected);
-                    assertEquals(3, remoteConnectionInfo.seedNodes.size());
-                    assertEquals(maxNumConnections, remoteConnectionInfo.connectionsPerCluster);
+                    SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) remoteConnectionInfo.modeInfo;
+                    assertEquals(0, sniffInfo.numNodesConnected);
+                    assertEquals(3, sniffInfo.seedNodes.size());
+                    assertEquals(maxNumConnections, sniffInfo.maxConnectionsPerCluster);
                     assertEquals(clusterAlias, remoteConnectionInfo.clusterAlias);
                 }
             }
@@ -345,32 +347,37 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     public void testRemoteConnectionInfo() throws IOException {
+        List<String> remoteAddresses = Collections.singletonList("seed:1");
+
+        RemoteConnectionInfo.ModeInfo modeInfo1;
+        RemoteConnectionInfo.ModeInfo modeInfo2;
+
+        if (randomBoolean()) {
+            modeInfo1 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 4);
+            modeInfo2 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 3);
+        } else {
+            modeInfo1 = new SimpleConnectionStrategy.SimpleModeInfo(remoteAddresses, 18, 18);
+            modeInfo2 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 18, 17);
+        }
+
         RemoteConnectionInfo stats =
-            new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), false);
+            new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false);
         assertSerialization(stats);
 
         RemoteConnectionInfo stats1 =
-            new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:1"), 4, 4, TimeValue.timeValueMinutes(30), true);
+            new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), true);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster_1", Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), false);
+        stats1 = new RemoteConnectionInfo("test_cluster_1", modeInfo1, TimeValue.timeValueMinutes(30), false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:15"), 4, 3, TimeValue.timeValueMinutes(30), false);
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(325), false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), true);
-        assertSerialization(stats1);
-        assertNotEquals(stats, stats1);
-
-        stats1 = new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(325), true);
-        assertSerialization(stats1);
-        assertNotEquals(stats, stats1);
-
-        stats1 = new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:1"), 5, 3, TimeValue.timeValueMinutes(30), false);
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo2, TimeValue.timeValueMinutes(30), false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
     }
@@ -389,27 +396,33 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     public void testRenderConnectionInfoXContent() throws IOException {
-        RemoteConnectionInfo stats =
-            new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), true);
+        List<String> remoteAddresses = Arrays.asList("seed:1", "seed:2");
+
+        RemoteConnectionInfo.ModeInfo modeInfo;
+
+        boolean sniff = randomBoolean();
+        if (sniff) {
+            modeInfo = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 3, 2);
+        } else {
+            modeInfo = new SimpleConnectionStrategy.SimpleModeInfo(remoteAddresses, 18, 16);
+        }
+
+        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo, TimeValue.timeValueMinutes(30), true);
         stats = assertSerialization(stats);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, null);
         builder.endObject();
-        assertEquals("{\"test_cluster\":{\"seeds\":[\"seed:1\"],\"connected\":true," +
-            "\"num_nodes_connected\":3,\"max_connections_per_cluster\":4,\"initial_connect_timeout\":\"30m\"," +
-            "\"skip_unavailable\":true}}", Strings.toString(builder));
 
-        stats = new RemoteConnectionInfo(
-            "some_other_cluster", Arrays.asList("seed:1", "seed:2"), 2, 0, TimeValue.timeValueSeconds(30), false);
-        stats = assertSerialization(stats);
-        builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        stats.toXContent(builder, null);
-        builder.endObject();
-        assertEquals("{\"some_other_cluster\":{\"seeds\":[\"seed:1\",\"seed:2\"],"
-            + "\"connected\":false,\"num_nodes_connected\":0,\"max_connections_per_cluster\":2,\"initial_connect_timeout\":\"30s\"," +
-            "\"skip_unavailable\":false}}", Strings.toString(builder));
+        if (sniff) {
+            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"sniff\",\"seeds\":[\"seed:1\",\"seed:2\"]," +
+                "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"initial_connect_timeout\":\"30m\"," +
+                "\"skip_unavailable\":true}}", Strings.toString(builder));
+        } else {
+            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"simple\",\"addresses\":[\"seed:1\",\"seed:2\"]," +
+                "\"num_sockets_connected\":16,\"max_socket_connections\":18,\"initial_connect_timeout\":\"30m\"," +
+                "\"skip_unavailable\":true}}", Strings.toString(builder));
+        }
     }
 
     public void testCollectNodes() throws Exception {

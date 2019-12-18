@@ -22,9 +22,9 @@ public class RunTask extends DefaultTestClustersTask {
     private static final Logger logger = Logging.getLogger(RunTask.class);
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
 
-    public static final String DATA_DIR_SETTING = "run.datadir";
-
     private Boolean debug = false;
+
+    private Path dataDir = null;
 
     @Option(
         option = "debug-jvm",
@@ -39,6 +39,19 @@ public class RunTask extends DefaultTestClustersTask {
         return debug;
     }
 
+    @Option(
+        option = "data-dir",
+        description = "Override the base data directory used by the testcluster"
+    )
+    public void setDataDir(String dataDirStr) {
+        dataDir = Paths.get(dataDirStr).toAbsolutePath();
+    }
+
+    @Input
+    public String getDataDir() {
+        return dataDir.toString();
+    }
+
     @Override
     public void beforeStart() {
         int debugPort = 5005;
@@ -50,24 +63,19 @@ public class RunTask extends DefaultTestClustersTask {
                 entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
                 entry -> entry.getValue().toString()
             ));
-        Path baseDataPath = null;
-        String dataPathSetting = System.getProperty(DATA_DIR_SETTING);
-        if (dataPathSetting != null) {
-            baseDataPath = Paths.get(dataPathSetting).toAbsolutePath();
-        }
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
             httpPort++;
             cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
             transportPort++;
-            Path clusterDataPath = null;
-            if (baseDataPath != null) {
-                clusterDataPath = baseDataPath.resolve(cluster.getName());
+            Path clusterDataDir = null;
+            if (dataDir != null) {
+                clusterDataDir = dataDir.resolve(cluster.getName());
             }
             for (ElasticsearchNode node : cluster.getNodes()) {
                 additionalSettings.forEach(node::setting);
-                if (clusterDataPath != null) {
-                    node.setDataPath(clusterDataPath.resolve(node.getName()));
+                if (clusterDataDir != null) {
+                    node.setDataPath(clusterDataDir.resolve(node.getName()));
                 }
                 if (debug) {
                     logger.lifecycle(

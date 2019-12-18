@@ -2224,7 +2224,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void syncRetentionLeases() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        ensureSoftDeletesEnabled("retention leases");
         replicationTracker.renewPeerRecoveryRetentionLeases();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
@@ -2619,7 +2618,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                                         ActionListener<ReplicationResponse> listener) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(Version.V_7_4_0);
+        assert indexSettings.getIndexVersionCreated().before(Version.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 

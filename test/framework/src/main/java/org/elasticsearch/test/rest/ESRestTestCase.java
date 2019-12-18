@@ -1128,7 +1128,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Peer recovery retention leases are renewed and synced to replicas periodically (every 30 seconds). This ensures
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
-    public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
+    public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index, boolean alwaysExists) throws Exception {
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked") Map<String, List<Map<String, ?>>> shards =
@@ -1139,9 +1139,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                     assertNotNull(globalCheckpoint);
                     @SuppressWarnings("unchecked") List<Map<String, ?>> retentionLeases =
                         (List<Map<String, ?>>) XContentMapValues.extractValue("retention_leases.leases", copy);
-                    if (retentionLeases == null) {
+                    if (alwaysExists == false && retentionLeases == null)  {
                         continue;
                     }
+                    assertNotNull(retentionLeases);
                     for (Map<String, ?> retentionLease : retentionLeases) {
                         if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
                             assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));

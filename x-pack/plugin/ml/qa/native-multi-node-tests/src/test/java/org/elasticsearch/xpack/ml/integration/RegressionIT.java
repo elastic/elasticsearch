@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -270,6 +272,38 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         Set<String> secondRunTrainingRowsIds = getTrainingRowsIds(secondJobDestIndex);
 
         assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
+    }
+
+    public void testDeleteExpiredData_RemovesUnusedState() throws Exception {
+        initialize("regression_delete_expired_data");
+        indexData(sourceIndex, 100, 0);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
+        registerAnalytics(config);
+        putAnalytics(config);
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        assertProgress(jobId, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+
+        // Call _delete_expired_data API and check nothing was deleted
+        assertThat(deleteExpiredData().isDeleted(), is(true));
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+
+        // Delete the config straight from the config index
+        DeleteResponse deleteResponse = client().prepareDelete().setIndex(".ml-config").setId(DataFrameAnalyticsConfig.documentId(jobId))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute().actionGet();
+        assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
+
+        // Now calling the _delete_expired_data API should remove unused state
+        assertThat(deleteExpiredData().isDeleted(), is(true));
+
+        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state").execute().actionGet();
+        assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 
     private void initialize(String jobId) {

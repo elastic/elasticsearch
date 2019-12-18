@@ -1,7 +1,48 @@
 [[release-notes-6.8.6]]
 == {es} version 6.8.6
 
-coming::[6.8.6]
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[[enhancement-6.8.6]]
+[float]
+=== Enhancements
+
+Features/Watcher::
+* Log attachment generation failures {pull}50080[#50080]
+
+Infra/Packaging::
+* Restrict support for CMS to pre-JDK 14 {pull}49123[#49123] (issue: {issue}46973[#46973])
+
+
+
+[[bug-6.8.6]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Avoid precision loss in DocValueFormat.RAW#parseLong {pull}49063[#49063] (issue: {issue}38692[#38692])
+
+Audit::
+* Audit log filter and marker {pull}45456[#45456] (issue: {issue}47251[#47251])
+
+Authentication::
+* Fix iterate-from-1 bug in smart realm order {pull}49473[#49473]
+
+CCR::
+* CCR should auto-retry rejected execution exceptions {pull}49213[#49213]
+
+Features/Java High Level REST Client::
+* Support es7 node http publish_address format {pull}49279[#49279] (issue: {issue}48950[#48950])
+
+Machine Learning::
+* [ML] Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
+
+Recovery::
+* Ignore Lucene index in peer recovery if translog corrupted {pull}49114[#49114]
+
+Reindex::
+* Fix delete- and update-by-query on indices without sequence numbers {pull}50077[#50077]
+
 
 [[release-notes-6.8.5]]
 == {es} version 6.8.5

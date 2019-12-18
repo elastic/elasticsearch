@@ -549,15 +549,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return PARSER.parse(parser, null);
         }
 
-        public String getPrefix() {
+        String getPrefix() {
             return prefix;
         }
 
-        public String getAnalyzer() {
+        String getAnalyzer() {
             return analyzer;
         }
 
-        public String getUseField() {
+        String getUseField() {
             return useField;
         }
     }
@@ -625,10 +625,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Wildcard wildcard = (Wildcard) o;
-            return Objects.equals(pattern, wildcard.pattern) &&
-                Objects.equals(analyzer, wildcard.analyzer) &&
-                Objects.equals(useField, wildcard.useField);
+            Prefix prefix = (Prefix) o;
+            return Objects.equals(pattern, prefix.prefix) &&
+                Objects.equals(analyzer, prefix.analyzer) &&
+                Objects.equals(useField, prefix.useField);
         }
 
         @Override

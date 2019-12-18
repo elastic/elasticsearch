@@ -22,7 +22,7 @@ public class GeoShapeFieldTests extends ESTestCase {
         String[] expected = new String[] {lat + "," + lon};
 
         SearchHit hit = new SearchHitBuilder(42)
-            .setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
+            .setSource("{\"geo\":{\"type\":\"POINT\", \"coordinates\": [" + lon + ", " + lat + "]}}")
             .build();
 
         ExtractedField geo = new GeoShapeField("geo");

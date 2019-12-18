@@ -254,7 +254,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         createIndex("shapes");
         client().admin().indices().prepareCreate("test").addMapping("_doc", "location", "type=geo_shape").get();
 
-        String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
+        String location = "\"location\" : {\"type\":\"POLYGON\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
         client().prepareIndex("shapes").setId("1")
                 .setSource(

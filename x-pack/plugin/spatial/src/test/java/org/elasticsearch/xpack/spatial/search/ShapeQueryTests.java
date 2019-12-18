@@ -111,7 +111,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         createIndex(indexName);
         client().admin().indices().prepareCreate(searchIndex).addMapping("type", "location", "type=shape").get();
 
-        String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
+        String location = "\"location\" : {\"type\":\"POLYGON\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
         client().prepareIndex(indexName).setId("1")
             .setSource(

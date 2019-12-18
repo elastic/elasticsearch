@@ -26,7 +26,6 @@ import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Printer;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;

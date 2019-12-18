@@ -70,6 +70,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -1132,6 +1133,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         SnapshotStats stats = snapshots.get(0).getStats();
 
+        final List<Path> snapshot0IndexMetaFiles = findRepoMetaBlobs(repoPath);
+        assertThat(snapshot0IndexMetaFiles, hasSize(1)); // snapshotting a single index
         assertThat(stats.getTotalFileCount(), is(snapshot0FileCount));
         assertThat(stats.getTotalSize(), is(snapshot0FileSize));
 
@@ -1164,6 +1167,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
 
         final List<Path> snapshot1Files = scanSnapshotFolder(repoPath);
+        final List<Path> snapshot1IndexMetaFiles = findRepoMetaBlobs(repoPath);
+
+        // The IndexMetadata did not change between snapshots, verify that no new redundant IndexMetaData was written to the repository
+        assertThat(snapshot1IndexMetaFiles, is(snapshot0IndexMetaFiles));
 
         final int snapshot1FileCount = snapshot1Files.size();
         final long snapshot1FileSize = calculateTotalFilesSize(snapshot1Files);
@@ -1365,6 +1372,22 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 throw new UncheckedIOException(e);
             }
         }).sum();
+    }
+
+    private static List<Path> findRepoMetaBlobs(Path repoPath) throws IOException {
+        List<Path> files = new ArrayList<>();
+        Files.walkFileTree(repoPath.resolve("indices"), new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    final String fileName = file.getFileName().toString();
+                    if (fileName.startsWith(BlobStoreRepository.METADATA_PREFIX) && fileName.endsWith(".dat")) {
+                        files.add(file);
+                    }
+                    return super.visitFile(file, attrs);
+                }
+            }
+        );
+        return files;
     }
 
     private List<Path> scanSnapshotFolder(Path repoPath) throws IOException {

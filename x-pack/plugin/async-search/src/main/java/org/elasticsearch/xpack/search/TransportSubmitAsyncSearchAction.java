@@ -104,6 +104,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onResponse(SearchResponse response) {
                     try {
                         progressListener.onResponse(response);
+                        logger.info(() -> new ParameterizedMessage("store async-search [{}]", task.getSearchId().getEncoded()));
                         store.storeFinalResponse(originHeaders, task.getAsyncResponse(true), finishHim);
                     } catch (Exception e) {
                         finishHim.onFailure(e);
@@ -114,6 +115,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     try {
                         progressListener.onFailure(exc);
+                        logger.info(() -> new ParameterizedMessage("store failed async-search [{}]", task.getSearchId().getEncoded()), exc);
                         store.storeFinalResponse(originHeaders, task.getAsyncResponse(true), finishHim);
                     } catch (Exception e) {
                         finishHim.onFailure(e);

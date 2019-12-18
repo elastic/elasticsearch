@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -26,8 +27,11 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * A future implementation that allows for the result to be passed to listeners waiting for
@@ -108,7 +112,23 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
                 protected void doRun() {
                     // call get in a non-blocking fashion as we could be on a network thread
                     // or another thread like the scheduler, which we should never block!
-                    V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
+                    V result;
+                    try {
+                        result = ((Future<V>) ListenableFuture.this).get(0L, TimeUnit.NANOSECONDS);
+                    } catch (TimeoutException e) {
+                        throw new ElasticsearchTimeoutException(e);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Future got interrupted", e);
+                    } catch (ExecutionException e) {
+                        // FutureUtils.rethrowExecutionException unwraps cause, which means the exception reported is not the same as
+                        // the one given to onFailure. This masks away important debug info like RemoteTransportException.
+                        if (e.getCause() instanceof RuntimeException) {
+                            throw (RuntimeException) e.getCause();
+                        }
+                        throw FutureUtils.rethrowExecutionException(e);
+                    }
+                    V value = result;
                     listener.onResponse(value);
                 }
 

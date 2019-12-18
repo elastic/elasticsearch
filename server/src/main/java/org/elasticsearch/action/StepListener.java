@@ -19,12 +19,16 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -85,6 +89,19 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
         if (delegate.isDone() == false) {
             throw new IllegalStateException("step is not completed yet");
         }
-        return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.
+        try {
+            // this future is done already - use a non-blocking method.
+            return ((Future<Response>) delegate).get(0L, TimeUnit.NANOSECONDS);
+        } catch (TimeoutException e) {
+            throw new ElasticsearchTimeoutException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            }
+            throw FutureUtils.rethrowExecutionException(e);
+        }
     }
 }

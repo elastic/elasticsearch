@@ -307,12 +307,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Disjunction that = (Disjunction) o;
-            return Objects.equals(subSources, that.subSources);
+            return Objects.equals(subSources, that.subSources) &&
+                Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources);
+            return Objects.hash(subSources, filter);
         }
 
         @Override
@@ -358,6 +359,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Disjunction fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+
+        public List<IntervalsSourceProvider> getSubSources() {
+            return subSources;
+        }
+
+        public IntervalFilter getFilter() {
+            return filter;
         }
     }
 

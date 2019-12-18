@@ -92,15 +92,19 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         switch (randomInt(20)) {
             case 0:
             case 1:
-                int orCount = randomInt(4) + 1;
-                List<IntervalsSourceProvider> orSources = createRandomSourceList(depth, useScripts, orCount);
-                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts));
+                return createRandomDisjunction(depth, useScripts);
             case 2:
             case 3:
                 return createRandomCombine(depth, useScripts);
             default:
                 return createRandomMatch(depth + 1, useScripts);
         }
+    }
+
+    static IntervalsSourceProvider.Disjunction createRandomDisjunction(int depth, boolean useScripts) {
+        int orCount = randomInt(4) + 1;
+        List<IntervalsSourceProvider> orSources = createRandomSourceList(depth, useScripts, orCount);
+        return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts));
     }
 
     static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {

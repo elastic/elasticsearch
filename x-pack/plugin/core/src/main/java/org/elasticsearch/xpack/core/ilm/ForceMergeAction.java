@@ -33,7 +33,7 @@ import java.util.Objects;
 public class ForceMergeAction implements LifecycleAction {
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
-    public static final ParseField CODEC = new ParseField("index.codec");
+    public static final ParseField CODEC = new ParseField("index_codec");
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {

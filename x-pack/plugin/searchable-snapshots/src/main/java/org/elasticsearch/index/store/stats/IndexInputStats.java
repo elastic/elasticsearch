@@ -9,6 +9,8 @@ import java.util.Objects;
 
 public class IndexInputStats {
 
+    private final long length;
+
     private final long openCount;
     private final long closeCount;
     private final long sliceCount;
@@ -22,9 +24,10 @@ public class IndexInputStats {
     private final Counter nonContiguousReads;
     private final Counter totalReads;
 
-    public IndexInputStats(final long openings, final long closings, final long slicings, final long clonings,
+    public IndexInputStats(final long length, final long openings, final long closings, final long slicings, final long clonings,
                            final Counter forwardSeeks, final Counter backwardSeeks,
                            final Counter contiguousReads, final Counter nonContiguousReads) {
+        this.length = length;
         this.openCount = openings;
         this.closeCount = closings;
         this.sliceCount = slicings;
@@ -35,6 +38,13 @@ public class IndexInputStats {
         this.contiguousReads = Objects.requireNonNull(contiguousReads);
         this.nonContiguousReads = Objects.requireNonNull(nonContiguousReads);
         this.totalReads = Counter.merge(contiguousReads, nonContiguousReads);
+    }
+
+    /**
+     * @return the IndexInput's length
+     */
+    public long getLength() {
+        return length;
     }
 
     /**

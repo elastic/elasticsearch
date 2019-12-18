@@ -44,8 +44,9 @@ public class StatsDirectoryWrapper extends FilterDirectory {
 
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
-        final LiveStats stats = records.computeIfAbsent(name, n -> new LiveStats()).incrementOpenCount();
-        return new StatsIndexInputWrapper(super.openInput(name, context), stats);
+        final IndexInput input = super.openInput(name, context);
+        final LiveStats stats = records.computeIfAbsent(name, n -> new LiveStats(input.length())).incrementOpenCount();
+        return new StatsIndexInputWrapper(input, stats);
     }
 
     @Override
@@ -154,6 +155,8 @@ public class StatsDirectoryWrapper extends FilterDirectory {
      */
     private static class LiveStats {
 
+        final long length;
+
         final LongAdder opened = new LongAdder();
         final LongAdder closed = new LongAdder();
         final LongAdder sliced = new LongAdder();
@@ -164,6 +167,10 @@ public class StatsDirectoryWrapper extends FilterDirectory {
 
         final LiveCounter contiguousReads = new LiveCounter();
         final LiveCounter nonContiguousReads = new LiveCounter();
+
+        LiveStats(long length) {
+            this.length = length;
+        }
 
         LiveStats incrementOpenCount() {
             opened.increment();
@@ -204,6 +211,7 @@ public class StatsDirectoryWrapper extends FilterDirectory {
 
         IndexInputStats toIndexInputStats() {
             return new IndexInputStats(
+                length,
                 opened.sum(),
                 closed.sum(),
                 sliced.sum(),

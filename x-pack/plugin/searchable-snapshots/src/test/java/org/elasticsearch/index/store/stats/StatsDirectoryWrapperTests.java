@@ -46,6 +46,15 @@ public class StatsDirectoryWrapperTests extends ESTestCase {
         assertThat(directory.getStats().isEmpty(), is(true));
     }
 
+    public void testLength() throws Exception {
+        try (StatsDirectoryWrapper directory = new StatsDirectoryWrapper(createDirectory())) {
+            final String fileName = randomFile(directory);
+            try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
+                assertThat(directory.getStatsOrNull(fileName).getLength(), equalTo(input.length()));
+            }
+        }
+    }
+
     public void testOpenCount() throws Exception {
         try (StatsDirectoryWrapper directory = new StatsDirectoryWrapper(createDirectory())) {
             assertThat(directory.getStats(), notNullValue());

@@ -896,7 +896,7 @@ Total number of buffer pool classes loaded since the JVM started.
 Total number of buffer pool classes unloaded since the JVM started.
 
 [[cluster-nodes-stats-api-response-body-threadpool]]
-===== `threadpool` section
+===== `thread_pool` section
 
 `thread_pool.analyze.threads`::
 (integer)

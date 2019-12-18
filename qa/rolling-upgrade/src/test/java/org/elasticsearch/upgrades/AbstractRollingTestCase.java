@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -44,6 +45,12 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
     protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
     protected static final boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
 
+    private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+
+    public final Version getOldClusterVersion() {
+        return oldClusterVersion;
+    }
+
     @Override
     protected final boolean preserveIndicesUponCompletion() {
         return true;
@@ -51,6 +58,11 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
 
     @Override
     protected final boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveClusterSettings() {
         return true;
     }
 

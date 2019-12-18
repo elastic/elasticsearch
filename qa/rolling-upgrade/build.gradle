@@ -84,6 +84,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'old_cluster'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
   }
 
   tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
@@ -96,6 +97,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.first_round', 'true'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
@@ -108,6 +110,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.first_round', 'false'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
   }
 
   tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -119,6 +122,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
   }
 
   if (project.bwc_tests_enabled) {

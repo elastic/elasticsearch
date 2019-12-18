@@ -31,18 +31,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 
-import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
+public class RollingRestartSettingsUpgradeIT extends AbstractRollingTestCase {
 
-    public void testRemoteClusterSettingsUpgraded() throws IOException {
+    public void testRemoteClusterSettingsUpgraded() throws Exception {
         // TODO: Change to 7.6 on backport
         assumeTrue("settings automatically upgraded since 8.0.0", getOldClusterVersion().before(Version.V_8_0_0));
-        if (isRunningAgainstOldCluster()) {
+        if (CLUSTER_TYPE == ClusterType.OLD) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
@@ -64,6 +63,7 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
                 final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
                 final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
+                logger.error(settings);
 
                 assertTrue(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace("foo").exists(settings));
                 assertTrue(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY_OLD.getConcreteSettingForNamespace("foo").exists(settings));
@@ -78,27 +78,25 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace("foo"),
             });
-        } else {
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             final Request getSettingsRequest = new Request("GET", "/_cluster/settings");
-            final Response getSettingsResponse = client().performRequest(getSettingsRequest);
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
-                final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
-                final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
+            assertBusy(() -> {
+                final Response getSettingsResponse = client().performRequest(getSettingsRequest);
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
+                    final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
+                    final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
 
-                assertFalse(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace("foo").exists(settings));
-
-                assertTrue(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo")
-                    .exists(settings));
-                assertTrue(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo")
-                    .exists(settings));
-                assertThat(
-                    SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
-                    equalTo(Collections.singletonList("localhost:9200")));
-                assertThat(
-                    SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings),
-                    equalTo("localhost:9201"));
-            }
+                    assertFalse(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace("foo").exists(settings));
+                    assertTrue(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
+                    assertTrue(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+                    assertThat(
+                        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
+                        equalTo(Collections.singletonList("localhost:9200")));
+                    assertThat(
+                        SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings),
+                        equalTo("localhost:9201"));
+                }
+            });
         }
     }
-
 }

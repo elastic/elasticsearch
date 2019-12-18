@@ -11,7 +11,6 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Collection;
 import java.util.Collections;

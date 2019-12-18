@@ -898,17 +898,17 @@ See <<transform-resource>>.
 [role="exclude",id="data-frame-transform-dest"]
 === Dest objects
 
-See <<transform-dest>>.
+See <<transform-resource>>.
 
 [role="exclude",id="data-frame-transform-source"]
 ==== Source objects
 
-See <<transform-source>>.
+See <<transform-resource>>.
 
 [role="exclude",id="data-frame-transform-pivot"]
 ==== Pivot objects
 
-See <<transform-pivot>>.
+See <<transform-resource>>.
 
 [role="exclude",id="configuring-monitoring"]
 === Configuring monitoring
@@ -1088,3 +1088,27 @@ the details in <<ml-get-job-stats>>.
 This page was deleted.
 [[ml-snapshot-stats]]
 See <<ml-update-snapshot>> and <<ml-get-snapshot>>.
+
+[role="exclude",id="transform-resource"]
+=== {transform-cap} resources
+
+This page was deleted.
+See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
+<<get-transform>>.
+
+[role="exclude",id="ml-results-resource"]
+=== Results resources
+
+This page was deleted.
+[[ml-results-buckets]]
+See <<ml-get-bucket>>,
+[[ml-results-bucket-influencers]]
+<<ml-get-bucket>>,
+[[ml-results-influencers]]
+<<ml-get-influencer>>,
+[[ml-results-records]]
+<<ml-get-record>>,
+[[ml-results-categories]]
+<<ml-get-category>>, and
+[[ml-results-overall-buckets]]
+<<ml-get-overall-buckets>>.

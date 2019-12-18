@@ -98,8 +98,8 @@ class AsyncSearchStoreService {
     void getResponse(AsyncSearchId searchId, ActionListener<AsyncSearchResponse> listener) {
         final Authentication current = Authentication.getAuthentication(client.threadPool().getThreadContext());
         GetRequest internalGet = new GetRequest(searchId.getIndexName())
-            .id(searchId.getDocId())
-            .routing(searchId.getDocId());
+            .preference(searchId.getEncoded())
+            .id(searchId.getDocId());
         client.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {

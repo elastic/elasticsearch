@@ -107,7 +107,6 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         AsyncSearchId searchId = AsyncSearchId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
-                .setRouting(searchId.getDocId())
                 .setIndex(searchId.getIndexName())
                 .setId(searchId.getDocId())
                 .get();

@@ -40,9 +40,6 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest.getSearchRequest().requestCache(randomBoolean());
         }
         if (randomBoolean()) {
-            searchRequest.getSearchRequest().routing(randomAlphaOfLengthBetween(3, 10));
-        }
-        if (randomBoolean()) {
             searchRequest.getSearchRequest().searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         }
         if (randomBoolean()) {

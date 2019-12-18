@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -67,7 +66,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             submitListener.onFailure(exc);
         }
 
-        Map<String, String> headers = new HashMap<>(nodeClient.threadPool().getThreadContext().getHeaders());
+        final Map<String, String> headers = nodeClient.threadPool().getThreadContext().getHeaders();
         // add a place holder in the search index and fire the async search
         store.storeInitialResponse(headers,
             ActionListener.wrap(resp -> executeSearch(request, resp, submitListener, headers), submitListener::onFailure));

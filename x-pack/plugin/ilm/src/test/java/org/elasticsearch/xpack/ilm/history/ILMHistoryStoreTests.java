@@ -123,7 +123,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 int responses = bulkRequest.numberOfActions();
                 return new BulkResponse(IntStream.range(0, responses)
                     .mapToObj(i -> new BulkItemResponse(i, DocWriteRequest.OpType.INDEX,
-                        new IndexResponse(new ShardId("index", "uuid", 0), randomAlphaOfLength(10), 1, 1, 1, true)))
+                        new IndexResponse(new ShardId("index", "uuid", 0), "_doc", randomAlphaOfLength(10), 1, 1, 1, true)))
                     .toArray(BulkItemResponse[]::new),
                     1000L);
             });
@@ -163,7 +163,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 int responses = bulkRequest.numberOfActions();
                 return new BulkResponse(IntStream.range(0, responses)
                     .mapToObj(i -> new BulkItemResponse(i, DocWriteRequest.OpType.INDEX,
-                        new BulkItemResponse.Failure("index", i + "", failureException)))
+                        new BulkItemResponse.Failure("index", "_doc", i + "", failureException)))
                     .toArray(BulkItemResponse[]::new),
                     1000L);
             });

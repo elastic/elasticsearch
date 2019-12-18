@@ -14,12 +14,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
@@ -242,7 +249,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
         }
 
-        private void setEvents(List<SearchHit>hits) {
+        private void setEvents(List<SearchHit> hits) {
             if (hits == null) {
                 this.events = new Events((SearchHit[])(null));
             } else {
@@ -399,11 +406,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     }
 
     // Base class for serialized collection of entries (events, sequences, counts)
-    private static abstract class Entries<T extends Writeable & ToXContentObject> implements Writeable, ToXContentFragment {
+    private abstract static class Entries<T extends Writeable & ToXContentObject> implements Writeable, ToXContentFragment {
         private final String name;
         private final T[] entries;
 
-        public Entries(String name, T[] entries) {
+        Entries(String name, T[] entries) {
             this.name = name;
             if (entries == null) {
                 this.entries =  createEntriesArray(0);
@@ -412,7 +419,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
         }
 
-        public Entries(String name, StreamInput in) throws IOException {
+        Entries(String name, StreamInput in) throws IOException {
             this.name = name;
             int size = in.readVInt();
             entries = createEntriesArray(size);
@@ -635,9 +642,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
 
             if (searchHits != null) {
-                return new EqlSearchResponse.Hits(new EqlSearchResponse.Events(searchHits.toArray(new SearchHit[searchHits.size()])), totalHits);
+                return new EqlSearchResponse.Hits(new EqlSearchResponse.Events(searchHits.toArray(new SearchHit[searchHits.size()])),
+                    totalHits);
             } else if (sequences != null) {
-                return new EqlSearchResponse.Hits(new EqlSearchResponse.Sequences(sequences.toArray(new Sequence[sequences.size()])), totalHits);
+                return new EqlSearchResponse.Hits(new EqlSearchResponse.Sequences(sequences.toArray(new Sequence[sequences.size()])),
+                    totalHits);
             } else if (counts != null) {
                 return new EqlSearchResponse.Hits(new EqlSearchResponse.Counts(counts.toArray(new Count[counts.size()])), totalHits);
             }

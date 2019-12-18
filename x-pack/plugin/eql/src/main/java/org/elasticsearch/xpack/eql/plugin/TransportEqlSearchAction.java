@@ -18,8 +18,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-
-import org.elasticsearch.xpack.eql.action.*;
+import org.elasticsearch.xpack.eql.action.EqlSearchAction;
+import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse> {
     private final SecurityContext securityContext;

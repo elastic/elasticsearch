@@ -25,21 +25,30 @@ import static org.hamcrest.Matchers.containsString;
 
 public class EqlRequestParserTests extends ESTestCase {
 
-    private static NamedXContentRegistry registry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
+    private static NamedXContentRegistry registry =
+        new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
     public void testUnknownFieldParsingErrors() throws IOException {
         assertParsingErrorMessage("{\"key\" : \"value\"}", "unknown field [key]", EqlSearchRequest::fromXContent);
     }
 
     public void testSearchRequestParser() throws IOException {
-        assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER", EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"timestamp_field\" : 123}", "timestamp_field doesn't support values of type: VALUE_NUMBER", EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"event_type_field\" : 123}", "event_type_field doesn't support values of type: VALUE_NUMBER", EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"implicit_join_key_field\" : 123}", "implicit_join_key_field doesn't support values of type: VALUE_NUMBER", EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"search_after\" : 123}", "search_after doesn't support values of type: VALUE_NUMBER", EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"timestamp_field\" : 123}", "timestamp_field doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"event_type_field\" : 123}", "event_type_field doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"implicit_join_key_field\" : 123}",
+            "implicit_join_key_field doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"search_after\" : 123}", "search_after doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"rule\" : 123}", "rule doesn't support values of type: VALUE_NUMBER", EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"rule\" : 123}", "rule doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent);
 
-        assertParsingErrorMessage("{\"rule\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"rule\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
+            EqlSearchRequest::fromXContent);
 
         EqlSearchRequest request = generateRequest("endgame-*", "{\"query\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
@@ -58,7 +67,8 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals("tsf", request.timestampField());
         assertEquals("etf", request.eventTypeField());
         assertEquals("imjf", request.implicitJoinKeyField());
-        assertArrayEquals(Arrays.asList("device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542").toArray(), request.searchAfter().toArray());
+        assertArrayEquals(Arrays.asList("device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542").toArray(),
+            request.searchAfter().toArray());
         assertEquals(101, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.rule());
     }

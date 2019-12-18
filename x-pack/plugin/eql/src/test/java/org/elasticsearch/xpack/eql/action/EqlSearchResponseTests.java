@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 

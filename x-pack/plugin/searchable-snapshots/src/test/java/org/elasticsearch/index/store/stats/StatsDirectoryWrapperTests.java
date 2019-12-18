@@ -21,7 +21,6 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -31,19 +30,6 @@ public class StatsDirectoryWrapperTests extends ESTestCase {
         final Directory directory = createDirectory();
         assertArrayEquals(directory.listAll(), new StatsDirectoryWrapper(directory).listAll());
         directory.close();
-    }
-
-    public void testClearStatsOnDirectoryClose() throws Exception {
-        final StatsDirectoryWrapper directory = new StatsDirectoryWrapper(createDirectory());
-        for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            final String file = randomFile(directory);
-            try (IndexInput input = directory.openInput(file, newIOContext(random()))) {
-                assertThat(directory.getStats().size(), greaterThan(0));
-                assertThat(directory.getStatsOrNull(file), notNullValue());
-            }
-        }
-        directory.close();
-        assertThat(directory.getStats().isEmpty(), is(true));
     }
 
     public void testLength() throws Exception {

@@ -49,15 +49,6 @@ public class StatsDirectoryWrapper extends FilterDirectory {
         return new StatsIndexInputWrapper(input, stats);
     }
 
-    @Override
-    public void close() throws IOException {
-        try {
-            super.close();
-        } finally {
-            records.clear();
-        }
-    }
-
     /**
      * Wraps an {@link IndexInput} to record stats about how it is accessed.
      */

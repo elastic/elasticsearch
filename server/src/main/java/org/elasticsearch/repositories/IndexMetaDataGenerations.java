@@ -56,7 +56,6 @@ public final class IndexMetaDataGenerations {
      */
     final Map<String, String> hashes;
 
-    //TODO: adjust code to use nested map
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> hashes) {
         assert hashes.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) :
             "Hash mappings " + hashes +" don't track the same blob ids as the lookup map " + lookup;

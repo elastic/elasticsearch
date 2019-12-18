@@ -22,6 +22,10 @@ public class FilterIntervalsSourceProviderTests extends AbstractSerializingTestC
 
     @Override
     protected IntervalFilter mutateInstance(IntervalFilter instance) throws IOException {
+        return mutateFilter(instance);
+    }
+
+    static IntervalFilter mutateFilter(IntervalFilter instance) {
         IntervalsSourceProvider filter = instance.getFilter();
         String type = instance.getType();
         Script script = instance.getScript();

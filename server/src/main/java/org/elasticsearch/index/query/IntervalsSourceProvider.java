@@ -239,6 +239,30 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public static Match fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
+
+        public String getQuery() {
+            return query;
+        }
+
+        public int getMaxGaps() {
+            return maxGaps;
+        }
+
+        public boolean isOrdered() {
+            return ordered;
+        }
+
+        public String getAnalyzer() {
+            return analyzer;
+        }
+
+        public IntervalFilter getFilter() {
+            return filter;
+        }
+
+        public String getUseField() {
+            return useField;
+        }
     }
 
     public static class Disjunction extends IntervalsSourceProvider {

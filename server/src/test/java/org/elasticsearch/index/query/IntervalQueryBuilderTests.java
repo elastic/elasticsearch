@@ -129,7 +129,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap()));
     }
 
-    static IntervalsSourceProvider createRandomMatch(int depth, boolean useScripts) {
+    static IntervalsSourceProvider.Match createRandomMatch(int depth, boolean useScripts) {
         String useField = rarely() ? MASKED_FIELD : null;
         int wordCount = randomInt(4) + 1;
         List<String> words = new ArrayList<>();

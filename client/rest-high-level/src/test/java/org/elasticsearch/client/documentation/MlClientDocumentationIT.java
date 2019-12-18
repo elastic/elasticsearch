@@ -3407,13 +3407,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 precisionResult.getMetricName(),
                 equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME));
-            assertThat(precision, equalTo(0.6));
+            assertThat(precision, equalTo(0.675));
             assertThat(precisionOtherClassCount, equalTo(0L));
 
             assertThat(
                 recallResult.getMetricName(),
                 equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME));
-            assertThat(recall, equalTo(0.6));
+            assertThat(recall, equalTo(0.45));
             assertThat(recallOtherClassCount, equalTo(0L));
 
             assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));

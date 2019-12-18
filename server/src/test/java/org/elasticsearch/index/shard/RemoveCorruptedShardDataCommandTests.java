@@ -380,7 +380,6 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // index a single doc to have files on a disk
         indexDoc(indexShard, "_doc", "0", "{}");
         flushShard(indexShard, true);
-        writeIndexState();
 
         // close shard
         closeShards(indexShard);
@@ -534,17 +533,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         logger.info("--> indexed {} docs, {} to keep", numDocs, numDocsToKeep);
 
-        writeIndexState();
         return numDocsToKeep;
-    }
-
-    private void writeIndexState() throws IOException {
-        // create _state of IndexMetaData
-        try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
-            final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
-            IndexMetaData.FORMAT.writeAndCleanup(indexMetaData, paths);
-            logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));
-        }
     }
 
 }

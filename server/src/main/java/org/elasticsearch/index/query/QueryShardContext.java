@@ -360,6 +360,8 @@ public class QueryShardContext extends QueryRewriteContext {
     /** Compile script using script service */
     public <FactoryType extends ScriptFactory> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         FactoryType factory = scriptService.compile(script, context);
+        // TODO(stu): can check `factory instanceof ScriptFactory && ((ScriptFactory) factory).isResultDeterministic() == false`
+        // to avoid being so intrusive
         if (factory.isResultDeterministic() == false) {
             failIfFrozen();
         }

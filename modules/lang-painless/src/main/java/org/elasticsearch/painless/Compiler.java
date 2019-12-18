@@ -205,13 +205,14 @@ final class Compiler {
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
+     * @return The ScriptRoot used to compile
      */
-    Constructor<?> compile(Loader loader, Set<String> extractedVariables, String name, String source, CompilerSettings settings) {
+    ScriptRoot compile(Loader loader, Set<String> extractedVariables, String name, String source,
+            CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
         root.extractVariables(extractedVariables);
-        root.analyze(painlessLookup, settings);
+        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         Map<String, Object> statics = root.write();
 
         try {
@@ -225,8 +226,9 @@ final class Compiler {
                 clazz.getField(statik.getKey()).set(null, statik.getValue());
             }
 
-            return clazz.getConstructors()[0];
-        } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+            return scriptRoot;
+        } catch (Exception exception) {
+            // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
     }

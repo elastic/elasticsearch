@@ -49,7 +49,7 @@ public class TriangleTreeWriter {
     public void writeTo(ByteBuffersDataOutput out) throws IOException {
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
-        // TODO: Compress serialization of extent
+        centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeInt(extent.top);
         out.writeVLong((long) extent.top - extent.bottom);
         out.writeInt(extent.posRight);

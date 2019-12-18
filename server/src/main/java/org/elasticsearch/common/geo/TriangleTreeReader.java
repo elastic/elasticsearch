@@ -33,8 +33,8 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * relations against the serialized triangle tree.
  */
 public class TriangleTreeReader {
+    private static final int CENTROID_HEADER_SIZE_IN_BYTES = 9;
 
-    private static final int extentOffset = 8;
     private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Rectangle2D rectangle2D;
@@ -59,7 +59,7 @@ public class TriangleTreeReader {
     public Extent getExtent() {
         if (treeOffset == 0) {
             // TODO: Compress serialization of extent
-            input.setPosition(extentOffset);
+            input.setPosition(CENTROID_HEADER_SIZE_IN_BYTES);
             int top = input.readInt();
             int bottom = Math.toIntExact(top - input.readVLong());
             int posRight = input.readInt();
@@ -88,6 +88,11 @@ public class TriangleTreeReader {
     public double getCentroidY() {
         input.setPosition(4);
         return coordinateEncoder.decodeY(input.readInt());
+    }
+
+    public DimensionalShapeType getDimensionalShapeType() {
+        input.setPosition(8);
+        return DimensionalShapeType.readFrom(input);
     }
 
     /**

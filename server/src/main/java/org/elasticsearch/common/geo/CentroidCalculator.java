@@ -44,6 +44,7 @@ public class CentroidCalculator {
     private double sumX;
     private double sumY;
     private int count;
+    private DimensionalShapeType dimensionalShapeType;
 
     public CentroidCalculator(Geometry geometry) {
         this.sumX = 0.0;
@@ -51,7 +52,9 @@ public class CentroidCalculator {
         this.sumY = 0.0;
         this.compY = 0.0;
         this.count = 0;
-        geometry.visit(new CentroidCalculatorVisitor(this));
+        CentroidCalculatorVisitor visitor = new CentroidCalculatorVisitor(this);
+        geometry.visit(visitor);
+        this.dimensionalShapeType = DimensionalShapeType.forGeometry(geometry);
     }
 
     /**
@@ -87,6 +90,7 @@ public class CentroidCalculator {
         addCoordinate(otherCalculator.sumX, otherCalculator.sumY);
         // adjust count
         count += otherCalculator.count - 1;
+        dimensionalShapeType = DimensionalShapeType.max(dimensionalShapeType, otherCalculator.dimensionalShapeType);
     }
 
     /**
@@ -101,6 +105,10 @@ public class CentroidCalculator {
      */
     public double getY() {
         return sumY / count;
+    }
+
+    public DimensionalShapeType getDimensionalShapeType() {
+        return dimensionalShapeType;
     }
 
     private static class CentroidCalculatorVisitor implements GeometryVisitor<Void, IllegalArgumentException> {
@@ -127,7 +135,6 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Line line) {
-
             for (int i = 0; i < line.length(); i++) {
                 calculator.addCoordinate(line.getX(i), line.getY(i));
             }
@@ -174,6 +181,7 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Polygon polygon) {
+            // TODO: incorporate holes into centroid calculation
             return visit(polygon.getPolygon());
         }
 
@@ -186,4 +194,5 @@ public class CentroidCalculator {
             return null;
         }
     }
+
 }

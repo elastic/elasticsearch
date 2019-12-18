@@ -41,10 +41,46 @@ import java.util.function.Function;
 import static org.elasticsearch.common.geo.GeoTestUtils.assertRelation;
 import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 import static org.elasticsearch.geo.GeometryTestUtils.fold;
+import static org.elasticsearch.geo.GeometryTestUtils.randomLine;
+import static org.elasticsearch.geo.GeometryTestUtils.randomMultiLine;
+import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPoint;
+import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPolygon;
 import static org.elasticsearch.geo.GeometryTestUtils.randomPoint;
+import static org.elasticsearch.geo.GeometryTestUtils.randomPolygon;
+import static org.elasticsearch.geo.GeometryTestUtils.randomRectangle;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TriangleTreeTests extends ESTestCase {
+
+    @SuppressWarnings("unchecked")
+    public void testDimensionalShapeType() throws IOException {
+        assertDimensionalShapeType(randomPoint(false), DimensionalShapeType.POINT);
+        assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.MULTIPOINT);
+        assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINESTRING);
+        assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.MULTILINESTRING);
+        assertDimensionalShapeType(randomPolygon(false), DimensionalShapeType.POLYGON);
+        assertDimensionalShapeType(randomMultiPolygon(false), DimensionalShapeType.MULTIPOLYGON);
+        assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);
+        assertDimensionalShapeType(randomFrom(
+            new GeometryCollection<>(List.of(randomPoint(false))),
+            new GeometryCollection<>(List.of(randomMultiPoint(false))),
+            new GeometryCollection<>(Collections.singletonList(
+                new GeometryCollection<>(List.of(randomPoint(false), randomMultiPoint(false))))))
+            , DimensionalShapeType.GEOMETRYCOLLECTION_POINTS);
+        assertDimensionalShapeType(randomFrom(
+            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))),
+            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiLine(false))),
+            new GeometryCollection<>(Collections.singletonList(
+                new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
+            , DimensionalShapeType.GEOMETRYCOLLECTION_LINES);
+        assertDimensionalShapeType(randomFrom(
+            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), randomPolygon(false))),
+            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiPolygon(false))),
+            new GeometryCollection<>(Collections.singletonList(
+                new GeometryCollection<>(List.of(randomLine(false), randomPolygon(false))))))
+            , DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS);
+    }
+
 
     public void testRectangleShape() throws IOException {
         for (int i = 0; i < 1000; i++) {
@@ -214,7 +250,7 @@ public class TriangleTreeTests extends ESTestCase {
     public void testRandomMultiLineIntersections() throws IOException {
         double extentSize = randomDoubleBetween(0.01, 10, true);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        MultiLine geometry = GeometryTestUtils.randomMultiLine(false);
+        MultiLine geometry = randomMultiLine(false);
         geometry = (MultiLine) indexer.prepareForIndexing(geometry);
 
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
@@ -315,5 +351,10 @@ public class TriangleTreeTests extends ESTestCase {
             shapes.add(randomGeometryTreeGeometry(level));
         }
         return new GeometryCollection<>(shapes);
+    }
+
+    private static void assertDimensionalShapeType(Geometry geometry, DimensionalShapeType expected) throws IOException {
+        TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+        assertThat(reader.getDimensionalShapeType(), equalTo(expected));
     }
 }

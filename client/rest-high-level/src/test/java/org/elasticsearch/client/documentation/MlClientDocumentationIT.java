@@ -3386,11 +3386,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.Result precisionResult =
                 response.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME); // <3>
-            double precision = accuracyResult.getOverallAccuracy(); // <4>
+            double precision = precisionResult.getAvgPrecision(); // <4>
 
             org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result recallResult =
                 response.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME); // <5>
-            double recall = accuracyResult.getOverallAccuracy(); // <6>
+            double recall = recallResult.getAvgRecall(); // <6>
 
             MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
                 response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <7>

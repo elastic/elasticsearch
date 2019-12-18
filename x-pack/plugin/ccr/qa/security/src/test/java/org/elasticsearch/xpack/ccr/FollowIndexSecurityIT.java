@@ -169,7 +169,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             ensureYellow(allowedIndex);
             verifyDocuments(allowedIndex, 5, "*:*");
-        });
+        }, 30, TimeUnit.SECONDS);
         assertThat(indexExists(disallowedIndex), is(false));
         assertBusy(() -> {
             verifyCcrMonitoring(allowedIndex, allowedIndex);

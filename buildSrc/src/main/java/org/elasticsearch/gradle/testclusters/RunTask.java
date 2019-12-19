@@ -10,9 +10,12 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class RunTask extends DefaultTestClustersTask {
@@ -21,6 +24,8 @@ public class RunTask extends DefaultTestClustersTask {
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
 
     private Boolean debug = false;
+
+    private Path dataDir = null;
 
     @Option(
         option = "debug-jvm",
@@ -35,6 +40,19 @@ public class RunTask extends DefaultTestClustersTask {
         return debug;
     }
 
+    @Option(
+        option = "data-dir",
+        description = "Override the base data directory used by the testcluster"
+    )
+    public void setDataDir(String dataDirStr) {
+        dataDir = Paths.get(dataDirStr).toAbsolutePath();
+    }
+
+    @Input
+    public String getDataDir() {
+        return dataDir.toString();
+    }
+
     @Override
     public void beforeStart() {
         int debugPort = 5005;
@@ -46,6 +64,14 @@ public class RunTask extends DefaultTestClustersTask {
                 entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
                 entry -> entry.getValue().toString()
             ));
+        boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
+        final Function<ElasticsearchNode, Path> getDataPath;
+        if (singleNode) {
+            getDataPath = n -> dataDir;
+        } else {
+            getDataPath = n -> dataDir.resolve(n.getName());
+        }
+
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
             httpPort++;
@@ -53,6 +79,9 @@ public class RunTask extends DefaultTestClustersTask {
             transportPort++;
             for (ElasticsearchNode node : cluster.getNodes()) {
                 additionalSettings.forEach(node::setting);
+                if (dataDir != null) {
+                    node.setDataPath(getDataPath.apply(node));
+                }
                 if (debug) {
                     logger.lifecycle(
                         "Running elasticsearch in debug mode, {} suspending until connected on debugPort {}",

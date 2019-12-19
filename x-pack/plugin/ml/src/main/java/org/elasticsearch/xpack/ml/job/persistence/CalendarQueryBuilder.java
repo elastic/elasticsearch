@@ -65,9 +65,9 @@ public class CalendarQueryBuilder {
         if (jobId != null) {
             jobIdAndGroups.add(jobId);
         }
-        jobIdAndGroups.add(MetaData.ALL);
 
         if (jobIdAndGroups.isEmpty() == false) {
+            jobIdAndGroups.add(MetaData.ALL);
             qb = new BoolQueryBuilder()
                     .filter(new TermsQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE))
                     .filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobIdAndGroups));

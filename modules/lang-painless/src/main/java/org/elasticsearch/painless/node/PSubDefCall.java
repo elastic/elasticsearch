@@ -104,7 +104,7 @@ final class PSubDefCall extends AExpression {
         // create method type from return value and arguments
         Type[] asmParameterTypes = new Type[parameterTypes.size()];
         for (int index = 0; index < asmParameterTypes.length; ++index) {
-            asmParameterTypes[index] = Type.getType(parameterTypes.get(index));
+            asmParameterTypes[index] = MethodWriter.getType(parameterTypes.get(index));
         }
         Type methodType = Type.getMethodType(MethodWriter.getType(actual), asmParameterTypes);
 

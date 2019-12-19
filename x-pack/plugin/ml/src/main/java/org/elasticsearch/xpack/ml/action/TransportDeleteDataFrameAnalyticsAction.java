@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -65,7 +65,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportDeleteDataFrameAnalyticsAction
     extends TransportMasterNodeAction<DeleteDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
-    private static final Logger LOGGER = LogManager.getLogger(TransportDeleteDataFrameAnalyticsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteDataFrameAnalyticsAction.class);
 
     private final Client client;
     private final MlMemoryTracker memoryTracker;
@@ -118,13 +118,13 @@ public class TransportDeleteDataFrameAnalyticsAction
         ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
             bulkByScrollResponse -> {
                 if (bulkByScrollResponse.isTimedOut()) {
-                    LOGGER.warn("[{}] DeleteByQuery for state timed out", id);
+                    logger.warn("[{}] DeleteByQuery for state timed out", id);
                 }
                 if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
-                    LOGGER.warn("[{}] {} failures and {} conflicts encountered while runnint DeleteByQuery for state", id,
+                    logger.warn("[{}] {} failures and {} conflicts encountered while runnint DeleteByQuery for state", id,
                         bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts());
                     for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                        LOGGER.warn("[{}] DBQ failure: {}", id, failure);
+                        logger.warn("[{}] DBQ failure: {}", id, failure);
                     }
                 }
                 deleteConfig(parentTaskClient, id, listener);
@@ -153,7 +153,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                     return;
                 }
                 assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                LOGGER.info("[{}] Deleted", id);
+                logger.info("[{}] Deleted", id);
                 auditor.info(id, Messages.DATA_FRAME_ANALYTICS_AUDIT_DELETED);
                 listener.onResponse(new AcknowledgedResponse(true));
             },
@@ -165,7 +165,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                              DataFrameAnalyticsConfig config,
                              ActionListener<BulkByScrollResponse> listener) {
         List<String> ids = new ArrayList<>();
-        ids.add(DataFrameAnalyticsTask.progressDocId(config.getId()));
+        ids.add(StoredProgress.documentId(config.getId()));
         if (config.getAnalysis().persistsState()) {
             ids.add(config.getAnalysis().getStateDocId(config.getId()));
         }

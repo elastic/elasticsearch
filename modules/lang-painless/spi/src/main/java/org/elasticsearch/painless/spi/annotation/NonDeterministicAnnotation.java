@@ -17,27 +17,13 @@
  * under the License.
  */
 
-package com.google.cloud.storage;
+package org.elasticsearch.painless.spi.annotation;
 
-import com.google.cloud.storage.spi.v1.StorageRpc;
+public class NonDeterministicAnnotation {
 
-/**
- * Utility class that exposed Google SDK package protected methods to
- * create specific StorageRpc objects in unit tests.
- */
-public class StorageRpcOptionUtils {
+    public static final String NAME = "nondeterministic";
 
-    private StorageRpcOptionUtils(){}
+    public static final NonDeterministicAnnotation INSTANCE = new NonDeterministicAnnotation();
 
-    public static String getPrefix(final Storage.BlobListOption... options) {
-        if (options != null) {
-            for (final Option option : options) {
-                final StorageRpc.Option rpcOption = option.getRpcOption();
-                if (StorageRpc.Option.PREFIX.equals(rpcOption)) {
-                    return (String) option.getValue();
-                }
-            }
-        }
-        return null;
-    }
+    private NonDeterministicAnnotation() {}
 }

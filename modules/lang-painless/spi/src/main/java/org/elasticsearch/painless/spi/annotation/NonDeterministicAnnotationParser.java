@@ -17,21 +17,24 @@
  * under the License.
  */
 
-package com.google.cloud.storage;
+package org.elasticsearch.painless.spi.annotation;
 
-/**
- * Utility class that exposed Google SDK package protected methods to
- * create buckets and blobs objects in unit tests.
- */
-public class StorageTestUtils {
+import java.util.Map;
 
-    private StorageTestUtils(){}
+public class NonDeterministicAnnotationParser implements WhitelistAnnotationParser {
 
-    public static Bucket createBucket(final Storage storage, final String bucketName) {
-        return new Bucket(storage, (BucketInfo.BuilderImpl) BucketInfo.newBuilder(bucketName));
-    }
+    public static final NonDeterministicAnnotationParser INSTANCE = new NonDeterministicAnnotationParser();
 
-    public static Blob createBlob(final Storage storage, final String bucketName, final String blobName, final long blobSize) {
-        return new Blob(storage, (BlobInfo.BuilderImpl) BlobInfo.newBuilder(bucketName, blobName).setSize(blobSize));
+    private NonDeterministicAnnotationParser() {}
+
+    @Override
+    public Object parse(Map<String, String> arguments) {
+        if (arguments.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "unexpected parameters for [@" + NonDeterministicAnnotation.NAME + "] annotation, found " + arguments
+            );
+        }
+
+        return NonDeterministicAnnotation.INSTANCE;
     }
 }

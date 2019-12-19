@@ -19,11 +19,16 @@
 
 package org.elasticsearch.cli;
 
+import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionSet;
+import joptsimple.util.KeyValuePair;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class MultiCommandTests extends CommandTestCase {
 
@@ -32,8 +37,7 @@ public class MultiCommandTests extends CommandTestCase {
         final AtomicBoolean closed = new AtomicBoolean();
 
         DummyMultiCommand() {
-            super("A dummy multi command", () -> {
-            });
+            super("A dummy multi command", () -> {});
         }
 
         @Override
@@ -75,7 +79,23 @@ public class MultiCommandTests extends CommandTestCase {
         }
     }
 
-    DummyMultiCommand multiCommand;
+    static class DummySettingsSubCommand extends DummySubCommand {
+        private final ArgumentAcceptingOptionSpec<KeyValuePair> settingOption;
+
+        DummySettingsSubCommand() {
+            super();
+            this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
+        }
+
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            final List<KeyValuePair> values = this.settingOption.values(options);
+            terminal.println("Settings: " + values);
+            super.execute(terminal, options);
+        }
+    }
+
+    private DummyMultiCommand multiCommand;
 
     @Before
     public void setupCommand() {
@@ -87,27 +107,21 @@ public class MultiCommandTests extends CommandTestCase {
         return multiCommand;
     }
 
-    public void testNoCommandsConfigured() throws Exception {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            execute();
-        });
+    public void testNoCommandsConfigured() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, this::execute);
         assertEquals("No subcommands configured", e.getMessage());
     }
 
-    public void testUnknownCommand() throws Exception {
+    public void testUnknownCommand() {
         multiCommand.subcommands.put("something", new DummySubCommand());
-        UserException e = expectThrows(UserException.class, () -> {
-            execute("somethingelse");
-        });
+        UserException e = expectThrows(UserException.class, () -> execute("somethingelse"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertEquals("Unknown command [somethingelse]", e.getMessage());
     }
 
-    public void testMissingCommand() throws Exception {
+    public void testMissingCommand() {
         multiCommand.subcommands.put("command1", new DummySubCommand());
-        UserException e = expectThrows(UserException.class, () -> {
-            execute();
-        });
+        UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertEquals("Missing command", e.getMessage());
     }
@@ -119,6 +133,19 @@ public class MultiCommandTests extends CommandTestCase {
         String output = terminal.getOutput();
         assertTrue(output, output.contains("command1"));
         assertTrue(output, output.contains("command2"));
+    }
+
+    /**
+     * Check that if -E arguments are passed to the main command, then they are accepted
+     * and passed on to the subcommand.
+     */
+    public void testSettingsOnMainCommand() throws Exception {
+        multiCommand.subcommands.put("command1", new DummySettingsSubCommand());
+        execute("-Esetting1=value1", "-Esetting2=value2", "command1", "otherArg");
+
+        String output = terminal.getOutput();
+        assertThat(output, containsString("Settings: [setting1=value1, setting2=value2]"));
+        assertThat(output, containsString("Arguments: [otherArg]"));
     }
 
     public void testSubcommandHelp() throws Exception {

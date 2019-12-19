@@ -25,4 +25,6 @@ testClusters.integTest {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.poll_interval', '1000ms'
+  setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
+  setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
 }

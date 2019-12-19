@@ -36,16 +36,16 @@ public class LineTests extends BaseGeometryTestCase<Line> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("linestring (3.0 1.0, 4.0 2.0)", wkt.toWKT(new Line(new double[]{3, 4}, new double[]{1, 2})));
-        assertEquals(new Line(new double[]{3, 4}, new double[]{1, 2}), wkt.fromWKT("linestring (3 1, 4 2)"));
+        assertEquals("LINESTRING (3.0 1.0, 4.0 2.0)", wkt.toWKT(new Line(new double[]{3, 4}, new double[]{1, 2})));
+        assertEquals(new Line(new double[]{3, 4}, new double[]{1, 2}), wkt.fromWKT("LINESTRING (3 1, 4 2)"));
 
-        assertEquals("linestring (3.0 1.0 5.0, 4.0 2.0 6.0)", wkt.toWKT(new Line(new double[]{3, 4}, new double[]{1, 2},
+        assertEquals("LINESTRING (3.0 1.0 5.0, 4.0 2.0 6.0)", wkt.toWKT(new Line(new double[]{3, 4}, new double[]{1, 2},
             new double[]{5, 6})));
         assertEquals(new Line(new double[]{3, 4}, new double[]{1, 2}, new double[]{6, 5}),
-            wkt.fromWKT("linestring (3 1 6, 4 2 5)"));
+            wkt.fromWKT("LINESTRING (3 1 6, 4 2 5)"));
 
-        assertEquals("linestring EMPTY", wkt.toWKT(Line.EMPTY));
-        assertEquals(Line.EMPTY, wkt.fromWKT("linestring EMPTY)"));
+        assertEquals("LINESTRING EMPTY", wkt.toWKT(Line.EMPTY));
+        assertEquals(Line.EMPTY, wkt.fromWKT("LINESTRING EMPTY)"));
     }
 
     public void testInitValidation() {

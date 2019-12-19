@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +24,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -38,13 +39,13 @@ public class ForceMergeAction implements LifecycleAction {
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {
         int maxNumSegments = (int) a[0];
-        Codec codec = a[1] != null ? Codec.forName((String) a[1]) : Codec.getDefault();
+        Codec codec = a[1] != null ? Codec.forName((String) a[1]) : null;
         return new ForceMergeAction(maxNumSegments, codec);
     });
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_NUM_SEGMENTS_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), CODEC);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), CODEC);
     }
 
     private final int maxNumSegments;
@@ -54,21 +55,24 @@ public class ForceMergeAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public ForceMergeAction(int maxNumSegments, Codec codec) {
+    public ForceMergeAction(int maxNumSegments, @Nullable Codec codec) {
         if (maxNumSegments <= 0) {
             throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName()
                 + "] must be a positive integer");
         }
         this.maxNumSegments = maxNumSegments;
+        if (codec != null && Codec.forName(codec.getName()) == null) {
+            throw new IllegalArgumentException("Compression type of " + codec.getName() + "does not exist");
+        }
         this.codec = codec;
     }
 
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.codec = Codec.forName(in.readString());
+            this.codec = Codec.forName(in.readOptionalString());
         } else {
-            this.codec = Codec.getDefault();
+            this.codec = null;
         }
     }
 
@@ -84,9 +88,9 @@ public class ForceMergeAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeString(codec.getName());
+            out.writeOptionalString(codec.getName());
         } else {
-            out.writeString(Codec.getDefault().getName());
+            out.writeString(null);
         }
     }
 
@@ -104,7 +108,9 @@ public class ForceMergeAction implements LifecycleAction {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MAX_NUM_SEGMENTS_FIELD.getPreferredName(), maxNumSegments);
-        builder.field(CODEC.getPreferredName(), codec);
+        if (codec != null) {
+            builder.field(CODEC.getPreferredName(), codec);
+        }
         builder.endObject();
         return builder;
     }
@@ -119,28 +125,34 @@ public class ForceMergeAction implements LifecycleAction {
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
 
-
-        if (codec.getName().equals(CodecService.BEST_COMPRESSION_CODEC)) {
-            StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
-            StepKey openKey = new StepKey(phase, NAME, OpenIndexStep.NAME);
-            StepKey waitForGreenIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
-            StepKey updateCompressionKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
-
-            CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
-            UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
-                openKey, client, bestCompressionSettings);
-            OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
-            WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
-                forceMergeKey, ClusterHealthStatus.GREEN);
-            ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, nextStepKey, client, maxNumSegments);
-            return Arrays.asList(closeIndexStep, updateBestCompressionSettings,
-                openIndexStep, waitForIndexGreenStep, forceMergeStep);
-        }
+        StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
+        StepKey openKey = new StepKey(phase, NAME, OpenIndexStep.NAME);
+        StepKey waitForGreenIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey updateCompressionKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
 
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, forceMergeKey, client, readOnlySettings);
         ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
-        return Arrays.asList(readOnlyStep, forceMergeStep, segmentCountStep);
+        CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
+        UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
+            openKey, client, bestCompressionSettings);
+        OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
+        WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
+            forceMergeKey, ClusterHealthStatus.GREEN);
+
+        List<Step> mergeSteps = new ArrayList<>();
+        mergeSteps.add(readOnlyStep);
+
+        if (codec.getName().equals(CodecService.BEST_COMPRESSION_CODEC)) {
+            mergeSteps.add(closeIndexStep);
+            mergeSteps.add(updateBestCompressionSettings);
+            mergeSteps.add(openIndexStep);
+            mergeSteps.add(waitForIndexGreenStep);
+        }
+
+        mergeSteps.add(forceMergeStep);
+        mergeSteps.add(segmentCountStep);
+        return mergeSteps;
     }
 
     @Override
@@ -158,7 +170,7 @@ public class ForceMergeAction implements LifecycleAction {
         }
         ForceMergeAction other = (ForceMergeAction) obj;
         return Objects.equals(maxNumSegments, other.maxNumSegments)
-            && Objects.equals(codec, other.codec);
+            && ((codec == null && other.codec == null) || Objects.equals(codec, other.codec));
     }
 
     @Override

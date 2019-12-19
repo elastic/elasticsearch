@@ -52,6 +52,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -87,12 +88,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -1147,6 +1151,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
                             assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
                         }
+                    }
+                    if (alwaysExists) {
+                        List<String> existingLeaseIds = retentionLeases.stream().map(lease -> (String) lease.get("id"))
+                            .collect(Collectors.toList());
+                        List<String> expectedLeaseIds = shard.stream()
+                            .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
+                            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                            .collect(Collectors.toList());
+                        assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
                     }
                 }
             }

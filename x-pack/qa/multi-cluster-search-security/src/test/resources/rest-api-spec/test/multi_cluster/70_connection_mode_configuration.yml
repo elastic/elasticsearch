@@ -14,7 +14,7 @@
           transient:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.node_connections: "5"
-            cluster.remote.test_remote_cluster.proxy_addresses: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
@@ -29,7 +29,7 @@
           transient:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.seeds: $remote_ip
-            cluster.remote.test_remote_cluster.proxy_addresses: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
@@ -64,12 +64,12 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.proxy_addresses: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.proxy_addresses\" cannot be
+  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.proxy_address\" cannot be
    used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=PROXY, configured=SNIFF]" }
 
 ---
@@ -87,11 +87,11 @@
           transient:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.proxy_socket_connections: "3"
-            cluster.remote.test_remote_cluster.proxy_addresses: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
   - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "3"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_addresses: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       search:
@@ -179,7 +179,7 @@
         body:
           transient:
             cluster.remote.test_remote_cluster.mode: "proxy"
-            cluster.remote.test_remote_cluster.proxy_addresses: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
@@ -193,10 +193,10 @@
           transient:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.seeds: null
-            cluster.remote.test_remote_cluster.proxy_addresses: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_addresses: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       search:

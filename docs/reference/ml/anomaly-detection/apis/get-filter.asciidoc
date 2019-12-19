@@ -26,7 +26,7 @@ Retrieves filters.
 ==== {api-description-title}
 
 You can get a single filter or all filters. For more information, see 
-{stack-ov}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-rules.html[Machine learning custom rules].
 
 [[ml-get-filter-path-parms]]
 ==== {api-path-parms-title}

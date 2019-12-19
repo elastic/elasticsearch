@@ -133,7 +133,7 @@ facilitates notarization of {es} for continued support on macOS.
 [float]
 ==== Regression analysis - Experimental
 
-{ref}/dfa-regression.html[Regression analysis] is an experimental machine learning process
+{ml-docs}/dfa-regression.html[Regression analysis] is an experimental machine learning process
 for estimating the relationships among a number of feature variables and a dependent variable,
 then making further predictions based on the described relationship.
 

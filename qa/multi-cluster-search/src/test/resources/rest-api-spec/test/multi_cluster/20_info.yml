@@ -70,17 +70,17 @@
             cluster.remote.test_remote_cluster.seeds: null
             cluster.remote.test_remote_cluster.node_connections: null
             cluster.remote.test_remote_cluster.proxy_socket_connections: "10"
-            cluster.remote.test_remote_cluster.proxy_addresses: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
   - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "10"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_addresses: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       cluster.remote_info: {}
 
   - match: { test_remote_cluster.connected: true }
-  - match: { test_remote_cluster.addresses.0: $remote_ip }
+  - match: { test_remote_cluster.address: $remote_ip }
   - gt:    { test_remote_cluster.num_sockets_connected: 0}
   - match: { test_remote_cluster.max_socket_connections: 10}
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
@@ -92,7 +92,7 @@
           transient:
             cluster.remote.test_remote_cluster.mode: null
             cluster.remote.test_remote_cluster.proxy_socket_connections: null
-            cluster.remote.test_remote_cluster.proxy_addresses: null
+            cluster.remote.test_remote_cluster.proxy_address: null
 
 ---
 "skip_unavailable is returned as part of _remote/info response":

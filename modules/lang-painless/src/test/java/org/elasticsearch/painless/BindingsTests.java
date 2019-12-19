@@ -23,7 +23,6 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,7 +89,7 @@ public class BindingsTests extends ScriptTestCase {
         public static final String[] PARAMETERS = { "test", "bound" };
         public int getTestValue() {return 7;}
         public abstract int execute(int test, int bound);
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             BindingsTestScript newInstance();
         }
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bindings_test", Factory.class);

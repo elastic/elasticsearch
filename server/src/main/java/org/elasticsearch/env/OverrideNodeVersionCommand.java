@@ -19,6 +19,7 @@
 package org.elasticsearch.env;
 
 import joptsimple.OptionParser;
+import joptsimple.OptionSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -72,7 +73,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
         final NodeMetaData nodeMetaData
             = new NodeMetaData.NodeMetaDataStateFormat(true).loadLatestState(logger, NamedXContentRegistry.EMPTY, nodePaths);

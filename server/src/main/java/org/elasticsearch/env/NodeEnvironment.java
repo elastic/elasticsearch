@@ -50,7 +50,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -388,7 +388,7 @@ public final class NodeEnvironment  implements Closeable {
                     MetaDataStateFormat.STATE_DIR_NAME,
 
                     // Lucene-based metadata folder
-                    LucenePersistedStateFactory.METADATA_DIRECTORY_NAME,
+                    PersistedClusterStateService.METADATA_DIRECTORY_NAME,
 
                     // indices
                     INDICES_FOLDER));

@@ -79,7 +79,7 @@ public class CatchNode extends StatementNode {
 
         methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declarationNode.getCaptured().clazz).getInternalName());
 
-        if (exception != null && (blockNode == null || blockNode.allEscape == false)) {
+        if (exception != null && (blockNode == null || blockNode.doAllEscape() == false)) {
             methodWriter.goTo(exception);
         }
     }

@@ -38,7 +38,7 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
 /**
  * Represents a for-each loop for iterables.
  */
-final class ForEachSubIterableNode extends LoopNode {
+public class ForEachSubIterableNode extends LoopNode {
 
     /* ---- begin node data ---- */
 

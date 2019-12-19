@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
@@ -30,8 +29,6 @@ import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
-
-import java.util.Objects;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 

@@ -37,6 +37,6 @@ interface ILambda {
 
     /** Returns the number of captured parameters */
     default int getCaptureCount() {
-        return getCaptures().length;
+        return getCaptures().size();
     }
 }

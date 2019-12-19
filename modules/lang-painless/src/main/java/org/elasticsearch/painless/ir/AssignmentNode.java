@@ -187,7 +187,8 @@ public class AssignmentNode extends BinaryNode {
                 methodWriter.writeDup(MethodWriter.getType(leftNode.getType()).getSize(), leftNode.accessElementCount());
             }
 
-            leftNode.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
+            // store the lhs's value from the stack in its respective variable/field/array
+            leftNode.store(classWriter, methodWriter, globals);
         } else {
             // Handle the case for a simple write.
 

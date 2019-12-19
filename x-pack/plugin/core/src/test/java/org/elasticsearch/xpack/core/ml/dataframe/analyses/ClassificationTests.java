@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClassificationTests extends AbstractSerializingTestCase<Classification> {
 
@@ -172,7 +173,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testFieldMappingsToCopyIsNonEmpty() {
-        assertThat(createTestInstance().getFieldMappingsToCopy(""), is(not(anEmptyMap())));
+        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(not(anEmptyMap())));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {

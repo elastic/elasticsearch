@@ -109,7 +109,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
-            (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]",
+            expectedDestIndexAuditMessage(),
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
@@ -150,7 +150,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
-            (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]",
+            expectedDestIndexAuditMessage(),
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
@@ -211,7 +211,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
-            (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]",
+            expectedDestIndexAuditMessage(),
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
         assertEvaluation(dependentVariable, dependentVariableValues, "ml." + predictedClassField);
@@ -528,5 +528,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private String stateDocId() {
         return jobId + "_classification_state#1";
+    }
+
+    private String expectedDestIndexAuditMessage() {
+        return (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]";
     }
 }

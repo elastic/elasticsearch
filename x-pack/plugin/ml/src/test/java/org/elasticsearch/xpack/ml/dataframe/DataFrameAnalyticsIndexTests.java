@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -37,9 +38,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -57,9 +58,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class DataFrameAnalyticsIndexTests extends ESTestCase {
@@ -215,34 +219,29 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
         mappings.put("", new MappingMetaData("_doc", Map.of("properties", properties)));
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        GetIndexResponse getIndexResponse =
+            new GetIndexResponse(
+                new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
         ArgumentCaptor<GetMappingsRequest> getMappingsRequestCaptor = ArgumentCaptor.forClass(GetMappingsRequest.class);
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
 
-        doAnswer(callListenerOnResponse(getMappingsResponse))
-            .when(client).execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
         doAnswer(callListenerOnResponse(new AcknowledgedResponse(true)))
             .when(client).execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
 
         DataFrameAnalyticsIndex.updateMappingsToDestIndex(
             client,
             config,
-            new GetIndexResponse(
-                new String[] { DEST_INDEX }, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of()),
+            getIndexResponse,
             ActionListener.wrap(
                 response -> assertThat(response.isAcknowledged(), is(true)),
                 e -> fail(e.getMessage())
             )
         );
 
-        InOrder inOrder = inOrder(client);
-        inOrder.verify(client).execute(eq(GetMappingsAction.INSTANCE), any(), any());
-        inOrder.verify(client).execute(eq(PutMappingAction.INSTANCE), any(), any());
-        inOrder.verifyNoMoreInteractions();
-
-        GetMappingsRequest getMappingsRequest = getMappingsRequestCaptor.getValue();
-        assertThat(getMappingsRequest.indices(), arrayContaining(SOURCE_INDEX));
+        verify(client, atLeastOnce()).threadPool();
+        verify(client).execute(eq(PutMappingAction.INSTANCE), any(), any());
+        verifyNoMoreInteractions(client);
 
         PutMappingRequest putMappingRequest = putMappingRequestCaptor.getValue();
         assertThat(putMappingRequest.indices(), arrayContaining(DEST_INDEX));
@@ -275,22 +274,20 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
         mappings.put("", new MappingMetaData("_doc", Map.of("properties", Map.of("ml", "some-mapping"))));
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
-
-        doAnswer(callListenerOnResponse(getMappingsResponse)).when(client).execute(eq(GetMappingsAction.INSTANCE), any(), any());
-
-        DataFrameAnalyticsIndex.updateMappingsToDestIndex(
-            client,
-            config,
+        GetIndexResponse getIndexResponse =
             new GetIndexResponse(
-                new String[] { DEST_INDEX }, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of()),
-            ActionListener.wrap(
-                response -> fail("should not succeed"),
-                e -> assertThat(
-                    e.getMessage(),
-                    equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field"))
-            )
-        );
+                new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> DataFrameAnalyticsIndex.updateMappingsToDestIndex(
+                    client, config, getIndexResponse, ActionListener.wrap(Assert::fail)));
+        assertThat(
+            e.getMessage(),
+            equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field"));
+
+        verifyZeroInteractions(client);
     }
 
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {

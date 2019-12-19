@@ -247,10 +247,11 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, String> getFieldMappingsToCopy(String resultsFieldName) {
-        return Map.of(
-            resultsFieldName + "." + predictionFieldName, dependentVariable,
-            resultsFieldName + ".top_classes.class_name", dependentVariable);
+    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
+        return new HashMap<>() {{
+            put(resultsFieldName + "." + predictionFieldName, dependentVariable);
+            put(resultsFieldName + ".top_classes.class_name", dependentVariable);
+        }};
     }
 
     @Override

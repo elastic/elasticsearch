@@ -93,7 +93,7 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
     }
 
     public void testFieldMappingsToCopyIsEmpty() {
-        assertThat(createTestInstance().getFieldMappingsToCopy(""), is(anEmptyMap()));
+        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(anEmptyMap()));
     }
 
     public void testGetStateDocId() {

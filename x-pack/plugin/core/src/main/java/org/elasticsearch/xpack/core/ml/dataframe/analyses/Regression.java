@@ -187,7 +187,7 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, String> getFieldMappingsToCopy(String resultsFieldName) {
+    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
         return Collections.singletonMap(resultsFieldName + "." + predictionFieldName, dependentVariable);
     }
 

@@ -124,9 +124,9 @@ public final class DataFrameAnalyticsIndex {
         Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
         checkResultsFieldIsNotPresentInSourceIndex(config, properties);
-        addProperties(properties, config, Collections.unmodifiableMap(properties));
+        properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
-        addMetaData(metadata, config.getId(), clock);
+        metadata.putAll(createMetaData(config.getId(), clock));
         return new CreateIndexRequest(destinationIndex, settings).mapping(type, mappingsAsMap);
     }
 
@@ -160,25 +160,28 @@ public final class DataFrameAnalyticsIndex {
         return maxValue;
     }
 
-    private static void addProperties(Map<String, Object> properties,
-                                      DataFrameAnalyticsConfig config,
-                                      Map<String, Object> sourceIndexMappingsProperties) {
+    private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config, Map<String, Object> mappingsProperties) {
+        HashMap<String, Object> properties = new HashMap<>();
         properties.put(ID_COPY, Map.of("type", "keyword"));
-        for (Map.Entry<String, String> entry : config.getAnalysis().getFieldMappingsToCopy(config.getDest().getResultsField()).entrySet()) {
+        for (Map.Entry<String, String> entry
+                : config.getAnalysis().getExplicitlyMappedFields(config.getDest().getResultsField()).entrySet()) {
             String destFieldPath = entry.getKey();
             String sourceFieldPath = entry.getValue();
-            Object sourceFieldMapping = sourceIndexMappingsProperties.get(sourceFieldPath);
+            Object sourceFieldMapping = mappingsProperties.get(sourceFieldPath);
             if (sourceFieldMapping != null) {
                 properties.put(destFieldPath, sourceFieldMapping);
             }
         }
+        return properties;
     }
 
-    private static void addMetaData(Map<String, Object> metadata, String analyticsId, Clock clock) {
+    private static Map<String, Object> createMetaData(String analyticsId, Clock clock) {
+        HashMap<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
         metadata.put(CREATED_BY, "data-frame-analytics");
         metadata.put(VERSION, Map.of(CREATED, Version.CURRENT));
         metadata.put(ANALYTICS, analyticsId);
+        return metadata;
     }
 
     @SuppressWarnings("unchecked")
@@ -197,32 +200,24 @@ public final class DataFrameAnalyticsIndex {
         // We have validated the destination index should match a single index
         assert getIndexResponse.indices().length == 1;
 
-        ActionListener<ImmutableOpenMap<String, MappingMetaData>> mappingsListener = ActionListener.wrap(
-            mappings -> {
-                // Fetch merged mappings from source indices
-                Map<String, Object> sourceMappingsAsMap = mappings.valuesIt().next().sourceAsMap();
-                Map<String, Object> sourcePropertiesAsMap =
-                    (Map<String, Object>)sourceMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
+        // Fetch mappings from destination index
+        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().valuesIt().next().sourceAsMap();
+        Map<String, Object> destPropertiesAsMap =
+            (Map<String, Object>)destMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
 
-                // Verify that the results field does not exist in the source indices
-                checkResultsFieldIsNotPresentInSourceIndex(config, sourcePropertiesAsMap);
+        // Verify that the results field does not exist in the source indices
+        checkResultsFieldIsNotPresentInSourceIndex(config, destPropertiesAsMap);
 
-                // Determine mappings to be added to the destination index
-                Map<String, Object> properties = new HashMap<>();
-                addProperties(properties, config, Collections.unmodifiableMap(sourcePropertiesAsMap));
-                Map<String, Object> addedMappings = Map.of(PROPERTIES, properties);
+        // Determine mappings to be added to the destination index
+        Map<String, Object> addedMappings =
+            Map.of(PROPERTIES, createAdditionalMappings(config, Collections.unmodifiableMap(destPropertiesAsMap)));
 
-                // Add the mappings to the destination index
-                PutMappingRequest putMappingRequest =
-                    new PutMappingRequest(getIndexResponse.indices())
-                        .source(addedMappings);
-                ClientHelper.executeWithHeadersAsync(
-                    config.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE, putMappingRequest, listener);
-            },
-            listener::onFailure
-        );
-
-        MappingsMerger.mergeMappings(client, config.getHeaders(), config.getSource(), mappingsListener);
+        // Add the mappings to the destination index
+        PutMappingRequest putMappingRequest =
+            new PutMappingRequest(getIndexResponse.indices())
+                .source(addedMappings);
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE, putMappingRequest, listener);
     }
 
     private static void checkResultsFieldIsNotPresentInSourceIndex(DataFrameAnalyticsConfig config, Map<String, Object> properties) {

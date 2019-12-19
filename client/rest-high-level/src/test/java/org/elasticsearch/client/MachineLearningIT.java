@@ -1884,7 +1884,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 precisionResult.getClasses(),
                 equalTo(
-                    List.of(
+                    Arrays.asList(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
                         new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
@@ -1915,7 +1915,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 recallResult.getClasses(),
                 equalTo(
-                    List.of(
+                    Arrays.asList(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
                         new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly

@@ -14,7 +14,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
@@ -61,7 +60,7 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
         recall.process(aggs);
 
         assertThat(recall.aggs("act", "pred"), isTuple(empty(), empty()));
-        assertThat(recall.getResult().get(), equalTo(new Recall.Result(List.of(), 0.8123)));
+        assertThat(recall.getResult().get(), equalTo(new Recall.Result(Collections.emptyList(), 0.8123)));
     }
 
     public void testProcess_GivenMissingAgg() {

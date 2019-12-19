@@ -14,7 +14,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilters;
@@ -63,7 +62,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
         precision.process(aggs);
 
         assertThat(precision.aggs("act", "pred"), isTuple(empty(), empty()));
-        assertThat(precision.getResult().get(), equalTo(new Precision.Result(List.of(), 0.8123)));
+        assertThat(precision.getResult().get(), equalTo(new Precision.Result(Collections.emptyList(), 0.8123)));
     }
 
     public void testProcess_GivenMissingAgg() {

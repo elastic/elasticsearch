@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -111,12 +112,12 @@ public class Precision implements EvaluationMetric {
         this.actualField = actualField;
         if (topActualClassNames == null) {  // This is step 1
             return Tuple.tuple(
-                List.of(
+                Arrays.asList(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
                         .field(actualField)
-                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                        .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
                         .size(maxClassesCardinality)),
-                List.of());
+                Collections.emptyList());
         }
         if (result == null) {  // This is step 2
             KeyedFilter[] keyedFiltersPredicted =
@@ -125,15 +126,15 @@ public class Precision implements EvaluationMetric {
                     .toArray(KeyedFilter[]::new);
             Script script = buildScript(actualField, predictedField);
             return Tuple.tuple(
-                List.of(
+                Arrays.asList(
                     AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)
                         .subAggregation(AggregationBuilders.avg(PER_PREDICTED_CLASS_PRECISION_AGG_NAME).script(script))),
-                List.of(
+                Arrays.asList(
                     PipelineAggregatorBuilders.avgBucket(
                         AVG_PRECISION_AGG_NAME,
                         BY_PREDICTED_CLASS_AGG_NAME + ">" + PER_PREDICTED_CLASS_PRECISION_AGG_NAME)));
         }
-        return Tuple.tuple(List.of(), List.of());
+        return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
     }
 
     @Override

@@ -146,7 +146,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, Arrays.asList(new Precision(4)))));
+                    ANIMALS_DATA_INDEX,
+                    new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, Arrays.asList(new Precision(4)))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
     }
 

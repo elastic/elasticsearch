@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -103,16 +104,16 @@ public class Recall implements EvaluationMetric {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
         this.actualField = actualField;
         if (result != null) {
-            return Tuple.tuple(List.of(), List.of());
+            return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
         Script script = buildScript(actualField, predictedField);
         return Tuple.tuple(
-            List.of(
+            Arrays.asList(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
                     .size(maxClassesCardinality)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
-            List.of(
+            Arrays.asList(
                 PipelineAggregatorBuilders.avgBucket(
                     AVG_RECALL_AGG_NAME,
                     BY_ACTUAL_CLASS_AGG_NAME + ">" + PER_ACTUAL_CLASS_RECALL_AGG_NAME)));

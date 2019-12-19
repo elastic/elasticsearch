@@ -36,7 +36,7 @@ import java.util.Objects;
  * <code>by_field_name</code> and <code>over_field_name</code> can be used depending on the specific
  * function chosen. For more information see the
  * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html">create anomaly detection
- * jobs API</a> and <a href="https://www.elastic.co/guide/en/elastic-stack-overview/current/ml-functions.html">detector functions</a>.
+ * jobs API</a> and <a href="https://www.elastic.co/guide/en/machine-learning/current/ml-functions.html">detector functions</a>.
  */
 public class Detector implements ToXContentObject {
 

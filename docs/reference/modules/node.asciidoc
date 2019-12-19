@@ -46,7 +46,7 @@ A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
 default behavior in the {es} {default-dist}. If you want to use {ml-features},
 there must be at least one {ml} node in your cluster. For more information about
 {ml-features}, see
-{stack-ov}/xpack-ml.html[Machine learning in the {stack}].
+{ml-docs}/xpack-ml.html[Machine learning in the {stack}].
 +
 IMPORTANT: If you use the {oss-dist}, do not set `node.ml`. Otherwise, the node
 fails to start.

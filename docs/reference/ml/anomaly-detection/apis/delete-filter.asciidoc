@@ -23,7 +23,7 @@ Deletes a filter.
 [[ml-delete-filter-desc]]
 ==== {api-description-title}
 
-This API deletes a {stack-ov}/ml-rules.html[filter]. 
+This API deletes a {ml-docs}/ml-rules.html[filter]. 
 If a {ml} job references the filter, you cannot delete the filter. You must 
 update or delete the job before you can delete the filter.
 

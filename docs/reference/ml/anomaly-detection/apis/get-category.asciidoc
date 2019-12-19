@@ -37,7 +37,7 @@ The anomaly results from a categorization analysis are available as bucket,
 influencer, and record results. For example, the results might indicate that
 at 16:45 there was an unusual count of log message category 11. You can then
 examine the description and examples of that category. For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
 
 [[ml-get-category-path-parms]]
 ==== {api-path-parms-title}

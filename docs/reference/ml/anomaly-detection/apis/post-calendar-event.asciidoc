@@ -23,7 +23,7 @@ Posts scheduled events in a calendar.
 [[ml-post-calendar-event-desc]]
 ==== {api-description-title}
 
-This API accepts a list of {stack-ov}/ml-calendars.html[scheduled events], each
+This API accepts a list of {ml-docs}/ml-calendars.html[scheduled events], each
 of which must have a start time, end time, and description.
 
 [[ml-post-calendar-event-path-parms]]

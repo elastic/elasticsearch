@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -40,12 +39,10 @@ import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
@@ -71,42 +68,284 @@ import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_
 import static org.elasticsearch.painless.WriterConstants.STACK_OVERFLOW_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 
-/**
- * The root of all Painless trees.  Contains a series of statements.
- */
-public final class ClassNode implements IRNode {
+public class ClassNode extends IRNode {
 
-    private final ScriptClassInfo scriptClassInfo;
-    private final String name;
-    private final Printer debugStream;
-    private final List<FunctionNode> functions = new ArrayList<>();
-    private final List<FieldNode> fields = new ArrayList<>();
-    private final List<IRNode> statements = new ArrayList<>();
-    private final Globals globals;
+    /* ---- begin tree structure ---- */
 
-    private CompilerSettings settings;
+    protected final List<FieldNode> fieldNodes = new ArrayList<>();
+    protected final List<FunctionNode> functionNodes = new ArrayList<>();
+    protected final List<StatementNode> statementNodes = new ArrayList<>();
 
-    private ScriptRoot table;
-    private Locals mainMethod;
-    private final Set<String> extractedVariables;
-    private final List<org.objectweb.asm.commons.Method> getMethods;
-    private byte[] bytes;
+    public ClassNode addFieldNode(FieldNode fieldNode) {
+        fieldNodes.add(fieldNode);
+        return this;
+    }
 
-    public SClass(ScriptClassInfo scriptClassInfo, String name, String sourceText, Printer debugStream,
-            Location location) {
-        super(location);
-        this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
-        this.name = Objects.requireNonNull(name);
+    public ClassNode setFieldNode(int index, FieldNode fieldNode) {
+        fieldNodes.set(index, fieldNode);
+        return this;
+    }
+
+    public FieldNode getFieldNode(int index) {
+        return fieldNodes.get(index);
+    }
+
+    public ClassNode removeFieldNode(FieldNode fieldNode) {
+        fieldNodes.remove(fieldNode);
+        return this;
+    }
+
+    public ClassNode removeFieldNode(int index) {
+        fieldNodes.remove(index);
+        return this;
+    }
+
+    public int getFieldsSize() {
+        return fieldNodes.size();
+    }
+
+    public List<FieldNode> getFieldsNodes() {
+        return fieldNodes;
+    }
+
+    public ClassNode clearFieldNodes() {
+        fieldNodes.clear();
+        return this;
+    }
+    
+    public ClassNode addFunctionNode(FunctionNode functionNode) {
+        functionNodes.add(functionNode);
+        return this;
+    }
+
+    public ClassNode setFunctionNode(int index, FunctionNode functionNode) {
+        functionNodes.set(index, functionNode);
+        return this;
+    }
+
+    public FunctionNode getFunctionNode(int index) {
+        return functionNodes.get(index);
+    }
+
+    public ClassNode removeFunctionNode(FunctionNode functionNode) {
+        functionNodes.remove(functionNode);
+        return this;
+    }
+
+    public ClassNode removeFunctionNode(int index) {
+        functionNodes.remove(index);
+        return this;
+    }
+
+    public int getFunctionsSize() {
+        return functionNodes.size();
+    }
+
+    public List<FunctionNode> getFunctionsNodes() {
+        return functionNodes;
+    }
+
+    public ClassNode clearFunctionNodes() {
+        functionNodes.clear();
+        return this;
+    }
+
+    public ClassNode addStatementNode(StatementNode statementNode) {
+        statementNodes.add(statementNode);
+        return this;
+    }
+
+    public ClassNode setStatementNode(int index, StatementNode statementNode) {
+        statementNodes.set(index, statementNode);
+        return this;
+    }
+
+    public StatementNode getStatementNode(int index) {
+        return statementNodes.get(index);
+    }
+
+    public ClassNode removeStatementNode(StatementNode statementNode) {
+        statementNodes.remove(statementNode);
+        return this;
+    }
+
+    public ClassNode removeStatementNode(int index) {
+        statementNodes.remove(index);
+        return this;
+    }
+
+    public int getStatementsSize() {
+        return statementNodes.size();
+    }
+
+    public List<StatementNode> getStatementsNodes() {
+        return statementNodes;
+    }
+
+    public ClassNode clearStatementNodes() {
+        statementNodes.clear();
+        return this;
+    }
+    
+    /* ---- end tree structure, begin node data ---- */
+
+    protected ScriptClassInfo scriptClassInfo;
+    protected String name;
+    protected String sourceText;
+    protected Printer debugStream;
+    protected ScriptRoot scriptRoot;
+    protected Locals mainMethod;
+    protected boolean doesMethodEscape;
+    protected final Set<String> extractedVariables = new HashSet<>();
+    protected final List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
+
+    public ClassNode setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
+        this.scriptClassInfo = scriptClassInfo;
+        return this;
+    }
+
+    public ScriptClassInfo getScriptClassInfo() {
+        return scriptClassInfo;
+    }
+
+    public ClassNode setName(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public ClassNode setSourceText(String sourceText) {
+        this.sourceText = sourceText;
+        return this;
+    }
+
+    public String getSourceText() {
+        return sourceText;
+    }
+
+    public ClassNode setDebugStream(Printer debugStream) {
         this.debugStream = debugStream;
-        this.functions.addAll(Objects.requireNonNull(functions));
-        this.statements = Collections.unmodifiableList(statements);
-        this.globals = new Globals(new BitSet(sourceText.length()));
+        return this;
+    }
 
-        this.extractedVariables = new HashSet<>();
-        this.getMethods = new ArrayList<>();
+    public Printer getDebugStream() {
+        return debugStream;
+    }
+
+    public ClassNode setScriptRoot(ScriptRoot scriptRoot) {
+        this.scriptRoot = scriptRoot;
+        return this;
+    }
+
+    public ScriptRoot getScriptRoot() {
+        return scriptRoot;
+    }
+
+    public ClassNode setMainMethod(Locals mainMethod) {
+        this.mainMethod = mainMethod;
+        return this;
+    }
+
+    public Locals getMainMethod() {
+        return mainMethod;
+    }
+
+    public ClassNode setMethodEscape(boolean doesMethodEscape) {
+        this.doesMethodEscape = doesMethodEscape;
+        return this;
+    }
+
+    public boolean doesMethodEscape() {
+        return doesMethodEscape;
+    }
+
+    public ClassNode addExtractedVariable(String extractedVariable) {
+        extractedVariables.add(extractedVariable);
+        return this;
+    }
+
+    public boolean containsExtractedVariable(String extractedVariable) {
+        return extractedVariables.contains(extractedVariable);
+    }
+
+    public ClassNode removeExtractedVariable(String extractedVariable) {
+        extractedVariables.remove(extractedVariable);
+        return this;
+    }
+
+    public int getExtractedVariablesSize() {
+        return extractedVariables.size();
+    }
+
+    public Set<String> getExtractedVariables() {
+        return extractedVariables;
+    }
+
+    public ClassNode clearExtractedVariables() {
+        extractedVariables.clear();
+        return this;
+    }
+    
+    public ClassNode addGetMethod(org.objectweb.asm.commons.Method getMethod) {
+        getMethods.add(getMethod);
+        return this;
+    }
+
+    public ClassNode setGetMethod(int index, org.objectweb.asm.commons.Method getMethod) {
+        getMethods.set(index, getMethod);
+        return this;
+    }
+
+    public org.objectweb.asm.commons.Method getGetMethod(int index) {
+        return getMethods.get(index);
+    }
+
+    public ClassNode removeGetMethod(org.objectweb.asm.commons.Method getMethod) {
+        getMethods.remove(getMethod);
+        return this;
+    }
+
+    public ClassNode removeGetMethod(int index) {
+        getMethods.remove(index);
+        return this;
+    }
+
+    public int getGetMethodsSize() {
+        return getMethods.size();
+    }
+
+    public List<org.objectweb.asm.commons.Method> getGetMethods() {
+        return getMethods;
+    }
+
+    public ClassNode clearGetMethods() {
+        getMethods.clear();
+        return this;
+    }
+    
+    /* ---- end node data ---- */
+
+    protected Globals globals;
+    protected byte[] bytes;
+
+    public ClassNode() {
+        // do nothing
+    }
+
+    public BitSet getStatements() {
+        return globals.getStatements();
+    }
+
+    public byte[] getBytes() {
+        return bytes;
     }
 
     public Map<String, Object> write() {
+        this.globals = new Globals(new BitSet(sourceText.length()));
+
         // Create the ClassWriter.
 
         int classFrames = org.objectweb.asm.ClassWriter.COMPUTE_FRAMES | org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
@@ -115,7 +354,7 @@ public final class ClassNode implements IRNode {
         String className = CLASS_TYPE.getInternalName();
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter classWriter = new ClassWriter(settings, globals.getStatements(), debugStream,
+        ClassWriter classWriter = new ClassWriter(scriptRoot.getCompilerSettings(), globals.getStatements(), debugStream,
                 scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
         ClassVisitor classVisitor = classWriter.getClassVisitor();
         classVisitor.visitSource(Location.computeSourceName(name), null);
@@ -186,14 +425,14 @@ public final class ClassNode implements IRNode {
         write(classWriter, executeMethod, globals);
         executeMethod.endMethod();
 
-        // Write all functions:
-        for (SFunction function : functions) {
-            function.write(classWriter, globals);
+        // Write all fields:
+        for (FieldNode fieldNode : fieldNodes) {
+            fieldNode.write(classWriter, null, null);
         }
 
-        // Write all fields:
-        for (SField field : fields) {
-            field.write(classWriter);
+        // Write all functions:
+        for (FunctionNode functionNode : functionNodes) {
+            functionNode.write(classWriter, null, globals);
         }
 
         // Write the constants
@@ -202,7 +441,7 @@ public final class ClassNode implements IRNode {
 
             // Initialize the constants in a static initializerNode
             final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
-                    WriterConstants.CLINIT, classVisitor, globals.getStatements(), settings);
+                    WriterConstants.CLINIT, classVisitor, globals.getStatements(), scriptRoot.getCompilerSettings());
             clinit.visitCode();
             for (Constant constant : inits) {
                 constant.initializer.accept(clinit);
@@ -230,11 +469,11 @@ public final class ClassNode implements IRNode {
         bytes = classWriter.getClassBytes();
 
         Map<String, Object> statics = new HashMap<>();
-        statics.put("$FUNCTIONS", table.getFunctionTable());
+        statics.put("$FUNCTIONS", scriptRoot.getFunctionTable());
 
-        for (SField field : fields) {
-            if (field.getInstance() != null) {
-                statics.put(field.getName(), field.getInstance());
+        for (FieldNode fieldNode : fieldNodes) {
+            if (fieldNode.getInstance() != null) {
+                statics.put(fieldNode.getName(), fieldNode.getInstance());
             }
         }
 
@@ -242,7 +481,7 @@ public final class ClassNode implements IRNode {
     }
 
     @Override
-    void write(org.elasticsearch.painless.ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(org.elasticsearch.painless.ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         // We wrap the whole method in a few try/catches to handle and/or convert other exceptions to ScriptException
         Label startTry = new Label();
         Label endTry = new Label();
@@ -251,13 +490,13 @@ public final class ClassNode implements IRNode {
         Label endCatch = new Label();
         methodWriter.mark(startTry);
 
-        if (settings.getMaxLoopCounter() > 0) {
+        if (scriptRoot.getCompilerSettings().getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
 
             Variable loop = mainMethod.getVariable(null, Locals.LOOP);
 
-            methodWriter.push(settings.getMaxLoopCounter());
+            methodWriter.push(scriptRoot.getCompilerSettings().getMaxLoopCounter());
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
@@ -271,10 +510,11 @@ public final class ClassNode implements IRNode {
             methodWriter.visitVarInsn(method.getReturnType().getOpcode(Opcodes.ISTORE), variable.getSlot());
         }
 
-        for (AStatement statement : statements) {
-            statement.write(classWriter, methodWriter, globals);
+        for (StatementNode statementNode : statementNodes) {
+            statementNode.write(classWriter, methodWriter, globals);
         }
-        if (!methodEscape) {
+
+        if (doesMethodEscape == false) {
             switch (scriptClassInfo.getExecuteMethod().getReturnType().getSort()) {
                 case org.objectweb.asm.Type.VOID:
                     break;
@@ -337,13 +577,5 @@ public final class ClassNode implements IRNode {
         methodWriter.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
         methodWriter.throwException();
         methodWriter.mark(endCatch);
-    }
-
-    public BitSet getStatements() {
-        return globals.getStatements();
-    }
-
-    public byte[] getBytes() {
-        return bytes;
     }
 }

@@ -37,30 +37,73 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 public class UnboundCallNode extends ArgumentsNode {
 
-    protected final Location location;
-    protected final LocalFunction localFunction;
-    protected final PainlessMethod importedMethod;
-    protected final PainlessClassBinding classBinding;
-    protected final int classBindingOffset;
-    protected final PainlessInstanceBinding instanceBinding;
-    protected final String bindingName;
+    /* ---- begin node data ---- */
 
-    public UnboundCallNode(
-            Location location,
-            LocalFunction localFunction,
-            PainlessMethod importedMethod,
-            PainlessClassBinding classBinding,
-            int classBindingOffset,
-            PainlessInstanceBinding instanceBinding,
-            String bindingName
-    ) {
-        this.location = Objects.requireNonNull(location);
+    protected LocalFunction localFunction;
+    protected PainlessMethod importedMethod;
+    protected PainlessClassBinding classBinding;
+    protected int classBindingOffset;
+    protected PainlessInstanceBinding instanceBinding;
+    protected String bindingName;
+
+    public UnboundCallNode setLocalFunction(LocalFunction localFunction) {
         this.localFunction = localFunction;
+        return this;
+    }
+
+    public LocalFunction getLocalFunction() {
+        return localFunction;
+    }
+
+    public UnboundCallNode setImportedMethod(PainlessMethod importedMethod) {
         this.importedMethod = importedMethod;
+        return this;
+    }
+
+    public PainlessMethod getImportedMethod() {
+        return importedMethod;
+    }
+
+    public UnboundCallNode setClassBinding(PainlessClassBinding classBinding) {
         this.classBinding = classBinding;
+        return this;
+    }
+
+    public PainlessClassBinding getClassBinding() {
+        return classBinding;
+    }
+
+    public UnboundCallNode setClassBindingOffset(int classBindingOffset) {
         this.classBindingOffset = classBindingOffset;
+        return this;
+    }
+
+    public int getClassBindingOffset() {
+        return classBindingOffset;
+    }
+
+    public UnboundCallNode setInstanceBinding(PainlessInstanceBinding instanceBinding) {
         this.instanceBinding = instanceBinding;
+        return this;
+    }
+
+    public PainlessInstanceBinding getInstanceBinding() {
+        return instanceBinding;
+    }
+
+    public UnboundCallNode setBindingName(String bindingName) {
         this.bindingName = bindingName;
+        return this;
+    }
+
+    public String getBindingName() {
+        return bindingName;
+    }
+
+    /* ---- end node data ---- */
+
+    public UnboundCallNode() {
+        // do nothing
     }
 
     @Override

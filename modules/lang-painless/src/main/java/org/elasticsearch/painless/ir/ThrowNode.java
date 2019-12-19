@@ -19,23 +19,35 @@
 
 package org.elasticsearch.painless.ir;
 
-public abstract class UnaryNode extends ExpressionNode {
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.MethodWriter;
+
+public class ThrowNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    protected ExpressionNode childNode;
+    protected ExpressionNode expressionNode;
 
-    public void setChildNode(ExpressionNode childNode) {
-        this.childNode = childNode;
+    public ThrowNode setExpressionNode(ExpressionNode expressionNode) {
+        this.expressionNode = expressionNode;
+        return this;
     }
 
-    public ExpressionNode getChildNode() {
-        return childNode;
+    public ExpressionNode getExpressionNode() {
+        return expressionNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin node data ---- */
 
-    public UnaryNode() {
+    public ThrowNode() {
         // do nothing
+    }
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
+        expressionNode.write(classWriter, methodWriter, globals);
+        methodWriter.throwException();
     }
 }

@@ -25,38 +25,49 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
+public class VariableNode extends ExpressionNode {
 
-public class VariableNode implements IRNode {
+    /* ---- begin node data ---- */
 
-    protected final Variable variable;
+    protected Variable variable;
 
-    public VariableNode(Variable variable) {
-        this.variable = Objects.requireNonNull(variable);
+    public VariableNode setVariable(Variable variable) {
+        this.variable = variable;
+        return this;
     }
 
-    @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ILOAD), variable.getSlot());
+    public Variable getVariable() {
+        return variable;
     }
 
-    @Override
-    public int accessElementCount() {
-        return 0;
-    }
+    /* ---- end node data ---- */
 
-    @Override
-    public void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    public VariableNode() {
         // do nothing
     }
 
     @Override
-    public void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
-    public void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected int accessElementCount() {
+        return 0;
+    }
+
+    @Override
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        // do nothing
+    }
+
+    @Override
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ILOAD), variable.getSlot());
+    }
+
+    @Override
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

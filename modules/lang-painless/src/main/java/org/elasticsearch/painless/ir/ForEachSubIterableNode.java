@@ -19,56 +19,81 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.ir.LoopNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Iterator;
-import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a for-each loop for iterables.
  */
 final class ForEachSubIterableNode extends LoopNode {
 
-    private final Variable variable;
+    /* ---- begin node data ---- */
 
-    private PainlessCast cast = null;
-    private Variable iterator = null;
-    private PainlessMethod method = null;
+    protected Variable variable;
+    protected PainlessCast cast;
+    protected Variable iterator;
+    protected PainlessMethod method;
 
-    SSubEachIterable(Location location, Variable variable, AExpression expression, SBlock block) {
-        super(location);
+    public ForEachSubIterableNode setVariable(Variable variable) {
+        this.variable = variable;
+        return this;
+    }
 
-        this.variable = Objects.requireNonNull(variable);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+    public Variable getVariable() {
+        return this.variable;
+    }
+
+    public ForEachSubIterableNode setCast(PainlessCast cast) {
+        this.cast = cast;
+        return this;
+    }
+
+    public PainlessCast getCast() {
+        return cast;
+    }
+
+    public ForEachSubIterableNode setIterator(Variable iterator) {
+        this.iterator = iterator;
+        return this;
+    }
+
+    public Variable getIterator() {
+        return this.iterator;
+    }
+
+    public ForEachSubIterableNode setMethod(PainlessMethod method) {
+        this.method = method;
+        return this;
+    }
+
+    public PainlessMethod getMethod() {
+        return method;
+    }
+
+    /* ---- end node data ---- */
+
+    public ForEachSubIterableNode() {
+        // do nothing
     }
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
-        expression.write(classWriter, methodWriter, globals);
+        conditionNode.write(classWriter, methodWriter, globals);
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
@@ -95,12 +120,12 @@ final class ForEachSubIterableNode extends LoopNode {
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            methodWriter.writeLoopCounter(loopCounter.getSlot(), blockNode.getStatementCount(), location);
         }
 
-        block.continu = begin;
-        block.brake = end;
-        block.write(classWriter, methodWriter, globals);
+        blockNode.continueLabel = begin;
+        blockNode.breakLabel = end;
+        blockNode.write(classWriter, methodWriter, globals);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

@@ -35,35 +35,26 @@ public class LambdaNode extends ExpressionNode {
     protected List<Variable> captures;
     protected FunctionRef funcRef;
 
-    public LambdaNode setFuncRef(FunctionRef funcRef) {
-        this.funcRef = funcRef;
-        return this;
-    }
-
-    public FunctionRef getFuncRef() {
-        return funcRef;
-    }
-
-    public LambdaNode addCaptureNode(Variable capture) {
+    public LambdaNode addCapture(Variable capture) {
         captures.add(capture);
         return this;
     }
 
-    public LambdaNode setCaptureNode(int index, Variable capture) {
+    public LambdaNode setCapture(int index, Variable capture) {
         captures.set(index, capture);
         return this;
     }
 
-    public Variable getCaptureNode(int index) {
+    public Variable getCapture(int index) {
         return captures.get(index);
     }
 
-    public LambdaNode removeCaptureNode(Variable capture) {
+    public LambdaNode removeCapture(Variable capture) {
         captures.remove(capture);
         return this;
     }
 
-    public LambdaNode removeCaptureNode(int index) {
+    public LambdaNode removeCapture(int index) {
         captures.remove(index);
         return this;
     }
@@ -79,6 +70,15 @@ public class LambdaNode extends ExpressionNode {
     public LambdaNode clearCaptures() {
         captures.clear();
         return this;
+    }
+
+    public LambdaNode setFuncRef(FunctionRef funcRef) {
+        this.funcRef = funcRef;
+        return this;
+    }
+
+    public FunctionRef getFuncRef() {
+        return funcRef;
     }
     
     /* ---- end node data ---- */

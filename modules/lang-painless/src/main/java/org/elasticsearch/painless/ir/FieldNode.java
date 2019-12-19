@@ -50,6 +50,7 @@ public class FieldNode extends IRNode {
 
     protected int modifiers;
     protected String name;
+    protected Object instance;
 
     public FieldNode setModifiers(int modifiers) {
         this.modifiers = modifiers;
@@ -67,6 +68,15 @@ public class FieldNode extends IRNode {
 
     public String getName() {
         return name;
+    }
+
+    public FieldNode setInstance(Object instance) {
+        this.instance = instance;
+        return this;
+    }
+
+    public Object getInstance() {
+        return instance;
     }
 
     /* ---- end node data ---- */

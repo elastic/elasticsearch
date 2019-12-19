@@ -22,7 +22,6 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.def;
@@ -30,18 +29,45 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
-import java.util.Objects;
-
 public class UnaryMathNode extends UnaryNode {
 
-    protected final Location location;
-    protected final Operation operation;
-    protected final boolean originallyExplicit; // record whether there was originally an explicit cast
+    /* ---- begin node data ---- */
 
-    public UnaryMathNode(Location location, Operation operation, boolean originallyExplicit) {
-        this.location = Objects.requireNonNull(location);
-        this.operation = Objects.requireNonNull(operation);
+    protected Operation operation;
+    protected boolean cat;
+    protected boolean originallyExplicit; // record whether there was originally an explicit cast
+
+    public UnaryMathNode setOperation(Operation operation) {
+        this.operation = operation;
+        return this;
+    }
+
+    public Operation getOperation() {
+        return operation;
+    }
+
+    public UnaryMathNode setCat(boolean cat) {
+        this.cat = cat;
+        return this;
+    }
+
+    public boolean getCat() {
+        return cat;
+    }
+
+    public UnaryMathNode setOriginallExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
+        return this;
+    }
+
+    public boolean getOriginallyExplicit() {
+        return originallyExplicit;
+    }
+
+    /* ---- end node data ---- */
+
+    public UnaryMathNode() {
+        // do nothing
     }
 
     @Override

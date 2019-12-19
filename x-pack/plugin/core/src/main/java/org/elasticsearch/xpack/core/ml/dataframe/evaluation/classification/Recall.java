@@ -58,7 +58,6 @@ public class Recall implements EvaluationMetric {
     static final String BY_ACTUAL_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
     static final String PER_ACTUAL_CLASS_RECALL_AGG_NAME = AGG_NAME_PREFIX + "per_actual_class_recall";
     static final String AVG_RECALL_AGG_NAME = AGG_NAME_PREFIX + "avg_recall";
-    private static String ACTUAL_FIELD_METADATA_KEY = "actual_field";
 
     private static Script buildScript(Object...args) {
         return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
@@ -73,6 +72,7 @@ public class Recall implements EvaluationMetric {
     private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
 
     private final int maxClassesCardinality;
+    private String actualField;
     private EvaluationMetricResult result;
 
     public Recall() {
@@ -100,6 +100,8 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+        // Store given {@code actualField} for the purpose of generating error message in {@code process}.
+        this.actualField = actualField;
         if (result != null) {
             return Tuple.tuple(List.of(), List.of());
         }
@@ -109,7 +111,6 @@ public class Recall implements EvaluationMetric {
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
                     .size(maxClassesCardinality)
-                    .setMetaData(Collections.singletonMap(ACTUAL_FIELD_METADATA_KEY, actualField))
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             List.of(
                 PipelineAggregatorBuilders.avgBucket(
@@ -127,8 +128,7 @@ public class Recall implements EvaluationMetric {
                 // This means there were more than {@code maxClassesCardinality} buckets.
                 // We cannot calculate average recall accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate average recall. Cardinality of field [{}] is too high",
-                    byActualClassAgg.getMetaData().get(ACTUAL_FIELD_METADATA_KEY));
+                    "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField);
             }
             NumericMetricsAggregation.SingleValue avgRecallAgg = aggs.get(AVG_RECALL_AGG_NAME);
             List<PerClassResult> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());

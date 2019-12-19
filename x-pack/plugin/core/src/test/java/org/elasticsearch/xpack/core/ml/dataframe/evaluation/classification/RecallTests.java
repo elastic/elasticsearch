@@ -9,14 +9,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
@@ -25,7 +23,6 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.classificatio
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.when;
 
 public class RecallTests extends AbstractSerializingTestCase<Recall> {
 
@@ -110,11 +107,11 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Terms byActualClassAgg = mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME, Collections.emptyList(), 1);
-        when(byActualClassAgg.getMetaData()).thenReturn(Map.of("actual_field", "foo"));
-        Aggregations aggs = new Aggregations(Arrays.asList(byActualClassAgg, mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)));
+        Aggregations aggs = new Aggregations(Arrays.asList(
+            mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME, Collections.emptyList(), 1),
+            mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)));
         Recall recall = new Recall();
-
+        recall.aggs("foo", "bar");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> recall.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

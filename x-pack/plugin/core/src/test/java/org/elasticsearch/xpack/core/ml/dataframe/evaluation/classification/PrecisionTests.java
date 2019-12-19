@@ -9,14 +9,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilters;
@@ -26,7 +24,6 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.classificatio
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.when;
 
 public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
 
@@ -112,11 +109,10 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Terms actualClassesAgg = mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME, Collections.emptyList(), 1);
-        when(actualClassesAgg.getMetaData()).thenReturn(Map.of("actual_field", "foo"));
-        Aggregations aggs = new Aggregations(Collections.singletonList(actualClassesAgg));
+        Aggregations aggs =
+            new Aggregations(Collections.singletonList(mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME, Collections.emptyList(), 1)));
         Precision precision = new Precision();
-
+        precision.aggs("foo", "bar");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> precision.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

@@ -64,7 +64,6 @@ public class Precision implements EvaluationMetric {
     static final String BY_PREDICTED_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_predicted_class";
     static final String PER_PREDICTED_CLASS_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "per_predicted_class_precision";
     static final String AVG_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "avg_precision";
-    private static String ACTUAL_FIELD_METADATA_KEY = "actual_field";
 
     private static Script buildScript(Object...args) {
         return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
@@ -79,6 +78,7 @@ public class Precision implements EvaluationMetric {
     private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
 
     private final int maxClassesCardinality;
+    private String actualField;
     private List<String> topActualClassNames;
     private EvaluationMetricResult result;
 
@@ -107,14 +107,15 @@ public class Precision implements EvaluationMetric {
 
     @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+        // Store given {@code actualField} for the purpose of generating error message in {@code process}.
+        this.actualField = actualField;
         if (topActualClassNames == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
                         .field(actualField)
                         .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                        .size(maxClassesCardinality)
-                        .setMetaData(Collections.singletonMap(ACTUAL_FIELD_METADATA_KEY, actualField))),
+                        .size(maxClassesCardinality)),
                 List.of());
         }
         if (result == null) {  // This is step 2
@@ -143,8 +144,7 @@ public class Precision implements EvaluationMetric {
                 // This means there were more than {@code maxClassesCardinality} buckets.
                 // We cannot calculate average precision accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate average precision. Cardinality of field [{}] is too high",
-                    topActualClassesAgg.getMetaData().get(ACTUAL_FIELD_METADATA_KEY));
+                    "Cannot calculate average precision. Cardinality of field [{}] is too high", actualField);
             }
             topActualClassNames =
                 topActualClassesAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());

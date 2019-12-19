@@ -113,7 +113,7 @@ public class GeometryParserTests extends ESTestCase {
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
-            assertEquals("{\"val\":\"point (100.0 10.0)\"}", Strings.toString(newGeoJson));
+            assertEquals("{\"val\":\"POINT (100.0 10.0)\"}", Strings.toString(newGeoJson));
         }
 
         // Make sure we can parse values outside the normal lat lon boundaries

@@ -33,6 +33,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -59,7 +60,8 @@ public class BinarySoftClassification implements Evaluation {
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(constructorArg(), PREDICTED_PROBABILITY_FIELD);
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, n, null), METRICS);
+        PARSER.declareNamedObjects(
+            optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), null), METRICS);
     }
 
     public static BinarySoftClassification fromXContent(XContentParser parser) {

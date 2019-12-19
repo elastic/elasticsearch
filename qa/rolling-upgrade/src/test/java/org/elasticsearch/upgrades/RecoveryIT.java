@@ -741,7 +741,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
                 .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2)))
                 .build());
@@ -750,11 +751,17 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(indexName);
 
         final int numberOfReplicas = Integer.parseInt(
-            getIndexSettings(indexName).get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()).toString());
+            getIndexSettingsAsMap(indexName).get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS).toString());
         if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
+            assertEquals(nodes.size() - 2, numberOfReplicas);
         } else {
-            assertEquals(nodes.size(), numberOfReplicas);
+            assertEquals(nodes.size() - 1, numberOfReplicas);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexSettings(index);
+        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 }

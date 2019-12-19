@@ -221,7 +221,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         int max = between(3, 10);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
-            bulk.add(client().prepareIndex("test", "type", Integer.toString(i))
+            bulk.add(client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("tvfield", "the quick [brown](Color) fox jumped over the lazy dog"));
         }
         bulk.get();
@@ -671,7 +671,5 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
-
-
 
 }

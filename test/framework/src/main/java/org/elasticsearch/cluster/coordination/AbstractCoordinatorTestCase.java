@@ -69,6 +69,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -90,6 +91,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -561,7 +565,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            final AtomicBoolean abort = new AtomicBoolean();
+            // Large histories can be problematic and have the linearizability checker run OOM
+            // Bound the time how long the checker can run on such histories (Values empirically determined)
+            final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+            try {
+                if (history.size() > 300) {
+                    scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
+                }
+                final boolean linearizable = linearizabilityChecker.isLinearizable(spec, history, i -> null, abort::get);
+                if (abort.get() == false) {
+                    assertTrue("history not linearizable: " + history, linearizable);
+                }
+            } finally {
+                ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
+            }
             logger.info("linearizability check completed");
         }
 

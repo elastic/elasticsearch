@@ -31,6 +31,7 @@ import java.nio.file.StandardOpenOption;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class TranslogHeaderTests extends ESTestCase {
 
@@ -59,9 +60,9 @@ public class TranslogHeaderTests extends ESTestCase {
         for (int i = 0; i < corruptions && Files.size(translogFile) > 0; i++) {
             TestTranslog.corruptFile(logger, random(), translogFile, false);
         }
-        expectThrows(TranslogCorruptedException.class, () -> {
+        final TranslogCorruptedException corruption = expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                TranslogHeader.read(outHeader.getTranslogUUID(), translogFile, channel);
+                TranslogHeader.read(randomBoolean() ? outHeader.getTranslogUUID() : UUIDs.randomBase64UUID(), translogFile, channel);
             } catch (IllegalStateException e) {
                 // corruption corrupted the version byte making this look like a v2, v1 or v0 translog
                 assertThat("version " + TranslogHeader.VERSION_CHECKPOINTS + "-or-earlier translog",
@@ -70,6 +71,7 @@ public class TranslogHeaderTests extends ESTestCase {
                 throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version", e);
             }
         });
+        assertThat(corruption.getMessage(), not(containsString("this translog file belongs to a different translog")));
     }
 
     public void testLegacyTranslogVersions() {

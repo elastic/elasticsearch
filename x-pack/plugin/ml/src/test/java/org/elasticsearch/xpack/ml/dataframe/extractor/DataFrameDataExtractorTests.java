@@ -27,8 +27,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.DocValueField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -78,8 +80,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE)));
+            new DocValueField("field_1", Collections.singleton("keyword")),
+            new DocValueField("field_2", Collections.singleton("keyword"))));
         scrollSize = 1000;
         headers = Collections.emptyMap();
 
@@ -294,9 +296,10 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     }
 
     public void testIncludeSourceIsFalseAndAtLeastOneSourceField() throws IOException {
+        // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", Collections.singleton("text"), ExtractedField.ExtractionMethod.SOURCE)));
+            (ExtractedField) new DocValueField("field_1", Collections.singleton("keyword")),
+            (ExtractedField) new SourceField("field_2", Collections.singleton("text"))));
 
         TestExtractor dataExtractor = createExtractor(false, false);
 
@@ -390,16 +393,17 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     }
 
     public void testGetCategoricalFields() {
+        // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_boolean", Collections.singleton("boolean"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_float", Collections.singleton("float"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_double", Collections.singleton("double"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_byte", Collections.singleton("byte"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_short", Collections.singleton("short"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_integer", Collections.singleton("integer"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_long", Collections.singleton("long"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_keyword", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_text", Collections.singleton("text"), ExtractedField.ExtractionMethod.SOURCE)));
+            (ExtractedField) new DocValueField("field_boolean", Collections.singleton("boolean")),
+            (ExtractedField) new DocValueField("field_float", Collections.singleton("float")),
+            (ExtractedField) new DocValueField("field_double", Collections.singleton("double")),
+            (ExtractedField) new DocValueField("field_byte", Collections.singleton("byte")),
+            (ExtractedField) new DocValueField("field_short", Collections.singleton("short")),
+            (ExtractedField) new DocValueField("field_integer", Collections.singleton("integer")),
+            (ExtractedField) new DocValueField("field_long", Collections.singleton("long")),
+            (ExtractedField) new DocValueField("field_keyword", Collections.singleton("keyword")),
+            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))));
         TestExtractor dataExtractor = createExtractor(true, true);
 
         assertThat(dataExtractor.getCategoricalFields(OutlierDetectionTests.createRandom()), empty());

@@ -258,6 +258,10 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
+    public void setLocalNode(DiscoveryNode localNode) {
+    }
+
+    @Override
     public void setMessageListener(TransportMessageListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");

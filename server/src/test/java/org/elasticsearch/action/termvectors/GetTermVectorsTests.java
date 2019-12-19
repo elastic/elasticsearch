@@ -166,7 +166,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             .put("index.analysis.filter.my_delimited_payload.type", "mock_payload_filter").build();
         createIndex("test", setting, "type1", mapping);
 
-        client().prepareIndex("test", "type1", Integer.toString(1))
+        client().prepareIndex("test").setId(Integer.toString(1))
                 .setSource(jsonBuilder().startObject().field("field", queryString).endObject()).execute().actionGet();
         client().admin().indices().prepareRefresh().get();
         TermVectorsRequestBuilder resp = client().prepareTermVectors("test", Integer.toString(1))

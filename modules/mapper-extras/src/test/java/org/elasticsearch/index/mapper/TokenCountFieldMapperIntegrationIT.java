@@ -167,7 +167,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private IndexRequestBuilder prepareIndex(String id, String... texts) throws IOException {
-        return client().prepareIndex("test", "test", id).setSource("foo", texts);
+        return client().prepareIndex("test").setId(id).setSource("foo", texts);
     }
 
     private SearchResponse searchById(String id) {

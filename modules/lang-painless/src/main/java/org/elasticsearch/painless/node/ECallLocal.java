@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -29,6 +28,7 @@ import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
@@ -62,13 +62,6 @@ public final class ECallLocal extends AExpression {
 
         this.name = Objects.requireNonNull(name);
         this.arguments = Objects.requireNonNull(arguments);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        for (AExpression argument : arguments) {
-            argument.storeSettings(settings);
-        }
     }
 
     @Override
@@ -135,9 +128,11 @@ public final class ECallLocal extends AExpression {
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
             actual = localFunction.getReturnType();
         } else if (importedMethod != null) {
+            scriptRoot.markNonDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
             actual = importedMethod.returnType;
         } else if (classBinding != null) {
+            scriptRoot.markNonDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             actual = classBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("class_binding");

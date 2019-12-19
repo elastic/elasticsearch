@@ -61,7 +61,7 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
                 throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
             }, POLICIES_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (v, o) -> SnapshotLifecycleStats.parse(v), STATS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (v, o) -> SnapshotLifecycleStats.parse(v), STATS_FIELD);
     }
 
     private final Map<String, SnapshotLifecyclePolicyMetadata> snapshotConfigurations;
@@ -73,7 +73,7 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
                                      SnapshotLifecycleStats slmStats) {
         this.snapshotConfigurations = new HashMap<>(snapshotConfigurations);
         this.operationMode = operationMode;
-        this.slmStats = slmStats;
+        this.slmStats = slmStats != null ? slmStats : new SnapshotLifecycleStats();
     }
 
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {

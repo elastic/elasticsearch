@@ -58,7 +58,7 @@ public class KibanaSystemRoleIntegTests extends SecurityIntegTestCase {
 
         DeleteResponse deleteResponse = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_system", USERS_PASSWD)))
-                .prepareDelete(index, "dashboard", response.getId())
+                .prepareDelete(index, response.getId())
                 .get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }

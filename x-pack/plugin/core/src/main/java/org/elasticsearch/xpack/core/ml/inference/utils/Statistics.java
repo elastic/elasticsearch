@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.utils;
 
+import org.elasticsearch.common.Numbers;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,24 +24,24 @@ public final class Statistics {
      */
     public static List<Double> softMax(List<Double> values) {
         Double expSum = 0.0;
-        Double max = values.stream().filter(v -> isInvalid(v) == false).max(Double::compareTo).orElse(null);
+        Double max = values.stream().filter(Statistics::isValid).max(Double::compareTo).orElse(null);
         if (max == null) {
             throw new IllegalArgumentException("no valid values present");
         }
-        List<Double> exps = values.stream().map(v -> isInvalid(v) ? Double.NEGATIVE_INFINITY : v - max)
+        List<Double> exps = values.stream().map(v -> isValid(v) ? v - max : Double.NEGATIVE_INFINITY)
             .collect(Collectors.toList());
         for (int i = 0; i < exps.size(); i++) {
-            if (isInvalid(exps.get(i)) == false) {
+            if (isValid(exps.get(i))) {
                 Double exp = Math.exp(exps.get(i));
                 expSum += exp;
                 exps.set(i, exp);
             }
         }
         for (int i = 0; i < exps.size(); i++) {
-            if (isInvalid(exps.get(i))) {
-                exps.set(i, 0.0);
-            } else {
+            if (isValid(exps.get(i))) {
                 exps.set(i, exps.get(i)/expSum);
+            } else {
+                exps.set(i, 0.0);
             }
         }
         return exps;
@@ -49,8 +51,8 @@ public final class Statistics {
         return 1/(1 + Math.exp(-value));
     }
 
-    public static boolean isInvalid(Double v) {
-        return v == null || Double.isInfinite(v) || Double.isNaN(v);
+    private static boolean isValid(Double v) {
+        return v != null && Numbers.isValidDouble(v);
     }
 
 }

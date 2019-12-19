@@ -247,6 +247,18 @@ public enum DataType {
         return isNumeric();
     }
 
+    public boolean isNull() {
+        return this == NULL;
+    }
+
+    public boolean isNullOrNumeric() {
+        return isNull() || isNumeric();
+    }
+
+    public boolean isNullOrInterval() {
+        return isNull() || isInterval();
+    }
+
     public boolean isString() {
         return this == KEYWORD || this == TEXT;
     }

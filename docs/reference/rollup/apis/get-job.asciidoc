@@ -18,9 +18,9 @@ experimental[]
 [[rollup-get-job-prereqs]]
 ==== {api-prereq-title}
 
-* You must have `monitor`, `monitor_rollup`, `manage` or `manage_rollup` cluster
-privileges to use this API. For more information, see
-<<security-privileges>>.
+* If the {es} {security-features} are enabled, you must have `monitor`,
+`monitor_rollup`, `manage` or `manage_rollup` cluster privileges to use this API.
+For more information, see <<security-privileges>>.
 
 [[rollup-get-job-desc]]
 ==== {api-description-title}

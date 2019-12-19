@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots.mockstore;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -64,6 +65,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
+    private final Random random;
+
     private final Context context;
 
     private final NamedXContentRegistry namedXContentRegistry;
@@ -71,11 +74,13 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
     public MockEventuallyConsistentRepository(
         final RepositoryMetaData metadata,
         final NamedXContentRegistry namedXContentRegistry,
-        final ThreadPool threadPool,
-        final Context context) {
-        super(metadata, namedXContentRegistry, threadPool, BlobPath.cleanPath());
+        final ClusterService clusterService,
+        final Context context,
+        final Random random) {
+        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
+        this.random = random;
     }
 
     // Filters out all actions that are super-seeded by subsequent actions
@@ -107,6 +112,9 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
      */
     public static final class Context {
 
+        // Eventual consistency is only simulated as long as this flag is false
+        private boolean consistent;
+
         private final List<BlobStoreAction> actions = new ArrayList<>();
 
         /**
@@ -117,6 +125,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 final List<BlobStoreAction> consistentActions = consistentView(actions);
                 actions.clear();
                 actions.addAll(consistentActions);
+                consistent = true;
             }
         }
     }
@@ -211,10 +220,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void deleteBlob(String blobName) {
+            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
                 ensureNotClosed();
                 synchronized (context.actions) {
-                    context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
+                    for (String blobName : blobNames) {
+                        context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
+                    }
                 }
             }
 
@@ -240,14 +251,14 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
-                    return consistentView(context.actions).stream()
+                    return maybeMissLatestIndexN(consistentView(context.actions).stream()
                         .filter(
                             action -> action.path.startsWith(thisPath) && action.path.substring(thisPath.length()).indexOf('/') == -1
                                 && action.operation == Operation.PUT)
                         .collect(
                             Collectors.toMap(
                                 action -> action.path.substring(thisPath.length()),
-                                action -> new PlainBlobMetaData(action.path.substring(thisPath.length()), action.data.length)));
+                                action -> new PlainBlobMetaData(action.path.substring(thisPath.length()), action.data.length))));
                 }
             }
 
@@ -268,9 +279,21 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
-                return Maps.ofEntries(
-                    listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix)).collect(Collectors.toList())
-                );
+                return maybeMissLatestIndexN(
+                    Maps.ofEntries(listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix))
+                        .collect(Collectors.toList())));
+            }
+
+            // Randomly filter out the index-N blobs from a listing to test that tracking of it in latestKnownRepoGen and the cluster state
+            // ensures consistent repository operations
+            private Map<String, BlobMetaData> maybeMissLatestIndexN(Map<String, BlobMetaData> listing) {
+                // Randomly filter out index-N blobs at the repo root to proof that we don't need them to be consistently listed
+                if (path.parent() == null && context.consistent == false) {
+                    final Map<String, BlobMetaData> filtered = new HashMap<>(listing);
+                    filtered.keySet().removeIf(b -> b.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX) && random.nextBoolean());
+                    return Map.copyOf(filtered);
+                }
+                return listing;
             }
 
             @Override

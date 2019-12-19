@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.HashMap;
 import org.apache.http.HttpEntity;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
@@ -25,26 +24,25 @@ import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_DOES_NOT_EXIST;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Base test helper for any {@link PublishableHttpResource}.
@@ -222,10 +220,6 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         }
 
         assertThat(parameters.remove("filter_path"), is("*.version"));
-
-        if (parameters.containsKey(INCLUDE_TYPE_NAME_PARAMETER)) {
-            assertThat(parameters.remove(INCLUDE_TYPE_NAME_PARAMETER), is("true"));
-        }
 
         assertThat(parameters.isEmpty(), is(true));
     }

@@ -86,7 +86,7 @@
           }
 
   - do:
-      catch: /Unable to start empty-with-compatible-fields as there are no analyzable data in source indices \[empty-index-with-compatible-fields\]/
+      catch: /Unable to start empty-with-compatible-fields as no documents in the source indices \[empty-index-with-compatible-fields\] contained all the fields selected for analysis/
       ml.start_data_frame_analytics:
         id: "empty-with-compatible-fields"
 ---

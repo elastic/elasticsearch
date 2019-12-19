@@ -23,15 +23,25 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchService.CanMatchResponse;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.MinAndMax;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.transport.Transport;
 
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -40,8 +50,12 @@ import java.util.stream.Stream;
  * from the search. The extra round trip to the search shards is very cheap and is not subject to rejections
  * which allows to fan out to more shards at the same time without running into rejections even if we are hitting a
  * large portion of the clusters indices.
+ * This phase can also be used to pre-sort shards based on min/max values in each shard of the provided primary sort.
+ * When the query primary sort is perform on a field, this phase extracts the min/max value in each shard and
+ * sort them according to the provided order. This can be useful for instance to ensure that shards that contain recent
+ * data are executed first when sorting by descending timestamp.
  */
-final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<SearchService.CanMatchResponse> {
+final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMatchResponse> {
 
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
@@ -58,26 +72,26 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
-                new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
+                new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
     }
 
     @Override
     protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
-                                       SearchActionListener<SearchService.CanMatchResponse> listener) {
+                                       SearchActionListener<CanMatchResponse> listener) {
         getSearchTransport().sendCanMatch(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
             buildShardSearchRequest(shardIt), getTask(), listener);
     }
 
     @Override
-    protected SearchPhase getNextPhase(SearchPhaseResults<SearchService.CanMatchResponse> results,
+    protected SearchPhase getNextPhase(SearchPhaseResults<CanMatchResponse> results,
                                        SearchPhaseContext context) {
 
-        return phaseFactory.apply(getIterator((BitSetSearchPhaseResults) results, shardsIts));
+        return phaseFactory.apply(getIterator((CanMatchSearchPhaseResults) results, shardsIts));
     }
 
-    private GroupShardsIterator<SearchShardIterator> getIterator(BitSetSearchPhaseResults results,
+    private GroupShardsIterator<SearchShardIterator> getIterator(CanMatchSearchPhaseResults results,
                                                                  GroupShardsIterator<SearchShardIterator> shardsIts) {
         int cardinality = results.getNumPossibleMatches();
         FixedBitSet possibleMatches = results.getPossibleMatches();
@@ -86,6 +100,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
             // to produce a valid search result with all the aggs etc.
             possibleMatches.set(0);
         }
+        SearchSourceBuilder source = getRequest().source();
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
             if (possibleMatches.get(i++)) {
@@ -94,24 +109,48 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
                 iter.resetAndSkip();
             }
         }
-        return shardsIts;
+        if (shouldSortShards(results.minAndMaxes) == false) {
+            return shardsIts;
+        }
+        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
+        return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()), false);
     }
 
-    private static final class BitSetSearchPhaseResults extends SearchPhaseResults<SearchService.CanMatchResponse> {
+    private static List<SearchShardIterator> sortShards(GroupShardsIterator<SearchShardIterator> shardsIts,
+                                                        MinAndMax<?>[] minAndMaxes,
+                                                        SortOrder order) {
+        return IntStream.range(0, shardsIts.size())
+            .boxed()
+            .sorted(shardComparator(shardsIts, minAndMaxes,  order))
+            .map(ord -> shardsIts.get(ord))
+            .collect(Collectors.toList());
+    }
 
+    private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {
+        return Arrays.stream(minAndMaxes).anyMatch(Objects::nonNull);
+    }
+
+    private static Comparator<Integer> shardComparator(GroupShardsIterator<SearchShardIterator> shardsIts,
+                                                       MinAndMax<?>[] minAndMaxes,
+                                                       SortOrder order) {
+        final Comparator<Integer> comparator = Comparator.comparing(index -> minAndMaxes[index],  MinAndMax.getComparator(order));
+        return comparator.thenComparing(index -> shardsIts.get(index).shardId());
+    }
+
+    private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
         private final FixedBitSet possibleMatches;
+        private final MinAndMax<?>[] minAndMaxes;
         private int numPossibleMatches;
 
-        BitSetSearchPhaseResults(int size) {
+        CanMatchSearchPhaseResults(int size) {
             super(size);
             possibleMatches = new FixedBitSet(size);
+            minAndMaxes = new MinAndMax[size];
         }
 
         @Override
-        void consumeResult(SearchService.CanMatchResponse result) {
-            if (result.canMatch()) {
-                consumeShardFailure(result.getShardIndex());
-            }
+        void consumeResult(CanMatchResponse result) {
+            consumeResult(result.getShardIndex(), result.canMatch(), result.minAndMax());
         }
 
         @Override
@@ -120,12 +159,18 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         }
 
         @Override
-        synchronized void consumeShardFailure(int shardIndex) {
+        void consumeShardFailure(int shardIndex) {
             // we have to carry over shard failures in order to account for them in the response.
-            possibleMatches.set(shardIndex);
-            numPossibleMatches++;
+            consumeResult(shardIndex, true, null);
         }
 
+        synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
+            if (canMatch) {
+                possibleMatches.set(shardIndex);
+                numPossibleMatches++;
+            }
+            minAndMaxes[shardIndex] = minAndMax;
+        }
 
         synchronized int getNumPossibleMatches() {
             return numPossibleMatches;
@@ -136,7 +181,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         }
 
         @Override
-        Stream<SearchService.CanMatchResponse> getSuccessfulResults() {
+        Stream<CanMatchResponse> getSuccessfulResults() {
             return Stream.empty();
         }
     }

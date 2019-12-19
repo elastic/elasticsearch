@@ -52,6 +52,8 @@ dependencies {
   compile 'io.opencensus:opencensus-api:0.18.0'
   compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
+
+  testCompile project(':test:fixtures:gcs-fixture')
 }
 
 dependencyLicenses {
@@ -65,57 +67,57 @@ dependencyLicenses {
 }
 
 thirdPartyAudit {
-    ignoreViolations (
-        // uses internal java api: sun.misc.Unsafe
-        'com.google.protobuf.UnsafeUtil',
-        'com.google.protobuf.UnsafeUtil$1',
-        'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-        'com.google.protobuf.UnsafeUtil$MemoryAccessor',
-        'com.google.common.cache.Striped64',
-        'com.google.common.cache.Striped64$1',
-        'com.google.common.cache.Striped64$Cell',
-        'com.google.common.hash.Striped64',
-        'com.google.common.hash.Striped64$1',
-        'com.google.common.hash.Striped64$Cell',
-        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    )
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
 
-    ignoreMissingClasses (
-        'com.google.appengine.api.datastore.Blob',
-        'com.google.appengine.api.datastore.DatastoreService',
-        'com.google.appengine.api.datastore.DatastoreServiceFactory',
-        'com.google.appengine.api.datastore.Entity',
-        'com.google.appengine.api.datastore.Key',
-        'com.google.appengine.api.datastore.KeyFactory',
-        'com.google.appengine.api.datastore.PreparedQuery',
-        'com.google.appengine.api.datastore.Query',
-        'com.google.appengine.api.memcache.Expiration',
-        'com.google.appengine.api.memcache.MemcacheService',
-        'com.google.appengine.api.memcache.MemcacheServiceFactory',
-        'com.google.appengine.api.urlfetch.FetchOptions$Builder',
-        'com.google.appengine.api.urlfetch.FetchOptions',
-        'com.google.appengine.api.urlfetch.HTTPHeader',
-        'com.google.appengine.api.urlfetch.HTTPMethod',
-        'com.google.appengine.api.urlfetch.HTTPRequest',
-        'com.google.appengine.api.urlfetch.HTTPResponse',
-        'com.google.appengine.api.urlfetch.URLFetchService',
-        'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-        // commons-logging optional dependencies
-        'org.apache.avalon.framework.logger.Logger',
-        'org.apache.log.Hierarchy',
-        'org.apache.log.Logger',
-        // commons-logging provided dependencies
-        'javax.servlet.ServletContextEvent',
-        'javax.servlet.ServletContextListener'
-    )
+  ignoreMissingClasses(
+    'com.google.appengine.api.datastore.Blob',
+    'com.google.appengine.api.datastore.DatastoreService',
+    'com.google.appengine.api.datastore.DatastoreServiceFactory',
+    'com.google.appengine.api.datastore.Entity',
+    'com.google.appengine.api.datastore.Key',
+    'com.google.appengine.api.datastore.KeyFactory',
+    'com.google.appengine.api.datastore.PreparedQuery',
+    'com.google.appengine.api.datastore.Query',
+    'com.google.appengine.api.memcache.Expiration',
+    'com.google.appengine.api.memcache.MemcacheService',
+    'com.google.appengine.api.memcache.MemcacheServiceFactory',
+    'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+    'com.google.appengine.api.urlfetch.FetchOptions',
+    'com.google.appengine.api.urlfetch.HTTPHeader',
+    'com.google.appengine.api.urlfetch.HTTPMethod',
+    'com.google.appengine.api.urlfetch.HTTPRequest',
+    'com.google.appengine.api.urlfetch.HTTPResponse',
+    'com.google.appengine.api.urlfetch.URLFetchService',
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    // commons-logging optional dependencies
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    // commons-logging provided dependencies
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener'
+  )
 }
 
 check {

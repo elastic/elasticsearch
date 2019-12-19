@@ -2,7 +2,7 @@
 [[audit-event-types]]
 === Audit event types
 
-When you are <<auditing,auditing security events>>, each request can generate
+When you are <<enable-audit-logging,auditing security events>>, each request can generate
 multiple audit events.
 
 The following is a list of the events that can be generated:

@@ -94,7 +94,7 @@ bin/elasticsearch-users userdel <user_name>
 ----------------------------------------------------------
 --
 
-For more information, see <<configuring-file-realm>>.
+For more information, see <<file-realm>>.
 ====
 endif::include-xpack[]
 

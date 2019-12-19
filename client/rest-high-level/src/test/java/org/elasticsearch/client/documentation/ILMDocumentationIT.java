@@ -633,7 +633,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertBusy(() -> assertNotNull(client.indexLifecycle()
                 .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getFailedStep()));
+                .getIndexResponses().get("my_index").getFailedStep()), 15, TimeUnit.SECONDS);
         }
 
         // tag::ilm-retry-lifecycle-policy-request
@@ -1056,6 +1056,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             } catch (Exception e) {
                 if (e.getMessage().contains("snapshot_missing_exception")) {
                     fail("snapshot does not exist: " + snapshotName);
+                } else if (e.getMessage().contains("repository_exception")) {
+                    fail("got a respository_exception, retrying. original message: " + e.getMessage());
                 }
                 throw e;
             }

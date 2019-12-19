@@ -5,10 +5,9 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit
 }
 
-# CI configures these, uncoment if running manually 
-#
-# $env:ES_BUILD_JAVA="java12" 
-#$env:ES_RUNTIME_JAVA="java11" 
+$AppProps = ConvertFrom-StringData (Get-Content .ci/java-versions.properties -raw) 
+$env:ES_BUILD_JAVA=$AppProps.ES_BUILD_JAVA
+$env:ES_RUNTIME_JAVA=$AppProps.ES_RUNTIME_JAVA
 
 $ErrorActionPreference="Stop"
 $gradleInit = "C:\Users\$env:username\.gradle\init.d\"

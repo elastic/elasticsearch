@@ -49,7 +49,7 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
             listener.onResponse(new GetBasicStatusResponse(true));
         } else {
             License license = licensesMetaData.getLicense();
-            listener.onResponse(new GetBasicStatusResponse(license == null || license.type().equals("basic") == false));
+            listener.onResponse(new GetBasicStatusResponse(license == null || License.LicenseType.isBasic(license.type()) == false));
         }
 
     }

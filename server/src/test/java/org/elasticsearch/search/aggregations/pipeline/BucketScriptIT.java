@@ -142,7 +142,7 @@ public class BucketScriptIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int docs = 0; docs < numDocs; docs++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(newDocBuilder()));
+            builders.add(client().prepareIndex("idx").setSource(newDocBuilder()));
         }
 
         indexRandom(true, builders);

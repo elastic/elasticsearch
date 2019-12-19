@@ -101,18 +101,17 @@ public class IncrementalClusterStateWriter {
      * Updates manifest and meta data on disk.
      *
      * @param newState new {@link ClusterState}
-     * @param previousState previous {@link ClusterState}
      *
      * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
      */
-    void updateClusterState(ClusterState newState, ClusterState previousState) throws WriteStateException {
+    void updateClusterState(ClusterState newState) throws WriteStateException {
         MetaData newMetaData = newState.metaData();
 
         final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
 
         final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
         long globalStateGeneration = writeGlobalState(writer, newMetaData);
-        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState, previousState);
+        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState);
         Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), newState.version(), globalStateGeneration, indexGenerations);
         writeManifest(writer, manifest);
         previousManifest = manifest;
@@ -136,14 +135,14 @@ public class IncrementalClusterStateWriter {
         }
     }
 
-    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState, ClusterState previousState)
+    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState)
         throws WriteStateException {
         Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState);
 
         Map<Index, Long> newIndices = new HashMap<>();
 
-        MetaData previousMetaData = incrementalWrite ? previousState.metaData() : null;
+        MetaData previousMetaData = incrementalWrite ? previousClusterState.metaData() : null;
         Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetaData,
             newState.metaData());
 

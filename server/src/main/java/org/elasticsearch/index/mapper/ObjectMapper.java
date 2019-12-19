@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -42,6 +41,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
@@ -95,6 +95,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     public static class Builder<T extends Builder, Y extends ObjectMapper> extends Mapper.Builder<T, Y> {
 
         protected boolean enabled = Defaults.ENABLED;
@@ -105,6 +106,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
+        @SuppressWarnings("unchecked")
         public Builder(String name) {
             super(name);
             this.builder = (T) this;
@@ -131,6 +133,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public Y build(BuilderContext context) {
             context.path().add(name);
 
@@ -159,9 +162,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
+        @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name);
-            parseNested(name, node, builder, parserContext);
+            parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -173,6 +177,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        @SuppressWarnings({"unchecked", "rawtypes"})
         protected static boolean parseObjectOrDocumentTypeProperties(String fieldName, Object fieldNode, ParserContext parserContext,
                                                                      ObjectMapper.Builder builder) {
             if (fieldName.equals("dynamic")) {
@@ -203,8 +208,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return false;
         }
 
-        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder,
-                                          ParserContext parserContext) {
+        @SuppressWarnings("rawtypes")
+        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
             boolean nested = false;
             boolean nestedIncludeInParent = false;
             boolean nestedIncludeInRoot = false;
@@ -236,6 +241,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         }
 
+        @SuppressWarnings("rawtypes")
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -530,7 +536,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             builder.field("type", CONTENT_TYPE);
         }
         if (dynamic != null) {
-            builder.field("dynamic", dynamic.name().toLowerCase(IsoLocale.ROOT));
+            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);

@@ -141,7 +141,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -330,7 +329,7 @@ public final class TokenService {
             final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
             final String documentId = getTokenDocumentId(storedAccessToken);
 
-            final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
+            final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName()).setId(documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -422,7 +421,7 @@ public final class TokenService {
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
                     getTokenDocumentId(userTokenId)).request();
-            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
+            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -442,8 +441,10 @@ public final class TokenService {
                                     listener.onResponse(UserToken.fromSourceMap(userTokenSource));
                                 }
                             } else {
-                                onFailure.accept(
-                                    new IllegalStateException("token document is missing and must be present"));
+                                // The chances of a random token string decoding to something that we can read is minimal, so
+                                // we assume that this was a token we have created but is now expired/revoked and deleted
+                                logger.trace("The access token [{}] is expired and already deleted", userTokenId);
+                                listener.onResponse(null);
                             }
                         }, e -> {
                             // if the index or the shard is not there / available we assume that
@@ -706,7 +707,7 @@ public final class TokenService {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
                 UpdateRequest request = client
-                        .prepareUpdate(tokensIndexManager.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(tokenId))
+                        .prepareUpdate(tokensIndexManager.aliasName(), getTokenDocumentId(tokenId))
                         .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
                         .setFetchSource(srcPrefix, null)
                         .request();
@@ -963,7 +964,7 @@ public final class TokenService {
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getVersion());
             final UpdateRequestBuilder updateRequest = client
-                    .prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
+                    .prepareUpdate(refreshedTokenIndex.aliasName(), tokenDocId)
                     .setDoc("refresh_token", updateMap)
                     .setFetchSource(true)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)

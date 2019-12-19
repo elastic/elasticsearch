@@ -20,29 +20,29 @@ apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
 dependencies {
-    // do not add non-test compile dependencies to secure-sm without a good reason to do so
+  // do not add non-test compile dependencies to secure-sm without a good reason to do so
 
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
-    
-    testCompile(project(":test:framework")) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'
-    }
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'
+  }
 }
 
 forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 // JAR hell is part of core which we do not want to add as a dependency
 jarHell.enabled = false
 
 testingConventions {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass 'junit.framework.TestCase'
-        }
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'junit.framework.TestCase'
     }
+  }
 }

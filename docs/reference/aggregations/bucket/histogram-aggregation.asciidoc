@@ -24,7 +24,7 @@ The `interval` must be a positive decimal, while the `offset` must be a decimal 
 
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
-[source,console]
+[source,console,id=histogram-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -82,7 +82,7 @@ The response above show that no documents has a price that falls within the rang
 response will fill gaps in the histogram with empty buckets. It is possible change that and request buckets with
 a higher minimum count thanks to the `min_doc_count` setting:
 
-[source,console]
+[source,console,id=histogram-aggregation-min-doc-count-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -157,7 +157,7 @@ under a range `filter` aggregation with the appropriate `from`/`to` settings.
 
 Example:
 
-[source,console]
+[source,console,id=histogram-aggregation-extended-bounds-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -209,7 +209,7 @@ documents.
 By default, the buckets are returned as an ordered array. It is also possible to request the response as a hash
 instead keyed by the buckets keys:
 
-[source,console]
+[source,console,id=histogram-aggregation-keyed-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -268,7 +268,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,console]
+[source,console,id=histogram-aggregation-missing-value-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {

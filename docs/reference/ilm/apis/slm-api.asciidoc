@@ -673,7 +673,7 @@ Stop the Snapshot Lifecycle Management (SLM) plugin.
 [[slm-stop-request]]
 ==== {api-request-title}
 
-`POST /_ilm/stop`
+`POST /_slm/stop`
 
 [[slm-stop-desc]]
 ==== {api-description-title}

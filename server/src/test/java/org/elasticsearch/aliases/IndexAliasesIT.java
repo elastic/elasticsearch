@@ -392,7 +392,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("test1", "test2", "test3");
 
         assertAcked(client().admin().indices().preparePutMapping("test1", "test2", "test3")
-                .setType("type1")
                 .setSource("name", "type=text"));
 
         ensureGreen();
@@ -707,7 +706,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("bazbar");
 
         assertAcked(client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar")
-                .setType("type").setSource("field", "type=text"));
+                .setSource("field", "type=text"));
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");
@@ -1021,7 +1020,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(5, 52);
         for (int i = 1; i <= numDocs; i++) {
-            client().prepareIndex("my-index", "my-type").setSource("timestamp", "2016-12-12").get();
+            client().prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
                 SearchResponse response = client().prepareSearch("filter1").get();
@@ -1113,7 +1112,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {
         assertAcked(client().admin().indices().prepareCreate("test"));
-        indexRandom(true, client().prepareIndex("test_2", "test", "test").setSource("test", "test"));
+        indexRandom(true, client().prepareIndex("test_2").setId("test").setSource("test", "test"));
         assertAliasesVersionIncreases(
                 "test_2",
                 () -> assertAcked(client().admin().indices().prepareAliases().addAlias("test_2", "test").removeIndex("test")));

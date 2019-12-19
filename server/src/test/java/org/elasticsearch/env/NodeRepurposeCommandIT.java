@@ -48,7 +48,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final String indexUUID = resolveIndex(indexName).getUUID();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         ensureGreen();
 

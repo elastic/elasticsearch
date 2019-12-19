@@ -74,7 +74,8 @@ creation/update and runs the query using those same roles.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-start-datafeed-request-body]]
 ==== {api-request-body-title}

@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -71,7 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-public class SyncedFlushService implements IndexEventListener {
+public class SyncedFlushService {
 
     private static final Logger logger = LogManager.getLogger(SyncedFlushService.class);
 
@@ -99,25 +98,6 @@ public class SyncedFlushService implements IndexEventListener {
             new SyncedFlushTransportHandler());
         transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, ThreadPool.Names.SAME, InFlightOpsRequest::new,
             new InFlightOpCountTransportHandler());
-    }
-
-    @Override
-    public void onShardInactive(final IndexShard indexShard) {
-        // we only want to call sync flush once, so only trigger it when we are on a primary
-        if (indexShard.routingEntry().primary()) {
-            attemptSyncedFlush(indexShard.shardId(), new ActionListener<ShardsSyncedFlushResult>() {
-                @Override
-                public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
-                    logger.trace("{} sync flush on inactive shard returned successfully for sync_id: {}",
-                        syncedFlushResult.getShardId(), syncedFlushResult.syncId());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
-                }
-            });
-        }
     }
 
     /**

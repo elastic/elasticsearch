@@ -36,8 +36,13 @@ public class EnrichRestartIT extends ESIntegTestCase {
         final int numPolicies = randomIntBetween(2, 4);
         internalCluster().startNode();
 
-        EnrichPolicy enrichPolicy =
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), MATCH_FIELD, List.of(DECORATE_FIELDS));
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            List.of(DECORATE_FIELDS)
+        );
         createSourceIndices(client(), enrichPolicy);
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
@@ -52,12 +57,13 @@ public class EnrichRestartIT extends ESIntegTestCase {
     }
 
     private static void verifyPolicies(int numPolicies, EnrichPolicy enrichPolicy) {
-        GetEnrichPolicyAction.Response response =
-            client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request()).actionGet();
+        GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
+            .actionGet();
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            Optional<EnrichPolicy.NamedPolicy> result = response.getPolicies().stream()
+            Optional<EnrichPolicy.NamedPolicy> result = response.getPolicies()
+                .stream()
                 .filter(namedPolicy -> namedPolicy.getName().equals(policyName))
                 .findFirst();
             assertThat(result.isPresent(), is(true));

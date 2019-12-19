@@ -189,6 +189,9 @@ public class InnerHitsIT extends ParentChildTestCase {
     public void testRandomParentChild() throws Exception {
         assertAcked(prepareCreate("idx")
             .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+                .startObject("id")
+                    .field("type", "keyword")
+                .endObject()
                 .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
@@ -225,13 +228,13 @@ public class InnerHitsIT extends ParentChildTestCase {
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         boolQuery.should(constantScoreQuery(hasChildQuery("child1", matchAllQuery(), ScoreMode.None)
             .innerHit(new InnerHitBuilder().setName("a")
-                .addSort(new FieldSortBuilder("_id").order(SortOrder.ASC)).setSize(size))));
+                .addSort(new FieldSortBuilder("id").order(SortOrder.ASC)).setSize(size))));
         boolQuery.should(constantScoreQuery(hasChildQuery("child2", matchAllQuery(), ScoreMode.None)
             .innerHit(new InnerHitBuilder().setName("b")
-                .addSort(new FieldSortBuilder("_id").order(SortOrder.ASC)).setSize(size))));
+                .addSort(new FieldSortBuilder("id").order(SortOrder.ASC)).setSize(size))));
         SearchResponse searchResponse = client().prepareSearch("idx")
             .setSize(numDocs)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id", SortOrder.ASC)
             .setQuery(boolQuery)
             .get();
 
@@ -283,7 +286,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("stack")
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id", SortOrder.ASC)
             .setQuery(
                 boolQuery()
                     .must(matchQuery("body", "fail2ban"))
@@ -386,7 +389,7 @@ public class InnerHitsIT extends ParentChildTestCase {
                     hasChildQuery("baron", matchAllQuery(), ScoreMode.None)
                         .innerHit(new InnerHitBuilder().setName("barons")),
                     ScoreMode.None).innerHit(new InnerHitBuilder()
-                    .addSort(SortBuilders.fieldSort("_id").order(SortOrder.ASC))
+                    .addSort(SortBuilders.fieldSort("id").order(SortOrder.ASC))
                     .setName("earls")
                     .setSize(4))
                 )
@@ -440,7 +443,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         SearchResponse response = client().prepareSearch("index")
             .setQuery(hasChildQuery("child", matchQuery("field", "value1").queryName("_name1"), ScoreMode.None)
                 .innerHit(new InnerHitBuilder()))
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -457,7 +460,7 @@ public class InnerHitsIT extends ParentChildTestCase {
             .innerHit(new InnerHitBuilder());
         response = client().prepareSearch("index")
             .setQuery(query)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -514,7 +517,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertAcked(prepareCreate("index2"));
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
-        client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
+        client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("index1", "index2")

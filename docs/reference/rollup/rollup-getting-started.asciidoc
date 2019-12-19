@@ -72,12 +72,11 @@ seconds worth of data that was indexed into the `sensor-*` indices.
 If instead the cron was configured to run once a day at midnight, the job would process the last 24 hours worth of data.  The choice is largely
 preference, based on how "realtime" you want the rollups, and if you wish to process continuously or move it to off-peak hours.
 
-Next, we define a set of `groups` and `metrics`.  The metrics are fairly straightforward: we want to save the min/max/sum of the `temperature`
-field, and the average of the `voltage` field.
-
-The groups are a little more interesting.  Essentially, we are defining the dimensions that we wish to pivot on at a later date when
-querying the data.  The grouping in this job allows us to use date_histograms aggregations on the `timestamp` field, rolled up at hourly intervals.
-It also allows us to run terms aggregations on the `node` field.
+Next, we define a set of `groups`. Essentially, we are defining the dimensions
+that we wish to pivot on at a later date when querying the data. The grouping in
+this job allows us to use `date_histogram` aggregations on the `timestamp` field,
+rolled up at hourly intervals. It also allows us to run terms aggregations on
+the `node` field.
 
 .Date histogram interval vs cron schedule
 **********************************
@@ -93,8 +92,31 @@ simply go back to sleep.  But there's nothing wrong with it either, the job will
 
 **********************************
 
-For more details about the job syntax, see <<rollup-job-config>>.
+After defining which groups should be generated for the data, you next configure
+which metrics should be collected. By default, only the `doc_counts` are
+collected for each group. To make rollup useful, you will often add metrics
+like averages, mins, maxes, etc. In this example, the metrics are fairly
+straightforward: we want to save the min/max/sum of the `temperature`
+field, and the average of the `voltage` field.
 
+.Averages aren't composable?!
+**********************************
+If you've worked with rollups before, you may be cautious around averages. If an
+average is saved for a 10 minute interval, it usually isn't useful for larger
+intervals. You cannot average six 10-minute averages to find a hourly average;
+the average of averages is not equal to the total average.
+
+For this reason, other systems tend to either omit the ability to average or
+store the average at multiple intervals to support more flexible querying.
+
+Instead, the {rollup-features} save the `count` and `sum` for the defined time
+interval. This allows us to reconstruct the average at any interval greater-than
+or equal to the defined interval. This gives maximum flexibility for minimal
+storage costs... and you don't have to worry about average accuracies (no
+average of averages here!)
+**********************************
+
+For more details about the job syntax, see <<rollup-put-job>>.
 
 After you execute the above command and create the job, you'll receive the following response:
 

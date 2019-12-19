@@ -200,6 +200,27 @@ public class JobNodeSelectorTests extends ESTestCase {
             + currentlyRunningJobMemory + "], estimated memory required for this job [" + JOB_MEMORY_REQUIREMENT.getBytes() + "]"));
     }
 
+    public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_givenTaskHasNullState() {
+        int numNodes = randomIntBetween(1, 10);
+        int maxRunningJobsPerNode = 10;
+        int maxMachineMemoryPercent = 30;
+
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
+
+        ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 1, JobState.OPENED, null);
+
+        String dataFrameAnalyticsId = "data_frame_analytics_id_new";
+
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
+            node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, dataFrameAnalyticsId));
+        PersistentTasksCustomMetaData.Assignment result =
+            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+        assertNotNull(result.getExecutorNode());
+    }
+
     public void testSelectLeastLoadedMlNodeForAnomalyDetectorJob_firstJobTooBigMemoryLimiting() {
         int numNodes = randomIntBetween(1, 10);
         int maxRunningJobsPerNode = randomIntBetween(1, 100);
@@ -579,6 +600,12 @@ public class JobNodeSelectorTests extends ESTestCase {
 
     private ClusterState.Builder fillNodesWithRunningJobs(Map<String, String> nodeAttr, int numNodes, int numRunningJobsPerNode) {
 
+        return fillNodesWithRunningJobs(nodeAttr, numNodes, numRunningJobsPerNode, JobState.OPENED, DataFrameAnalyticsState.STARTED);
+    }
+
+    private ClusterState.Builder fillNodesWithRunningJobs(Map<String, String> nodeAttr, int numNodes, int numRunningJobsPerNode,
+                                                          JobState anomalyDetectionJobState, DataFrameAnalyticsState dfAnalyticsJobState) {
+
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         String[] jobIds = new String[numNodes * numRunningJobsPerNode];
@@ -591,10 +618,10 @@ public class JobNodeSelectorTests extends ESTestCase {
                 // Both anomaly detector jobs and data frame analytics jobs should count towards the limit
                 if (randomBoolean()) {
                     jobIds[id] = "job_id" + id;
-                    TransportOpenJobActionTests.addJobTask(jobIds[id], nodeId, JobState.OPENED, tasksBuilder);
+                    TransportOpenJobActionTests.addJobTask(jobIds[id], nodeId, anomalyDetectionJobState, tasksBuilder);
                 } else {
                     jobIds[id] = "data_frame_analytics_id" + id;
-                    addDataFrameAnalyticsJobTask(jobIds[id], nodeId, DataFrameAnalyticsState.STARTED, tasksBuilder);
+                    addDataFrameAnalyticsJobTask(jobIds[id], nodeId, dfAnalyticsJobState, tasksBuilder);
                 }
             }
         }

@@ -51,12 +51,6 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        // In order to avoid monitoring from failing exporting docs to monitor index.
-        return true;
-    }
-
     private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
         // Create source index:
         createSourceIndex("my-source-index");
@@ -107,7 +101,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testBasicFlow() throws Exception {
         setupGenericLifecycleTest(true);
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testImmutablePolicy() throws IOException {

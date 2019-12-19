@@ -51,8 +51,6 @@ Index names must meet the following criteria:
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -134,10 +132,6 @@ PUT /test
     }
 }
 --------------------------------------------------
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [[create-index-aliases]]
 ===== Aliases

@@ -384,9 +384,8 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings("unchecked")
-    public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
+    public MockClientBuilder preparePutMapping(AcknowledgedResponse response) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
-        when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
         when(requestBuilder.setSource(any(XContentBuilder.class))).thenReturn(requestBuilder);
         doAnswer(new Answer<Void>() {
             @Override

@@ -65,7 +65,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
         final int numDocs = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
-            index("test-index", "doc", Integer.toString(i));
+            indexDoc("test-index", Integer.toString(i));
         }
 
         logger.info("--> blocking repository");

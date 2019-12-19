@@ -35,7 +35,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     public void testHistoryOnRejection() throws Exception {
         createIndex("idx");
-        client().prepareIndex("idx", "_doc").setSource("field", "a").get();
+        client().prepareIndex("idx").setSource("field", "a").get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "a")), "idx");
         new PutWatchRequestBuilder(client()).setId(randomAlphaOfLength(5))

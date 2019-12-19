@@ -193,6 +193,15 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             return scripts;
         }
 
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("Math.random()", vars -> SignificantTermsSignificanceScoreIT.randomDouble());
+
+            return scripts;
+        }
+
         private static long longValue(Object value) {
             return ((ScriptHeuristic.LongAccessor) value).longValue();
         }
@@ -345,13 +354,13 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         String[] cat2v1 = {"constant", "two"};
         String[] cat2v2 = {"constant", "duo"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1")
                 .setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "2")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("2")
                 .setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "3")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("3")
                 .setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("4")
                 .setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
         indexRandom(true, false, indexRequestBuilderList);
 
@@ -363,7 +372,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         indexRequestBuilderList.clear();
         for (int i = 0; i < 50; i++) {
             text = text == cat1v2 ? cat1v1 : cat1v2;
-            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
         }
         indexRandom(true, false, indexRequestBuilderList);
 
@@ -600,7 +609,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split("\t");
-            indexRequestBuilders.add(client().prepareIndex("test", "_doc", "" + i)
+            indexRequestBuilders.add(client().prepareIndex("test").setId("" + i)
                     .setSource("class", parts[0], "text", parts[1]));
         }
         indexRandom(true, false, indexRequestBuilders);
@@ -667,7 +676,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             } else {
                 text[0] = gb[randNum];
             }
-            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE)
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME)
                     .setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero"));
         }
         indexRandom(true, indexRequestBuilderList);
@@ -678,15 +687,15 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
+    public void testScriptCaching() throws Exception {
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -694,8 +703,10 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
-        ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
+        // Test that a request using a nondeterministic script does not get cached
+        ScriptHeuristic scriptHeuristic = new ScriptHeuristic(
+            new Script(ScriptType.INLINE, "mockscript", "Math.random()", Collections.emptyMap())
+        );
         boolean useSigText = randomBoolean();
         SearchResponse r;
         if (useSigText) {
@@ -712,8 +723,24 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Test that a request using a deterministic script gets cached
+        scriptHeuristic = getScriptSignificanceHeuristic();
+        useSigText = randomBoolean();
+        if (useSigText) {
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
+        } else {
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
+        }
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
+
+        // Ensure that non-scripted requests are cached as normal
         if (useSigText) {
             r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantText("foo", "s")).get();
         } else {
@@ -724,9 +751,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(2L));
     }
-
-
-
 }

@@ -115,10 +115,24 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         private final EnrichCoordinatorProxyAction.Coordinator coordinator;
 
         @Inject
-        public TransportAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                               ActionFilters actionFilters, EnrichCoordinatorProxyAction.Coordinator coordinator) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, Request::new, NodeRequest::new,
-                ThreadPool.Names.SAME, NodeResponse.class);
+        public TransportAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            EnrichCoordinatorProxyAction.Coordinator coordinator
+        ) {
+            super(
+                NAME,
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                Request::new,
+                NodeRequest::new,
+                ThreadPool.Names.SAME,
+                NodeResponse.class
+            );
             this.coordinator = coordinator;
         }
 

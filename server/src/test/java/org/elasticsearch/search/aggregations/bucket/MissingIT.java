@@ -54,13 +54,13 @@ public class MissingIT extends ESIntegTestCase {
         numDocs = randomIntBetween(5, 20);
         numDocsMissing = randomIntBetween(1, numDocs - 1);
         for (int i = 0; i < numDocsMissing; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i)
                     .endObject()));
         }
         for (int i = numDocsMissing; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("tag", "tag1")
                     .endObject()));
@@ -69,7 +69,7 @@ public class MissingIT extends ESIntegTestCase {
         createIndex("unmapped_idx");
         numDocsUnmapped = randomIntBetween(2, 5);
         for (int i = 0; i < numDocsUnmapped; i++) {
-            builders.add(client().prepareIndex("unmapped_idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("unmapped_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i)
                     .endObject()));
@@ -77,7 +77,7 @@ public class MissingIT extends ESIntegTestCase {
 
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .endObject()));

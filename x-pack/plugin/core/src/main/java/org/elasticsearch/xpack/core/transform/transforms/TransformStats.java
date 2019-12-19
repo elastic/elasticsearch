@@ -92,8 +92,8 @@ public class TransformStats implements Writeable, ToXContentObject {
 
 
     public TransformStats(String id, State state, @Nullable String reason,
-                                   @Nullable NodeAttributes node, TransformIndexerStats stats,
-                                   TransformCheckpointingInfo checkpointingInfo) {
+                          @Nullable NodeAttributes node, TransformIndexerStats stats,
+                          TransformCheckpointingInfo checkpointingInfo) {
         this.id = Objects.requireNonNull(id);
         this.state = Objects.requireNonNull(state);
         this.reason = reason;

@@ -63,7 +63,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text")
                 .endObject().endObject().endObject();
         AcknowledgedResponse putMappingResponse =
-            client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+            client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -85,7 +85,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         XContentBuilder updateMappingBuilder =
             jsonBuilder().startObject().startObject("_size").field("enabled", false).endObject().endObject();
         AcknowledgedResponse putMappingResponse =
-            client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+            client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -108,7 +108,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
         final String source = "{\"f\":10}";
         indexRandom(true,
-                client().prepareIndex("test", "type", "1").setSource(source, XContentType.JSON));
+                client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());

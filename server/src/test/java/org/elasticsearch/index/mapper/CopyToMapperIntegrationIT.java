@@ -46,7 +46,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
         int recordCount = between(1, 200);
 
         for (int i = 0; i < recordCount * 2; i++) {
-            client().prepareIndex("test-idx", "_doc", Integer.toString(i))
+            client().prepareIndex("test-idx").setId(Integer.toString(i))
                     .setSource("test_field", "test " + i, "even", i % 2 == 0)
                     .get();
         }
@@ -80,7 +80,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
             client().admin().indices().prepareCreate("test-idx")
                 .addMapping("_doc", mapping, XContentType.JSON)
         );
-        client().prepareIndex("test-idx", "_doc", "1")
+        client().prepareIndex("test-idx").setId("1")
             .setSource("foo", "bar")
             .get();
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();

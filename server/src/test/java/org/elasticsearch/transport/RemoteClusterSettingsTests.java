@@ -25,11 +25,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTERS_PROXY;
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTERS_SEEDS;
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY;
 import static org.elasticsearch.transport.RemoteClusterService.ENABLE_REMOTE_CLUSTERS;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER;
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
 import static org.hamcrest.Matchers.emptyCollectionOf;
@@ -60,7 +60,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
 
     public void testSeedsDefault() {
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyCollectionOf(String.class));
+        assertThat(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyCollectionOf(String.class));
     }
 
     public void testProxyDefault() {

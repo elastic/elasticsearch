@@ -49,7 +49,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("test", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index("test", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
         assertIndexInMetaState(dataNode, "test");
         assertIndexInMetaState(masterNode, "test");
@@ -65,7 +65,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String index = "index";
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0)
             .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
-        index(index, "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index(index, "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
         Index resolveIndex = resolveIndex(index);
@@ -102,7 +102,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().getMetaData().index(index).getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
 
         // update the mapping. this should cause the new meta data to be written although index is closed
-        client().admin().indices().preparePutMapping(index).setType("_doc").setSource(jsonBuilder().startObject()
+        client().admin().indices().preparePutMapping(index).setSource(jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("integer_field")
                 .field("type", "integer")
@@ -129,7 +129,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
          * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
-        client().admin().indices().preparePutMapping(index).setType("_doc").setSource(jsonBuilder().startObject()
+        client().admin().indices().preparePutMapping(index).setSource(jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("float_field")
                 .field("type", "float")

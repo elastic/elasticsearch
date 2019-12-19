@@ -165,18 +165,19 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson() throws IOException {
-        String scriptSort = "{\n" +
-                "\"_script\" : {\n" +
-                    "\"type\" : \"number\",\n" +
-                    "\"script\" : {\n" +
-                        "\"source\": \"doc['field_name'].value * factor\",\n" +
-                        "\"params\" : {\n" +
-                            "\"factor\" : 1.1\n" +
-                            "}\n" +
-                    "},\n" +
-                    "\"mode\" : \"max\",\n" +
-                    "\"order\" : \"asc\"\n" +
-                "} }\n";
+        String scriptSort = "{"
+            + "  \"_script\": {"
+            + "    \"type\": \"number\","
+            + "    \"script\": {"
+            + "      \"source\": \"doc['field_name'].value * factor\","
+            + "      \"params\": {"
+            + "        \"factor\": 1.1"
+            + "      }"
+            + "    },"
+            + "    \"mode\": \"max\","
+            + "    \"order\": \"asc\""
+            + "  }"
+            + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();

@@ -71,9 +71,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (randomBoolean()) {
             nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
         }
-        Map<String, DocumentField> fields = new HashMap<>();
-        if (randomBoolean()) {
-            fields = GetResultTests.randomDocumentFields(xContentType).v2();
+        Map<String, DocumentField> fields = null;
+        if (frequently()) {
+            fields = new HashMap<>();
+            if (randomBoolean()) {
+                fields = GetResultTests.randomDocumentFields(xContentType).v2();
+            }
         }
         SearchHit hit = new SearchHit(internalId, uid, nestedIdentity, fields);
         if (frequently()) {
@@ -345,25 +348,6 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             List<?> list = (List<?>) value;
             assertEquals(0, list.size());
         }
-    }
-
-    // Test SearchHit "equals" fix for SearchHit with null "fields"
-    // The parsed copy of SearchHits should be equal to the original one.
-    public void testSearchHitEqualsWithNullFields() throws IOException {
-        XContentType xContentType = XContentType.JSON;
-        SearchHit original = new SearchHit(0, null, null);
-        BytesReference originalBytes = toXContent(original, xContentType, true);
-
-        SearchHit parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parser.nextToken(); // jump to first START_OBJECT
-            parsed = SearchHit.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
-        }
-
-        assertEquals(original, parsed);
-        assertEquals(original.hashCode(), parsed.hashCode());
     }
 
     static Explanation createExplanation(int depth) {

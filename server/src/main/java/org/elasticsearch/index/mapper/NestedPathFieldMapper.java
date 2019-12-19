@@ -106,7 +106,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
         @Override
         public String typeName() {
-            return "nested_path";
+            return NAME;
         }
 
         @Override
@@ -166,7 +166,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected String contentType() {
-        return "nested_path";
+        return NAME;
     }
 
     @Override

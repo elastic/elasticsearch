@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -32,6 +36,13 @@ public class Extent {
     public int posLeft;
     public int posRight;
 
+    private static final byte NONE_SET = 0;
+    private static final byte POSITIVE_SET = 1;
+    private static final byte NEGATIVE_SET = 2;
+    private static final byte CROSSES_LAT_AXIS = 3;
+    private static final byte ALL_SET = 4;
+
+
     public Extent() {
         this.top = Integer.MIN_VALUE;
         this.bottom = Integer.MAX_VALUE;
@@ -41,7 +52,7 @@ public class Extent {
         this.posRight = Integer.MIN_VALUE;
     }
 
-    private Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
+    public Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
         this.bottom = bottom;
         this.negLeft = negLeft;
@@ -85,6 +96,92 @@ public class Extent {
         } else {
             this.posLeft = Math.min(this.posLeft, bottomLeftX);
             this.posRight = Math.max(this.posRight, topRightX);
+        }
+    }
+
+    static void readFromCompressed(ByteArrayDataInput input, Extent extent) {
+        final int top = input.readInt();
+        final int bottom = Math.toIntExact(top - input.readVLong());
+        final int negLeft;
+        final int negRight;
+        final int posLeft;
+        final int posRight;
+        byte type = input.readByte();
+        switch (type) {
+            case NONE_SET:
+                negLeft = Integer.MAX_VALUE;
+                negRight = Integer.MIN_VALUE;
+                posLeft = Integer.MAX_VALUE;
+                posRight = Integer.MIN_VALUE;
+                break;
+            case POSITIVE_SET:
+                posRight = input.readVInt();
+                posLeft =  Math.toIntExact(posRight - input.readVLong());
+                negLeft = Integer.MAX_VALUE;
+                negRight = Integer.MIN_VALUE;
+                break;
+            case NEGATIVE_SET:
+                negRight = input.readInt();
+                negLeft = Math.toIntExact(negRight - input.readVLong());
+                posLeft = Integer.MAX_VALUE;
+                posRight = Integer.MIN_VALUE;
+                break;
+            case CROSSES_LAT_AXIS:
+                posRight = input.readInt();
+                negLeft = Math.toIntExact(posRight - input.readVLong());
+                posLeft = 0;
+                negRight = 0;
+                break;
+            default:
+                posRight = input.readVInt();
+                posLeft =  Math.toIntExact(posRight - input.readVLong());
+                negRight = input.readInt();
+                negLeft = Math.toIntExact(negRight - input.readVLong());
+                break;
+        }
+        extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
+    }
+
+    void writeCompressed(ByteBuffersDataOutput output) throws IOException {
+        output.writeInt(this.top);
+        output.writeVLong((long) this.top - this.bottom);
+        byte type;
+        if (this.negLeft == Integer.MAX_VALUE && this.negRight == Integer.MIN_VALUE) {
+            if (this.posLeft == Integer.MAX_VALUE && this.posRight == Integer.MIN_VALUE) {
+                type = NONE_SET;
+            } else {
+                type = POSITIVE_SET;
+            }
+        } else if (this.posLeft == Integer.MAX_VALUE && this.posRight == Integer.MIN_VALUE) {
+            type = NEGATIVE_SET;
+        } else {
+            if (posLeft == 0 && negRight == 0) {
+                type = CROSSES_LAT_AXIS;
+            } else {
+                type = ALL_SET;
+            }
+        }
+        output.writeByte(type);
+        switch (type) {
+            case NONE_SET : break;
+            case POSITIVE_SET:
+                output.writeVInt(this.posRight);
+                output.writeVLong((long) this.posRight - this.posLeft);
+                break;
+            case NEGATIVE_SET:
+                output.writeInt(this.negRight);
+                output.writeVLong((long) this.negRight - this.negLeft);
+                break;
+            case CROSSES_LAT_AXIS:
+                output.writeInt(this.posRight);
+                output.writeVLong((long) this.posRight - this.negLeft);
+                break;
+            default:
+                output.writeVInt(this.posRight);
+                output.writeVLong((long) this.posRight - this.posLeft);
+                output.writeInt(this.negRight);
+                output.writeVLong((long) this.negRight - this.negLeft);
+                break;
         }
     }
 

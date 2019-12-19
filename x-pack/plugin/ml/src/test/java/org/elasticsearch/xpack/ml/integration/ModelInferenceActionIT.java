@@ -66,9 +66,9 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
-            .setInput(new TrainedModelInput(Arrays.asList("foo", "bar", "categorical")))
+            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
                 .setTrainedModel(buildClassification(true)))
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
@@ -77,9 +77,9 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setEstimatedHeapMemory(0)
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
-            .setInput(new TrainedModelInput(Arrays.asList("foo", "bar", "categorical")))
+            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
                 .setTrainedModel(buildRegression()))
             .setVersion(Version.CURRENT)
             .setEstimatedOperations(0)
@@ -99,26 +99,42 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
         List<Map<String, Object>> toInfer = new ArrayList<>();
         toInfer.add(new HashMap<>() {{
-            put("foo", 1.0);
-            put("bar", 0.5);
-            put("categorical", "dog");
+            put("field", new HashMap<>(){{
+                put("foo", 1.0);
+                put("bar", 0.5);
+            }});
+            put("other", new HashMap<>(){{
+                put("categorical", "dog");
+            }});
         }});
         toInfer.add(new HashMap<>() {{
-            put("foo", 0.9);
-            put("bar", 1.5);
-            put("categorical", "cat");
+            put("field", new HashMap<>(){{
+                put("foo", 0.9);
+                put("bar", 1.5);
+            }});
+            put("other", new HashMap<>(){{
+                put("categorical", "cat");
+            }});
         }});
 
         List<Map<String, Object>> toInfer2 = new ArrayList<>();
         toInfer2.add(new HashMap<>() {{
-            put("foo", 0.0);
-            put("bar", 0.01);
-            put("categorical", "dog");
+            put("field", new HashMap<>(){{
+                put("foo", 0.0);
+                put("bar", 0.01);
+            }});
+            put("other", new HashMap<>(){{
+                put("categorical", "dog");
+            }});
         }});
         toInfer2.add(new HashMap<>() {{
-            put("foo", 1.0);
-            put("bar", 0.0);
-            put("categorical", "cat");
+            put("field", new HashMap<>(){{
+                put("foo", 1.0);
+                put("bar", 0.0);
+            }});
+            put("other", new HashMap<>(){{
+                put("categorical", "cat");
+            }});
         }});
 
         // Test regression

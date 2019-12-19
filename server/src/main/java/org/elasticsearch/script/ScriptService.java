@@ -284,7 +284,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
-    public <FactoryType extends ScriptFactory> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+    public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 

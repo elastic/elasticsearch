@@ -17,15 +17,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class AccuracyResultTests extends AbstractWireSerializingTestCase<Accuracy.Result> {
+public class AccuracyResultTests extends AbstractWireSerializingTestCase<Result> {
 
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlEvaluationNamedXContentProvider().getNamedWriteables());
-    }
-
-    @Override
-    protected Accuracy.Result createTestInstance() {
+    public static Result createRandom() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
         List<ActualClass> actualClasses = new ArrayList<>(numClasses);
@@ -38,7 +32,17 @@ public class AccuracyResultTests extends AbstractWireSerializingTestCase<Accurac
     }
 
     @Override
-    protected Writeable.Reader<Accuracy.Result> instanceReader() {
-        return Accuracy.Result::new;
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
+    }
+
+    @Override
+    protected Result createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected Writeable.Reader<Result> instanceReader() {
+        return Result::new;
     }
 }

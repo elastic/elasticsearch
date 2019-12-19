@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -86,7 +85,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     private IntervalsSourceProvider createRandomSource(int depth, boolean useScripts) {
-        if (depth > 3) {
+        if (depth > 2) {
             return createRandomMatch(depth + 1, useScripts);
         }
         switch (randomInt(20)) {
@@ -397,7 +396,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         ScriptService scriptService = new ScriptService(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap()){
             @Override
             @SuppressWarnings("unchecked")
-            public <FactoryType extends ScriptFactory> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(IntervalFilterScript.CONTEXT, context);
                 assertEquals(new Script("interval.start > 3"), script);
                 return (FactoryType) factory;

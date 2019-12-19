@@ -72,14 +72,14 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
     public void testCorrectChannelNumber() {
         String clusterAlias = "cluster-alias";
-        String settingKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
-        Settings simpleSettings = Settings.builder().put(settingKey, "simple").build();
-        ConnectionProfile simpleProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, simpleSettings);
-        assertEquals(1, simpleProfile.getNumConnections());
 
-        Settings sniffSettings = Settings.builder().put(settingKey, "sniff").build();
-        ConnectionProfile sniffProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, sniffSettings);
-        assertEquals(6, sniffProfile.getNumConnections());
+        for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
+            String settingKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+            Settings simpleSettings = Settings.builder().put(settingKey, strategy.name()).build();
+            ConnectionProfile simpleProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, simpleSettings);
+            assertEquals("Incorrect number of channels for " + strategy.name(),
+                strategy.getNumberOfChannels(), simpleProfile.getNumConnections());
+        }
     }
 
     private static class FakeConnectionStrategy extends RemoteConnectionStrategy {
@@ -110,6 +110,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         @Override
         protected void connectImpl(ActionListener<Void> listener) {
 
+        }
+
+        @Override
+        protected RemoteConnectionInfo.ModeInfo getModeInfo() {
+            return null;
         }
     }
 }

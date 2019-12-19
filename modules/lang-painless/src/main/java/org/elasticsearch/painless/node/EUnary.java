@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -54,11 +53,6 @@ public final class EUnary extends AExpression {
 
         this.operation = Objects.requireNonNull(operation);
         this.child = Objects.requireNonNull(child);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        child.storeSettings(settings);
     }
 
     @Override

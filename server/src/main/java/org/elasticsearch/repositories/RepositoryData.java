@@ -52,6 +52,17 @@ public final class RepositoryData {
      * The generation value indicating the repository has no index generational files.
      */
     public static final long EMPTY_REPO_GEN = -1L;
+
+    /**
+     * The generation value indicating that the repository generation is unknown.
+     */
+    public static final long UNKNOWN_REPO_GEN = -2L;
+
+    /**
+     * The generation value indicating that the repository generation could not be determined.
+     */
+    public static final long CORRUPTED_REPO_GEN = -3L;
+
     /**
      * An instance initialized for an empty repository.
      */

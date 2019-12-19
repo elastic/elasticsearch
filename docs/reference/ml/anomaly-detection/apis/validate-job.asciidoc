@@ -30,7 +30,7 @@ create the job.
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-job-resource>>.
+see <<ml-put-job-request-body>>.
 
 [[ml-valid-job-example]]
 ==== {api-examples-title}

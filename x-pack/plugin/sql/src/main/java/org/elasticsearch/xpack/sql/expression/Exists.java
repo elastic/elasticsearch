@@ -16,7 +16,7 @@ public class Exists extends SubQueryExpression {
         this(source, query, null);
     }
 
-    public Exists(Source source, LogicalPlan query, ExpressionId id) {
+    public Exists(Source source, LogicalPlan query, NameId id) {
         super(source, query, id);
     }
 

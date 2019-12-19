@@ -163,7 +163,6 @@ public class Precision implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxClassesCardinality);
     }
 
     @Override

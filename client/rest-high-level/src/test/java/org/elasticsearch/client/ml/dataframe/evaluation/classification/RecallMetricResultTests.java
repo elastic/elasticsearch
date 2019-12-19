@@ -18,53 +18,50 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class ClassificationTests extends AbstractXContentTestCase<Classification> {
+public class RecallMetricResultTests extends AbstractXContentTestCase<Result> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    static Classification createRandom() {
-        List<EvaluationMetric> metrics =
-            randomSubsetOf(
-                Arrays.asList(
-                    AccuracyMetricTests.createRandom(),
-                    PrecisionMetricTests.createRandom(),
-                    RecallMetricTests.createRandom(),
-                    MulticlassConfusionMatrixMetricTests.createRandom()));
-        return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+    public static Result randomResult() {
+        int numClasses = randomIntBetween(2, 100);
+        List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
+        List<PerClassResult> classes = new ArrayList<>(numClasses);
+        for (int i = 0; i < numClasses; i++) {
+            double recall = randomDoubleBetween(0.0, 1.0, true);
+            classes.add(new PerClassResult(classNames.get(i), recall));
+        }
+        double avgRecall = randomDoubleBetween(0.0, 1.0, true);
+        return new Result(classes, avgRecall);
     }
 
     @Override
-    protected Classification createTestInstance() {
-        return createRandom();
+    protected Result createTestInstance() {
+        return randomResult();
     }
 
     @Override
-    protected Classification doParseInstance(XContentParser parser) throws IOException {
-        return Classification.fromXContent(parser);
+    protected Result doParseInstance(XContentParser parser) throws IOException {
+        return Result.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
     }
 }

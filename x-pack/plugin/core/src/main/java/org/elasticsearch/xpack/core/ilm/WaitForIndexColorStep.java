@@ -23,7 +23,7 @@ import java.util.Objects;
 
 /**
  * Wait Step for index based on color
- * */
+ */
 
 class WaitForIndexColorStep extends ClusterStateWaitStep {
 
@@ -47,8 +47,12 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) return false;
-        if (!(obj instanceof WaitForIndexColorStep)) return false;
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
         WaitForIndexColorStep other = (WaitForIndexColorStep) obj;
         return super.equals(obj) && Objects.equals(this.color, other.color);
     }
@@ -69,7 +73,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
                 result = waitForRed(indexRoutingTable);
                 break;
             default:
-                result = new Result(false, new Info("No index color match"));
+                result = new Result(false, new Info("no index color match"));
                 break;
         }
         return result;
@@ -77,14 +81,14 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     private Result waitForRed(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
-            return new Result(true, new Info("Index is red"));
+            return new Result(true, new Info("index is red"));
         }
-        return new Result(false, new Info("Index is not red"));
+        return new Result(false, new Info("index is not red"));
     }
 
     private Result waitForYellow(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
-            return new Result(false, new Info("index is red; no IndexRoutingTable"));
+            return new Result(false, new Info("index is red; no indexRoutingTable"));
         }
 
         boolean indexIsAtLeastYellow = indexRoutingTable.allPrimaryShardsActive();
@@ -97,27 +101,20 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     private Result waitForGreen(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
-            return new Result(false, new Info("index is red; no IndexRoutingTable"));
+            return new Result(false, new Info("index is red; no indexRoutingTable"));
         }
 
-        boolean indexIsGreen = false;
         if (indexRoutingTable.allPrimaryShardsActive()) {
-            boolean replicaIndexIsGreen = false;
             for (ObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().values()) {
-                replicaIndexIsGreen = shardRouting.value.replicaShards().stream().allMatch(ShardRouting::active);
-                if (!replicaIndexIsGreen) {
+                boolean replicaIndexIsGreen = shardRouting.value.replicaShards().stream().allMatch(ShardRouting::active);
+                if (replicaIndexIsGreen == false) {
                     return new Result(false, new Info("index is yellow; not all replica shards are active"));
                 }
             }
-            indexIsGreen = replicaIndexIsGreen;
-        }
-
-
-        if (indexIsGreen) {
             return new Result(true, null);
-        } else {
-            return new Result(false, new Info("index is not green; not all shards are active"));
         }
+
+        return new Result(false, new Info("index is not green; not all shards are active"));
     }
 
     static final class Info implements ToXContentObject {
@@ -144,8 +141,12 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (o == null) {
+                return false;
+            }
+            if (getClass() != o.getClass()) {
+                return false;
+            }
             Info info = (Info) o;
             return Objects.equals(getMessage(), info.getMessage());
         }

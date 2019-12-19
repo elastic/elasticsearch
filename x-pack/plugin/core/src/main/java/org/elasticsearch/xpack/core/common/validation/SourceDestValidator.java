@@ -59,8 +59,6 @@ public final class SourceDestValidator {
         + "alias [{0}], at least a [{1}] license is required, found license [{2}]";
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
-    public static final String TIMEOUT_CHECK_REMOTE_CLUSTER_LICENSE = "Timeout during license check ({0}) for remote cluster "
-        + "alias(es) [{1}]";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RemoteClusterService remoteClusterService;

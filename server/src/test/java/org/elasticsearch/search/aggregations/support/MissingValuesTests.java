@@ -30,11 +30,13 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
@@ -410,7 +412,8 @@ public class MissingValuesTests extends ESTestCase {
             values[i] = new MultiGeoValues.GeoShapeValue[random().nextInt(4)];
             for (int j = 0; j < values[i].length; ++j) {
                 ShapeBuilder builder = RandomShapeGenerator.createShape(random());
-                TriangleTreeReader reader = triangleTreeReader(builder.buildGeometry(), GeoShapeCoordinateEncoder.INSTANCE);
+                Geometry geometry = new GeoShapeIndexer(true, "test").prepareForIndexing(builder.buildGeometry());
+                TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
                 values[i][j] = new MultiGeoValues.GeoShapeValue(reader);
             }
         }

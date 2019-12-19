@@ -149,7 +149,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexRequest);
-                                newState = indexAliasesService.innerExecute(newState,
+                                newState = indexAliasesService.applyAliasActions(newState,
                                     rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, rolloverRequest, explicitWriteIndex));
                                 RolloverInfo rolloverInfo = new RolloverInfo(rolloverRequest.getAlias(), metConditions,
                                     threadPool.absoluteTimeInMillis());

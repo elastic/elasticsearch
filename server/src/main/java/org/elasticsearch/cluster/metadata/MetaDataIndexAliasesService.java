@@ -85,7 +85,7 @@ public class MetaDataIndexAliasesService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerExecute(currentState, request.actions());
+                    return applyAliasActions(currentState, request.actions());
                 }
             });
     }
@@ -93,7 +93,7 @@ public class MetaDataIndexAliasesService {
      /**
      * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
      */
-    public ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
+     public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
         try {

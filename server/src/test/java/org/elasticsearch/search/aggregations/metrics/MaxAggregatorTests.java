@@ -110,6 +110,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     /** Script to return the {@code _value} provided by aggs framework. */
     public static final String VALUE_SCRIPT = "_value";
 
+    /** Script to return a random double */
+    public static final String RANDOM_SCRIPT = "Math.random()";
+
     @Override
     protected ScriptService getMockScriptService() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
@@ -143,8 +146,12 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             return ((Number) vars.get("_value")).doubleValue() + inc;
         });
 
+        Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
+        nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> MaxAggregatorTests.randomDouble());
+
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
             scripts,
+            nonDeterministicScripts,
             Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
@@ -948,9 +955,10 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Make sure that an aggregation using a script does not get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws IOException {
+    public void testScriptCaching() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         final int numDocs = 10;
@@ -967,7 +975,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("value");
@@ -987,6 +994,24 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
         // Test that an aggregation using a script does not get cached
+        assertTrue(aggregator.context().getQueryShardContext().isCacheable());
+        aggregationBuilder = new MaxAggregationBuilder("max")
+            .field("value")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
+
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        max = (InternalMax) aggregator.buildAggregation(0L);
+
+        assertTrue(max.getValue() >= 0.0);
+        assertTrue(max.getValue() <= 1.0);
+        assertEquals("max", max.getName());
+        assertTrue(AggregationInspectionHelper.hasValue(max));
+
+        // Test that an aggregation using a nondeterministic script does not get cached
         assertFalse(aggregator.context().getQueryShardContext().isCacheable());
 
         multiReader.close();

@@ -5,22 +5,24 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.PredictedClass;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -117,6 +119,69 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(45.0 / 75));
     }
 
+    public void testEvaluate_Precision() {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, Arrays.asList(new Precision())));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
+        assertThat(
+            precisionResult.getClasses(),
+            equalTo(
+                Arrays.asList(
+                    new Precision.PerClassResult("ant", 1.0 / 15),
+                    new Precision.PerClassResult("cat", 1.0 / 15),
+                    new Precision.PerClassResult("dog", 1.0 / 15),
+                    new Precision.PerClassResult("fox", 1.0 / 15),
+                    new Precision.PerClassResult("mouse", 1.0 / 15))));
+        assertThat(precisionResult.getAvgPrecision(), equalTo(5.0 / 75));
+    }
+
+    public void testEvaluate_Precision_CardinalityTooHigh() {
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> evaluateDataFrame(
+                    ANIMALS_DATA_INDEX,
+                    new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, Arrays.asList(new Precision(4)))));
+        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
+    }
+
+    public void testEvaluate_Recall() {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, Arrays.asList(new Recall())));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
+        assertThat(
+            recallResult.getClasses(),
+            equalTo(
+                Arrays.asList(
+                    new Recall.PerClassResult("ant", 1.0 / 15),
+                    new Recall.PerClassResult("cat", 1.0 / 15),
+                    new Recall.PerClassResult("dog", 1.0 / 15),
+                    new Recall.PerClassResult("fox", 1.0 / 15),
+                    new Recall.PerClassResult("mouse", 1.0 / 15))));
+        assertThat(recallResult.getAvgRecall(), equalTo(5.0 / 75));
+    }
+
+    public void testEvaluate_Recall_CardinalityTooHigh() {
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> evaluateDataFrame(
+                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, Arrays.asList(new Recall(4)))));
+        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
+    }
+
     public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
@@ -132,50 +197,50 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
             equalTo(Arrays.asList(
-                new ActualClass("ant",
+                new MulticlassConfusionMatrix.ActualClass("ant",
                     15,
                     Arrays.asList(
-                        new PredictedClass("ant", 1L),
-                        new PredictedClass("cat", 4L),
-                        new PredictedClass("dog", 3L),
-                        new PredictedClass("fox", 2L),
-                        new PredictedClass("mouse", 5L)),
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 1L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 4L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 3L),
+                        new MulticlassConfusionMatrix.PredictedClass("fox", 2L),
+                        new MulticlassConfusionMatrix.PredictedClass("mouse", 5L)),
                     0),
-                new ActualClass("cat",
+                new MulticlassConfusionMatrix.ActualClass("cat",
                     15,
                     Arrays.asList(
-                        new PredictedClass("ant", 3L),
-                        new PredictedClass("cat", 1L),
-                        new PredictedClass("dog", 5L),
-                        new PredictedClass("fox", 4L),
-                        new PredictedClass("mouse", 2L)),
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 3L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 1L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 5L),
+                        new MulticlassConfusionMatrix.PredictedClass("fox", 4L),
+                        new MulticlassConfusionMatrix.PredictedClass("mouse", 2L)),
                     0),
-                new ActualClass("dog",
+                new MulticlassConfusionMatrix.ActualClass("dog",
                     15,
                     Arrays.asList(
-                        new PredictedClass("ant", 4L),
-                        new PredictedClass("cat", 2L),
-                        new PredictedClass("dog", 1L),
-                        new PredictedClass("fox", 5L),
-                        new PredictedClass("mouse", 3L)),
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 4L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 2L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 1L),
+                        new MulticlassConfusionMatrix.PredictedClass("fox", 5L),
+                        new MulticlassConfusionMatrix.PredictedClass("mouse", 3L)),
                     0),
-                new ActualClass("fox",
+                new MulticlassConfusionMatrix.ActualClass("fox",
                     15,
                     Arrays.asList(
-                        new PredictedClass("ant", 5L),
-                        new PredictedClass("cat", 3L),
-                        new PredictedClass("dog", 2L),
-                        new PredictedClass("fox", 1L),
-                        new PredictedClass("mouse", 4L)),
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 5L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 3L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 2L),
+                        new MulticlassConfusionMatrix.PredictedClass("fox", 1L),
+                        new MulticlassConfusionMatrix.PredictedClass("mouse", 4L)),
                     0),
-                new ActualClass("mouse",
+                new MulticlassConfusionMatrix.ActualClass("mouse",
                     15,
                     Arrays.asList(
-                        new PredictedClass("ant", 2L),
-                        new PredictedClass("cat", 5L),
-                        new PredictedClass("dog", 4L),
-                        new PredictedClass("fox", 3L),
-                        new PredictedClass("mouse", 1L)),
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 2L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 5L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 4L),
+                        new MulticlassConfusionMatrix.PredictedClass("fox", 3L),
+                        new MulticlassConfusionMatrix.PredictedClass("mouse", 1L)),
                     0))));
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
     }
@@ -194,17 +259,26 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
             equalTo(Arrays.asList(
-                new ActualClass("ant",
+                new MulticlassConfusionMatrix.ActualClass("ant",
                     15,
-                    Arrays.asList(new PredictedClass("ant", 1L), new PredictedClass("cat", 4L), new PredictedClass("dog", 3L)),
+                    Arrays.asList(
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 1L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 4L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 3L)),
                     7),
-                new ActualClass("cat",
+                new MulticlassConfusionMatrix.ActualClass("cat",
                     15,
-                    Arrays.asList(new PredictedClass("ant", 3L), new PredictedClass("cat", 1L), new PredictedClass("dog", 5L)),
+                    Arrays.asList(
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 3L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 1L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 5L)),
                     6),
-                new ActualClass("dog",
+                new MulticlassConfusionMatrix.ActualClass("dog",
                     15,
-                    Arrays.asList(new PredictedClass("ant", 4L), new PredictedClass("cat", 2L), new PredictedClass("dog", 1L)),
+                    Arrays.asList(
+                        new MulticlassConfusionMatrix.PredictedClass("ant", 4L),
+                        new MulticlassConfusionMatrix.PredictedClass("cat", 2L),
+                        new MulticlassConfusionMatrix.PredictedClass("dog", 1L)),
                     8))));
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(2L));
     }

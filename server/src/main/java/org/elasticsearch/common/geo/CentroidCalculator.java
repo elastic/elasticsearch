@@ -38,8 +38,6 @@ import org.elasticsearch.geometry.Rectangle;
  * as the centroid of a shape.
  */
 public class CentroidCalculator {
-    static final double ROUNDING_ERROR = 0.00000000000003;
-
     private double compX;
     private double compY;
     private double sumX;
@@ -105,20 +103,16 @@ public class CentroidCalculator {
      * @return the x-coordinate centroid
      */
     public double getX() {
-        double x = sumX / sumWeight;
-        if (x > GeoUtils.MAX_LON && x <= GeoUtils.MAX_LON + ROUNDING_ERROR) {
-            return GeoUtils.MAX_LON;
-        } else if (x < GeoUtils.MIN_LON && x >= GeoUtils.MIN_LON - ROUNDING_ERROR) {
-            return GeoUtils.MIN_LON;
-        }
-        return x;
+        // normalization required due to floating point precision errors
+        return GeoUtils.normalizeLon(sumX / sumWeight);
     }
 
     /**
      * @return the y-coordinate centroid
      */
     public double getY() {
-        return sumY / sumWeight;
+        // normalization required due to floating point precision errors
+        return GeoUtils.normalizeLat(sumY / sumWeight);
     }
 
     /**

@@ -60,7 +60,8 @@ public class TriangleTreeTests extends ESTestCase {
         assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.MULTIPOINT);
         assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINESTRING);
         assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.MULTILINESTRING);
-        Geometry randoPoly = randomValueOtherThanMany(g -> g.type() != ShapeType.POLYGON, () -> indexer.prepareForIndexing(randomPolygon(false)));
+        Geometry randoPoly = randomValueOtherThanMany(g -> g.type() != ShapeType.POLYGON,
+            () -> indexer.prepareForIndexing(randomPolygon(false)));
         assertDimensionalShapeType(randoPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(indexer.prepareForIndexing(randomMultiPolygon(false)), DimensionalShapeType.MULTIPOLYGON);
         assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);

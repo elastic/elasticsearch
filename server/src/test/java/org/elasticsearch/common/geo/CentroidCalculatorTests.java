@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
@@ -30,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CentroidCalculatorTests extends ESTestCase {
@@ -61,17 +61,31 @@ public class CentroidCalculatorTests extends ESTestCase {
         assertEquals(5.5, calculator.getY(), DELTA);
     }
 
-    public void testLonRounding() {
+    public void testRoundingErrorAndNormalization() {
+        double lonA = GeometryTestUtils.randomLon();
+        double latA = GeometryTestUtils.randomLat();
+        double lonB = randomValueOtherThanMany((l) -> Math.abs(l - lonA) <= GeoUtils.TOLERANCE, GeometryTestUtils::randomLon);
+        double latB = randomValueOtherThanMany((l) -> Math.abs(l - latA) <= GeoUtils.TOLERANCE, GeometryTestUtils::randomLat);
         {
-            Line line = new Line(new double[]{180.0, 180.0}, new double[]{0.000000000000000000000000140129, -7.578746641189781});
-            CentroidCalculator calculator = new CentroidCalculator(line);
-            assertThat(calculator.getX(), equalTo(180.0));
+            Line line = new Line(new double[]{180.0, 180.0}, new double[]{latA, latB});
+            assertThat(new CentroidCalculator(line).getX(), anyOf(equalTo(179.99999999999997),
+                equalTo(180.0), equalTo(-179.99999999999997)));
         }
 
         {
-            Line line = new Line(new double[]{-180.0, -180.0}, new double[]{0.000000000000000000000000140129, -7.578746641189781});
-            CentroidCalculator calculator = new CentroidCalculator(line);
-            assertThat(calculator.getX(), equalTo(-180.0));
+            Line line = new Line(new double[]{-180.0, -180.0}, new double[]{latA, latB});
+            assertThat(new CentroidCalculator(line).getX(), anyOf(equalTo(179.99999999999997),
+                equalTo(180.0), equalTo(-179.99999999999997)));
+        }
+
+        {
+            Line line = new Line(new double[]{lonA, lonB}, new double[] { 90.0, 90.0 });
+            assertThat(new CentroidCalculator(line).getY(), anyOf(equalTo(90.0), equalTo(89.99999999999999)));
+        }
+
+        {
+            Line line = new Line(new double[]{lonA, lonB}, new double[] { -90.0, -90.0 });
+            assertThat(new CentroidCalculator(line).getY(), anyOf(equalTo(-90.0), equalTo(-89.99999999999999)));
         }
     }
 
@@ -103,6 +117,15 @@ public class CentroidCalculatorTests extends ESTestCase {
         Polygon polyWithHole = new Polygon(new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50}),
             Collections.singletonList(new LinearRing(new double[]{-50, -50, 50, 50, -50}, new double[]{-50, 50, 50, -50, -50})));
         CentroidCalculator calculator = new CentroidCalculator(polyWithHole);
+        assertThat(calculator.getX(), equalTo(Double.NaN));
+        assertThat(calculator.getY(), equalTo(Double.NaN));
+        assertThat(calculator.sumWeight(), equalTo(0.0));
+    }
+
+    public void testLineAsClosedPoint() {
+        double lon = GeometryTestUtils.randomLon();
+        double lat = GeometryTestUtils.randomLat();
+        CentroidCalculator calculator = new CentroidCalculator(new Line(new double[] {lon, lon}, new double[] { lat, lat}));
         assertThat(calculator.getX(), equalTo(Double.NaN));
         assertThat(calculator.getY(), equalTo(Double.NaN));
         assertThat(calculator.sumWeight(), equalTo(0.0));

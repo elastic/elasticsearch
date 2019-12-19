@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -143,8 +144,10 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, fieldName + ".keyword", "keyword", true, true);
 
         Map<String, FieldCapabilities> multi = new HashMap<>();
-        multi.put("long", new FieldCapabilities(fieldName, "long", true, true, new String[] { "one-index" }, null, null));
-        multi.put("text", new FieldCapabilities(fieldName, "text", true, false, new String[] { "another-index" }, null, null));
+        multi.put("long", new FieldCapabilities(fieldName, "long", true, true, new String[] { "one-index" }, null, null,
+                Collections.emptyMap()));
+        multi.put("text", new FieldCapabilities(fieldName, "text", true, false, new String[] { "another-index" }, null, null,
+                Collections.emptyMap()));
         fieldCaps.put(fieldName, multi);
 
 
@@ -214,7 +217,8 @@ public class IndexResolverTests extends ESTestCase {
 
     public void testIndexWithNoMapping() {
         Map<String, Map<String, FieldCapabilities>> versionFC = singletonMap("_version",
-                singletonMap("_index", new FieldCapabilities("_version", "_version", false, false)));
+                singletonMap("_index", new FieldCapabilities("_version", "_version", false, false,
+                        Collections.emptyMap())));
         assertTrue(IndexResolver.mergedMappings("*", new String[] { "empty" }, versionFC).isValid());
     }
 
@@ -289,7 +293,7 @@ public class IndexResolverTests extends ESTestCase {
         List<String> nonAggregatableIndices = new ArrayList<>();
 
         UpdateableFieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable) {
-            super(name, type, isSearchable, isAggregatable);
+            super(name, type, isSearchable, isAggregatable, Collections.emptyMap());
         }
 
         @Override
@@ -323,7 +327,7 @@ public class IndexResolverTests extends ESTestCase {
     private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps, String name, String type, boolean isSearchable,
             boolean isAggregatable) {
         Map<String, FieldCapabilities> cap = new HashMap<>();
-        cap.put(name, new FieldCapabilities(name, type, isSearchable, isAggregatable));
+        cap.put(name, new FieldCapabilities(name, type, isSearchable, isAggregatable, Collections.emptyMap()));
         fieldCaps.put(name, cap);
     }
 }

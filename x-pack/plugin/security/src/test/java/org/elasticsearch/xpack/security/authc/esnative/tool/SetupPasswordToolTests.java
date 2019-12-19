@@ -124,7 +124,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new SetupPasswordTool((e, s) -> httpClient, (e) -> keyStore) {
+        return new SetupPasswordTool(env -> httpClient, env -> keyStore) {
 
             @Override
             protected AutoSetup newAutoSetup() {

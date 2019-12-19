@@ -87,13 +87,13 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     private RealmConfig configureRealm(String name, String type, Settings settings) {
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
         final Settings mergedSettings = Settings.builder()
             .put(settings)
             .normalizePrefix("xpack.security.authc.realms." + type + "." + name + ".")
             .put(globalSettings)
             .build();
-        this.sslService = new SSLService(mergedSettings, env);
+        final Environment env = TestEnvironment.newEnvironment(mergedSettings);
+        this.sslService = new SSLService(env);
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(type, name);
         return new RealmConfig(identifier, mergedSettings, env, new ThreadContext(globalSettings));
     }

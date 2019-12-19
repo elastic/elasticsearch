@@ -102,7 +102,7 @@ public class OpenLdapTests extends ESTestCase {
         builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", VerificationMode.FULL);
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
-        sslService = new SSLService(globalSettings, environment);
+        sslService = new SSLService(environment);
     }
 
     public void testConnect() throws Exception {

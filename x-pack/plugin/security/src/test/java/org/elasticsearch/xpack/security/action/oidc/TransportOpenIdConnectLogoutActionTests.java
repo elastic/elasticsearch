@@ -182,8 +182,8 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
-        oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(sslSettings, env), mock(UserRoleMapper.class),
-            mock(ResourceWatcherService.class));
+        oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(TestEnvironment.newEnvironment(sslSettings)),
+            mock(UserRoleMapper.class), mock(ResourceWatcherService.class));
         when(realms.realm(realmConfig.name())).thenReturn(oidcRealm);
     }
 

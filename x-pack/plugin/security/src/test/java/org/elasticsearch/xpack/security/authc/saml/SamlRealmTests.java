@@ -141,7 +141,7 @@ public class SamlRealmTests extends SamlTestCase {
             .put("path.home", createTempDir())
             .setSecureSettings(mockSecureSettings)
             .build();
-        TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
+        TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(settings));
         try (MockWebServer proxyServer =
                      new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
             proxyServer.start();
@@ -690,9 +690,8 @@ public class SamlRealmTests extends SamlTestCase {
 
     private Tuple<RealmConfig, SSLService> buildConfig(String idpMetaDataPath) throws Exception {
         Settings globalSettings = buildSettings(idpMetaDataPath).build();
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
         final RealmConfig config = realmConfigFromGlobalSettings(globalSettings);
-        final SSLService sslService = new SSLService(globalSettings, env);
+        final SSLService sslService = new SSLService(config.env());
         return new Tuple<>(config, sslService);
     }
 

@@ -143,7 +143,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         threadPool = new TestThreadPool("active directory realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         licenseState = new TestUtils.UpdatableLicenseState();
     }
 
@@ -168,7 +168,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     private RealmConfig setupRealm(RealmConfig.RealmIdentifier realmIdentifier, Settings localSettings) {
         final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings).build();
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
-        this.sslService = new SSLService(mergedSettings, env);
+        this.sslService = new SSLService(env);
         return new RealmConfig(
             realmIdentifier,
             mergedSettings,

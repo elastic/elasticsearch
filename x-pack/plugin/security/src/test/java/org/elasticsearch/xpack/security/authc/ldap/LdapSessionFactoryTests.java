@@ -63,7 +63,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put("path.home", createTempDir())
             .putList(RealmSettings.realmSslPrefix(REALM_IDENTIFIER) + "certificate_authorities", ldapCaPath.toString())
             .build();
-        sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         threadPool = new TestThreadPool("LdapSessionFactoryTests thread pool");
     }
 

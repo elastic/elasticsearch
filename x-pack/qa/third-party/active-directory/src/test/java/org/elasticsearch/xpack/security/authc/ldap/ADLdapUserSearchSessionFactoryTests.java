@@ -37,7 +37,6 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
     @Before
     public void init() throws Exception {
         Path certPath = getDataPath("support/smb_ca.crt");
-        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -48,7 +47,8 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
             .put("path.home", createTempDir())
             .put("xpack.security.authc.realms.ldap.ad-as-ldap-test.ssl.certificate_authorities", certPath)
             .build();
-        sslService = new SSLService(globalSettings, env);
+        Environment env = TestEnvironment.newEnvironment(globalSettings);
+        sslService = new SSLService(env);
         threadPool = new TestThreadPool("ADLdapUserSearchSessionFactoryTests");
     }
 
@@ -77,7 +77,7 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
 
         });
         Settings fullSettings = builder.build();
-        sslService = new SSLService(fullSettings, TestEnvironment.newEnvironment(fullSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(fullSettings));
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ad-as-ldap-test"), fullSettings,
                 TestEnvironment.newEnvironment(fullSettings), new ThreadContext(fullSettings));
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);

@@ -94,7 +94,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
-        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
+        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
 
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor"};
         try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool)) {

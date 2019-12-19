@@ -33,8 +33,8 @@ public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProces
     }
 
     public void testApplyAsWKT() throws Exception {
-        assertEquals("point (10.0 20.0)", new GeoProcessor(GeoOperation.ASWKT).process(new GeoShape(10, 20)));
-        assertEquals("point (10.0 20.0)", new GeoProcessor(GeoOperation.ASWKT).process(new GeoShape("POINT (10 20)")));
+        assertEquals("POINT (10.0 20.0)", new GeoProcessor(GeoOperation.ASWKT).process(new GeoShape(10, 20)));
+        assertEquals("POINT (10.0 20.0)", new GeoProcessor(GeoOperation.ASWKT).process(new GeoShape("POINT (10 20)")));
     }
 
     public void testApplyGeometryType() throws Exception {

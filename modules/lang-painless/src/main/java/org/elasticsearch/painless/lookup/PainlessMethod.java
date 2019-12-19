@@ -25,6 +25,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class PainlessMethod {
@@ -35,9 +36,10 @@ public class PainlessMethod {
     public final List<Class<?>> typeParameters;
     public final MethodHandle methodHandle;
     public final MethodType methodType;
+    public final Map<Class<?>, Object> annotations;
 
     public PainlessMethod(Method javaMethod, Class<?> targetClass, Class<?> returnType, List<Class<?>> typeParameters,
-            MethodHandle methodHandle, MethodType methodType) {
+            MethodHandle methodHandle, MethodType methodType, Map<Class<?>, Object> annotations) {
 
         this.javaMethod = javaMethod;
         this.targetClass = targetClass;
@@ -45,6 +47,7 @@ public class PainlessMethod {
         this.typeParameters = typeParameters.isEmpty() ? Collections.emptyList() : Arrays.asList(typeParameters.toArray(new Class<?>[0]));
         this.methodHandle = methodHandle;
         this.methodType = methodType;
+        this.annotations = annotations;
     }
 
     @Override
@@ -63,11 +66,12 @@ public class PainlessMethod {
                 Objects.equals(targetClass, that.targetClass) &&
                 Objects.equals(returnType, that.returnType) &&
                 Objects.equals(typeParameters, that.typeParameters) &&
-                Objects.equals(methodType, that.methodType);
+                Objects.equals(methodType, that.methodType) &&
+                Objects.equals(annotations, that.annotations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(javaMethod, targetClass, returnType, typeParameters, methodType);
+        return Objects.hash(javaMethod, targetClass, returnType, typeParameters, methodType, annotations);
     }
 }

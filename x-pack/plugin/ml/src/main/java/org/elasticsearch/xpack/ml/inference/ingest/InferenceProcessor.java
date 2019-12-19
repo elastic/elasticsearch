@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Arrays;
@@ -128,7 +129,7 @@ public class InferenceProcessor extends AbstractProcessor {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
         if (fieldMapping != null) {
             fieldMapping.forEach((src, dest) -> {
-                Object srcValue = fields.remove(src);
+                Object srcValue = MapHelper.dig(src, fields);
                 if (srcValue != null) {
                     fields.put(dest, srcValue);
                 }

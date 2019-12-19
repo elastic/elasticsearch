@@ -133,7 +133,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final Path confPathRepo;
     private final Path configFile;
-    private final Path confPathData;
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
@@ -150,6 +149,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
     private String transportPort = "0";
+    private Path confPathData;
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
         this.path = path;
@@ -1303,6 +1303,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     void setTransportPort(String transportPort) {
         this.transportPort = transportPort;
+    }
+
+    void setDataPath(Path dataPath) {
+        this.confPathData = dataPath;
     }
 
     @Internal

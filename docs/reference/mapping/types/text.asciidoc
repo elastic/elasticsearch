@@ -143,3 +143,7 @@ The following parameters are accepted by `text` fields:
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

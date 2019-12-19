@@ -55,6 +55,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -257,19 +258,22 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             30L,
-            null
+            Instant.ofEpochMilli(timestamp)
         );
 
-        assertAsync(listener ->
-
-        getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener), checkpointInfo, null, null);
+        assertAsync(
+            listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),
+            checkpointInfo,
+            null,
+            null
+        );
 
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 50, 33)));
         checkpointInfo = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             63L,
-            null
+            Instant.ofEpochMilli(timestamp)
         );
         assertAsync(
             listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),
@@ -284,7 +288,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             0L,
-            null
+            Instant.ofEpochMilli(timestamp)
         );
         assertAsync(
             listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),

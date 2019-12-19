@@ -37,7 +37,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
     public static class TransformCheckpointingInfoBuilder {
         private TransformIndexerPosition nextCheckpointPosition;
         private TransformProgress nextCheckpointProgress;
-        public TransformCheckpoint lastCheckpoint;
+        private TransformCheckpoint lastCheckpoint;
         private TransformCheckpoint nextCheckpoint;
         private TransformCheckpoint sourceCheckpoint;
         private Instant changesLastDetectedAt;
@@ -85,14 +85,26 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             return this;
         }
 
+        public TransformCheckpoint getLastCheckpoint() {
+            return lastCheckpoint;
+        }
+
         public TransformCheckpointingInfoBuilder setNextCheckpoint(TransformCheckpoint nextCheckpoint) {
             this.nextCheckpoint = nextCheckpoint;
             return this;
         }
 
+        public TransformCheckpoint getNextCheckpoint() {
+            return nextCheckpoint;
+        }
+
         public TransformCheckpointingInfoBuilder setSourceCheckpoint(TransformCheckpoint sourceCheckpoint) {
             this.sourceCheckpoint = sourceCheckpoint;
             return this;
+        }
+
+        public TransformCheckpoint getSourceCheckpoint() {
+            return sourceCheckpoint;
         }
 
         public TransformCheckpointingInfoBuilder setNextCheckpointProgress(TransformProgress nextCheckpointProgress) {

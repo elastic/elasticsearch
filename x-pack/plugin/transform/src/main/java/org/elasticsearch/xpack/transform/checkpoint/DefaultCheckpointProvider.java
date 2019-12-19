@@ -36,7 +36,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class DefaultCheckpointProvider implements CheckpointProvider {
 
@@ -212,15 +211,16 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             new TransformCheckpointingInfo.TransformCheckpointingInfoBuilder();
 
         checkpointingInfoBuilder.setNextCheckpointPosition(nextCheckpointPosition).setNextCheckpointProgress(nextCheckpointProgress);
-
+        checkpointingInfoBuilder.setLastCheckpoint(TransformCheckpoint.EMPTY);
         long timestamp = System.currentTimeMillis();
-        AtomicReference<TransformCheckpoint> lastCheckpoint = new AtomicReference<>(TransformCheckpoint.EMPTY);
 
         // <3> got the source checkpoint, notify the user
         ActionListener<Map<String, long[]>> checkpointsByIndexListener = ActionListener.wrap(checkpointsByIndex -> {
             TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
             checkpointingInfoBuilder.setSourceCheckpoint(sourceCheckpoint);
-            checkpointingInfoBuilder.setOperationsBehind(TransformCheckpoint.getBehind(lastCheckpoint.get(), sourceCheckpoint));
+            checkpointingInfoBuilder.setOperationsBehind(
+                TransformCheckpoint.getBehind(checkpointingInfoBuilder.getLastCheckpoint(), sourceCheckpoint)
+            );
             listener.onResponse(checkpointingInfoBuilder);
         }, e -> {
             logger.debug(
@@ -252,9 +252,8 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
         // <1> got last checkpoint, get the next checkpoint
         ActionListener<TransformCheckpoint> lastCheckpointListener = ActionListener.wrap(lastCheckpointObj -> {
-            lastCheckpoint.set(lastCheckpointObj);
             checkpointingInfoBuilder.setChangesLastDetectedAt(Instant.ofEpochMilli(lastCheckpointObj.getTimestamp()));
-            checkpointingInfoBuilder.lastCheckpoint = lastCheckpointObj;
+            checkpointingInfoBuilder.setLastCheckpoint(lastCheckpointObj);
             transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
         }, e -> {
             logger.debug(

@@ -68,7 +68,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.nodeClient = nodeClient;
         this.reduceContextSupplier = () -> searchService.createReduceContext(true);
         this.searchAction = searchAction;
-        this.store = new AsyncSearchStoreService(client, registry);
+        this.store = new AsyncSearchStoreService(taskManager, threadPool, client, registry);
         this.random = new Random(System.nanoTime());
     }
 

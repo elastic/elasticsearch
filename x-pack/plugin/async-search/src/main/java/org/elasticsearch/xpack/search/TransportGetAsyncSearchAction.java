@@ -26,12 +26,9 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.search.AsyncSearchStoreService.ASYNC_SEARCH_INDEX_PREFIX;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
@@ -53,7 +50,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.store = new AsyncSearchStoreService(client, registry);
+        this.store = new AsyncSearchStoreService(taskManager, threadPool, client, registry);
     }
 
     @Override
@@ -83,29 +80,11 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
 
     private void getSearchResponseFromTask(GetAsyncSearchAction.Request request, AsyncSearchId searchId,
                                            ActionListener<AsyncSearchResponse> listener) throws IOException {
-        Task runningTask = taskManager.getTask(searchId.getTaskId().getId());
-        if (runningTask == null) {
-            // Task isn't running
-            getSearchResponseFromIndex(request, searchId, listener);
-            return;
-        }
-        if (runningTask instanceof AsyncSearchTask) {
-            AsyncSearchTask searchTask = (AsyncSearchTask) runningTask;
-            if (searchTask.getSearchId().getEncoded().equals(request.getId()) == false) {
-                // Task id has been reused by another task due to a node restart
-                getSearchResponseFromIndex(request, searchId, listener);
-                return;
-            }
-
-            // Check authentication for the user
-            final Authentication auth = Authentication.getAuthentication(threadPool.getThreadContext());
-            if (ensureAuthenticatedUserIsSame(searchTask.getOriginHeaders(), auth) == false) {
-                listener.onFailure(new ResourceNotFoundException(request.getId()));
-                return;
-            }
-            waitForCompletion(request, searchTask, threadPool.relativeTimeInMillis(), listener);
+        final AsyncSearchTask task = store.getTask(searchId);
+        if (task != null) {
+            waitForCompletion(request, task, threadPool.relativeTimeInMillis(), listener);
         } else {
-            // Task id has been reused by another task due to a node restart
+            // Task isn't running
             getSearchResponseFromIndex(request, searchId, listener);
         }
     }
@@ -171,38 +150,6 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                 listener.onFailure(exc);
             }
         }
-    }
-
-    static boolean ensureAuthenticatedUserIsSame(Map<String, String> originHeaders, Authentication current) throws IOException {
-        if (originHeaders == null || originHeaders.containsKey(AUTHENTICATION_KEY) == false) {
-            return true;
-        }
-        if (current == null) {
-            return false;
-        }
-        Authentication origin = Authentication.decode(originHeaders.get(AUTHENTICATION_KEY));
-        return ensureAuthenticatedUserIsSame(origin, current);
-    }
-
-    /**
-     * Compares the {@link Authentication} that was used to create the {@link AsyncSearchId} with the
-     * current authentication.
-     */
-    static boolean ensureAuthenticatedUserIsSame(Authentication original, Authentication current) {
-        final boolean samePrincipal = original.getUser().principal().equals(current.getUser().principal());
-        final boolean sameRealmType;
-        if (original.getUser().isRunAs()) {
-            if (current.getUser().isRunAs()) {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getLookedUpBy().getType());
-            }  else {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getAuthenticatedBy().getType());
-            }
-        } else if (current.getUser().isRunAs()) {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getLookedUpBy().getType());
-        } else {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getAuthenticatedBy().getType());
-        }
-        return samePrincipal && sameRealmType;
     }
 
     /**

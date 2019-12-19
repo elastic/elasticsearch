@@ -33,6 +33,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
@@ -44,9 +47,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_SEARCH_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.search.TransportGetAsyncSearchAction.ensureAuthenticatedUserIsSame;
 
 /**
  * A class that encapsulates the logic to store and retrieve {@link AsyncSearchResponse} to/from the .async-search index.
@@ -59,10 +62,14 @@ class AsyncSearchStoreService {
     static final String RESULT_FIELD = "result";
     static final String HEADERS_FIELD = "headers";
 
+    private final TaskManager taskManager;
+    private final ThreadPool threadPool;
     private final Client client;
     private final NamedWriteableRegistry registry;
 
-    AsyncSearchStoreService(Client client, NamedWriteableRegistry registry) {
+    AsyncSearchStoreService(TaskManager taskManager, ThreadPool threadPool, Client client, NamedWriteableRegistry registry) {
+        this.taskManager = taskManager;
+        this.threadPool = threadPool;
         this.client = new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN);
         this.registry = registry;
     }
@@ -147,6 +154,24 @@ class AsyncSearchStoreService {
         client.update(request, listener);
     }
 
+    AsyncSearchTask getTask(AsyncSearchId searchId) throws IOException {
+        Task task = taskManager.getTask(searchId.getTaskId().getId());
+        if (task == null || task instanceof AsyncSearchTask == false) {
+            return null;
+        }
+        AsyncSearchTask searchTask = (AsyncSearchTask) task;
+        if (searchTask.getSearchId().equals(searchId) == false) {
+            return null;
+        }
+
+        // Check authentication for the user
+        final Authentication auth = Authentication.getAuthentication(threadPool.getThreadContext());
+        if (ensureAuthenticatedUserIsSame(searchTask.getOriginHeaders(), auth) == false) {
+            throw new ResourceNotFoundException(searchId.getEncoded() + " not found");
+        }
+        return searchTask;
+    }
+
     /**
      * Get the response from the .async-search index if present, or delegate a {@link ResourceNotFoundException}
      * failure to the provided listener if not.
@@ -194,6 +219,45 @@ class AsyncSearchStoreService {
                 listener.onFailure(new ResourceNotFoundException("id [{}] not found", searchId.getEncoded()));
             })
         );
+    }
+
+    /**
+     * Extracts the authentication from the original headers and checks that it matches
+     * the current user. This function returns always <code>true</code> if the provided
+     * <code>headers</code> do not contain any authentication.
+     */
+    static boolean ensureAuthenticatedUserIsSame(Map<String, String> originHeaders, Authentication current) throws IOException {
+        if (originHeaders == null || originHeaders.containsKey(AUTHENTICATION_KEY) == false) {
+            // no authorization attached to the original request
+            return true;
+        }
+        if (current == null) {
+            // origin is an authenticated user but current is not
+            return false;
+        }
+        Authentication origin = Authentication.decode(originHeaders.get(AUTHENTICATION_KEY));
+        return ensureAuthenticatedUserIsSame(origin, current);
+    }
+
+    /**
+     * Compares the {@link Authentication} that was used to create the {@link AsyncSearchId} with the
+     * current authentication.
+     */
+    static boolean ensureAuthenticatedUserIsSame(Authentication original, Authentication current) {
+        final boolean samePrincipal = original.getUser().principal().equals(current.getUser().principal());
+        final boolean sameRealmType;
+        if (original.getUser().isRunAs()) {
+            if (current.getUser().isRunAs()) {
+                sameRealmType = original.getLookedUpBy().getType().equals(current.getLookedUpBy().getType());
+            }  else {
+                sameRealmType = original.getLookedUpBy().getType().equals(current.getAuthenticatedBy().getType());
+            }
+        } else if (current.getUser().isRunAs()) {
+            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getLookedUpBy().getType());
+        } else {
+            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getAuthenticatedBy().getType());
+        }
+        return samePrincipal && sameRealmType;
     }
 
     /**

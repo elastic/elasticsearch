@@ -16,6 +16,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 
@@ -28,12 +29,13 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
     @Inject
     public TransportDeleteAsyncSearchAction(TransportService transportService,
                                             ActionFilters actionFilters,
+                                            ThreadPool threadPool,
                                             NamedWriteableRegistry registry,
                                             NodeClient nodeClient,
                                             Client client) {
         super(DeleteAsyncSearchAction.NAME, transportService, actionFilters, DeleteAsyncSearchAction.Request::new);
         this.nodeClient = nodeClient;
-        this.store = new AsyncSearchStoreService(client, registry);
+        this.store = new AsyncSearchStoreService(taskManager, threadPool, client, registry);
     }
 
     @Override

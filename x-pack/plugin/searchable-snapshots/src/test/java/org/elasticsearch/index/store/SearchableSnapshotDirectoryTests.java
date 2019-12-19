@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -76,7 +75,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@Repeat(iterations = 100)
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
     public void testListAll() throws Exception {

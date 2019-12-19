@@ -90,9 +90,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
         final FileInfo fileInfo = fileInfo(name);
-        final IndexInput input = new SearchableSnapshotIndexInput(blobContainer, fileInfo);
-
         final LiveStats stats = this.stats.computeIfAbsent(name, n -> new LiveStats(fileInfo.length())).incrementOpenCount();
+
+        final IndexInput input = new SearchableSnapshotIndexInput(blobContainer, fileInfo, stats);
         return new StatsIndexInputWrapper(input, stats);
     }
 
@@ -238,7 +238,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     /**
      * {@link LiveStats} records stats for a given {@link IndexInput} and all its clones and slices.
      */
-    private static class LiveStats {
+    static class LiveStats {
 
         final long length;
 
@@ -255,6 +255,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final LiveCounter contiguousReads = new LiveCounter();
         final LiveCounter nonContiguousReads = new LiveCounter();
+
+        final LiveCounter contiguousBufferedReads = new LiveCounter();
+        final LiveCounter nonContiguousBufferedReads = new LiveCounter();
 
         LiveStats(long length) {
             this.length = length;
@@ -299,6 +302,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             incBytesRead.accept(length);
         }
 
+        void incrementBufferedBytesRead(final boolean contiguous, final long length) {
+            LongConsumer incBytesRead = contiguous ? contiguousBufferedReads::add : nonContiguousBufferedReads::add;
+            incBytesRead.accept(length);
+        }
+
         IndexInputStats toIndexInputStats() {
             return new IndexInputStats(
                 length,
@@ -311,7 +319,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 forwardLargeSeeks.toCounter(),
                 backwardLargeSeeks.toCounter(),
                 contiguousReads.toCounter(),
-                nonContiguousReads.toCounter());
+                nonContiguousReads.toCounter(),
+                contiguousBufferedReads.toCounter(),
+                nonContiguousBufferedReads.toCounter()
+            );
         }
     }
 

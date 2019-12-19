@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -26,7 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@Repeat(iterations = 100)
 public class SearchableSnapshotDirectoryStatsTests extends ESTestCase {
 
     public void testLength() throws Exception {

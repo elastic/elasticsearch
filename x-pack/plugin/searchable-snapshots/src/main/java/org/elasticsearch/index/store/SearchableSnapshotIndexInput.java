@@ -9,6 +9,7 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory.LiveStats;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -37,23 +38,27 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
     private final BlobContainer blobContainer;
     private final FileInfo fileInfo;
+    private final LiveStats stats;
     private final long offset;
     private final long length;
 
+    private long lastReadPosition;
     private long position;
     private boolean closed;
 
-    public SearchableSnapshotIndexInput(final BlobContainer blobContainer, final FileInfo fileInfo) {
-        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, 0L, 0L, fileInfo.length());
+    public SearchableSnapshotIndexInput(final BlobContainer blobContainer, final FileInfo fileInfo, final LiveStats stats) {
+        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, stats, 0L, 0L, fileInfo.length());
     }
 
-    private SearchableSnapshotIndexInput(final String resourceDesc, final BlobContainer blobContainer,
-                                         final FileInfo fileInfo, final long position, final long offset, final long length) {
+    private SearchableSnapshotIndexInput(final String resourceDesc, final BlobContainer blobContainer, final FileInfo fileInfo,
+                                         final LiveStats stats, final long position, final long offset, final long length) {
         super(resourceDesc);
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
+        this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
+        this.lastReadPosition = position;
         this.position = position;
         this.closed = false;
     }
@@ -72,6 +77,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     @Override
     protected void readInternal(byte[] b, int offset, int length) throws IOException {
         ensureOpen();
+        final long currentPosition = position;
         if (fileInfo.numberOfParts() == 1L) {
             readInternalBytes(0L, position, b, offset, length);
         } else {
@@ -91,6 +97,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
                 off += read;
             }
         }
+        stats.incrementBufferedBytesRead(lastReadPosition == currentPosition, length);
+        lastReadPosition = position;
     }
 
     private void readInternalBytes(final long part, final long pos, byte[] b, int offset, int length) throws IOException {
@@ -114,13 +122,14 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     @Override
     public BufferedIndexInput clone() {
         final SearchableSnapshotIndexInput clone =
-            new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length);
+            new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, stats, position, offset, length);
         try {
             clone.seek(getFilePointer());
         } catch (IOException e) {
             throw new RuntimeException("Failed to seek after cloning", e);
         }
         assert clone.getFilePointer() == getFilePointer();
+        assert clone.stats == stats;
         return clone;
     }
 
@@ -128,8 +137,9 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final SearchableSnapshotIndexInput slice =
-                new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, position, this.offset + offset, length);
+                new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, stats, position, this.offset + offset, length);
             slice.seek(0L);
+            assert slice.stats == stats;
             return slice;
         } else {
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset

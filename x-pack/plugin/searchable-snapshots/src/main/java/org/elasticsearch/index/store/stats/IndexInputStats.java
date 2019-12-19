@@ -26,10 +26,16 @@ public class IndexInputStats {
     private final Counter nonContiguousReads;
     private final Counter totalReads;
 
+    private final Counter contiguousBufferedReads;
+    private final Counter nonContiguousBufferedReads;
+    private final Counter totalBufferedReads;
+
     public IndexInputStats(final long length, final long openings, final long closings, final long slicings, final long clonings,
                            final Counter forwardSmallSeeks, final Counter backwardSmallSeeks,
                            final Counter forwardLargeSeeks, final Counter backwardLargeSeeks,
-                           final Counter contiguousReads, final Counter nonContiguousReads) {
+                           final Counter contiguousReads, final Counter nonContiguousReads,
+                           final Counter contiguousBufferedReads, final Counter nonContiguousBufferedReads
+    ) {
         this.length = length;
         this.openCount = openings;
         this.closeCount = closings;
@@ -42,6 +48,9 @@ public class IndexInputStats {
         this.contiguousReads = Objects.requireNonNull(contiguousReads);
         this.nonContiguousReads = Objects.requireNonNull(nonContiguousReads);
         this.totalReads = Counter.merge(contiguousReads, nonContiguousReads);
+        this.contiguousBufferedReads = Objects.requireNonNull(contiguousReads);
+        this.nonContiguousBufferedReads = Objects.requireNonNull(nonContiguousReads);
+        this.totalBufferedReads = Counter.merge(contiguousBufferedReads, nonContiguousBufferedReads);
         Counter totalSmallSeeks = Counter.merge(forwardSmallSeeks, backwardSmallSeeks);
         Counter totalLargeSeeks = Counter.merge(forwardLargeSeeks, backwardLargeSeeks);
         this.totalSeeks = Counter.merge(totalSmallSeeks, totalLargeSeeks);
@@ -137,6 +146,31 @@ public class IndexInputStats {
      * @return the {@link Counter} associated with all bytes reads.
      */
     public Counter getTotalReads() {
+        return totalReads;
+    }
+
+    /**
+     * @return the {@link Counter} associated with contiguous buffered bytes reads, ie reads
+     * executed in a buffered manner by {@link org.apache.lucene.store.BufferedIndexInput}
+     * when the file pointer did NOT change between buffered reads.
+     */
+    public Counter getContiguousBufferedReads() {
+        return contiguousReads;
+    }
+
+    /**
+     * @return the {@link Counter} associated with non-contiguous buffered bytes reads, ie reads
+     * executed in a buffered manner by {@link org.apache.lucene.store.BufferedIndexInput}
+     * when the file pointer did NOT change between buffered reads.
+     */
+    public Counter getNonContiguousBufferedReads() {
+        return nonContiguousReads;
+    }
+
+    /**
+     * @return the {@link Counter} associated with all buffered reads.
+     */
+    public Counter getTotalBufferedReads() {
         return totalReads;
     }
 

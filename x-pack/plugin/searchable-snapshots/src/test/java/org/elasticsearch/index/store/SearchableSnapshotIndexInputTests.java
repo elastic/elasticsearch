@@ -62,7 +62,7 @@ public class SearchableSnapshotIndexInputTests extends ESTestCase {
                     return new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), length);
                 }
             });
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo);
+        return new SearchableSnapshotIndexInput(blobContainer, fileInfo, new SearchableSnapshotDirectory.LiveStats(input.length));
     }
 
     public void testRandomReads() throws IOException {

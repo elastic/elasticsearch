@@ -729,4 +729,32 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertEmptyTranslog(index);
         }
     }
+
+    public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
+        final String indexName = "test-auto-expand-filtering";
+        final Version minimumNodeVersion = minimumNodeVersion();
+
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+        List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2)))
+                .build());
+        }
+
+        ensureGreen(indexName);
+
+        final int numberOfReplicas = Integer.parseInt(
+            getIndexSettings(indexName).get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()).toString());
+        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
+            assertEquals(nodes.size() - 1, numberOfReplicas);
+        } else {
+            assertEquals(nodes.size(), numberOfReplicas);
+        }
+    }
 }

@@ -15,6 +15,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class RunTask extends DefaultTestClustersTask {
@@ -63,19 +64,23 @@ public class RunTask extends DefaultTestClustersTask {
                 entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
                 entry -> entry.getValue().toString()
             ));
+        boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
+        final Function<ElasticsearchNode, Path> getDataPath;
+        if (singleNode) {
+            getDataPath = n -> dataDir;
+        } else {
+            getDataPath = n -> dataDir.resolve(n.getName());
+        }
+
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
             httpPort++;
             cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
             transportPort++;
-            Path clusterDataDir = null;
-            if (dataDir != null) {
-                clusterDataDir = dataDir.resolve(cluster.getName());
-            }
             for (ElasticsearchNode node : cluster.getNodes()) {
                 additionalSettings.forEach(node::setting);
-                if (clusterDataDir != null) {
-                    node.setDataPath(clusterDataDir.resolve(node.getName()));
+                if (dataDir != null) {
+                    node.setDataPath(getDataPath.apply(node));
                 }
                 if (debug) {
                     logger.lifecycle(

@@ -96,7 +96,7 @@ public class Accuracy implements EvaluationMetric {
     }
 
     public Accuracy(StreamInput in) throws IOException {
-        this.maxClassesCardinality = DEFAULT_MAX_CLASSES_CARDINALITY;
+        this.maxClassesCardinality = in.readVInt();
         this.matrix = new MulticlassConfusionMatrix(in);
     }
 
@@ -184,6 +184,7 @@ public class Accuracy implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(maxClassesCardinality);
         matrix.writeTo(out);
     }
 

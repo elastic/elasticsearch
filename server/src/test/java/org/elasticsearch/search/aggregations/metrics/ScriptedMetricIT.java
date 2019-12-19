@@ -1037,7 +1037,6 @@ public class ScriptedMetricIT extends ESIntegTestCase {
      * Make sure that a request using a deterministic script gets cached and nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        // TODO(stu): add non-determinism in init, agg, combine and reduce, ensure not cached
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state['count'] = 1", Collections.emptyMap());
         Script combineScript =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op aggregation", Collections.emptyMap());

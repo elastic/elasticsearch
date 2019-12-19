@@ -40,9 +40,11 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -63,11 +65,13 @@ public class JsonLoggerTests extends ESTestCase {
 
     @BeforeClass
     public static void initNodeName() {
+        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         JsonLogsTestSetup.init();
     }
 
     @Override
-    public void setUp() throws Exception {
+    public void setUp() throws Exception
+    {
         super.setUp();
         LogConfigurator.registerErrorListener();
         setupLogging("json_layout");
@@ -306,8 +310,9 @@ public class JsonLoggerTests extends ESTestCase {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
                 logLine("file", Level.INFO, "sample-name", "prefix.shardIdLogger",
-                    "[indexName][123] This is an info message with a shardId"),
-                logLine("file", Level.INFO, "sample-name", "prefix.prefixLogger", "PREFIX This is an info message with a prefix")
+                    "This is an info message with a shardId", Map.of(JsonLogLine::getTags, List.of("[indexName][123]"))),
+                logLine("file", Level.INFO, "sample-name", "prefix.prefixLogger",
+                    "This is an info message with a prefix", Map.of(JsonLogLine::getTags, List.of("PREFIX")))
             ));
         }
     }
@@ -378,7 +383,7 @@ public class JsonLoggerTests extends ESTestCase {
                     logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
 
                     //stacktrace field will have each json line will in a separate array element
-                    stacktraceWith(("java.lang.Exception: " + json).split(LINE_SEPARATOR))
+                    stacktraceWith(("java.lang.Exception: " + json)/*.split(LINE_SEPARATOR)*/)
                 )
             ));
         }
@@ -487,20 +492,40 @@ public class JsonLoggerTests extends ESTestCase {
         LogConfigurator.configure(environment);
     }
 
+
     private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message) {
+        return logLine(mapOfParamsToCheck(type, level, nodeName, component, message));
+    }
+
+    private Map<Function<JsonLogLine, Object>, Object> mapOfParamsToCheck(String type, Level level, String nodeName, String component, String message) {
+        return Map.of(JsonLogLine::getType, type,
+            JsonLogLine::getLevel, level.toString(),
+            JsonLogLine::getNodeName, nodeName,
+            JsonLogLine::getComponent, component,
+            JsonLogLine::getMessage, message);
+    }
+
+    private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message,
+                                         Map<Function<JsonLogLine,Object>, Object> additionalProperties) {
+        Map<Function<JsonLogLine, Object>, Object> map = new HashMap<>();
+        map.putAll(mapOfParamsToCheck(type, level, nodeName, component, message));
+        map.putAll(additionalProperties);
+        return logLine(map);
+    }
+
+    private Matcher<JsonLogLine> logLine(Map<Function<JsonLogLine,Object>, Object> map) {
         return new FeatureMatcher<JsonLogLine, Boolean>(Matchers.is(true), "logLine", "logLine") {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
-                return Objects.equals(actual.type(), type) &&
-                    Objects.equals(actual.level(), level.toString()) &&
-                    Objects.equals(actual.nodeName(), nodeName) &&
-                    Objects.equals(actual.component(), component) &&
-                    Objects.equals(actual.message(), message);
+                boolean value = true;
+                for (Map.Entry<Function<JsonLogLine,Object>, Object> supplierObjectEntry : map.entrySet()) {
+                    value &= Objects.equals(supplierObjectEntry.getKey().apply(actual), supplierObjectEntry.getValue());
+                }
+                return value;
             }
         };
     }
-
     private Matcher<JsonLogLine> stacktraceWith(String... lines) {
         return new FeatureMatcher<JsonLogLine, List<String>>(Matchers.hasItems(lines),
             "error.stack_trace", "error.stack_trace") {

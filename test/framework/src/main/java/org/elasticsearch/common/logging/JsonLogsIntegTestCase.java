@@ -72,15 +72,15 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
             stream.limit(LINES_TO_CHECK)
                   .forEach(jsonLogLine -> {
-                      assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));
-                      assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.getType(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.getTimestamp(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.getLevel(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.getComponent(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.getMessage(), not(isEmptyOrNullString()));
 
                       // all lines should have the same nodeName and clusterName
-                      assertThat(jsonLogLine.nodeName(), nodeNameMatcher());
-                      assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
+                      assertThat(jsonLogLine.getNodeName(), nodeNameMatcher());
+                      assertThat(jsonLogLine.getClusterName(), equalTo(firstLine.getClusterName()));
                   });
         }
     }
@@ -99,7 +99,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
             JsonLogLine firstLine = null;
             while (iterator.hasNext()) {
                 JsonLogLine jsonLogLine = iterator.next();
-                if (jsonLogLine.nodeId() != null) {
+                if (jsonLogLine.getNodeId() != null) {
                     firstLine = jsonLogLine;
                 }
             }
@@ -110,8 +110,8 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
             int i = 0;
             while (iterator.hasNext() && i++ < LINES_TO_CHECK) {
                 JsonLogLine jsonLogLine = iterator.next();
-                assertThat(jsonLogLine.nodeId(), equalTo(firstLine.nodeId()));
-                assertThat(jsonLogLine.clusterUuid(), equalTo(firstLine.clusterUuid()));
+                assertThat(jsonLogLine.getNodeId(), equalTo(firstLine.getNodeId()));
+                assertThat(jsonLogLine.getClusterUuid(), equalTo(firstLine.getClusterUuid()));
             }
         }
     }

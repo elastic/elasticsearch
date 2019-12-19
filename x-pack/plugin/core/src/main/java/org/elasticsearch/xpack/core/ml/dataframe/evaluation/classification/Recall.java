@@ -86,7 +86,7 @@ public class Recall implements EvaluationMetric {
     }
 
     public Recall(StreamInput in) throws IOException {
-        this.maxClassesCardinality = DEFAULT_MAX_CLASSES_CARDINALITY;
+        this.maxClassesCardinality = in.readVInt();
     }
 
     @Override
@@ -149,6 +149,7 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(maxClassesCardinality);
     }
 
     @Override

@@ -436,12 +436,20 @@ public class OptimizerTests extends ESTestCase {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
         assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
+
+        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        IsNull isNull = new IsNull(EMPTY, cast);
+        assertEquals(isNull, foldNull.rule(isNull));
     }
 
     public void testNullFoldingIsNotNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNotNull(EMPTY, TRUE)).fold());
         assertEquals(false, foldNull.rule(new IsNotNull(EMPTY, NULL)).fold());
+
+        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        IsNotNull isNotNull = new IsNotNull(EMPTY, cast);
+        assertEquals(isNotNull, foldNull.rule(isNotNull));
     }
 
     public void testGenericNullableExpression() {
@@ -459,6 +467,18 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), NULL)));
         // regex
         assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, "123")));
+    }
+
+    public void testNullFoldingOnCast() {
+        FoldNull foldNull = new FoldNull();
+
+        Cast cast = new Cast(EMPTY, NULL, randomFrom(DataType.values()));
+        assertEquals(Nullability.TRUE, cast.nullable());
+        assertNull(foldNull.rule(cast).fold());
+
+        cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        assertEquals(Nullability.UNKNOWN, cast.nullable());
+        assertEquals(cast, foldNull.rule(cast));
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {

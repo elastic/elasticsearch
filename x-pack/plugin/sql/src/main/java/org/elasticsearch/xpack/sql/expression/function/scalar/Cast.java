@@ -66,7 +66,7 @@ public class Cast extends UnaryScalarFunction {
         if (from().isNull()) {
             return Nullability.TRUE;
         }
-        return field().nullable();
+        return Nullability.UNKNOWN;
     }
 
     @Override

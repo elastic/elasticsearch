@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -80,6 +81,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -142,6 +144,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -210,6 +213,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -500,6 +504,83 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertEquals(shards, snapshotInfo.successfulShards());
             assertEquals(0, snapshotInfo.failedShards());
         }
+    }
+
+    public void testConcurrentSnapshotDeleteAndDeleteIndex() throws IOException {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+
+        TestClusterNodes.TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<Collection<CreateIndexResponse>> createIndicesListener = new StepListener<>();
+        final int indices = randomIntBetween(5, 20);
+
+        final SetOnce<Index> firstIndex = new SetOnce<>();
+        continueOrDie(createRepoAndIndex(repoName, index, 1), createIndexResponse -> {
+            firstIndex.set(masterNode.clusterService.state().metaData().index(index).getIndex());
+            // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
+            // finalization
+            final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(createIndicesListener, indices);
+            for (int i = 0; i < indices; ++i) {
+                client().admin().indices().create(new CreateIndexRequest("index-" + i), listener);
+            }
+        });
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        final boolean partialSnapshot = randomBoolean();
+
+        continueOrDie(createIndicesListener, createIndexResponses ->
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(false)
+                .setPartial(partialSnapshot).execute(createSnapshotResponseStepListener));
+
+        continueOrDie(createSnapshotResponseStepListener,
+            createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    if (partialSnapshot) {
+                        // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
+                        client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (partialSnapshot) {
+                        throw new AssertionError("Delete index should always work during partial snapshots", e);
+                    }
+                }
+            }));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        if (partialSnapshot) {
+            // Single shard for each index so we either get all indices or all except for the deleted index
+            assertThat(snapshotInfo.successfulShards(), either(is(indices + 1)).or(is(indices)));
+            if (snapshotInfo.successfulShards() == indices + 1) {
+                final IndexMetaData indexMetaData =
+                    repository.getSnapshotIndexMetaData(snapshotInfo.snapshotId(), repositoryData.resolveIndexId(index));
+                // Make sure we snapshotted the metadata of this index and not the recreated version
+                assertEquals(indexMetaData.getIndex(), firstIndex.get());
+            }
+        } else {
+            // Index delete must be blocked for non-partial snapshots and we get a snapshot for every index
+            assertEquals(snapshotInfo.successfulShards(), indices + 1);
+        }
+        assertEquals(0, snapshotInfo.failedShards());
     }
 
     /**

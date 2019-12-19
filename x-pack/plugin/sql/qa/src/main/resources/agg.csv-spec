@@ -657,6 +657,29 @@ SELECT COUNT(first_name)=COUNT(DISTINCT first_name) AS areEqual, COUNT(first_nam
 true           |90             |90
 ;
 
+aggCountWithNull
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l|languages:bt
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages), languages FROM test_emp GROUP BY languages ORDER BY languages DESC;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)|   languages   
+---------------+---------------+-------------------------+---------------
+null           |21             |1                        |5              
+null           |18             |1                        |4              
+null           |17             |1                        |3              
+null           |19             |1                        |2              
+null           |15             |1                        |1              
+null           |10             |0                        |null          
+;
+
+aggCountZeroDocuments
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages) FROM test_emp WHERE languages > 100;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)
+---------------+---------------+-------------------------
+null           |0              |0
+;
+
 aggCountAllEquality
 schema::areEqual:b|afn:l
 SELECT COUNT(first_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn FROM test_emp;

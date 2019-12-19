@@ -90,10 +90,7 @@ sudo zypper modifyrepo --enable elasticsearch && \
 <2> Use `dnf` on Fedora and other newer Red Hat distributions.
 <3> Use `zypper` on OpenSUSE based distributions
 
-[NOTE]
-==================================================
-
-The configured repository is disabled by default. This eliminates the possibility of accidentally
+NOTE: The configured repository is disabled by default. This eliminates the possibility of accidentally
 upgrading `elasticsearch` when upgrading the rest of the system. Each install or upgrade command
 must explicitly enable the repository as indicated in the sample commands above.
 

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.node.Node;
@@ -84,7 +85,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading node metadata");
-        final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
+        final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
         if (nodeMetaData == null) {
             throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
         }

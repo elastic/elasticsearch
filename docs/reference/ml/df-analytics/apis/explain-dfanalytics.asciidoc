@@ -12,6 +12,7 @@ Explains a {dataframe-analytics-config}.
 
 experimental[]
 
+
 [[ml-explain-dfanalytics-request]]
 ==== {api-request-title}
 
@@ -23,21 +24,27 @@ experimental[]
 
 `POST _ml/data_frame/analytics/<data_frame_analytics_id>/_explain`
 
+
 [[ml-explain-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
 * You must have `monitor_ml` privilege to use this API. For more
 information, see <<security-privileges>> and <<built-in-roles>>.
 
+
 [[ml-explain-dfanalytics-desc]]
 ==== {api-description-title}
 
-This API provides explanations for a {dataframe-analytics-config} that either exists already or one that has not been created yet.
+This API provides explanations for a {dataframe-analytics-config} that either 
+exists already or one that has not been created yet.
 The following explanations are provided:
 
-* which fields are included or not in the analysis and why
-* how much memory is estimated to be required. The estimate can be used when deciding the appropriate value for `model_memory_limit` setting later on.
+* which fields are included or not in the analysis and why,
+* how much memory is estimated to be required. The estimate can be used when 
+  deciding the appropriate value for `model_memory_limit` setting later on,
+
 about either an existing {dfanalytics-job} or one that has not been created yet.
+
 
 [[ml-explain-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -46,13 +53,14 @@ about either an existing {dfanalytics-job} or one that has not been created yet.
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
+
 [[ml-explain-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 `data_frame_analytics_config`::
-  (Optional, object) Intended configuration of {dfanalytics-job}. For more information, see
-  <<ml-dfanalytics-resources>>.
-  Note that `id` and `dest` don't need to be provided in the context of this API.
+  (Optional, object) Intended configuration of {dfanalytics-job}. Note that `id` 
+  and `dest` don't need to be provided in the context of this API.
+
 
 [[ml-explain-dfanalytics-results]]
 ==== {api-response-body-title}
@@ -60,38 +68,13 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 The API returns a response that contains the following:
 
 `field_selection`::
-  (array) An array of objects that explain selection for each field, sorted by the field names.
-   Each object in the array has the following properties:
-
-  `name`:::
-    (string) The field name.
-
-  `mapping_types`:::
-    (string) The mapping types of the field.
-
-  `is_included`:::
-    (boolean) Whether the field is selected to be included in the analysis.
-
-  `is_required`:::
-    (boolean) Whether the field is required.
-
-  `feature_type`:::
-    (string) The feature type of this field for the analysis. May be `categorical` or `numerical`.
-
-  `reason`:::
-    (string) The reason a field is not selected to be included in the analysis.
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=field-selection]
 
 `memory_estimation`::
-  (object) An object containing the memory estimates. The object has the following properties:
+(object) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=memory-estimation]
 
-  `expected_memory_without_disk`:::
-    (string) Estimated memory usage under the assumption that the whole {dfanalytics} should happen in memory
-    (i.e. without overflowing to disk).
-
-  `expected_memory_with_disk`:::
-    (string) Estimated memory usage under the assumption that overflowing to disk is allowed during {dfanalytics}.
-    `expected_memory_with_disk` is usually smaller than `expected_memory_without_disk` as using disk allows to
-    limit the main memory needed to perform {dfanalytics}.
 
 [[ml-explain-dfanalytics-example]]
 ==== {api-examples-title}
@@ -113,6 +96,7 @@ POST _ml/data_frame/analytics/_explain
 }
 --------------------------------------------------
 // TEST[skip:TBD]
+
 
 The API returns the following results:
 

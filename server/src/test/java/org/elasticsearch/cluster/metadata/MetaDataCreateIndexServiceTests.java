@@ -56,9 +56,13 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -68,7 +72,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -458,26 +462,43 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testValidateIndexName() throws Exception {
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(testThreadPool),
+                null,
+                null,
+                null,
+                null,
+                null,
+                testThreadPool,
+                null,
+                Collections.emptyMap(),
+                false
+            );
+            validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
-        validateIndexName("index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validateIndexName(checkerService, "index#name", "must not contain '#'");
 
-        validateIndexName("index#name", "must not contain '#'");
+            validateIndexName(checkerService, "_indexname", "must not start with '_', '-', or '+'");
+            validateIndexName(checkerService, "-indexname", "must not start with '_', '-', or '+'");
+            validateIndexName(checkerService, "+indexname", "must not start with '_', '-', or '+'");
 
-        validateIndexName("_indexname", "must not start with '_', '-', or '+'");
-        validateIndexName("-indexname", "must not start with '_', '-', or '+'");
-        validateIndexName("+indexname", "must not start with '_', '-', or '+'");
+            validateIndexName(checkerService, "INDEXNAME", "must be lowercase");
 
-        validateIndexName("INDEXNAME", "must be lowercase");
+            validateIndexName(checkerService, "..", "must not be '.' or '..'");
 
-        validateIndexName("..", "must not be '.' or '..'");
-
-        validateIndexName("foo:bar", "must not contain ':'");
+            validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+        } finally {
+            testThreadPool.shutdown();
+        }
     }
 
-    private void validateIndexName(String indexName, String errorMessage) {
+    private void validateIndexName(MetaDataCreateIndexService metaDataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
-            () -> MetaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-                .getDefault(Settings.EMPTY)).build(), Collections.emptySet()));
+            () -> metaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+                .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
@@ -541,22 +562,35 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testValidateIndexNameChecksSystemIndexNames() {
-        // Check deprecations
-        MetaDataCreateIndexService.validateIndexName(".test", ClusterState.EMPTY_STATE, null);
-        assertWarnings("index name [.test] starts with a dot '.', in the next major version, creating indices with " +
-            "names starting with a dot will fail as these names are reserved for system indices");
-        MetaDataCreateIndexService.validateIndexName(".test2", ClusterState.EMPTY_STATE, Collections.emptySet());
-        assertWarnings("index name [.test2] starts with a dot '.', in the next major version, creating indices with " +
-            "names starting with a dot will fail as these names are reserved for system indices");
-        MetaDataCreateIndexService.validateIndexName(".test3", ClusterState.EMPTY_STATE,
-            new HashSet<>(Arrays.asList(".test1", ".test2", ".foobar")));
-        assertWarnings("index name [.test3] starts with a dot '.', in the next major version, creating indices with " +
-            "names starting with a dot will fail as these names are reserved for system indices");
+        Map<String, SystemIndexDescriptor> systemIndexDescriptors = new HashMap<>();
+        systemIndexDescriptors.put(".test", new SystemIndexDescriptor(".test", "test"));
+        systemIndexDescriptors.put(".test3", new SystemIndexDescriptor(".test3", "test"));
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(testThreadPool),
+                null,
+                null,
+                null,
+                null,
+                null,
+                testThreadPool,
+                null,
+                systemIndexDescriptors,
+                false
+            );
+            // Check deprecations
+            checkerService.validateIndexName(".test2", ClusterState.EMPTY_STATE);
+            assertWarnings("index name [.test2] starts with a dot '.', in the next major version, creating indices with " +
+                "names starting with a dot will fail as these names are reserved for system indices");
 
-        // Check NO deprecation warnings if we give the index name
-        MetaDataCreateIndexService.validateIndexName(".test4", ClusterState.EMPTY_STATE, new HashSet<>(Arrays.asList(".test4")));
-        MetaDataCreateIndexService.validateIndexName(".test5", ClusterState.EMPTY_STATE,
-            new HashSet<>(Arrays.asList(".foo", ".bar", ".baz", ".test5", ".quux")));
+            // Check NO deprecation warnings if we give the index name
+            checkerService.validateIndexName(".test", ClusterState.EMPTY_STATE);
+            checkerService.validateIndexName(".test3", ClusterState.EMPTY_STATE);
+        } finally {
+            testThreadPool.shutdown();
+        }
     }
 
     public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {

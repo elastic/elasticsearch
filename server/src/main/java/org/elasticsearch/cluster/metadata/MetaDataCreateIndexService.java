@@ -148,14 +148,13 @@ public class MetaDataCreateIndexService {
 
     /**
      * Validate the name for an index against some static rules and a cluster state.
-     * Set of allowed system index names is *optional* - provide it only if you want to allow certain dot-prefixed names.
      */
-    public static void validateIndexName(String index, ClusterState state, @Nullable final Set<String> allowedSystemIndices) {
+    public void validateIndexName(String index, ClusterState state) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
-        if (index.charAt(0) == '.' && (Objects.isNull(allowedSystemIndices) || allowedSystemIndices.contains(index) == false)) {
+        if (index.charAt(0) == '.' && (Objects.isNull(systemIndexDescriptors) || systemIndexDescriptors.containsKey(index) == false)) {
             deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
                 "names starting with a dot will fail as these names are reserved for system indices", index);
         }
@@ -657,7 +656,7 @@ public class MetaDataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        validateIndexName(request.index(), state, systemIndexDescriptors.keySet());
+        validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 

@@ -271,13 +271,12 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetDocWithMultivaluedFields() throws Exception {
-        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("field").field("type", "text").field("store", true).endObject()
-                .endObject()
                 .endObject().endObject());
         assertAcked(prepareCreate("test")
-                .addMapping("type1", mapping1, XContentType.JSON));
+                .setMapping(mapping1));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "1").get();

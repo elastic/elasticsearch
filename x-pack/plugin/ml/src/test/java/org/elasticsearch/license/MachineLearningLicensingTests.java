@@ -152,7 +152,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         // test that license restricted apis do not work
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-            client().execute(PutDatafeedAction.INSTANCE, 
+            client().execute(PutDatafeedAction.INSTANCE,
                 new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), listener);
             listener.actionGet();
         });
@@ -166,7 +166,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         // test that license restricted apis do now work
         PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-        client().execute(PutDatafeedAction.INSTANCE, 
+        client().execute(PutDatafeedAction.INSTANCE,
                 new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), listener);
         PutDatafeedAction.Response response = listener.actionGet();
         assertNotNull(response);
@@ -177,8 +177,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).addMapping("type", "{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}",
-            XContentType.JSON).get();
+        prepareCreate(datafeedIndex).setMapping("{\"properties\":{\"time\":{\"type\":\"date\"}}}").get();
 
         // put job
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
@@ -187,7 +186,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         assertNotNull(putJobResponse);
         // put datafeed
         PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
-        client().execute(PutDatafeedAction.INSTANCE, 
+        client().execute(PutDatafeedAction.INSTANCE,
                 new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
                         Collections.singletonList(datafeedIndex))), putDatafeedListener);
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
@@ -276,15 +275,14 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).addMapping("type", "{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}",
-            XContentType.JSON).get();
+        prepareCreate(datafeedIndex).setMapping("{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}").get();
         // test that license restricted apis do now work
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
         PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
-        client().execute(PutDatafeedAction.INSTANCE, 
+        client().execute(PutDatafeedAction.INSTANCE,
                 new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
                         Collections.singletonList(datafeedIndex))), putDatafeedListener);
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
@@ -340,15 +338,14 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).addMapping("type", "{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}",
-            XContentType.JSON).get();
+        prepareCreate(datafeedIndex).setMapping("{\"_doc\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}").get();
         // test that license restricted apis do now work
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
         PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
-        client().execute(PutDatafeedAction.INSTANCE, 
+        client().execute(PutDatafeedAction.INSTANCE,
                 new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
                         Collections.singletonList(datafeedIndex))), putDatafeedListener);
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
@@ -358,7 +355,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         AcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
         PlainActionFuture<AcknowledgedResponse> startDatafeedListener = PlainActionFuture.newFuture();
-        client().execute(StartDatafeedAction.INSTANCE, 
+        client().execute(StartDatafeedAction.INSTANCE,
             new StartDatafeedAction.Request(datafeedId, 0L), startDatafeedListener);
         AcknowledgedResponse startDatafeedResponse = startDatafeedListener.actionGet();
         assertNotNull(startDatafeedResponse);
@@ -457,7 +454,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
         PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
-        client().execute(PutDatafeedAction.INSTANCE, 
+        client().execute(PutDatafeedAction.INSTANCE,
                 new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
                         Collections.singletonList(jobId))), putDatafeedListener);
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();

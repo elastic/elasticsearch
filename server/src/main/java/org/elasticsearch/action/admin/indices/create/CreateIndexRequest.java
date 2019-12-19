@@ -236,17 +236,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
-     * @param xContentType The content type of the source
-     */
-    public CreateIndexRequest mapping(String type, String source, XContentType xContentType) {
-        return mapping(type, new BytesArray(source), xContentType);
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
      * @param xContentType the content type of the mapping source
      */
     private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {

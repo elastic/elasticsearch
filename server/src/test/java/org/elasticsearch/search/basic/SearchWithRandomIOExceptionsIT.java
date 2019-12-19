@@ -32,7 +32,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
@@ -61,12 +60,10 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject().
-            startObject("type").
             startObject("properties").
             startObject("test")
             .field("type", "keyword")
             .endObject().
-                endObject().
                 endObject()
             .endObject());
         final double exceptionRate;
@@ -98,7 +95,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).get();
+                .setMapping(mapping).get();
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
@@ -121,7 +118,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).get();
+                .setMapping(mapping).get();
         }
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
             // it's OK to timeout here

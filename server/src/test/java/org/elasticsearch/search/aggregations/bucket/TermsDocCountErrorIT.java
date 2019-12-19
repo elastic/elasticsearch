@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -89,7 +88,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         }
         numRoutingValues = between(1,40);
         assertAcked(prepareCreate("idx_with_routing")
-            .addMapping("type", "{ \"type\" : { \"_routing\" : { \"required\" : true } } }", XContentType.JSON));
+            .setMapping("{ \"_routing\" : { \"required\" : true } }"));
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex("idx_single_shard").setId("" + i)
                 .setRouting(String.valueOf(randomInt(numRoutingValues)))

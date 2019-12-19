@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -2722,7 +2721,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testACopyFieldWithNestedQuery() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("properties")
                     .startObject("foo")
                         .field("type", "nested")
                         .startObject("properties")
@@ -2737,8 +2736,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field("term_vector", "with_positions_offsets")
                         .field("store", true)
                     .endObject()
-                .endObject().endObject().endObject());
-        prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
+                .endObject().endObject());
+        prepareCreate("test").setMapping(mapping).get();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().startArray("foo")
                     .startObject().field("text", "brown").endObject()
@@ -2833,7 +2832,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testWithNestedQuery() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("properties")
             .startObject("text")
                 .field("type", "text")
                 .field("index_options", "offsets")
@@ -2847,8 +2846,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject()
-            .endObject().endObject().endObject());
-        prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
+            .endObject().endObject());
+        prepareCreate("test").setMapping(mapping).get();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
             .startArray("foo")

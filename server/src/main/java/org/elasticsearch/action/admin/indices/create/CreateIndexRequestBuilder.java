@@ -96,12 +96,10 @@ public class CreateIndexRequestBuilder
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
-     * @param xContentType The content type of the source
      */
-    public CreateIndexRequestBuilder addMapping(String type, String source, XContentType xContentType) {
-        request.mapping(type, source, xContentType);
+    public CreateIndexRequestBuilder setMapping(String source) {
+        request.mapping(source);
         return this;
     }
 

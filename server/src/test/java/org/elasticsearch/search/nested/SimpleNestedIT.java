@@ -522,8 +522,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testNestedSortWithMultiLevelFiltering() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("type1", "{\n"
-                + "  \"type1\": {\n"
+            .setMapping("{\n"
                 + "    \"properties\": {\n"
                 + "      \"acl\": {\n"
                 + "        \"type\": \"nested\",\n"
@@ -545,8 +544,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 + "        }\n"
                 + "      }\n"
                 + "    }\n"
-                + "  }\n"
-                + "}", XContentType.JSON));
+                + "}"));
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource("{\n"
@@ -738,7 +736,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     public void testLeakingSortValues() throws Exception {
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder().put("number_of_shards", 1))
-            .addMapping("test-type", "{\n"
+            .setMapping("{\"_doc\":{\n"
                     + "        \"dynamic\": \"strict\",\n"
                     + "        \"properties\": {\n"
                     + "          \"nested1\": {\n"
@@ -758,7 +756,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                     + "            }\n"
                     + "          }\n"
                     + "        }\n"
-                    + "      }\n", XContentType.JSON));
+                    + "      }}\n"));
             ensureGreen();
 
             client().prepareIndex("test").setId("1").setSource("{\n"

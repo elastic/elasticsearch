@@ -25,11 +25,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -223,13 +221,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisWithAliasesInLikeDocuments() throws Exception {
         String indexName = "foo";
         String aliasName = "foo_name";
-        String typeName = "bar";
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
-        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate(indexName).get();
         client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -249,11 +242,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     }
 
     public void testMoreLikeThisIssue2197() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("foo").get();
         client().prepareIndex("foo").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .get();
@@ -272,11 +261,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #2489
     public void testMoreLikeWithCustomRouting() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("foo").get();
         ensureGreen();
 
         client().prepareIndex("foo").setId("1")
@@ -293,13 +278,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject());
         assertAcked(prepareCreate("foo", 2,
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("bar", mapping, XContentType.JSON));
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
 
         client().prepareIndex("foo").setId("1")

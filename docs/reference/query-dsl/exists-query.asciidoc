@@ -33,7 +33,7 @@ GET /_search
 `field`::
 (Required, string) Name of the field you wish to search.
 +
-While a field is deemed non-existant if the JSON value is `null` or `[]`, these
+While a field is deemed non-existent if the JSON value is `null` or `[]`, these
 values will indicate the field does exist:
 +
 * Empty strings, such as `""` or `"-"`

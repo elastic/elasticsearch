@@ -233,7 +233,7 @@ locations for an RPM-based system:
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
-    be overriden by setting the `JAVA_HOME` environment variable
+    be overridden by setting the `JAVA_HOME` environment variable
     in `/etc/sysconfig/elasticsearch`.
   | /usr/share/elasticsearch/jdk
  d|

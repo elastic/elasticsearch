@@ -61,7 +61,7 @@ and reject the whole document.
 Like `geo_shape`, the `shape` field type is indexed by decomposing geometries into
 a triangular mesh and indexing each triangle as a 7 dimension point in a BKD tree.
 The coordinates provided to the indexer are single precision floating point values so
-the field guarantess the same accuracy provided by the java virtual machine (typically
+the field guarantees the same accuracy provided by the java virtual machine (typically
 `1E-38`). For polygons/multi-polygons the performance of the tessellator primarily
 depends on the number of vertices that define the geometry.
 

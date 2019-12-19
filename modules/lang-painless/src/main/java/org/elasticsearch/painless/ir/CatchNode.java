@@ -21,67 +21,65 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
-import java.util.Set;
-
 public class CatchNode extends StatementNode {
 
-    /* --- begin tree structure --- */
+    /* ---- begin tree structure ---- */
 
     protected DeclarationNode declarationNode;
+    protected BlockNode blockNode;
 
-    public void setChildNode(ExpressionNode declarationNode) {
+    public CatchNode setDeclarationNode(DeclarationNode declarationNode) {
         this.declarationNode = declarationNode;
+        return this;
     }
 
-    public ExpressionNode getChildNode() {
+    public DeclarationNode getDeclarationNode() {
         return declarationNode;
     }
 
-    /* --- end tree structure, begin node data --- */
-
-    protected final Location location;
-    protected boolean allEscape;
-
-    /* --- end node date --- */
-
-    public CatchNode(Location location) {
-        this.location = Objects.requireNonNull(location);
+    public CatchNode setBlockNode(BlockNode blockNode) {
+        this.blockNode = blockNode;
+        return this;
     }
 
+    public BlockNode getBlockNode() {
+        return blockNode;
+    }
 
+    /* ---- end tree structure ---- */
+
+    public CatchNode() {
+        // do nothing
+    }
 
     Label begin = null;
     Label end = null;
     Label exception = null;
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
         Label jump = new Label();
 
         methodWriter.mark(jump);
-        methodWriter.visitVarInsn(
-                MethodWriter.getType(declaration.variable.clazz).getOpcode(Opcodes.ISTORE), declaration.variable.getSlot());
+        methodWriter.visitVarInsn(MethodWriter.getType(
+                declarationNode.getCaptured().clazz).getOpcode(Opcodes.ISTORE),
+                declarationNode.getCaptured().getSlot());
 
-        if (block != null) {
-            block.continu = continu;
-            block.brake = brake;
-            block.write(classWriter, methodWriter, globals);
+        if (blockNode != null) {
+            blockNode.continueLabel = continueLabel;
+            blockNode.breakLabel = breakLabel;
+            blockNode.write(classWriter, methodWriter, globals);
         }
 
-        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declaration.variable.clazz).getInternalName());
+        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declarationNode.getCaptured().clazz).getInternalName());
 
-        if (exception != null && (block == null || !block.allEscape)) {
+        if (exception != null && (blockNode == null || blockNode.allEscape == false)) {
             methodWriter.goTo(exception);
         }
     }

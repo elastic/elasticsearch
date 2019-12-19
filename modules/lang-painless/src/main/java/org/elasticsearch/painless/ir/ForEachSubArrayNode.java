@@ -17,65 +17,92 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Objects;
-import java.util.Set;
+public class ForEachSubArrayNode extends LoopNode {
 
-/**
- * Represents a for-each loop for arrays.
- */
-final class SSubEachArray extends AStatement {
-    private final Variable variable;
-    private AExpression expression;
-    private final SBlock block;
+    /* ---- being tree structure ---- */
 
-    private PainlessCast cast = null;
-    private Variable array = null;
-    private Variable index = null;
-    private Class<?> indexed = null;
+    protected TypeNode indexedTypeNode;
 
-    SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
-        super(location);
+    public void setIndexedTypeNode(TypeNode indexedTypeNode) {
+        this.indexedTypeNode = indexedTypeNode;
+    }
 
-        this.variable = Objects.requireNonNull(variable);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+    public TypeNode getIndexedTypeNode() {
+        return indexedTypeNode;
+    }
+
+    public Class<?> getIndexedType() {
+        return indexedTypeNode.getType();
+    }
+
+    public String getIndexedCanonicalTypeName() {
+        return indexedTypeNode.getCanonicalTypeName();
+    }
+
+    /* ---- begin node data ---- */
+
+    protected Variable variable;
+    protected PainlessCast cast;
+    protected Variable array;
+    protected Variable index;
+
+    public ForEachSubArrayNode setVariable(Variable variable) {
+        this.variable = variable;
+        return this;
+    }
+
+    public Variable getVariable() {
+        return this.variable;
+    }
+
+    public ForEachSubArrayNode setCast(PainlessCast cast) {
+        this.cast = cast;
+        return this;
+    }
+
+    public PainlessCast getCast() {
+        return cast;
+    }
+
+    public ForEachSubArrayNode setArray(Variable array) {
+        this.array = array;
+        return this;
+    }
+
+    public Variable getArray() {
+        return this.array;
+    }
+
+    public ForEachSubArrayNode setIndex(Variable index) {
+        this.index = index;
+        return this;
+    }
+
+    public Variable getIndex() {
+        return this.index;
+    }
+
+    /* ---- end node data ---- */
+
+    ForEachSubArrayNode() {
+        // do nothing
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        // We must store the array and index as variables for securing slots on the stack, and
-        // also add the location offset to make the names unique in case of nested for each loops.
-        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);
-        index = locals.addVariable(location, int.class, "#index" + location.getOffset(), true);
-        indexed = expression.actual.getComponentType();
-        cast = AnalyzerCaster.getLegalCast(location, indexed, variable.clazz, true, true);
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
-        expression.write(classWriter, methodWriter, globals);
+        conditionNode.write(classWriter, methodWriter, globals);
         methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
         methodWriter.push(-1);
         methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
@@ -93,24 +120,19 @@ final class SSubEachArray extends AStatement {
 
         methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
         methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.arrayLoad(MethodWriter.getType(indexed));
+        methodWriter.arrayLoad(MethodWriter.getType(getIndexedType()));
         methodWriter.writeCast(cast);
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            methodWriter.writeLoopCounter(loopCounter.getSlot(), blockNode.getStatementCount(), location);
         }
 
-        block.continu = begin;
-        block.brake = end;
-        block.write(classWriter, methodWriter, globals);
+        blockNode.continueLabel = begin;
+        blockNode.breakLabel = end;
+        blockNode.write(classWriter, methodWriter, globals);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
     }
 }

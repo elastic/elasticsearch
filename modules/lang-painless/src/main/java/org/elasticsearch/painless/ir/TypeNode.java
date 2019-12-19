@@ -21,12 +21,15 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
-public class TypeNode implements IRNode {
+public class TypeNode extends IRNode {
 
-    protected final Class<?> type;
+    /* ---- begin node data ---- */
 
-    public TypeNode(Class<?> type) {
+    protected Class<?> type;
+
+    public TypeNode setType(Class<?> type) {
         this.type = type;
+        return this;
     }
 
     public Class<?> getType() {
@@ -35,5 +38,11 @@ public class TypeNode implements IRNode {
 
     public String getCanonicalTypeName() {
         return PainlessLookupUtility.typeToCanonicalTypeName(type);
+    }
+
+    /* ---- end node data ---- */
+
+    public TypeNode() {
+        // do nothing
     }
 }

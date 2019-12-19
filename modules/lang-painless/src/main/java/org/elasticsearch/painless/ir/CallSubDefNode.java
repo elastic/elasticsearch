@@ -28,16 +28,16 @@ import org.objectweb.asm.Type;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CallDefNode extends ArgumentsNode {
+public class CallSubDefNode extends ArgumentsNode {
 
     /* ---- begin node data ---- */
 
     protected String name;
     protected String recipe;
     protected List<String> pointers;
-    protected List<Class<?>> parameterTypes;
+    protected List<Class<?>> typeParameters;
 
-    public CallDefNode setName(String name) {
+    public CallSubDefNode setName(String name) {
         this.name = name;
         return this;
     }
@@ -46,7 +46,7 @@ public class CallDefNode extends ArgumentsNode {
         return name;
     }
 
-    public CallDefNode setRecipe(String recipe) {
+    public CallSubDefNode setRecipe(String recipe) {
         this.recipe = recipe;
         return this;
     }
@@ -55,12 +55,12 @@ public class CallDefNode extends ArgumentsNode {
         return recipe;
     }
 
-    public CallDefNode addPointer(String pointer) {
+    public CallSubDefNode addPointer(String pointer) {
         pointers.add(pointer);
         return this;
     }
 
-    public CallDefNode setPointer(int index, String pointer) {
+    public CallSubDefNode setPointer(int index, String pointer) {
         pointers.set(index, pointer);
         return this;
     }
@@ -69,12 +69,12 @@ public class CallDefNode extends ArgumentsNode {
         return pointers.get(index);
     }
 
-    public CallDefNode removePointer(String pointer) {
+    public CallSubDefNode removePointer(String pointer) {
         pointers.remove(pointer);
         return this;
     }
 
-    public CallDefNode removePointer(int index) {
+    public CallSubDefNode removePointer(int index) {
         pointers.remove(index);
         return this;
     }
@@ -87,51 +87,51 @@ public class CallDefNode extends ArgumentsNode {
         return pointers;
     }
 
-    public CallDefNode clearPointers() {
+    public CallSubDefNode clearPointers() {
         pointers.clear();
         return this;
     }
 
-    public CallDefNode addParameterType(Class<?> parameterType) {
-        parameterTypes.add(parameterType);
+    public CallSubDefNode addTypeParameter(Class<?> typeParameter) {
+        typeParameters.add(typeParameter);
         return this;
     }
 
-    public CallDefNode setParameterType(int index, Class<?> parameterType) {
-        parameterTypes.set(index, parameterType);
+    public CallSubDefNode setTypeParameter(int index, Class<?> typeParameter) {
+        typeParameters.set(index, typeParameter);
         return this;
     }
 
-    public Class<?> getParameterType(int index) {
-        return parameterTypes.get(index);
+    public Class<?> getTypeParameter(int index) {
+        return typeParameters.get(index);
     }
 
-    public CallDefNode removeParameterType(Class<?> parameterType) {
-        parameterTypes.remove(parameterType);
+    public CallSubDefNode removeTypeParameter(Class<?> typeParameter) {
+        typeParameters.remove(typeParameter);
         return this;
     }
 
-    public CallDefNode removeParameterType(int index) {
-        parameterTypes.remove(index);
+    public CallSubDefNode removeTypeParameter(int index) {
+        typeParameters.remove(index);
         return this;
     }
 
-    public int getParameterTypesSize() {
-        return parameterTypes.size();
+    public int getTypeParametersSize() {
+        return typeParameters.size();
     }
 
-    public List<Class<?>> getParameterTypes() {
-        return parameterTypes;
+    public List<Class<?>> getTypeParameters() {
+        return typeParameters;
     }
 
-    public CallDefNode clearParameterTypes() {
-        parameterTypes.clear();
+    public CallSubDefNode clearTypeParameters() {
+        typeParameters.clear();
         return this;
     }
     
     /* ---- end node data ---- */
 
-    public CallDefNode() {
+    public CallSubDefNode() {
         // do nothing
     }
 
@@ -144,9 +144,9 @@ public class CallDefNode extends ArgumentsNode {
         }
 
         // create method type from return value and arguments
-        Type[] asmParameterTypes = new Type[parameterTypes.size()];
+        Type[] asmParameterTypes = new Type[typeParameters.size()];
         for (int index = 0; index < asmParameterTypes.length; ++index) {
-            asmParameterTypes[index] = Type.getType(parameterTypes.get(index));
+            asmParameterTypes[index] = Type.getType(typeParameters.get(index));
         }
         Type methodType = Type.getMethodType(MethodWriter.getType(getType()), asmParameterTypes);
 

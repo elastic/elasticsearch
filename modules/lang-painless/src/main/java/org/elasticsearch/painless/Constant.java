@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import java.util.function.Consumer;
 
 /**
- * A constant initializer to be added to the class file.
+ * A constant initializerNode to be added to the class file.
  */
 public class Constant {
     public final Location location;

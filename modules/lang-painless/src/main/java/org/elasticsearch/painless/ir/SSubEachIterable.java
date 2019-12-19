@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.node;
+package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
@@ -28,6 +28,7 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.ir.LoopNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -47,10 +48,8 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 /**
  * Represents a for-each loop for iterables.
  */
-final class SSubEachIterable extends AStatement {
+final class ForEachSubIterableNode extends LoopNode {
 
-    private AExpression expression;
-    private final SBlock block;
     private final Variable variable;
 
     private PainlessCast cast = null;
@@ -66,32 +65,7 @@ final class SSubEachIterable extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        // We must store the iterator as a variable for securing a slot on the stack, and
-        // also add the location offset to make the name unique in case of nested for each loops.
-        iterator = locals.addVariable(location, Iterator.class, "#itr" + location.getOffset(), true);
-
-        if (expression.actual == def.class) {
-            method = null;
-        } else {
-            method = scriptRoot.getPainlessLookup().lookupPainlessMethod(expression.actual, false, "iterator", 0);
-
-            if (method == null) {
-                    throw createError(new IllegalArgumentException(
-                            "method [" + typeToCanonicalTypeName(expression.actual) + ", iterator/0] not found"));
-            }
-        }
-
-        cast = AnalyzerCaster.getLegalCast(location, def.class, variable.clazz, true, true);
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeStatementOffset(location);
 
         expression.write(classWriter, methodWriter, globals);
@@ -130,10 +104,5 @@ final class SSubEachIterable extends AStatement {
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
     }
 }

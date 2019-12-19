@@ -19,14 +19,18 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.MethodWriter;
 
-public abstract class StatementNode extends IRNode {
+public class ContinueNode extends StatementNode {
 
-    protected Label continueLabel = null;
-    protected Label breakLabel = null;
-
-    public StatementNode() {
+    public ContinueNode() {
         // do nothing
+    }
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.goTo(continueLabel);
     }
 }

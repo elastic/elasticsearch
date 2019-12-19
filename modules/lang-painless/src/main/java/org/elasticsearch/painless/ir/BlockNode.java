@@ -69,7 +69,30 @@ public class BlockNode extends StatementNode {
         return this;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    protected boolean doAllEscape;
+    protected int statementCount;
+
+    public BlockNode setAllEscape(boolean doAllEscape) {
+        this.doAllEscape = doAllEscape;
+        return this;
+    }
+
+    public boolean doAllEscape() {
+        return doAllEscape;
+    }
+
+    public BlockNode setStatementCount(int statementCount) {
+        this.statementCount = statementCount;
+        return this;
+    }
+
+    public int getStatementCount() {
+        return statementCount;
+    }
+
+    /* ---- end node data ---- */
 
     public BlockNode() {
         // do nothing

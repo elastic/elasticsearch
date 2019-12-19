@@ -22,29 +22,54 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 
-import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class RegexNode extends ExpressionNode {
 
-    protected final Location location;
-    protected final String pattern;
-    protected final int flags;
-    protected final Constant constant;
+    /* ---- begin node data ---- */
 
-    public RegexNode(Location location, String pattern, int flags, Constant constant) {
-        this.location = Objects.requireNonNull(location);
-        this.pattern = Objects.requireNonNull(pattern);
+    protected String pattern;
+    protected int flags;
+    protected Constant constant;
+
+    public RegexNode setPattern(String pattern) {
+        this.pattern = pattern;
+        return this;
+    }
+
+    public String getPattern() {
+        return pattern;
+    }
+
+    public RegexNode setFlags(int flags) {
         this.flags = flags;
-        this.constant = Objects.requireNonNull(constant);
+        return this;
+    }
+
+    public int getFlags() {
+        return flags;
+    }
+
+    public RegexNode setConstant(Constant constant) {
+        this.constant = constant;
+        return this;
+    }
+
+    public Object getConstant() {
+        return constant;
+    }
+
+    /* ---- end node data ---- */
+
+    public RegexNode() {
+        // do nothing
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.getStatic(WriterConstants.CLASS_TYPE, constant.name, org.objectweb.asm.Type.getType(Pattern.class));
@@ -57,7 +82,7 @@ public class RegexNode extends ExpressionNode {
         writer.invokeStatic(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_COMPILE);
     }
 
-    private int flagForChar(char c) {
+    protected int flagForChar(char c) {
         switch (c) {
             case 'c': return Pattern.CANON_EQ;
             case 'i': return Pattern.CASE_INSENSITIVE;

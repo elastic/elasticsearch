@@ -19,14 +19,35 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.MethodWriter;
 
-public abstract class StatementNode extends IRNode {
+public class ReturnNode extends StatementNode {
 
-    protected Label continueLabel = null;
-    protected Label breakLabel = null;
+    protected ExpressionNode expressionNode;
 
-    public StatementNode() {
+    public ReturnNode setExpressionNode(ExpressionNode expressionNode) {
+        this.expressionNode = expressionNode;
+        return this;
+    }
+
+    public ExpressionNode getExpressionNode() {
+        return expressionNode;
+    }
+
+    public ReturnNode() {
         // do nothing
+    }
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
+
+        if (expressionNode != null) {
+            expressionNode.write(classWriter, methodWriter, globals);
+        }
+
+        methodWriter.returnValue();
     }
 }

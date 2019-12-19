@@ -19,14 +19,31 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
-public abstract class StatementNode extends IRNode {
+public class IfNode extends ConditionNode {
 
-    protected Label continueLabel = null;
-    protected Label breakLabel = null;
-
-    public StatementNode() {
+    public IfNode() {
         // do nothing
+    }
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
+
+        Label fals = new Label();
+
+        conditionNode.write(classWriter, methodWriter, globals);
+        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
+
+        blockNode.continueLabel = continueLabel;
+        blockNode.breakLabel = breakLabel;
+        blockNode.write(classWriter, methodWriter, globals);
+
+        methodWriter.mark(fals);
     }
 }

@@ -292,7 +292,7 @@ public final class SClass extends AStatement {
         if (false == globals.getConstantInitializers().isEmpty()) {
             Collection<Constant> inits = globals.getConstantInitializers().values();
 
-            // Initialize the constants in a static initializer
+            // Initialize the constants in a static initializerNode
             final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
                     WriterConstants.CLINIT, classVisitor, globals.getStatements(), settings);
             clinit.visitCode();

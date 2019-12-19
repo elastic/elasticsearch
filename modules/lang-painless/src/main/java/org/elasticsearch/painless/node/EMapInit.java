@@ -68,7 +68,7 @@ public final class EMapInit extends AExpression {
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (!read) {
-            throw createError(new IllegalArgumentException("Must read from map initializer."));
+            throw createError(new IllegalArgumentException("Must read from map initializerNode."));
         }
 
         actual = HashMap.class;

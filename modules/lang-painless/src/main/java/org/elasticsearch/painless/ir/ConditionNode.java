@@ -19,14 +19,34 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.objectweb.asm.Label;
+public abstract class ConditionNode extends StatementNode {
 
-public abstract class StatementNode extends IRNode {
+    /* ---- begin tree structure ---- */
 
-    protected Label continueLabel = null;
-    protected Label breakLabel = null;
+    protected ExpressionNode conditionNode;
+    protected BlockNode blockNode;
 
-    public StatementNode() {
+    public ConditionNode setConditionNode(ExpressionNode conditionNode) {
+        this.conditionNode = conditionNode;
+        return this;
+    }
+
+    public ExpressionNode getConditionNode() {
+        return conditionNode;
+    }
+
+    public ConditionNode setBlockNode(BlockNode blockNode) {
+        this.blockNode = blockNode;
+        return this;
+    }
+
+    public BlockNode getBlockNode() {
+        return blockNode;
+    }
+
+    /* ---- end tree structure ---- */
+
+    public ConditionNode() {
         // do nothing
     }
 }

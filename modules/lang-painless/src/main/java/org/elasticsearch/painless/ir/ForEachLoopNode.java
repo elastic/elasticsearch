@@ -19,14 +19,33 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.MethodWriter;
 
-public abstract class StatementNode extends IRNode {
+public class ForEachLoopNode extends StatementNode {
 
-    protected Label continueLabel = null;
-    protected Label breakLabel = null;
+    /* ---- begin tree structure ---- */
 
-    public StatementNode() {
+    protected ConditionNode conditionNode;
+
+    public ForEachLoopNode setConditionNode(ConditionNode conditionNode) {
+        this.conditionNode = conditionNode;
+        return this;
+    }
+
+    public ConditionNode getConditionNode() {
+        return conditionNode;
+    }
+
+    /* ---- end tree structure ---- */
+
+    public ForEachLoopNode() {
         // do nothing
+    }
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        conditionNode.write(classWriter, methodWriter, globals);
     }
 }

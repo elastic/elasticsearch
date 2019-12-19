@@ -19,14 +19,36 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Locals.Variable;
 
-public abstract class StatementNode extends IRNode {
+public abstract class LoopNode extends ConditionNode {
 
-    protected Label continueLabel = null;
-    protected Label breakLabel = null;
+    /* ---- begin node data ---- */
 
-    public StatementNode() {
+    protected boolean isContinuous;
+    protected Variable loopCounter;
+
+    public LoopNode setContinuous(boolean isContinuous) {
+        this.isContinuous = isContinuous;
+        return this;
+    }
+
+    public boolean isContinuous() {
+        return isContinuous;
+    }
+
+    public LoopNode setLoopCounter(Variable loopCounter) {
+        this.loopCounter = loopCounter;
+        return this;
+    }
+
+    public Variable getLoopCounter() {
+        return loopCounter;
+    }
+
+    /* ---- end node data ---- */
+
+    public LoopNode() {
         // do nothing
     }
 }

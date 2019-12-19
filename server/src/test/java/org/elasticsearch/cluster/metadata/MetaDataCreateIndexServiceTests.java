@@ -19,8 +19,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,39 +41,89 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.hamcrest.Matchers;
+import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.aggregateIndexSettings;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.buildIndexMetaData;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.clusterStateCreateIndex;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.getIndexNumberOfRoutingShards;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.parseMappings;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.hasValue;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
+
+    private AliasValidator aliasValidator;
+    private CreateIndexClusterStateUpdateRequest request;
+    private QueryShardContext queryShardContext;
+
+    @Before
+    public void setupCreateIndexRequestAndAliasValidator() {
+        aliasValidator = new AliasValidator();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        queryShardContext = new QueryShardContext(0,
+            new IndexSettings(IndexMetaData.builder("test").settings(indexSettings).build(), indexSettings),
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, () -> randomNonNegativeLong(), null, null);
+    }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
         int numRoutingShards = settings.getAsInt(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), numShards);
@@ -484,6 +537,326 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             currentShards,
             maxShards);
         assertThat(e, hasToString(containsString(expectedMessage)));
+    }
+
+    public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {
+        IndexTemplateMetaData templateMetaData = addMatchingTemplate(templateBuilder -> {
+            templateBuilder.putAlias(AliasMetaData.builder("alias1"));
+            templateBuilder.putMapping("_doc", createMapping("mapping_from_template", "text"));
+        });
+        request.mappings(createMapping("mapping_from_request", "text").string());
+
+        Map<String, Object> parsedMappings = MetaDataCreateIndexService.parseMappings(request.mappings(), List.of(templateMetaData),
+            NamedXContentRegistry.EMPTY);
+
+        assertThat(parsedMappings, hasKey("_doc"));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get("_doc");
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> mappingsProperties = (Map<String, Object>) doc.get("properties");
+        assertThat(mappingsProperties, hasKey("mapping_from_request"));
+        assertThat(mappingsProperties, hasKey("mapping_from_template"));
+    }
+
+    public void testAggregateSettingsAppliesSettingsFromTemplatesAndRequest() {
+        IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("template_setting", "value1"));
+        });
+        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templatesBuilder = ImmutableOpenMap.builder();
+        templatesBuilder.put("template_1", templateMetaData);
+        MetaData metaData = new MetaData.Builder().templates(templatesBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY))
+            .metaData(metaData)
+            .build();
+        request.settings(Settings.builder().put("request_setting", "value2").build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, List.of(templateMetaData), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+
+        assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
+        assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
+    }
+
+    public void testInvalidAliasName() {
+        final String[] invalidAliasNames = new String[] { "-alias1", "+alias2", "_alias3", "a#lias", "al:ias", ".", ".." };
+        String aliasName = randomFrom(invalidAliasNames);
+        request.aliases(Set.of(new Alias(aliasName)));
+
+        expectThrows(InvalidAliasNameException.class, () ->
+            resolveAndValidateAliases(request.index(), request.aliases(), List.of(), MetaData.builder().build(),
+                aliasValidator, xContentRegistry(), queryShardContext)
+        );
+    }
+
+    public void testRequestDataHavePriorityOverTemplateData() throws Exception {
+        CompressedXContent templateMapping = createMapping("test", "text");
+        CompressedXContent reqMapping = createMapping("test", "keyword");
+
+        IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> builder
+            .putAlias(AliasMetaData.builder("alias").searchRouting("fromTemplate").build())
+            .putMapping("_doc", templateMapping)
+            .settings(Settings.builder().put("key1", "templateValue"))
+        );
+
+        request.mappings(reqMapping.string());
+        request.aliases(Set.of(new Alias("alias").searchRouting("fromRequest")));
+        request.settings(Settings.builder().put("key1", "requestValue").build());
+
+        Map<String, Object> parsedMappings = MetaDataCreateIndexService.parseMappings(request.mappings(), List.of(templateMetaData),
+            xContentRegistry());
+        List<AliasMetaData> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(), List.of(templateMetaData),
+            MetaData.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(templateMetaData), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+
+        assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
+        assertThat(aggregatedIndexSettings.get("key1"), equalTo("requestValue"));
+        assertThat(parsedMappings, hasKey("_doc"));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get("_doc");
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> mappingsProperties = (Map<String, Object>) doc.get("properties");
+        assertThat(mappingsProperties, hasKey("test"));
+        assertThat((Map<String, Object>) mappingsProperties.get("test"), hasValue("keyword"));
+    }
+
+    public void testDefaultSettings() {
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
+    }
+
+    public void testSettingsFromClusterState() {
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+            null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
+    }
+
+    public void testTemplateOrder() throws Exception {
+        List<IndexTemplateMetaData> templates = new ArrayList<>(3);
+        templates.add(addMatchingTemplate(builder -> builder
+            .order(3)
+            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 12))
+            .putAlias(AliasMetaData.builder("alias1").writeIndex(true).searchRouting("3").build())
+        ));
+        templates.add(addMatchingTemplate(builder -> builder
+            .order(2)
+            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 11))
+            .putAlias(AliasMetaData.builder("alias1").searchRouting("2").build())
+        ));
+        templates.add(addMatchingTemplate(builder -> builder
+            .order(1)
+            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10))
+            .putAlias(AliasMetaData.builder("alias1").searchRouting("1").build())
+        ));
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templates, Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        List<AliasMetaData> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(), templates,
+            MetaData.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
+        AliasMetaData alias = resolvedAliases.get(0);
+        assertThat(alias.getSearchRouting(), equalTo("3"));
+        assertThat(alias.writeIndex(), is(true));
+    }
+
+    public void testAggregateIndexSettingsIgnoresTemplatesOnCreateFromSourceIndex() throws Exception {
+        CompressedXContent templateMapping = createMapping("test", "text");
+
+        IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> builder
+            .putAlias(AliasMetaData.builder("alias").searchRouting("fromTemplate").build())
+            .putMapping("_doc", templateMapping)
+            .settings(Settings.builder().put("templateSetting", "templateValue"))
+        );
+
+        request.settings(Settings.builder().put("requestSetting", "requestValue").build());
+        request.resizeType(ResizeType.SPLIT);
+        request.recoverFrom(new Index("sourceIndex", UUID.randomUUID().toString()));
+        ClusterState clusterState =
+            createClusterState("sourceIndex", 1, 0,
+                Settings.builder().put("index.blocks.write", true).build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, List.of(templateMetaData), Map.of(),
+            clusterState.metaData().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+
+        assertThat(aggregatedIndexSettings.get("templateSetting"), is(nullValue()));
+        assertThat(aggregatedIndexSettings.get("requestSetting"), is("requestValue"));
+    }
+
+    public void testClusterStateCreateIndexThrowsWriteIndexValidationException() throws Exception {
+        IndexMetaData existingWriteIndex = IndexMetaData.builder("test2")
+            .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
+            .numberOfShards(1).numberOfReplicas(0).build();
+        ClusterState currentClusterState =
+            ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().put(existingWriteIndex, false).build()).build();
+
+        IndexMetaData newIndex = IndexMetaData.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
+            .build();
+
+        assertThat(
+            expectThrows(IllegalStateException.class,
+                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, (state, reason) -> state)).getMessage(),
+            startsWith("alias [alias1] has more than one write index [")
+        );
+    }
+
+    public void testClusterStateCreateIndex() {
+        ClusterState currentClusterState =
+            ClusterState.builder(ClusterState.EMPTY_STATE).build();
+
+        IndexMetaData newIndexMetaData = IndexMetaData.builder("test")
+            .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
+            .build();
+
+        // used as a value container, not for the concurrency and visibility guarantees
+        AtomicBoolean allocationRerouted = new AtomicBoolean(false);
+        BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable = (clusterState, reason) -> {
+            allocationRerouted.compareAndSet(false, true);
+            return clusterState;
+        };
+
+        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetaData,
+            rerouteRoutingTable);
+        assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
+        assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
+        assertThat(allocationRerouted.get(), is(true));
+    }
+
+    public void testParseMappingsWithTypedTemplateAndTypelessIndexMapping() throws Exception {
+        IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping("type", "{\"type\": {}}");
+            } catch (IOException e) {
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+        });
+
+        Map<String, Object> mappings = parseMappings("{\"_doc\":{}}", List.of(templateMetaData), xContentRegistry());
+        assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testParseMappingsWithTypedTemplate() throws Exception {
+        IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping("type",
+                    "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
+            } catch (IOException e) {
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+        });
+        Map<String, Object> mappings = parseMappings("", List.of(templateMetaData), xContentRegistry());
+        assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testParseMappingsWithTypelessTemplate() throws Exception {
+        IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}");
+            } catch (IOException e) {
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+        });
+        Map<String, Object> mappings = parseMappings("", List.of(templateMetaData), xContentRegistry());
+        assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testBuildIndexMetadata() {
+        IndexMetaData sourceIndexMetaData = IndexMetaData.builder("parent")
+            .settings(Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .primaryTerm(0, 3L)
+            .build();
+
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_SOFT_DELETES_SETTING.getKey(), false)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        List<AliasMetaData> aliases = List.of(AliasMetaData.builder("alias1").build());
+        IndexMetaData indexMetaData = buildIndexMetaData("test", aliases, () -> null, indexSettings, 4, sourceIndexMetaData);
+
+        assertThat(indexMetaData.getSettings().getAsBoolean(INDEX_SOFT_DELETES_SETTING.getKey(), true), is(false));
+        assertThat(indexMetaData.getAliases().size(), is(1));
+        assertThat(indexMetaData.getAliases().keys().iterator().next().value, is("alias1"));
+        assertThat("The source index primary term must be used", indexMetaData.primaryTerm(0), is(3L));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .build();
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat("When the target routing number of shards is not specified the expected value is the configured number of shards " +
+            "multiplied by 2 at most ten times (ie. 3 * 2^8)", targetRoutingNumberOfShards, is(768));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsWhenExplicitlyConfigured() {
+        Settings indexSettings = Settings.builder()
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), 9)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .build();
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShards, is(9));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsYieldsSourceNumberOfShards() {
+        Settings indexSettings = Settings.builder()
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .build();
+
+        IndexMetaData sourceIndexMetaData = IndexMetaData.builder("parent")
+            .settings(Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .build())
+            .numberOfShards(6)
+            .numberOfReplicas(0)
+            .build();
+
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, sourceIndexMetaData);
+        assertThat(targetRoutingNumberOfShards, is(6));
+    }
+
+    private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {
+        IndexTemplateMetaData.Builder builder = templateMetaDataBuilder("template1", "te*");
+        configurator.accept(builder);
+        return builder.build();
+    }
+
+    private IndexTemplateMetaData.Builder templateMetaDataBuilder(String name, String pattern) {
+        return IndexTemplateMetaData
+            .builder(name)
+            .patterns(Collections.singletonList(pattern));
+    }
+
+    private CompressedXContent createMapping(String fieldName, String fieldType) {
+        try {
+            final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject(fieldName)
+                .field("type", fieldType)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject());
+
+            return new CompressedXContent(mapping);
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
 }

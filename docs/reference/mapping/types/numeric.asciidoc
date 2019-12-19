@@ -149,6 +149,10 @@ The following parameters are accepted by numeric types:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
+
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`
 

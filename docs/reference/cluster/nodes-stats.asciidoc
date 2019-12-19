@@ -895,6 +895,33 @@ Total number of buffer pool classes loaded since the JVM started.
 (integer)
 Total number of buffer pool classes unloaded since the JVM started.
 
+[[cluster-nodes-stats-api-response-body-threadpool]]
+===== `thread_pool` section
+
+`thread_pool.<thread_pool_name>.threads`::
+(integer)
+Number of threads in the thread pool.
+
+`thread_pool.<thread_pool_name>.queue`::
+(integer)
+Number of tasks in queue for the thread pool.
+
+`thread_pool.<thread_pool_name>.active`::
+(integer)
+Number of active threads in the thread pool.
+
+`thread_pool.<thread_pool_name>.rejected`::
+(integer)
+Number of tasks rejected by the thread pool executor.
+
+`thread_pool.<thread_pool_name>.largest`::
+(integer)
+Highest number of active threads in the thread pool.
+
+`thread_pool.<thread_pool_name>.completed`::
+(integer)
+Number of tasks completed by the thread pool executor.
+
 [[cluster-nodes-stats-api-response-body-ingest]]
 ===== `ingest` section
 
@@ -915,31 +942,31 @@ Total number of buffer pool classes unloaded since the JVM started.
     (integer)
     Total number of failed ingest operations during the lifetime of this node.
 
-`ingest.pipelines.<pipeline-id>.count`::
+`ingest.pipelines.<pipeline_id>.count`::
     (integer)
     Number of documents preprocessed by the ingest pipeline.
 
-`ingest.pipelines.<pipeline-id>.time_in_millis`::
+`ingest.pipelines.<pipeline_id>.time_in_millis`::
     (integer)
     Total time spent preprocessing documents in the ingest pipeline.
 
-`ingest.pipelines.<pipeline-id>.failed`::
+`ingest.pipelines.<pipeline_id>.failed`::
     (integer)
     Total number of failed operations for the ingest pipeline.
 
-`ingest.pipelines.<pipeline-id>.<processor>.count`::
+`ingest.pipelines.<pipeline_id>.<processor>.count`::
     (integer)
     Number of documents transformed by the processor.
 
-`ingest.pipelines.<pipeline-id>.<processor>.time_in_millis`::
+`ingest.pipelines.<pipeline_id>.<processor>.time_in_millis`::
     (integer)
     Time spent by the processor transforming documents.
 
-`ingest.pipelines.<pipeline-id>.<processor>.current`::
+`ingest.pipelines.<pipeline_id>.<processor>.current`::
     (integer)
     Number of documents currently being transformed by the processor.
 
-`ingest.pipelines.<pipeline-id>.<processor>.failed`::
+`ingest.pipelines.<pipeline_id>.<processor>.failed`::
     (integer)
     Number of failed operations for the processor.
 

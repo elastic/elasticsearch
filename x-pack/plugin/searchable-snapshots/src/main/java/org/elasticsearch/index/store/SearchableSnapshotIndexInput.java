@@ -113,7 +113,15 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
     @Override
     public BufferedIndexInput clone() {
-        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length);
+        final SearchableSnapshotIndexInput clone =
+            new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length);
+        try {
+            clone.seek(getFilePointer());
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to seek after cloning", e);
+        }
+        assert clone.getFilePointer() == getFilePointer();
+        return clone;
     }
 
     @Override

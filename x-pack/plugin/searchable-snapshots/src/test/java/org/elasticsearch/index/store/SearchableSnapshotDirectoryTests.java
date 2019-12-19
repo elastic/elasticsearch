@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -75,6 +76,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@Repeat(iterations = 100)
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
     public void testListAll() throws Exception {
@@ -226,7 +228,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
      * - creates a {@link SearchableSnapshotDirectory} instance based on the snapshotted files
      * - consumes the default and the searchable snapshot directories using the {@link CheckedBiConsumer}.
      */
-    private void testDirectories(final CheckedBiConsumer<Directory, Directory, Exception> consumer) throws Exception {
+    static void testDirectories(final CheckedBiConsumer<Directory, SearchableSnapshotDirectory, Exception> consumer) throws Exception {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_index", Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
             .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
@@ -260,7 +262,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 writer.commit();
             }
 
-            final ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
+            final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName());
             releasables.add(() -> terminate(threadPool));
 
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -292,7 +294,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     new Environment(Settings.builder()
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                         .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
-                        .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build(), null),
+                        .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build(), null),
                     NamedXContentRegistry.EMPTY, BlobStoreTestUtil.mockClusterService(repositoryMetaData));
                 repository.start();
                 releasables.add(repository::stop);
@@ -311,7 +313,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
-                try (Directory snapshotDirectory = new SearchableSnapshotDirectory(snapshot, blobContainer)) {
+                try (SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(snapshot, blobContainer)) {
                     consumer.accept(directory, snapshotDirectory);
                 }
             } finally {
@@ -346,5 +348,15 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         assertThat(reason
                 + "\n\t  actual index input: " + actual.toString()
                 + "\n\texpected index input: " + expected.toString(), eval.apply(actual), equalTo(eval.apply(expected)));
+    }
+
+    static String randomFile(final Directory directory) throws Exception {
+        while (true) {
+            final String fileName = randomFrom(directory.listAll());
+            if (fileName.startsWith("extra") || fileName.equals("write.lock")) {
+                continue;
+            }
+            return fileName;
+        }
     }
 }

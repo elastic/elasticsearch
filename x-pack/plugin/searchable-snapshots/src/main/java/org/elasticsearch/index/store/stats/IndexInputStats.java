@@ -16,8 +16,10 @@ public class IndexInputStats {
     private final long sliceCount;
     private final long cloneCount;
 
-    private final Counter forwardSeeks;
-    private final Counter backwardSeeks;
+    private final Counter forwardSmallSeeks;
+    private final Counter backwardSmallSeeks;
+    private final Counter forwardLargeSeeks;
+    private final Counter backwardLargeSeeks;
     private final Counter totalSeeks;
 
     private final Counter contiguousReads;
@@ -25,19 +27,24 @@ public class IndexInputStats {
     private final Counter totalReads;
 
     public IndexInputStats(final long length, final long openings, final long closings, final long slicings, final long clonings,
-                           final Counter forwardSeeks, final Counter backwardSeeks,
+                           final Counter forwardSmallSeeks, final Counter backwardSmallSeeks,
+                           final Counter forwardLargeSeeks, final Counter backwardLargeSeeks,
                            final Counter contiguousReads, final Counter nonContiguousReads) {
         this.length = length;
         this.openCount = openings;
         this.closeCount = closings;
         this.sliceCount = slicings;
         this.cloneCount = clonings;
-        this.forwardSeeks = Objects.requireNonNull(forwardSeeks);
-        this.backwardSeeks = Objects.requireNonNull(backwardSeeks);
-        this.totalSeeks = Counter.merge(forwardSeeks, backwardSeeks);
+        this.forwardSmallSeeks = Objects.requireNonNull(forwardSmallSeeks);
+        this.backwardSmallSeeks = Objects.requireNonNull(backwardSmallSeeks);
+        this.forwardLargeSeeks = Objects.requireNonNull(forwardLargeSeeks);
+        this.backwardLargeSeeks = Objects.requireNonNull(backwardLargeSeeks);
         this.contiguousReads = Objects.requireNonNull(contiguousReads);
         this.nonContiguousReads = Objects.requireNonNull(nonContiguousReads);
         this.totalReads = Counter.merge(contiguousReads, nonContiguousReads);
+        Counter totalSmallSeeks = Counter.merge(forwardSmallSeeks, backwardSmallSeeks);
+        Counter totalLargeSeeks = Counter.merge(forwardLargeSeeks, backwardLargeSeeks);
+        this.totalSeeks = Counter.merge(totalSmallSeeks, totalLargeSeeks);
     }
 
     /**
@@ -76,17 +83,31 @@ public class IndexInputStats {
     }
 
     /**
-     * @return the {@link Counter} associated with forward seeks.
+     * @return the {@link Counter} associated with small forward seeks.
      */
-    public Counter getForwardSeeks() {
-        return forwardSeeks;
+    public Counter getForwardSmallSeeks() {
+        return forwardSmallSeeks;
     }
 
     /**
-     * @return the {@link Counter} associated with backward seeks.
+     * @return the {@link Counter} associated with small backward seeks.
      */
-    public Counter getBackwardSeeks() {
-        return backwardSeeks;
+    public Counter getBackwardSmallSeeks() {
+        return backwardSmallSeeks;
+    }
+
+    /**
+     * @return the {@link Counter} associated with large forward seeks.
+     */
+    public Counter getForwardLargeSeeks() {
+        return forwardLargeSeeks;
+    }
+
+    /**
+     * @return the {@link Counter} associated with large backward seeks.
+     */
+    public Counter getBackwardLargeSeeks() {
+        return backwardLargeSeeks;
     }
 
     /**
@@ -169,6 +190,36 @@ public class IndexInputStats {
          */
         public double getAverage() {
             return count == 0L ? 0.0d : (double) total / count;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other)  {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            Counter counter = (Counter) other;
+            return count == counter.count &&
+                total == counter.total &&
+                min == counter.min &&
+                max == counter.max;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(count, total, min, max);
+        }
+
+        @Override
+        public String toString() {
+            return "Counter{" +
+                "count=" + count +
+                ", total=" + total +
+                ", min=" + min +
+                ", max=" + max +
+                '}';
         }
 
         static Counter merge(final Counter first, final Counter... others) {

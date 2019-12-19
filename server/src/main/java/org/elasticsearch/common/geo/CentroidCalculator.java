@@ -114,11 +114,17 @@ public class CentroidCalculator {
         return sumY / sumWeight;
     }
 
-    double sumWeight() {
+    /**
+     * @return the sum of all the weighted coordinates summed in the calculator
+     */
+    public double sumWeight() {
         return sumWeight;
     }
 
-    DimensionalShapeType getDimensionalShapeType() {
+    /**
+     * @return the highest dimensional shape type summed in the calculator
+     */
+    public DimensionalShapeType getDimensionalShapeType() {
         return dimensionalShapeType;
     }
 
@@ -145,6 +151,8 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Line line) {
+            // a line's centroid is calculated by summing the center of each
+            // line segment weighted by the line segment's length in degrees
             for (int i = 0; i < line.length() - 1; i++) {
                 double diffX = line.getX(i) - line.getX(i + 1);
                 double diffY = line.getY(i) - line.getY(i + 1);
@@ -157,21 +165,29 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(LinearRing ring) {
-            throw new UnsupportedOperationException("should not visit LinearRing");
-        }
+            // implementation of calculation defined in
+            // https://www.seas.upenn.edu/~sys502/extra_materials/Polygon%20Area%20and%20Centroid.pdf
+            //
+            // centroid of a ring is a weighted coordinate based on the ring's area.
+            // sign of area is determined by orientation: positive for CCW, negative for CW.
 
-        /**
-         * visits a {@link LinearRing} with an associated sign to signal whether it is
-         * an inner or outer ring of a {@link Polygon}.
-         *
-         * @param ring the ring to visit
-         * @param sign 1 for outer-ring, -1 for inner-ring.
-         */
-        private void visitSignedRing(LinearRing ring, int sign) {
+            double totalRingArea = 0.0;
             for (int i = 0; i < ring.length() - 1; i++) {
-                double weight = ring.getX(i + 1) * ring.getY(i) - ring.getX(i) * ring.getY(i + 1);
-                calculator.addCoordinate((ring.getX(i) + ring.getX(i + 1)) / 2, (ring.getY(i) + ring.getY(i + 1)) / 2, sign * weight);
+                totalRingArea += (ring.getX(i) * ring.getY(i + 1)) - (ring.getX(i + 1) * ring.getY(i));
             }
+
+            totalRingArea = totalRingArea / 2;
+
+            double sumX = 0.0;
+            double sumY = 0.0;
+            for (int i = 0; i < ring.length() - 1; i++) {
+                double twiceArea = (ring.getX(i) * ring.getY(i + 1)) - (ring.getX(i + 1) * ring.getY(i));
+                sumX += twiceArea * (ring.getX(i) + ring.getX(i + 1));
+                sumY += twiceArea * (ring.getY(i) + ring.getY(i + 1));
+            }
+            calculator.addCoordinate(sumX / (6 * totalRingArea), sumY / (6 * totalRingArea), totalRingArea);
+
+            return null;
         }
 
         @Override
@@ -206,9 +222,9 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Polygon polygon) {
-            visitSignedRing(polygon.getPolygon(), 1);
+            visit(polygon.getPolygon());
             for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                visitSignedRing(polygon.getHole(i), -1);
+                visit(polygon.getHole(i));
             }
             return null;
         }

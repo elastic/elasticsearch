@@ -20,14 +20,18 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CentroidCalculatorTests extends ESTestCase {
 
-    public void test() {
+    public void testLine() {
         double[] y = new double[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         double[] x = new double[] { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
         double[] yRunningAvg = new double[] { 1, 1.5, 2.0, 2.5, 3, 3.5, 4, 4.5, 5, 5.5 };
@@ -51,5 +55,23 @@ public class CentroidCalculatorTests extends ESTestCase {
         calculator.addFrom(otherCalculator);
         assertEquals(55.0, calculator.getX(), 0.0000001);
         assertEquals(5.5, calculator.getY(), 0.0000001);
+    }
+
+    public void testPolyonWithHole() throws Exception {
+        Polygon polyWithHole = new Polygon(new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50}),
+            Collections.singletonList(new LinearRing(new double[]{-30, -30, 30, 30, -30}, new double[]{-30, 30, 30, -30, -30})));
+        CentroidCalculator calculator = new CentroidCalculator(polyWithHole);
+        assertThat(calculator.getX(), equalTo(0.0));
+        assertThat(calculator.getY(), equalTo(0.0));
+        assertThat(calculator.sumWeight(), equalTo(6400.0));
+    }
+
+    public void testPolygonWithEqualSizedHole() {
+        Polygon polyWithHole = new Polygon(new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50}),
+            Collections.singletonList(new LinearRing(new double[]{-50, -50, 50, 50, -50}, new double[]{-50, 50, 50, -50, -50})));
+        CentroidCalculator calculator = new CentroidCalculator(polyWithHole);
+        assertThat(calculator.getX(), equalTo(Double.NaN));
+        assertThat(calculator.getY(), equalTo(Double.NaN));
+        assertThat(calculator.sumWeight(), equalTo(0.0));
     }
 }

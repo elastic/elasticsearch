@@ -185,7 +185,7 @@ public abstract class MultiGeoValues {
 
         @Override
         public double lat() {
-            return reader.getUnweightedCentroidY();
+            return reader.getCentroidY();
         }
 
         /**
@@ -193,7 +193,7 @@ public abstract class MultiGeoValues {
          */
         @Override
         public double lon() {
-            return reader.getUnweightedCentroidX();
+            return reader.getCentroidX();
         }
 
         public static GeoShapeValue missing(String missing) {

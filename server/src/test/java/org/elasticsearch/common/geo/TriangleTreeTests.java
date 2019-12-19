@@ -54,12 +54,13 @@ public class TriangleTreeTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDimensionalShapeType() throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         assertDimensionalShapeType(randomPoint(false), DimensionalShapeType.POINT);
         assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.MULTIPOINT);
         assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINESTRING);
         assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.MULTILINESTRING);
-        assertDimensionalShapeType(randomPolygon(false), DimensionalShapeType.POLYGON);
-        assertDimensionalShapeType(randomMultiPolygon(false), DimensionalShapeType.MULTIPOLYGON);
+        assertDimensionalShapeType(indexer.prepareForIndexing(randomPolygon(false)), DimensionalShapeType.POLYGON);
+        assertDimensionalShapeType(indexer.prepareForIndexing(randomMultiPolygon(false)), DimensionalShapeType.MULTIPOLYGON);
         assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randomFrom(
             new GeometryCollection<>(List.of(randomPoint(false))),
@@ -74,10 +75,10 @@ public class TriangleTreeTests extends ESTestCase {
                 new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_LINES);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), randomPolygon(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiPolygon(false))),
+            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), indexer.prepareForIndexing(randomPolygon(false)))),
+            new GeometryCollection<>(List.of(randomMultiPoint(false), indexer.prepareForIndexing(randomMultiPolygon(false)))),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomLine(false), randomPolygon(false))))))
+                new GeometryCollection<>(List.of(randomLine(false), indexer.prepareForIndexing(randomPolygon(false)))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS);
     }
 
@@ -98,8 +99,8 @@ public class TriangleTreeTests extends ESTestCase {
             // centroid is calculated using original double values but then loses precision as it is serialized as an integer
             int encodedCentroidX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(((double) minX + maxX) / 2);
             int encodedCentroidY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(((double) minY + maxY) / 2);
-            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX), reader.getUnweightedCentroidX(), 0.0000001);
-            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY), reader.getUnweightedCentroidY(), 0.0000001);
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeX(encodedCentroidX), reader.getCentroidX(), 0.0000001);
+            assertEquals(GeoShapeCoordinateEncoder.INSTANCE.decodeY(encodedCentroidY), reader.getCentroidY(), 0.0000001);
 
             // box-query touches bottom-left corner
             assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(minX - randomIntBetween(1, 180 + minX),
@@ -152,11 +153,11 @@ public class TriangleTreeTests extends ESTestCase {
     public void testPacManPolygon() throws Exception {
         // pacman
         double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
-        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
+        double[] py = {0, -5, -9, -10, -9, 0, 9, 10, 9, 5, 0};
 
         // test cell crossing poly
-        TriangleTreeReader reader = triangleTreeReader(new Polygon(new LinearRing(py, px), Collections.emptyList()),
-            TestCoordinateEncoder.INSTANCE);
+        Polygon pacMan = new Polygon(new LinearRing(py, px), Collections.emptyList());
+        TriangleTreeReader reader = triangleTreeReader(pacMan, TestCoordinateEncoder.INSTANCE);
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(2, -1, 11, 1));
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-12, -12, 12, 12));
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-2, -1, 2, 0));

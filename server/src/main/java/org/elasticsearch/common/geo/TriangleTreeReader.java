@@ -31,10 +31,26 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  *
  * This class supports checking bounding box
  * relations against the serialized triangle tree.
+ *
+ * -----------------------------------------
+ * |   The binary format of the tree       |
+ * -----------------------------------------
+ * -----------------------------------------  --
+ * |    centroid-x-coord (4 bytes)         |    |
+ * -----------------------------------------    |
+ * |    centroid-y-coord (4 bytes)         |    |
+ * -----------------------------------------    |
+ * |    DimensionalShapeType (1 byte)      |    | Centroid-related header
+ * -----------------------------------------    |
+ * |  Sum of weights (VLong 1-8 bytes)     |    |
+ * -----------------------------------------  --
+ * |         Extent (var-encoding)         |
+ * -----------------------------------------
+ * |         Triangle Tree                 |
+ * -----------------------------------------
+ * -----------------------------------------
  */
 public class TriangleTreeReader {
-    private static final int CENTROID_HEADER_SIZE_IN_BYTES = 17; // x-coord (4), y-coord (4), shape-type (1), sum-weight (8)
-
     private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Rectangle2D rectangle2D;
@@ -59,7 +75,9 @@ public class TriangleTreeReader {
     public Extent getExtent() {
         if (treeOffset == 0) {
             // TODO: Compress serialization of extent
-            input.setPosition(CENTROID_HEADER_SIZE_IN_BYTES);
+
+            getSumCentroidWeight(); // skip CENTROID_HEADER + var-long sum-weight
+
             int top = input.readInt();
             int bottom = Math.toIntExact(top - input.readVLong());
             int posRight = input.readInt();
@@ -77,7 +95,7 @@ public class TriangleTreeReader {
     /**
      * returns the X coordinate of the centroid.
      */
-    public double getUnweightedCentroidX() {
+    public double getCentroidX() {
         input.setPosition(0);
         return coordinateEncoder.decodeX(input.readInt());
     }
@@ -85,7 +103,7 @@ public class TriangleTreeReader {
     /**
      * returns the Y coordinate of the centroid.
      */
-    public double getUnweightedCentroidY() {
+    public double getCentroidY() {
         input.setPosition(4);
         return coordinateEncoder.decodeY(input.readInt());
     }
@@ -97,7 +115,7 @@ public class TriangleTreeReader {
 
     public double getSumCentroidWeight() {
         input.setPosition(9);
-        return Double.longBitsToDouble(input.readLong());
+        return Double.longBitsToDouble(input.readVLong());
     }
 
     /**

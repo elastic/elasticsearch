@@ -90,7 +90,10 @@ public class MetaDataIndexAliasesService {
             });
     }
 
-    ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
+     /**
+     * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
+     */
+    public ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
         try {

@@ -31,6 +31,11 @@ public class RolloverStep extends AsyncActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetaData.getSettings());

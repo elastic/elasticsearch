@@ -1004,6 +1004,39 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
        assertBusy(() -> assertTrue(indexExists(thirdIndex)));
    }
 
+    public void testILMRolloverRetriesIfRolloverIndexAlreadyExistsUntilIndexIsDeleted() throws Exception {
+        String firstIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null));
+
+        // create the second index so the rollover of the first index fails
+        createIndexWithSettings(
+            secondIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            false
+        );
+
+        createIndexWithSettings(
+            firstIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            true
+        );
+
+        // wait for ILM to start retrying the step
+        assertBusy(() -> assertThat((Integer) explainIndex(firstIndex).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)));
+
+        deleteIndex(secondIndex);
+
+        // the rollover step should now succeed
+        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex), equalTo(TerminalPolicyStep.KEY)));
+    }
+
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         String index = "index";
 

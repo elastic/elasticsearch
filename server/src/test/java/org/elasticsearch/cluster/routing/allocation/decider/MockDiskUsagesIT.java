@@ -24,12 +24,16 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
@@ -51,6 +55,8 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -213,6 +219,87 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             }
         });
         assertSearchHits(client().prepareSearch("test").get(), "1", "3");
+    }
+
+    public void testCancelExistingRecoveriesOnDiskPassingHighWatermark() throws Exception {
+
+        // start two data node
+        String node0 = internalCluster().startNode(Settings.builder()
+            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir())
+            .put("node.attr.tag", "node0").build());
+
+        String node1 = internalCluster().startNode(Settings.builder()
+            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir())
+            .put("node.attr.tag", "node1").build());
+
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
+        clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(50));
+        clusterInfoService.onMaster();
+
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+
+        // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
+        clusterInfoService.shardSizeFunction = shardRouting -> 0L;
+
+        // start with all nodes below the watermark
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+
+        final boolean watermarkBytes = randomBoolean(); // we have to consistently use bytes or percentage for the disk watermark settings
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
+            .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
+            .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), watermarkBytes ? "0b" : "100%")
+            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1s")
+            .put(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "10s")
+            .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1b")));
+        // Create an index with 2 shards with 1 replica, but only allow allocation on node0, so all replicas are left unassigned
+        final String index = "test";
+        assertAcked(prepareCreate(index).setSettings(Settings.builder()
+            .put("number_of_shards", 2)
+            .put("number_of_replicas", 1)
+            .put("refresh_interval", -1)
+            .put("index.routing.allocation.include.tag", "node0")));
+
+        // ensure yellow
+        assertBusy(() -> assertThat(client().admin().cluster().prepareHealth(index).get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
+
+        // index some docs
+        final int docCount = 100;
+        for (int i = 0; i < docCount; i++) {
+            index(index, "_doc", JsonXContent.contentBuilder().startObject().endObject());
+        }
+
+        // update routing allocation to include all nodes, so node1 should have allocated new replica
+        assertAcked(client().admin().indices().prepareUpdateSettings().setSettings(Settings.builder()
+            .put("index.routing.allocation.include.tag", "node0,node1").build()).get());
+
+
+        assertBusy(() -> {
+            final Map<String, Integer> shardCountByNodeId = getShardCountByNodeId(false, ShardRoutingState.INITIALIZING);
+            assertThat("node1 has more than one initializing replica shards", shardCountByNodeId.get(resolveNodeByName(node1, clusterState).nodeId()), greaterThanOrEqualTo(1));
+        });
+
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
+            discoveryNode.getId().equals(resolveNodeByName(node1, clusterState).nodeId()) ? between(0, 9) : between(10, 100));
+
+        clusterInfoService.refresh();
+
+        logger.info("--> waiting for shards to cancel recovery on node [{}]", resolveNodeByName(node1, clusterState).nodeId());
+        assertBusy(() -> {
+            final Map<String, Integer> shardCountByNodeId = getShardCountByNodeId(false, ShardRoutingState.INITIALIZING);
+            assertThat("node1 has 0 initializing replica shards", shardCountByNodeId.get(resolveNodeByName(node1, clusterState).nodeId()), equalTo(0));
+        });
+
+        // move all nodes below watermark again
+        logger.info("--> backup disk function");
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+        clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(1000));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "40MB")));
+
+        ensureGreen(index);
+
+        logger.info("test passed");
     }
 
     public void testOnlyMovesEnoughShardsToDropBelowHighWatermark() throws Exception {
@@ -424,6 +511,32 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
     private MockInternalClusterInfoService getMockInternalClusterInfoService() {
         return (MockInternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+    }
+
+    private Map<String, Integer> getShardCountByNodeId(boolean primary, ShardRoutingState... shardState) {
+        final Map<String, Integer> shardCountByNodeId = new HashMap<>();
+        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        for (final RoutingNode node : clusterState.getRoutingNodes()) {
+            List<ShardRouting> shards = node.shardsWithState(shardState);
+            int count = 0;
+            for (ShardRouting shardRouting : shards) {
+                if (shardRouting.primary() == primary) {
+                    count++;
+                }
+            }
+            shardCountByNodeId.put(node.nodeId(), count);
+            logger.info("----> node {} has {} {} shards. primary: {}", node.nodeId(), count, Arrays.toString(shardState), primary);
+        }
+        return shardCountByNodeId;
+    }
+
+    private RoutingNode resolveNodeByName(String nodeName, ClusterState state) {
+        for (RoutingNode routingNode : state.getRoutingNodes()) {
+            if (routingNode.node().getName().equals(nodeName)) {
+                return routingNode;
+            }
+        }
+        return null;
     }
 
 }

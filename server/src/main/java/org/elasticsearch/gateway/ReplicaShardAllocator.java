@@ -38,6 +38,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
@@ -76,6 +77,15 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
                 if (shard.unassignedInfo() != null && shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+                    if (canRemainOnCurrentNode(shard, allocation) == false) {
+                        // cancel new initializing replica if allocation deciders say no
+                        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                            "new replica allocation to [" + shard.currentNodeId() + "] cancelled by allocation deciders",
+                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, Sets.newHashSet(shard.currentNodeId()));
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
+                            metaData.getIndexSafe(shard.index()), allocation.changes()));
+                    }
                     continue;
                 }
 
@@ -119,12 +129,24 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
                             metaData.getIndexSafe(shard.index()), allocation.changes()));
                     }
+                } else if (canRemainOnCurrentNode(shard, allocation) == false) {
+                    // cancel replica recoveries if allocation deciders say no
+                    UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                        "existing allocation of replica to [" + shard.currentNodeId() + "] cancelled by allocation deciders",
+                        null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
+                        UnassignedInfo.AllocationStatus.NO_ATTEMPT, Sets.newHashSet(shard.currentNodeId()));
+                    shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
+                        metaData.getIndexSafe(shard.index()), allocation.changes()));
                 }
             }
         }
         for (Runnable action : shardCancellationActions) {
             action.run();
         }
+    }
+
+    private boolean canRemainOnCurrentNode(ShardRouting shard, RoutingAllocation allocation) {
+        return allocation.deciders().canRemain(shard, allocation.routingNodes().node(shard.currentNodeId()), allocation).type() == Decision.Type.YES;
     }
 
     /**

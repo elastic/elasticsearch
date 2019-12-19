@@ -207,7 +207,7 @@ public class Packages {
 
         Stream.of(
             "NOTICE.txt",
-            "README.textile"
+            "README.asciidoc"
         ).forEach(doc -> assertThat(es.home.resolve(doc), file(File, "root", "root", p644)));
 
         assertThat(es.envFile, file(File, "root", "elasticsearch", p660));

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Alias;
@@ -438,10 +439,46 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
     }
 
+    public void testNullFoldingIsNullWithCast() {
+        FoldNull foldNull = new FoldNull();
+
+        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        IsNull isNull = new IsNull(EMPTY, cast);
+        final IsNull isNullOpt = (IsNull) foldNull.rule(isNull);
+        assertEquals(isNull, isNullOpt);
+
+        SqlIllegalArgumentException sqlIAE =
+                expectThrows(SqlIllegalArgumentException.class, () -> isNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+
+        isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataType.values())));
+        assertTrue((Boolean) ((IsNull) foldNull.rule(isNull)).asPipe().asProcessor().process(null));
+    }
+
     public void testNullFoldingIsNotNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNotNull(EMPTY, TRUE)).fold());
         assertEquals(false, foldNull.rule(new IsNotNull(EMPTY, NULL)).fold());
+
+        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        IsNotNull isNotNull = new IsNotNull(EMPTY, cast);
+        assertEquals(isNotNull, foldNull.rule(isNotNull));
+    }
+
+    public void testNullFoldingIsNotNullWithCast() {
+        FoldNull foldNull = new FoldNull();
+
+        Cast cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        IsNotNull isNotNull = new IsNotNull(EMPTY, cast);
+        final IsNotNull isNotNullOpt = (IsNotNull) foldNull.rule(isNotNull);
+        assertEquals(isNotNull, isNotNullOpt);
+
+        SqlIllegalArgumentException sqlIAE =
+                expectThrows(SqlIllegalArgumentException.class, () -> isNotNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+
+        isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataType.values())));
+        assertFalse((Boolean) ((IsNotNull) foldNull.rule(isNotNull)).asPipe().asProcessor().process(null));
     }
 
     public void testGenericNullableExpression() {
@@ -459,6 +496,18 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), NULL)));
         // regex
         assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, "123")));
+    }
+
+    public void testNullFoldingOnCast() {
+        FoldNull foldNull = new FoldNull();
+
+        Cast cast = new Cast(EMPTY, NULL, randomFrom(DataType.values()));
+        assertEquals(Nullability.TRUE, cast.nullable());
+        assertNull(foldNull.rule(cast).fold());
+
+        cast = new Cast(EMPTY, L("foo"), DataType.DATE);
+        assertEquals(Nullability.UNKNOWN, cast.nullable());
+        assertEquals(cast, foldNull.rule(cast));
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {

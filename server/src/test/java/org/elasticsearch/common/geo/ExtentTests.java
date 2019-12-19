@@ -18,7 +18,14 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -84,5 +91,36 @@ public class ExtentTests extends ESTestCase {
         assertThat(extent.maxX(), equalTo(topRightX2));
         assertThat(extent.minY(), equalTo(bottomLeftY2));
         assertThat(extent.maxY(), equalTo(topRightY2));
+    }
+
+    public void testSerialize() throws IOException {
+        for (int i =0; i < 100; i++) {
+            Extent extent = randomExtent();
+            ByteBuffersDataOutput output = new ByteBuffersDataOutput();
+            extent.writeCompressed(output);
+            BytesRef bytesRef = new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size()));
+            ByteArrayDataInput input = new ByteArrayDataInput();
+            input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            Extent copyExtent = new Extent();
+            Extent.readFromCompressed(input, copyExtent);
+            assertEquals(extent, copyExtent);
+        }
+    }
+
+    private Extent randomExtent() {
+        Extent extent = new Extent();
+        int numberPoints = random().nextBoolean() ? 1 : randomIntBetween(2, 10);
+        for (int i =0; i < numberPoints; i++) {
+            Rectangle rectangle = GeometryTestUtils.randomRectangle();
+            while (rectangle.getMinX() > rectangle.getMaxX()) {
+                rectangle = GeometryTestUtils.randomRectangle();
+            }
+            int bottomLeftX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
+            int bottomLeftY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
+            int topRightX =  GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
+            int topRightY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
+            extent.addRectangle(bottomLeftX, bottomLeftY, topRightX, topRightY);
+        }
+        return extent;
     }
 }

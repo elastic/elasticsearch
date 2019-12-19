@@ -60,13 +60,7 @@ public class TriangleTreeReader {
         if (treeOffset == 0) {
             // TODO: Compress serialization of extent
             input.setPosition(CENTROID_HEADER_SIZE_IN_BYTES);
-            int top = input.readInt();
-            int bottom = Math.toIntExact(top - input.readVLong());
-            int posRight = input.readInt();
-            int posLeft = input.readInt();
-            int negRight = input.readInt();
-            int negLeft = input.readInt();
-            extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
+            Extent.readFromCompressed(input, extent);
             treeOffset = input.getPosition();
         } else {
             input.setPosition(treeOffset);

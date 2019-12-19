@@ -121,7 +121,8 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         TransformCheckpointStats.EMPTY,
         TransformCheckpointStats.EMPTY,
         0L,
-        null);
+        null
+    );
 
     public static final ParseField LAST_CHECKPOINT = new ParseField("last");
     public static final ParseField NEXT_CHECKPOINT = new ParseField("next");
@@ -132,30 +133,39 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
     private final long operationsBehind;
     private final Instant changesLastDetectedAt;
 
-    private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER =
-            new ConstructingObjectParser<>(
-                "data_frame_transform_checkpointing_info",
-                true,
-                a -> {
-                        long behind = a[2] == null ? 0L : (Long) a[2];
-                        Instant changesLastDetectedAt = (Instant)a[3];
-                        return new TransformCheckpointingInfo(
-                            a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
-                            a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
-                            behind,
-                            changesLastDetectedAt);
-                });
+    private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
+        "data_frame_transform_checkpointing_info",
+        true,
+        a -> {
+            long behind = a[2] == null ? 0L : (Long) a[2];
+            Instant changesLastDetectedAt = (Instant) a[3];
+            return new TransformCheckpointingInfo(
+                a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
+                a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
+                behind,
+                changesLastDetectedAt
+            );
+        }
+    );
 
     static {
-        LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            TransformCheckpointStats.LENIENT_PARSER::apply, LAST_CHECKPOINT);
-        LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            TransformCheckpointStats.LENIENT_PARSER::apply, NEXT_CHECKPOINT);
+        LENIENT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            TransformCheckpointStats.LENIENT_PARSER::apply,
+            LAST_CHECKPOINT
+        );
+        LENIENT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            TransformCheckpointStats.LENIENT_PARSER::apply,
+            NEXT_CHECKPOINT
+        );
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
-        LENIENT_PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+        LENIENT_PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, CHANGES_LAST_DETECTED_AT.getPreferredName()),
             CHANGES_LAST_DETECTED_AT,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
     }
 
     /**
@@ -167,10 +177,12 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
      * @param operationsBehind counter of operations the current checkpoint is behind source
      * @param changesLastDetectedAt the last time the source indices were checked for changes
      */
-    public TransformCheckpointingInfo(TransformCheckpointStats last,
-                                               TransformCheckpointStats next,
-                                               long operationsBehind,
-                                               Instant changesLastDetectedAt) {
+    public TransformCheckpointingInfo(
+        TransformCheckpointStats last,
+        TransformCheckpointStats next,
+        long operationsBehind,
+        Instant changesLastDetectedAt
+    ) {
         this.last = Objects.requireNonNull(last);
         this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
@@ -215,9 +227,11 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
         }
         if (changesLastDetectedAt != null) {
-            builder.timeField(CHANGES_LAST_DETECTED_AT.getPreferredName(),
+            builder.timeField(
+                CHANGES_LAST_DETECTED_AT.getPreferredName(),
                 CHANGES_LAST_DETECTED_AT.getPreferredName() + "_string",
-                changesLastDetectedAt.toEpochMilli());
+                changesLastDetectedAt.toEpochMilli()
+            );
         }
         builder.endObject();
         return builder;
@@ -254,10 +268,10 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
 
         TransformCheckpointingInfo that = (TransformCheckpointingInfo) other;
 
-        return Objects.equals(this.last, that.last) &&
-            Objects.equals(this.next, that.next) &&
-            this.operationsBehind == that.operationsBehind &&
-            Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt);
+        return Objects.equals(this.last, that.last)
+            && Objects.equals(this.next, that.next)
+            && this.operationsBehind == that.operationsBehind
+            && Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt);
     }
 
     @Override

@@ -352,10 +352,17 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         TransformProgress nextCheckpointProgress,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
-        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(infoBuilder -> {
-
-            listener.onResponse(infoBuilder.build());
-        }, listener::onFailure);
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(
+            infoBuilder -> { listener.onResponse(infoBuilder.build()); },
+            listener::onFailure
+        );
+        transformCheckpointService.getCheckpointingInfo(
+            transformId,
+            lastCheckpointNumber,
+            nextCheckpointPosition,
+            nextCheckpointProgress,
+            checkPointInfoListener
+        );
     }
 
 }

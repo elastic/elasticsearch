@@ -636,7 +636,7 @@ class java.lang.Math {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)
@@ -729,7 +729,7 @@ class java.lang.StrictMath {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)
@@ -844,8 +844,8 @@ class java.lang.StringBuilder {
 
 class java.lang.System {
   void arraycopy(Object,int,Object,int,int)
-  long currentTimeMillis()
-  long nanoTime()
+  long currentTimeMillis() @nondeterministic
+  long nanoTime() @nondeterministic
 }
 
 # Thread: skipped

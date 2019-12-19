@@ -6,7 +6,10 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -320,18 +323,39 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         protected Query doToQuery(QueryShardContext context) {
-            if (shardsLatch != null) {
-                try {
-                    final ShardIdLatch latch = shardsLatch.get(new ShardId(context.index(), context.getShardId()));
-                    latch.await();
-                    if (latch.shouldFail) {
-                        throw new IllegalStateException("boum");
+            final Query delegate = Queries.newMatchAllQuery();
+            return new Query() {
+                @Override
+                public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                    if (shardsLatch != null) {
+                        try {
+                            final ShardIdLatch latch = shardsLatch.get(new ShardId(context.index(), context.getShardId()));
+                            latch.await();
+                            if (latch.shouldFail) {
+                                throw new IOException("boum");
+                            }
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    return delegate.createWeight(searcher, scoreMode, boost);
                 }
-            }
-            return Queries.newMatchAllQuery();
+
+                @Override
+                public String toString(String field) {
+                    return delegate.toString(field);
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return false;
+                }
+
+                @Override
+                public int hashCode() {
+                    return 0;
+                }
+            };
         }
 
         @Override

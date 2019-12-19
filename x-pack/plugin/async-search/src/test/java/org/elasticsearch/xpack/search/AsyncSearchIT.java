@@ -76,7 +76,7 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
 
     public void testMaxMinAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
-        int numFailures = numShards;//randomBoolean() ? randomIntBetween(0, numShards) : 0;
+        int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
         SearchSourceBuilder source = new SearchSourceBuilder()
             .aggregation(AggregationBuilders.min("min").field("metric"))
             .aggregation(AggregationBuilders.max("max").field("metric"));

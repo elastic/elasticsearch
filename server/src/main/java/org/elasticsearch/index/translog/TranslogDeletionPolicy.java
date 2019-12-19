@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 
 public class TranslogDeletionPolicy {
 
@@ -65,10 +66,14 @@ public class TranslogDeletionPolicy {
 
     private int retentionTotalFiles;
 
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
+    private final LongSupplier retainingSeqNoSupplier;
+
+    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles,
+                                  LongSupplier retainingSeqNoSupplier) {
         this.retentionSizeInBytes = retentionSizeInBytes;
         this.retentionAgeInMillis = retentionAgeInMillis;
         this.retentionTotalFiles = retentionTotalFiles;
+        this.retainingSeqNoSupplier = retainingSeqNoSupplier;
         if (Assertions.ENABLED) {
             openTranslogRef = new ConcurrentHashMap<>();
         } else {
@@ -172,7 +177,9 @@ public class TranslogDeletionPolicy {
             minByAgeAndSize = Math.max(minByAge, minBySize);
         }
         long minByNumFiles = getMinTranslogGenByTotalFiles(readers, writer, retentionTotalFiles);
-        return Math.min(Math.max(minByAgeAndSize, minByNumFiles), Math.min(minByLocks, minTranslogGenerationForRecovery));
+        long minByPolicy = Math.max(minByAgeAndSize, minByNumFiles);
+        long minByRetainingSeqNo = getMinTranslogGenByRetainingSeqNo(readers, writer, retainingSeqNoSupplier.getAsLong());
+        return Math.min(Math.max(minByPolicy, minByRetainingSeqNo), Math.min(minByLocks, minTranslogGenerationForRecovery));
     }
 
     static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
@@ -212,6 +219,15 @@ public class TranslogDeletionPolicy {
             minGen = readers.get(i).generation;
         }
         return minGen;
+    }
+
+    static long getMinTranslogGenByRetainingSeqNo(List<TranslogReader> readers, TranslogWriter writer, long seqNo) {
+        for (TranslogReader reader : readers) {
+            if (reader.getCheckpoint().maxEffectiveSeqNo() >= seqNo) {
+                return reader.generation;
+            }
+        }
+        return writer.generation;
     }
 
     protected long currentTime() {

@@ -87,6 +87,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -189,11 +190,7 @@ public class InternalEngine extends Engine {
             final EngineConfig engineConfig,
             final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
-                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
-                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
-                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
-        );
+        final TranslogDeletionPolicy translogDeletionPolicy = newTranslogDeletionPolicy(engineConfig);
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
@@ -486,6 +483,22 @@ public class InternalEngine extends Engine {
             refresh("translog_recovery");
         }
         translog.trimUnreferencedReaders();
+    }
+
+    private static TranslogDeletionPolicy newTranslogDeletionPolicy(EngineConfig config) {
+        final LongSupplier retainingSeqNo;
+        if (config.getIndexSettings().isSoftDeleteEnabled()) {
+            retainingSeqNo = () -> Long.MAX_VALUE;
+        } else {
+            retainingSeqNo = () -> config.retentionLeasesSupplier().get().leases().stream()
+                .mapToLong(RetentionLease::retainingSequenceNumber)
+                .max().orElse(Long.MAX_VALUE);
+        };
+        return new TranslogDeletionPolicy(
+            config.getIndexSettings().getTranslogRetentionSize().getBytes(),
+            config.getIndexSettings().getTranslogRetentionAge().getMillis(),
+            config.getIndexSettings().getTranslogRetentionTotalFiles(),
+            retainingSeqNo);
     }
 
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy,

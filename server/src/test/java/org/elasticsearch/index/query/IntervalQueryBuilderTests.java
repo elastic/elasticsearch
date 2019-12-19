@@ -86,7 +86,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     private IntervalsSourceProvider createRandomSource(int depth, boolean useScripts) {
-        if (depth > 3) {
+        if (depth > 2) {
             return createRandomMatch(depth + 1, useScripts);
         }
         switch (randomInt(20)) {

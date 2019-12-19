@@ -38,6 +38,7 @@ import org.elasticsearch.geometry.Rectangle;
  * as the centroid of a shape.
  */
 public class CentroidCalculator {
+    static final double ROUNDING_ERROR = 0.00000000000003;
 
     private double compX;
     private double compY;
@@ -97,14 +98,20 @@ public class CentroidCalculator {
             compY = otherCalculator.compY;
         } else if (compared == 0) {
             addCoordinate(otherCalculator.sumX, otherCalculator.sumY, otherCalculator.sumWeight);
-        }
+        } // else (compared > 0) do not modify centroid calculation since otherCalculator is of lower dimension than this calculator
     }
 
     /**
      * @return the x-coordinate centroid
      */
     public double getX() {
-        return sumX / sumWeight;
+        double x = sumX / sumWeight;
+        if (x > GeoUtils.MAX_LON && x <= GeoUtils.MAX_LON + ROUNDING_ERROR) {
+            return GeoUtils.MAX_LON;
+        } else if (x < GeoUtils.MIN_LON && x >= GeoUtils.MIN_LON - ROUNDING_ERROR) {
+            return GeoUtils.MIN_LON;
+        }
+        return x;
     }
 
     /**
@@ -162,20 +169,23 @@ public class CentroidCalculator {
             }
             return null;
         }
-
         @Override
         public Void visit(LinearRing ring) {
+            throw new IllegalArgumentException("invalid shape type found [LinearRing] while calculating centroid");
+        }
+
+        private Void visit(LinearRing ring, boolean isHole) {
             // implementation of calculation defined in
             // https://www.seas.upenn.edu/~sys502/extra_materials/Polygon%20Area%20and%20Centroid.pdf
             //
             // centroid of a ring is a weighted coordinate based on the ring's area.
-            // sign of area is determined by orientation: positive for CCW, negative for CW.
+            // the sign of the area is positive for the outer-shell of a polygon and negative for the holes
 
+            int sign = isHole ? -1 : 1;
             double totalRingArea = 0.0;
             for (int i = 0; i < ring.length() - 1; i++) {
                 totalRingArea += (ring.getX(i) * ring.getY(i + 1)) - (ring.getX(i + 1) * ring.getY(i));
             }
-
             totalRingArea = totalRingArea / 2;
 
             double sumX = 0.0;
@@ -185,7 +195,9 @@ public class CentroidCalculator {
                 sumX += twiceArea * (ring.getX(i) + ring.getX(i + 1));
                 sumY += twiceArea * (ring.getY(i) + ring.getY(i + 1));
             }
-            calculator.addCoordinate(sumX / (6 * totalRingArea), sumY / (6 * totalRingArea), totalRingArea);
+            double cX = sumX / (6 * totalRingArea);
+            double cY = sumY / (6 * totalRingArea);
+            calculator.addCoordinate(cX, cY, sign * Math.abs(totalRingArea));
 
             return null;
         }
@@ -222,9 +234,9 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Polygon polygon) {
-            visit(polygon.getPolygon());
+            visit(polygon.getPolygon(), false);
             for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                visit(polygon.getHole(i));
+                visit(polygon.getHole(i), true);
             }
             return null;
         }

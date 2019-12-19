@@ -127,6 +127,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                             // weight
                             compensatedSumWeight.add(coordinateWeight);
                         }
+                        // else (compares > 0)
+                        //   do not modify centroid calculation since shape is of lower dimension than the running dimension
 
                     }
                     lonSum.set(bucket, compensatedSumLon.value());

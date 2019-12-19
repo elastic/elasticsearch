@@ -22,13 +22,18 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 
 
@@ -75,5 +80,13 @@ public class GeoTestUtils {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
         return XContentHelper.convertToJson(BytesReference.bytes(builder), true, false, XContentType.JSON);
+    }
+
+    public static Geometry fromGeoJsonString(String geoJson) throws Exception {
+        XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            new BytesArray(geoJson), XContentType.JSON);
+        parser.nextToken();
+        Geometry geometry = new GeometryParser(true, true, true).parse(parser);
+        return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
     }
 }

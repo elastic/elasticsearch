@@ -228,8 +228,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFiji() throws Exception {
-        XContentParser fijiParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            new BytesArray("{\n" +
+        MultiPolygon geometryForIndexing = (MultiPolygon) GeoTestUtils.fromGeoJsonString("{\n" +
             "  \"type\": \"MultiPolygon\",\n" +
             "  \"coordinates\": [\n" +
             "   [\n" +
@@ -333,18 +332,14 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             "    ]\n" +
             "   ]\n" +
             "  ]\n" +
-            " }"), XContentType.JSON);
-
-        fijiParser.nextToken();
-        MultiPolygon fiji = (MultiPolygon) new GeometryParser(true, true, true).parse(fijiParser);
-        MultiPolygon geometryForIndexing = (MultiPolygon) new GeoShapeIndexer(true, "indexer").prepareForIndexing(fiji);
+            " }");
 
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             doc.add(new BinaryGeoShapeDocValuesField("fiji_shape",
                 GeoTestUtils.toDecodedTriangles(geometryForIndexing), new CentroidCalculator(geometryForIndexing)));
-            for (Polygon poly : fiji) {
+            for (Polygon poly : geometryForIndexing) {
                 for (int i = 0; i < poly.getPolygon().length(); i++) {
                     doc.add(new LatLonDocValuesField("fiji_points", poly.getPolygon().getLat(i), poly.getPolygon().getLon(i)));
                 }

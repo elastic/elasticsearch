@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
@@ -26,10 +28,12 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CentroidCalculatorTests extends ESTestCase {
+    private static final double DELTA = 0.000001;
 
     public void testLine() {
         double[] y = new double[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
@@ -48,22 +52,51 @@ public class CentroidCalculatorTests extends ESTestCase {
             System.arraycopy(y, 0, subY, 0, i + 1);
             Geometry geometry  = new Line(subX, subY);
             calculator = new CentroidCalculator(geometry);
-            assertEquals(xRunningAvg[i], calculator.getX(), 0.000001);
-            assertEquals(yRunningAvg[i], calculator.getY(), 0.000001);
+            assertEquals(xRunningAvg[i], calculator.getX(), DELTA);
+            assertEquals(yRunningAvg[i], calculator.getY(), DELTA);
         }
         CentroidCalculator otherCalculator = new CentroidCalculator(new Point(0, 0));
         calculator.addFrom(otherCalculator);
-        assertEquals(55.0, calculator.getX(), 0.0000001);
-        assertEquals(5.5, calculator.getY(), 0.0000001);
+        assertEquals(55.0, calculator.getX(), DELTA);
+        assertEquals(5.5, calculator.getY(), DELTA);
     }
 
-    public void testPolyonWithHole() throws Exception {
-        Polygon polyWithHole = new Polygon(new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50}),
-            Collections.singletonList(new LinearRing(new double[]{-30, -30, 30, 30, -30}, new double[]{-30, 30, 30, -30, -30})));
-        CentroidCalculator calculator = new CentroidCalculator(polyWithHole);
-        assertThat(calculator.getX(), equalTo(0.0));
-        assertThat(calculator.getY(), equalTo(0.0));
-        assertThat(calculator.sumWeight(), equalTo(6400.0));
+    public void testLonRounding() {
+        {
+            Line line = new Line(new double[]{180.0, 180.0}, new double[]{0.000000000000000000000000140129, -7.578746641189781});
+            CentroidCalculator calculator = new CentroidCalculator(line);
+            assertThat(calculator.getX(), equalTo(180.0));
+        }
+
+        {
+            Line line = new Line(new double[]{-180.0, -180.0}, new double[]{0.000000000000000000000000140129, -7.578746641189781});
+            CentroidCalculator calculator = new CentroidCalculator(line);
+            assertThat(calculator.getX(), equalTo(-180.0));
+        }
+    }
+
+    // test that the centroid calculation is agnostic to orientation
+    public void testPolyonWithHole() {
+        for (boolean ccwOuter : List.of(true, false)) {
+            for (boolean ccwInner : List.of(true, false)) {
+                final LinearRing outer, inner;
+                if (ccwOuter) {
+                    outer = new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50});
+                } else {
+                    outer = new LinearRing(new double[]{-50, -50, 50, 50, -50}, new double[]{-50, 50, 50, -50, -50});
+                }
+                if (ccwInner) {
+                    inner = new LinearRing(new double[]{-40, 30, 30, -40, -40}, new double[]{-40, -40, 30, 30, -40});
+                } else {
+                    inner = new LinearRing(new double[]{-40, -40, 30, 30, -40}, new double[]{-40, 30, 30, -40, -40});
+                }
+                final double POLY_CENTROID = 4.803921568627451;
+                CentroidCalculator calculator = new CentroidCalculator(new Polygon(outer, Collections.singletonList(inner)));
+                assertEquals(POLY_CENTROID, calculator.getX(), DELTA);
+                assertEquals(POLY_CENTROID, calculator.getY(), DELTA);
+                assertThat(calculator.sumWeight(), equalTo(5100.0));
+            }
+        }
     }
 
     public void testPolygonWithEqualSizedHole() {

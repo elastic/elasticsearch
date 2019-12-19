@@ -28,6 +28,7 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -59,7 +60,8 @@ public class TriangleTreeTests extends ESTestCase {
         assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.MULTIPOINT);
         assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINESTRING);
         assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.MULTILINESTRING);
-        assertDimensionalShapeType(indexer.prepareForIndexing(randomPolygon(false)), DimensionalShapeType.POLYGON);
+        Geometry randoPoly = randomValueOtherThanMany(g -> g.type() != ShapeType.POLYGON, () -> indexer.prepareForIndexing(randomPolygon(false)));
+        assertDimensionalShapeType(randoPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(indexer.prepareForIndexing(randomMultiPolygon(false)), DimensionalShapeType.MULTIPOLYGON);
         assertDimensionalShapeType(randomRectangle(), DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randomFrom(
@@ -75,10 +77,12 @@ public class TriangleTreeTests extends ESTestCase {
                 new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_LINES);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false), indexer.prepareForIndexing(randomPolygon(false)))),
+            new GeometryCollection<>(List.of(randomPoint(false), indexer.prepareForIndexing(randomLine(false)),
+                indexer.prepareForIndexing(randomPolygon(false)))),
             new GeometryCollection<>(List.of(randomMultiPoint(false), indexer.prepareForIndexing(randomMultiPolygon(false)))),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomLine(false), indexer.prepareForIndexing(randomPolygon(false)))))))
+                new GeometryCollection<>(List.of(indexer.prepareForIndexing(randomLine(false)),
+                    indexer.prepareForIndexing(randomPolygon(false)))))))
             , DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS);
     }
 
@@ -252,7 +256,6 @@ public class TriangleTreeTests extends ESTestCase {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         MultiLine geometry = randomMultiLine(false);
         geometry = (MultiLine) indexer.prepareForIndexing(geometry);
-
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         Extent readerExtent = reader.getExtent();
 

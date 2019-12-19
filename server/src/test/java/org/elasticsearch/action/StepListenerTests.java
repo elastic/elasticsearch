@@ -113,7 +113,10 @@ public class StepListenerTests extends ESTestCase {
         }
     }
 
-    public void testUnwrap() {
+    /**
+     * This test checks that we no longer unwrap exceptions when using StepListener.
+     */
+    public void testNoUnwrap() {
         StepListener<String> step = new StepListener<>();
         step.onFailure(new RemoteTransportException("test", new RuntimeException("expected")));
         AtomicReference<RuntimeException> exception = new AtomicReference<>();

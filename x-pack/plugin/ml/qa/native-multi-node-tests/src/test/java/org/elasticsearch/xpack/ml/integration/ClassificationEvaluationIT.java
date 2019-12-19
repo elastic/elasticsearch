@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
@@ -21,6 +22,8 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -52,9 +55,9 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, null));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
-        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
         assertThat(
-            evaluateDataFrameResponse.getMetrics().get(0).getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
+            evaluateDataFrameResponse.getMetrics().stream().map(EvaluationMetricResult::getMetricName).collect(toList()),
+            contains(MulticlassConfusionMatrix.NAME.getPreferredName()));
     }
 
     public void testEvaluate_AllMetrics() {
@@ -64,13 +67,16 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     ANIMAL_NAME_FIELD,
                     ANIMAL_NAME_PREDICTION_FIELD,
-                    List.of(new Accuracy(), new MulticlassConfusionMatrix())));
+                    List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
-        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(2));
-        assertThat(evaluateDataFrameResponse.getMetrics().get(0).getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
         assertThat(
-            evaluateDataFrameResponse.getMetrics().get(1).getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
+            evaluateDataFrameResponse.getMetrics().stream().map(EvaluationMetricResult::getMetricName).collect(toList()),
+            contains(
+                Accuracy.NAME.getPreferredName(),
+                MulticlassConfusionMatrix.NAME.getPreferredName(),
+                Precision.NAME.getPreferredName(),
+                Recall.NAME.getPreferredName()));
     }
 
     public void testEvaluate_Accuracy_KeywordField() {

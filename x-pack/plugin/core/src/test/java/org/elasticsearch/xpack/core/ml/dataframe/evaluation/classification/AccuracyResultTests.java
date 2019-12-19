@@ -32,13 +32,13 @@ public class AccuracyResultTests extends AbstractWireSerializingTestCase<Result>
     }
 
     @Override
-    protected Result createTestInstance() {
-        return createRandom();
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
+    protected Result createTestInstance() {
+        return createRandom();
     }
 
     @Override

@@ -31,6 +31,92 @@ import java.util.Objects;
  */
 public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
 
+    /**
+     * Builder for collecting checkpointing information for the purpose of _stats
+     */
+    public static class TransformCheckpointingInfoBuilder {
+        private TransformIndexerPosition nextCheckpointPosition;
+        private TransformProgress nextCheckpointProgress;
+        public TransformCheckpoint lastCheckpoint;
+        private TransformCheckpoint nextCheckpoint;
+        private TransformCheckpoint sourceCheckpoint;
+        private Instant changesLastDetectedAt;
+        private long operationsBehind;
+
+        public TransformCheckpointingInfoBuilder() {}
+
+        public TransformCheckpointingInfo build() {
+            if (lastCheckpoint == null) {
+                lastCheckpoint = TransformCheckpoint.EMPTY;
+            }
+            if (nextCheckpoint == null) {
+                nextCheckpoint = TransformCheckpoint.EMPTY;
+            }
+            if (sourceCheckpoint == null) {
+                sourceCheckpoint = TransformCheckpoint.EMPTY;
+            }
+
+            // checkpointstats requires a non-negative checkpoint number
+            long lastCheckpointNumber = lastCheckpoint.getCheckpoint() > 0 ? lastCheckpoint.getCheckpoint() : 0;
+            long nextCheckpointNumber = nextCheckpoint.getCheckpoint() > 0 ? nextCheckpoint.getCheckpoint() : 0;
+
+            return new TransformCheckpointingInfo(
+                new TransformCheckpointStats(
+                    lastCheckpointNumber,
+                    null,
+                    null,
+                    lastCheckpoint.getTimestamp(),
+                    lastCheckpoint.getTimeUpperBound()
+                ),
+                new TransformCheckpointStats(
+                    nextCheckpointNumber,
+                    nextCheckpointPosition,
+                    nextCheckpointProgress,
+                    nextCheckpoint.getTimestamp(),
+                    nextCheckpoint.getTimeUpperBound()
+                ),
+                operationsBehind,
+                changesLastDetectedAt
+            );
+        }
+
+        public TransformCheckpointingInfoBuilder setLastCheckpoint(TransformCheckpoint lastCheckpoint) {
+            this.lastCheckpoint = lastCheckpoint;
+            return this;
+        }
+
+        public TransformCheckpointingInfoBuilder setNextCheckpoint(TransformCheckpoint nextCheckpoint) {
+            this.nextCheckpoint = nextCheckpoint;
+            return this;
+        }
+
+        public TransformCheckpointingInfoBuilder setSourceCheckpoint(TransformCheckpoint sourceCheckpoint) {
+            this.sourceCheckpoint = sourceCheckpoint;
+            return this;
+        }
+
+        public TransformCheckpointingInfoBuilder setNextCheckpointProgress(TransformProgress nextCheckpointProgress) {
+            this.nextCheckpointProgress = nextCheckpointProgress;
+            return this;
+        }
+
+        public TransformCheckpointingInfoBuilder setNextCheckpointPosition(TransformIndexerPosition nextCheckpointPosition) {
+            this.nextCheckpointPosition = nextCheckpointPosition;
+            return this;
+        }
+
+        public TransformCheckpointingInfoBuilder setChangesLastDetectedAt(Instant changesLastDetectedAt) {
+            this.changesLastDetectedAt = changesLastDetectedAt;
+            return this;
+        }
+
+        public TransformCheckpointingInfoBuilder setOperationsBehind(long operationsBehind) {
+            this.operationsBehind = operationsBehind;
+            return this;
+        }
+
+    }
+
     public static final TransformCheckpointingInfo EMPTY = new TransformCheckpointingInfo(
         TransformCheckpointStats.EMPTY,
         TransformCheckpointStats.EMPTY,
@@ -44,7 +130,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
     private final TransformCheckpointStats last;
     private final TransformCheckpointStats next;
     private final long operationsBehind;
-    private Instant changesLastDetectedAt;
+    private final Instant changesLastDetectedAt;
 
     private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER =
             new ConstructingObjectParser<>(
@@ -91,18 +177,14 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         this.changesLastDetectedAt = changesLastDetectedAt == null ? null : Instant.ofEpochMilli(changesLastDetectedAt.toEpochMilli());
     }
 
-    public TransformCheckpointingInfo(TransformCheckpointStats last,
-                                               TransformCheckpointStats next,
-                                               long operationsBehind) {
-        this(last, next, operationsBehind, null);
-    }
-
     public TransformCheckpointingInfo(StreamInput in) throws IOException {
         last = new TransformCheckpointStats(in);
         next = new TransformCheckpointStats(in);
         operationsBehind = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             changesLastDetectedAt = in.readOptionalInstant();
+        } else {
+            changesLastDetectedAt = null;
         }
     }
 
@@ -122,11 +204,6 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         return changesLastDetectedAt;
     }
 
-    public TransformCheckpointingInfo setChangesLastDetectedAt(Instant changesLastDetectedAt) {
-        this.changesLastDetectedAt = Instant.ofEpochMilli(Objects.requireNonNull(changesLastDetectedAt).toEpochMilli());
-        return this;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -134,7 +211,9 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         if (next.getCheckpoint() > 0) {
             builder.field(NEXT_CHECKPOINT.getPreferredName(), next);
         }
-        builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
+        if (operationsBehind > 0) {
+            builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
+        }
         if (changesLastDetectedAt != null) {
             builder.timeField(CHANGES_LAST_DETECTED_AT.getPreferredName(),
                 CHANGES_LAST_DETECTED_AT.getPreferredName() + "_string",

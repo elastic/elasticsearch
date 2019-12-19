@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -88,6 +89,11 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
         // other time upper bound
         assertTrue(dataFrameTransformCheckpoints
                 .matches(new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)));
+    }
+
+    public void testEmpty() {
+        assertTrue(TransformCheckpoint.EMPTY.isEmpty());
+        assertFalse(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isEmpty());
     }
 
     public void testGetBehind() {

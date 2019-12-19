@@ -126,7 +126,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
     }
 
     public boolean isEmpty() {
-        return indicesCheckpoints.isEmpty();
+        return this.equals(EMPTY) ;
     }
 
     /**

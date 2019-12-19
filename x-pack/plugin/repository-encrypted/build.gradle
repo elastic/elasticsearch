@@ -8,4 +8,8 @@ esplugin {
     extendedPlugins = ['x-pack-core']
 }
 
+dependencies {
+	compile "org.bouncycastle:bcpkix-fips:1.0.3"
+}
+
 integTest.enabled = false

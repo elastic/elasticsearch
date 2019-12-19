@@ -44,7 +44,6 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -88,25 +87,75 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 return wrappedFactory; });
 
         contexts.put(FilterScript.CONTEXT,
-            (Expression expr) -> (FilterScript.Factory) (p, lookup) -> newFilterScript(expr, lookup, p));
+            (Expression expr) -> new FilterScript.Factory() {
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+
+                @Override
+                public FilterScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newFilterScript(expr, lookup, params);
+                }
+            });
 
         contexts.put(ScoreScript.CONTEXT,
-            (Expression expr) -> (ScoreScript.Factory) (p, lookup) -> newScoreScript(expr, lookup, p));
+            (Expression expr) -> new ScoreScript.Factory() {
+                @Override
+                public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newScoreScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
 
         contexts.put(TermsSetQueryScript.CONTEXT,
             (Expression expr) -> (TermsSetQueryScript.Factory) (p, lookup) -> newTermsSetQueryScript(expr, lookup, p));
 
         contexts.put(AggregationScript.CONTEXT,
-            (Expression expr) -> (AggregationScript.Factory) (p, lookup) -> newAggregationScript(expr, lookup, p));
+            (Expression expr) -> new AggregationScript.Factory() {
+                @Override
+                public AggregationScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newAggregationScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
 
         contexts.put(NumberSortScript.CONTEXT,
-            (Expression expr) -> (NumberSortScript.Factory) (p, lookup) -> newSortScript(expr, lookup, p));
+            (Expression expr) -> new NumberSortScript.Factory() {
+                @Override
+                public NumberSortScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newSortScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
 
         contexts.put(FieldScript.CONTEXT,
-            (Expression expr) -> (FieldScript.Factory) (p, lookup) -> newFieldScript(expr, lookup, p));
+            (Expression expr) -> new FieldScript.Factory() {
+                @Override
+                public FieldScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newFieldScript(expr, lookup, params);
+                }
 
-        ExpressionScriptEngine.contexts = Collections.unmodifiableMap(contexts);
-    }
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            });
+
+            ExpressionScriptEngine.contexts = Collections.unmodifiableMap(contexts);
+        }
 
     @Override
     public String getType() {
@@ -114,7 +163,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T extends ScriptFactory> T compile(
+    public <T> T compile(
         String scriptName,
         String scriptSource,
         ScriptContext<T> context,

@@ -35,6 +35,7 @@ public class FactoryTests extends ScriptTestCase {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
         contexts.put(StatefulFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(FactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(DeterministicFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
 
@@ -85,7 +86,7 @@ public class FactoryTests extends ScriptTestCase {
             boolean needsD();
         }
 
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             StatefulFactory newFactory(int x, int y);
 
             boolean needsTest();
@@ -138,7 +139,7 @@ public class FactoryTests extends ScriptTestCase {
         public static final String[] PARAMETERS = new String[] {"test"};
         public abstract Object execute(int test);
 
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             FactoryTestScript newInstance(Map<String, Object> params);
 
             boolean needsTest();
@@ -147,6 +148,31 @@ public class FactoryTests extends ScriptTestCase {
 
         public static final ScriptContext<FactoryTestScript.Factory> CONTEXT =
             new ScriptContext<>("test", FactoryTestScript.Factory.class);
+    }
+
+    public abstract static class DeterministicFactoryTestScript {
+        private final Map<String, Object> params;
+
+        public DeterministicFactoryTestScript(Map<String, Object> params) {
+            this.params = params;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public static final String[] PARAMETERS = new String[] {"test"};
+        public abstract Object execute(int test);
+
+        public interface Factory extends ScriptFactory{
+            FactoryTestScript newInstance(Map<String, Object> params);
+
+            boolean needsTest();
+            boolean needsNothing();
+        }
+
+        public static final ScriptContext<DeterministicFactoryTestScript.Factory> CONTEXT =
+            new ScriptContext<>("test", DeterministicFactoryTestScript.Factory.class);
     }
 
     public void testFactory() {
@@ -163,26 +189,26 @@ public class FactoryTests extends ScriptTestCase {
     }
 
     public void testDeterministic() {
-        FactoryTestScript.Factory factory =
+        DeterministicFactoryTestScript.Factory factory =
             scriptEngine.compile("deterministic_test", "Integer.parseInt('123')",
-                FactoryTestScript.CONTEXT, Collections.emptyMap());
+                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
         assertTrue(factory.isResultDeterministic());
         assertEquals(123, factory.newInstance(Collections.emptyMap()).execute(0));
     }
 
     public void testNotDeterministic() {
-        FactoryTestScript.Factory factory =
+        DeterministicFactoryTestScript.Factory factory =
             scriptEngine.compile("not_deterministic_test", "Math.random()",
-                FactoryTestScript.CONTEXT, Collections.emptyMap());
+                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
         assertFalse(factory.isResultDeterministic());
         Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
         assertTrue(d >= 0.0 && d <= 1.0);
     }
 
     public void testMixedDeterministicIsNotDeterministic() {
-        FactoryTestScript.Factory factory =
+        DeterministicFactoryTestScript.Factory factory =
             scriptEngine.compile("not_deterministic_test", "Integer.parseInt('123') + Math.random()",
-                FactoryTestScript.CONTEXT, Collections.emptyMap());
+                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
         assertFalse(factory.isResultDeterministic());
         Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
         assertTrue(d >= 123.0 && d <= 124.0);
@@ -192,7 +218,7 @@ public class FactoryTests extends ScriptTestCase {
         public static final String[] PARAMETERS = {};
         public abstract Object execute();
 
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
             EmptyTestScript newInstance();
         }
 

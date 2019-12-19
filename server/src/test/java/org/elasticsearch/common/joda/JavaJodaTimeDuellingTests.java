@@ -31,8 +31,8 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.BeforeClass;
 
-import java.time.LocalDateTime;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -56,19 +56,21 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testTimezoneParsing() {
-        //with Timezone
-//      assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+        /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
+         *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         */
         assertSameDateAs("2016-11-30T00+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T00+0100", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T00+01:00", "strict_date_optional_time", "strict_date_optional_time");
     }
 
     public void testPartialTimeParsing() {
-
-        // This does not work in Joda as it reports 2016-11-30T01:00:00Z
-        // because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
-//        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-        // However java.time implementation does not suffer from this
+         /*
+         This does not work in Joda as it reports 2016-11-30T01:00:00Z
+         because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
+         assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         However ES java.time implementation does not suffer from this
+         */
         ZonedDateTime zonedDateTime = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time")
                                                                        .parse("2016-11-30T+01"));
         assertEquals(ZonedDateTime.of(2016,11,29,23,00,00,00,ZoneOffset.UTC),

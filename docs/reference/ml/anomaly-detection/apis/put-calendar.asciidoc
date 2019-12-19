@@ -24,7 +24,7 @@ Instantiates a calendar.
 ==== {api-description-title}
 
 For more information, see
-{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].
 
 [[ml-put-calendar-path-parms]]
 ==== {api-path-parms-title}

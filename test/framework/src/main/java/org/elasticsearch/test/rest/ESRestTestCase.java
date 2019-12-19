@@ -1139,7 +1139,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     assertNotNull(globalCheckpoint);
                     @SuppressWarnings("unchecked") List<Map<String, ?>> retentionLeases =
                         (List<Map<String, ?>>) XContentMapValues.extractValue("retention_leases.leases", copy);
-                    if (alwaysExists == false && retentionLeases == null)  {
+                    if (alwaysExists == false && retentionLeases == null) {
                         continue;
                     }
                     assertNotNull(retentionLeases);

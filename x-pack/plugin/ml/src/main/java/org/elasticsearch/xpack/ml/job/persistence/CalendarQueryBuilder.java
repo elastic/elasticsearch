@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -64,6 +65,7 @@ public class CalendarQueryBuilder {
         if (jobId != null) {
             jobIdAndGroups.add(jobId);
         }
+        jobIdAndGroups.add(MetaData.ALL);
 
         if (jobIdAndGroups.isEmpty() == false) {
             qb = new BoolQueryBuilder()

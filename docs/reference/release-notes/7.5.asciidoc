@@ -1,7 +1,82 @@
+[[release-notes-7.5.1]]
+== {es} version 7.5.1
+
+Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
+
+[[enhancement-7.5.1]]
+[float]
+=== Enhancements
+
+Features/Watcher::
+* Log attachment generation failures {pull}50080[#50080]
+
+Network::
+* Netty4: switch to composite cumulator {pull}49478[#49478]
+
+
+
+[[bug-7.5.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Fix iterate-from-1 bug in smart realm order {pull}49473[#49473]
+
+CRUD::
+* Do not mutate request on scripted upsert {pull}49578[#49578] (issue: {issue}48670[#48670])
+
+Cluster Coordination::
+* Make elasticsearch-node tools custom metadata-aware {pull}48390[#48390]
+
+Engine::
+* Account trimAboveSeqNo in committed translog generation {pull}50205[#50205] (issue: {issue}49970[#49970])
+
+Features/ILM+SLM::
+* Handle failure to retrieve ILM policy step better {pull}49193[#49193] (issue: {pull}49128[#49128])
+
+Features/Java High Level REST Client::
+* Support es7 node http publish_address format {pull}49279[#49279] (issue: {issue}48950[#48950])
+
+Geo::
+* Fix handling of circles in legacy geo_shape queries {pull}49410[#49410] (issue: {issue}49296[#49296])
+
+Infra/Packaging::
+* Extend systemd timeout during startup {pull}49784[#49784] (issue: {issue}49593[#49593])
+
+Machine Learning::
+* Use query in cardinality check {pull}49939[#49939]
+* Fix expired job results deletion audit message {pull}49560[#49560] (issue: {issue}49549[#49549])
+* Apply source query on data frame analytics memory estimation {pull}49527[#49527] (issue: {issue}49454[#49454])
+* Stop timing stats failure propagation {pull}49495[#49495]
+
+Mapping::
+* Improve DateFieldMapper `ignore_malformed` handling {pull}50090[#50090] (issue: {issue}50081[#50081])
+
+Recovery::
+* Migrate peer recovery from translog to retention lease {pull}49448[#49448] (issue: {issue}45136[#45136])
+
+SQL::
+* COUNT DISTINCT returns 0 instead of NULL for no matching docs {pull}50037[#50037] (issue: {issue}50013[#50013])
+* Fix LOCATE function optional parameter handling  {pull}49666[#49666] (issue: {issue}49557[#49557])
+* Fix NULL handling for FLOOR and CEIL functions {pull}49644[#49644] (issue: {issue}49556[#49556])
+* Handle NULL arithmetic operations with INTERVALs {pull}49633[#49633] (issue: {issue}49297[#49297])
+* Fix issue with GROUP BY YEAR() {pull}49559[#49559] (issue: {issue}49386[#49386])
+* Fix issue with CASE/IIF pre-calculating results {pull}49553[#49553] (issue: {issue}49388[#49388])
+* Fix issue with folding of CASE/IIF {pull}49449[#49449] (issue: {issue}49387[#49387])
+* Fix issues with WEEK/ISO_WEEK/DATEDIFF {pull}49405[#49405] (issues: {issue}48209[#48209], {issue}49376[#49376])
+
+Snapshot/Restore::
+* Fix Index Deletion during Snapshot Finalization {pull}50202[#50202] (issues: {issue}45689[#45689], {issue}50200[#50200])
+
+Transform::
+* Fix possible audit logging disappearance after rolling upgrade {pull}49731[#49731] (issue: {issue}49730[#49730])
+
+
 [[release-notes-7.5.0]]
 == {es} version 7.5.0
 
 Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
+
 [[known-issues-7.5.0]]
 [float]
 === Known issues

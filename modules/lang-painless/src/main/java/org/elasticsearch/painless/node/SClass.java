@@ -130,7 +130,7 @@ public final class SClass extends AStatement {
         extractedVariables.addAll(variables);
     }
 
-    public void analyze(PainlessLookup painlessLookup, CompilerSettings settings) {
+    public ScriptRoot analyze(PainlessLookup painlessLookup, CompilerSettings settings) {
         this.settings = settings;
         table = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
 
@@ -148,6 +148,7 @@ public final class SClass extends AStatement {
 
         Locals locals = Locals.newProgramScope();
         analyze(table, locals);
+        return table;
     }
 
     @Override

@@ -87,7 +87,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Wildcard.fromXContent(parser);
         }
         throw new ParsingException(parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix]");
+            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard]");
     }
 
     private static IntervalsSourceProvider parseInnerIntervals(XContentParser parser) throws IOException {
@@ -548,6 +548,18 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public static Prefix fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
+
+        String getPrefix() {
+            return prefix;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
     }
 
     public static class Wildcard extends IntervalsSourceProvider {
@@ -613,10 +625,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Prefix prefix = (Prefix) o;
-            return Objects.equals(pattern, prefix.prefix) &&
-                Objects.equals(analyzer, prefix.analyzer) &&
-                Objects.equals(useField, prefix.useField);
+            Wildcard wildcard = (Wildcard) o;
+            return Objects.equals(pattern, wildcard.pattern) &&
+                Objects.equals(analyzer, wildcard.analyzer) &&
+                Objects.equals(useField, wildcard.useField);
         }
 
         @Override
@@ -664,6 +676,18 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Wildcard fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+
+        String getPattern() {
+            return pattern;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
         }
     }
 

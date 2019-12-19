@@ -309,7 +309,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
     }
-    
+
     private void testDateRangeWithCurrentFunctions_AndRangeOptimization(String function, String pattern, ZonedDateTime lowerValue,
             ZonedDateTime upperValue) {
         String lowerOperator = randomFrom(new String[] {"<", "<="});
@@ -324,7 +324,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(1, eqe.output().size());
         assertEquals("test.some.string", eqe.output().get(0).qualifiedName());
         assertEquals(DataType.TEXT, eqe.output().get(0).dataType());
-        
+
         Query query = eqe.queryContainer().query();
         // the range queries optimization should create a single "range" query with "from" and "to" populated with the values
         // in the two branches of the AND condition
@@ -820,7 +820,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stWktToSql(" +
                 "InternalSqlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.stWktToSql(params.v1)))",
             aggFilter.scriptTemplate().toString());
-        assertEquals("[{v=keyword}, {v=point (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
+        assertEquals("[{v=keyword}, {v=POINT (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
     }
 
     public void testTranslateStDistanceToScript() {
@@ -840,7 +840,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 "InternalSqlScriptUtils.stDistance(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
             sc.script().toString());
-        assertEquals("[{v=point}, {v=point (10.0 20.0)}, {v=20}]", sc.script().params().toString());
+        assertEquals("[{v=point}, {v=POINT (10.0 20.0)}, {v=20}]", sc.script().params().toString());
     }
 
     public void testTranslateStDistanceToQuery() {

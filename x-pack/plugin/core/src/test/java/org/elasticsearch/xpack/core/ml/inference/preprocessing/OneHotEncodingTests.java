@@ -67,4 +67,19 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         testProcess(encoding, fieldValues, matchers);
     }
 
+    public void testProcessWithNestedField() {
+        String field = "categorical.child";
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
+        Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Object::toString, v -> "Column_" + v.toString()));
+        OneHotEncoding encoding = new OneHotEncoding(field, valueMap);
+        Map<String, Object> fieldValues = new HashMap<>() {{
+            put("categorical", new HashMap<>(){{
+                put("child", "farequote");
+            }});
+        }};
+
+        encoding.process(fieldValues);
+        assertThat(fieldValues.get("Column_farequote"), equalTo(1));
+    }
+
 }

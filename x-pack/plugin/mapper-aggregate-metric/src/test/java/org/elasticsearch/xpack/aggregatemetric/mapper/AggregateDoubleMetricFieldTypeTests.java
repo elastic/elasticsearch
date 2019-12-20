@@ -12,6 +12,6 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new AggregateDoubleMetricFieldMapper.AggregateMetricFieldType();
+        return new AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType();
     }
 }

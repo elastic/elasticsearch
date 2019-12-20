@@ -6,23 +6,24 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 
-import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -36,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 /** A {@link FieldMapper} for a field containing aggregate metrics such as min/max/value_count etc. */
 public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
@@ -45,35 +48,32 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
      * Mapping field names
      */
     public static class Names {
-        public static final String IGNORE_MALFORMED = "ignore_malformed";
+        public static final ParseField IGNORE_MALFORMED =  new ParseField("ignore_malformed");
         public static final ParseField METRICS = new ParseField("metrics");
+        public static final ParseField DEFAULT_METRIC = new ParseField("default_metric");
     }
 
     /**
      * Enum of aggregate metrics supported by this field mapper
      */
-    enum Metrics {
+    enum Metric {
         min, max, sum, value_count;
     }
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-        public static final Explicit<Set<Metrics>> METRICS = new Explicit<>(Collections.emptySet(), false);
-        public static final AggregateMetricFieldType FIELD_TYPE = new AggregateMetricFieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setHasDocValues(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
+        public static final Explicit<Set<Metric>> METRICS = new Explicit<>(Collections.emptySet(), false);
+        public static final Explicit<Metric> DEFAULT_METRIC =  new Explicit<>(Metric.max, false);
+        public static final AggregateDoubleMetricFieldType FIELD_TYPE = new AggregateDoubleMetricFieldType();
     }
 
     public static class Builder extends FieldMapper.Builder<AggregateDoubleMetricFieldMapper.Builder, AggregateDoubleMetricFieldMapper> {
 
         private Boolean ignoreMalformed;
 
-        private EnumSet<Metrics> metrics;
+        private EnumSet<Metric> metrics;
+
+        private Metric defaultMetric;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -95,14 +95,35 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return AggregateDoubleMetricFieldMapper.Defaults.IGNORE_MALFORMED;
         }
 
-        public AggregateDoubleMetricFieldMapper.Builder metrics(EnumSet<Metrics> metrics) {
+        public AggregateDoubleMetricFieldMapper.Builder defaultMetric(Metric defaultMetric) {
+            this.defaultMetric = defaultMetric;
+            return builder;
+        }
+
+        protected Explicit<Metric> defaultMetric(BuilderContext context) {
+            if (defaultMetric != null) {
+                return new Explicit<>(defaultMetric, true);
+            }
+
+            // If a single metric is contained, this should be the default
+            if (metrics != null && metrics.size() == 1) {
+                return new Explicit<>(metrics.iterator().next(), false);
+            }
+
+            if (metrics.contains(Defaults.DEFAULT_METRIC.value())) {
+                return Defaults.DEFAULT_METRIC;
+            }
+            throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC.getPreferredName() + "] must be set");
+        }
+
+        public AggregateDoubleMetricFieldMapper.Builder metrics(EnumSet<Metric> metrics) {
             this.metrics = metrics;
             return builder;
         }
 
-        protected Explicit<Set<Metrics>> metrics(BuilderContext context) {
+        protected Explicit<Set<Metric>> metrics(BuilderContext context) {
             if (metrics != null) {
-                return new Explicit<Set<Metrics>>(metrics, true);
+                return new Explicit<>(metrics, true);
             }
             return Defaults.METRICS;
         }
@@ -110,9 +131,31 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public AggregateDoubleMetricFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+
+            EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
+            // Instantiate one NumberFieldMapper instance for each metric
+            for (Metric m : this.metrics) {
+                String fieldName = name + "._" + m.name();
+                NumberFieldMapper.Builder builder;
+
+                if (m == Metric.value_count) {
+                    // value_count metric can only be an integer and not a double
+                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER);
+                    builder.coerce(false);
+                } else {
+                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE);
+                }
+                builder.store(false);
+                builder.index(true);
+                builder.docValues(true);
+                builder.fieldType().setDocValuesType(DocValuesType.NUMERIC);
+                NumberFieldMapper fieldMapper = builder.build(context);
+                metricMappers.put(m, fieldMapper);
+            }
+
             return new AggregateDoubleMetricFieldMapper(name, fieldType, defaultFieldType,
                 context.indexSettings(), multiFieldsBuilder.build(this, context),
-                ignoreMalformed(context), metrics(context), copyTo);
+                ignoreMalformed(context), metrics(context), defaultMetric(context), copyTo, metricMappers);
         }
     }
 
@@ -130,10 +173,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 if (propName.equals(Names.METRICS.getPreferredName())) {
                     String metricsStr[] = XContentMapValues.nodeStringArrayValue(propNode);
                     // Make sure that metrics are supported
-                    EnumSet<Metrics> parsedMetrics = EnumSet.noneOf(Metrics.class);
+                    EnumSet<Metric> parsedMetrics = EnumSet.noneOf(Metric.class);
                     for (int i = 0; i < metricsStr.length; i++) {
                         try {
-                            Metrics m = Metrics.valueOf(metricsStr[i]);
+                            Metric m = Metric.valueOf(metricsStr[i]);
                             parsedMetrics.add(m);
                         } catch (IllegalArgumentException e) {
                             throw new MapperParsingException("Metric [" + metricsStr[i] + "] is not supported.");
@@ -141,8 +184,18 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     }
                     builder.metrics(parsedMetrics);
                     iterator.remove();
-                } else if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_MALFORMED));
+                } else if (propName.equals(Names.DEFAULT_METRIC.getPreferredName())) {
+                    String defaultMetric = XContentMapValues.nodeStringValue(propNode,
+                        name + "." + Names.DEFAULT_METRIC.getPreferredName());
+                    try {
+                        builder.defaultMetric(Metric.valueOf(defaultMetric));
+                        iterator.remove();
+                    } catch (IllegalArgumentException e) {
+                        throw new MapperParsingException("Metric [" + defaultMetric + "] is not supported.");
+                    }
+                } else if (propName.equals(Names.IGNORE_MALFORMED.getPreferredName())) {
+                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode,
+                        name + "." + Names.IGNORE_MALFORMED.getPreferredName()));
                     iterator.remove();
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
@@ -152,23 +205,43 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class AggregateMetricFieldType extends MappedFieldType {
+    public static final class AggregateDoubleMetricFieldType extends SimpleMappedFieldType {
 
-        public AggregateMetricFieldType() {
+        private EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
+
+        private Metric defaultMetric;
+
+        AggregateDoubleMetricFieldType() {
         }
 
-        AggregateMetricFieldType(AggregateMetricFieldType other) {
+        AggregateDoubleMetricFieldType(AggregateDoubleMetricFieldType other) {
             super(other);
+            this.metricFields = other.metricFields;
+            this.defaultMetric = other.defaultMetric;
         }
 
         @Override
         public MappedFieldType clone() {
-            return new AggregateMetricFieldType(this);
+            return new AggregateDoubleMetricFieldType(this);
+        }
+
+        private NumberFieldMapper.NumberFieldType delegateFieldType(Metric metric) {
+            return this.metricFields.get(metric);
+        }
+
+        private NumberFieldMapper.NumberFieldType delegateFieldType() {
+            return delegateFieldType(defaultMetric);
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            // TODO: Implement this
+            return null;
         }
 
         @Override
@@ -181,30 +254,32 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         }
 
-        @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, " +
-                "use dedicated aggregations instead: ["
-                + name() + "]");
-        }
     }
+
+    private final EnumMap<Metric, NumberFieldMapper> metricFieldMappers;
 
     private Explicit<Boolean> ignoreMalformed;
 
-    private Explicit<Set<Metrics>> metrics;
+    /** A set of metrics supported */
+    private Explicit<Set<Metric>> metrics;
+
+    /** The default metric to be when querying this field type */
+    private Explicit<Metric> defaultMetric;
 
     private AggregateDoubleMetricFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                              Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                             Explicit<Set<Metrics>> metrics,
-                                             CopyTo copyTo) {
+                                             Explicit<Set<Metric>> metrics, Explicit<Metric> defaultMetric,
+                                             CopyTo copyTo, EnumMap<Metric, NumberFieldMapper> metricFieldMappers) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.metrics = metrics;
+        this.defaultMetric = defaultMetric;
+        this.metricFieldMappers = metricFieldMappers;
     }
 
     @Override
-    public AggregateMetricFieldType fieldType() {
-        return (AggregateMetricFieldType) super.fieldType();
+    public AggregateDoubleMetricFieldType fieldType() {
+        return (AggregateDoubleMetricFieldType) super.fieldType();
     }
 
     @Override
@@ -219,109 +294,73 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        Object metricsAsObject;
-
-        if (context.externalValueSet()) {
-            metricsAsObject = context.externalValue();
-        } else {
-            metricsAsObject = context.parser().map();
+        if (context.externalValueSet() == true) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
 
-        if (metricsAsObject == null) {
-            metricsAsObject = fieldType().nullValue();
-        }
+        context.path().add(simpleName());
+        XContentParser.Token token = null;
+        XContentSubParser subParser = null;
 
-        if (metricsAsObject == null) {
-            return;
-        }
-
-        EnumMap<Metrics, Object> parsedMetricsMap = new EnumMap<>(Metrics.class);
-        if (metricsAsObject instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> m = (Map<String, Object>) metricsAsObject;
-            for (Map.Entry<String, Object> e : m.entrySet()) {
-                Metrics metric = Metrics.valueOf(e.getKey());
-
-                if (metrics.value().contains(metric) == false) {
-                    if (ignoreMalformed.value() == false) {
-                        throw new IllegalArgumentException("Aggregate metric [" + metric +
-                            "] does not exist in the mapping of field [" + fieldType.name() + "]");
-                    } else {
-                        context.addIgnoredField(fieldType.name());
-                        return;
-                    }
-                }
-
-                // Make sure that the value is a number. Probably this will change when
-                // new aggregate metric types are added (histogram, cardinality etc)
-                if (e.getValue() instanceof Number == false) {
-                    if (ignoreMalformed.value() == false) {
-                        throw new IllegalArgumentException("Aggregate metric [" + metric +
-                            "] of field [" + fieldType.name() + "] must be a number");
-                    } else {
-                        context.addIgnoredField(fieldType.name());
-                        return;
-                    }
-                }
-
-                // Make sure that value_count is not a negative value
-                if (Metrics.value_count.equals(metric) == true) {
-                    if (e.getValue() instanceof Integer == false) {
-                        if (ignoreMalformed.value() == false) {
-                            throw new IllegalArgumentException("Aggregate metric [" + metric +
-                                "] of field [" + fieldType.name() + "] must be an integer number");
-                        } else {
-                            context.addIgnoredField(fieldType.name());
-                            return;
-                        }
-                    }
-
-                    Integer metricValue = (Integer) e.getValue();
-                    if (metricValue.intValue() < 0) {
-                        if (ignoreMalformed.value() == false) {
-                            throw new IllegalArgumentException("Aggregate metric [" + metric +
-                                "] of field [" + fieldType.name() + "] must not be a negative number");
-                        } else {
-                            context.addIgnoredField(fieldType.name());
-                            return;
-                        }
-                    }
-                }
-
-                parsedMetricsMap.put(metric, e.getValue());
-            }
-        } else {
-            throw new MapperParsingException("Cannot parse aggregate metric for field [{}]",
-                null,fieldType.name());
-        }
-
-        if (parsedMetricsMap.keySet().containsAll(metrics.value()) == false) {
-            if (ignoreMalformed.value() == false) {
-                throw new IllegalArgumentException("Aggregate metric field [" + fieldType.name() +
-                    "] must contain all metrics " + metrics.value().toString());
-            } else {
-                context.addIgnoredField(fieldType.name());
+        try {
+            token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                context.path().remove();
                 return;
             }
-        }
 
-        //TODO: Change this and delegate it to NumberType
-        for (Map.Entry<Metrics, Object> e : parsedMetricsMap.entrySet()) {
-            Double d = null;
-            if (e.getValue() instanceof Double) {
-                d = (Double) e.getValue();
-            } else if (e.getValue() instanceof Integer) {
-                d = Double.valueOf((Integer) e.getValue());
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
+            subParser = new XContentSubParser(context.parser());
+            token = subParser.nextToken();
+            while (token != XContentParser.Token.END_OBJECT) {
+                // should be an object subfield with name a metric name
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
+                String fieldName = subParser.currentName();
+                Metric metric = Metric.valueOf(fieldName);
+
+                if (metrics.value().contains(metric) == false) {
+                    throw new IllegalArgumentException("Aggregate metric [" + metric +
+                        "] does not exist in the mapping of field [" + fieldType.name() + "]");
+                }
+
+                token = subParser.nextToken();
+                // Make sure that the value is a number. Probably this will change when
+                // new aggregate metric types are added (histogram, cardinality etc)
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
+                delegateFieldMapper.parse(context);
+
+                if (Metric.value_count == metric) {
+                    Number n = context.doc().getField(delegateFieldMapper.simpleName()).numericValue();
+                    if  (n.intValue() < 0) {
+                        throw new IllegalArgumentException("Aggregate metric [" + metric.name() +
+                            "] of field [" + fieldType.name() + "] cannot be a negative number");
+                    }
+                }
+
+                token = subParser.nextToken();
             }
 
-            String fieldName = fieldType().name() + "." + e.getKey().name();
-            if (fieldType().indexOptions() != IndexOptions.NONE) {
-                fields.add(new DoublePoint(fieldName, d));
+            for (Metric m : metrics.value()) {
+                if (context.doc().getField(fieldType().name() + "._" + m.name()) == null) {
+                    throw new IllegalArgumentException("Aggregate metric field [" + fieldType.name() +
+                        "] must contain all metrics " + metrics.value().toString());
+                }
             }
-            if (fieldType().hasDocValues()) {
-                fields.add(new SortedNumericDocValuesField(fieldName, Double.doubleToRawLongBits(d)));
+        } catch (Exception e) {
+            if (ignoreMalformed.value() == true) {
+                if (subParser != null) {
+                    // close the subParser so we advance to the end of the object
+                    subParser.close();
+                }
+                context.addIgnoredField(fieldType().name());
+            } else {
+                // Rethrow exception as is. It is going to be caught and nested in a MapperParsingException
+                // by its FieldMapper.MappedFieldType#parse()
+                throw e;
             }
         }
+        context.path().remove();
     }
 
     @Override
@@ -335,17 +374,25 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         if (other.metrics.explicit()) {
             this.metrics = other.metrics;
         }
+
+        if (other.defaultMetric.explicit()) {
+            this.defaultMetric = other.defaultMetric;
+        }
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
+            builder.field(Names.IGNORE_MALFORMED.getPreferredName(), ignoreMalformed.value());
         }
 
         if (includeDefaults || metrics.explicit()) {
             builder.field(Names.METRICS.getPreferredName(), metrics.value());
+        }
+
+        if (includeDefaults || defaultMetric.explicit()) {
+            builder.field(Names.DEFAULT_METRIC.getPreferredName(), defaultMetric.value());
         }
     }
 }

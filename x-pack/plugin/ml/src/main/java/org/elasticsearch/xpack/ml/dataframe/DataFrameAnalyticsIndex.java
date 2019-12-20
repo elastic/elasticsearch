@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -84,7 +85,7 @@ public final class DataFrameAnalyticsIndex {
                                                          ActionListener<CreateIndexRequest> listener) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
-        ActionListener<ImmutableOpenMap<String, MappingMetaData>> mappingsListener = ActionListener.wrap(
+        ActionListener<MappingMetaData> mappingsListener = ActionListener.wrap(
             mappings -> listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappings)),
             listener::onFailure
         );
@@ -111,16 +112,13 @@ public final class DataFrameAnalyticsIndex {
     }
 
     private static CreateIndexRequest createIndexRequest(Clock clock, DataFrameAnalyticsConfig config, Settings settings,
-                                                         ImmutableOpenMap<String, MappingMetaData> mappings) {
-        // There should only be 1 type
-        assert mappings.size() == 1;
+                                                         MappingMetaData mappings) {
 
         String destinationIndex = config.getDest().getIndex();
-        String type = mappings.keysIt().next();
-        Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
+        Map<String, Object> mappingsAsMap = mappings.sourceAsMap();
         addProperties(mappingsAsMap);
         addMetaData(mappingsAsMap, config.getId(), clock);
-        return new CreateIndexRequest(destinationIndex, settings).mapping(type, mappingsAsMap);
+        return new CreateIndexRequest(destinationIndex, settings).mapping(MapperService.SINGLE_MAPPING_NAME, mappingsAsMap);
     }
 
     private static Settings settings(GetSettingsResponse settingsResponse) {

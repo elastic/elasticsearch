@@ -155,6 +155,22 @@ POST _scripts/calculate-score
 -----------------------------------
 // TEST[setup:twitter]
 
+You may also specify a context as part of the url path to compile a
+stored script against that specific context in the form of
+`/_scripts/{id}/{context}`:
+
+[source,console]
+-----------------------------------
+POST _scripts/calculate-score/score
+{
+  "script": {
+    "lang": "painless",
+    "source": "Math.log(_score * 2) + params.my_modifier"
+  }
+}
+-----------------------------------
+// TEST[setup:twitter]
+
 This same script can be retrieved with:
 
 [source,console]

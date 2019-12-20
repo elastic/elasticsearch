@@ -119,6 +119,10 @@ For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij]
 
     ./gradlew :run
 
+You can access Elasticsearch with:
+
+    curl -u elastic:password localhost:9200
+
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`

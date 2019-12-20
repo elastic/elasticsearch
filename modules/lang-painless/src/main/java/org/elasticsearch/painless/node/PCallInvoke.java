@@ -27,6 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 
 import java.util.List;
 import java.util.Objects;
@@ -78,6 +79,8 @@ public final class PCallInvoke extends AExpression {
                 throw createError(new IllegalArgumentException(
                         "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
+
+            scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }

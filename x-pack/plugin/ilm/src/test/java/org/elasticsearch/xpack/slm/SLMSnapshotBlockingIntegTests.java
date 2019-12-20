@@ -29,6 +29,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
@@ -63,6 +64,13 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     static final String REPO = "my-repo";
     List<String> dataNodeNames = null;
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .build();
+    }
 
     @Before
     public void ensureClusterNodes() {

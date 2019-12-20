@@ -128,6 +128,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -688,7 +689,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(51, namedXContents.size());
+        assertEquals(55, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -730,26 +731,36 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME));
-        assertEquals(Integer.valueOf(8), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
+        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
         assertThat(names,
-            hasItems(AucRocMetric.NAME,
-                PrecisionMetric.NAME,
-                RecallMetric.NAME,
-                ConfusionMatrixMetric.NAME,
-                AccuracyMetric.NAME,
-                MulticlassConfusionMatrixMetric.NAME,
-                MeanSquaredErrorMetric.NAME,
-                RSquaredMetric.NAME));
-        assertEquals(Integer.valueOf(8), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
+            hasItems(
+                registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, PrecisionMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, RecallMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrixMetric.NAME),
+                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
+                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
+        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
         assertThat(names,
-            hasItems(AucRocMetric.NAME,
-                PrecisionMetric.NAME,
-                RecallMetric.NAME,
-                ConfusionMatrixMetric.NAME,
-                AccuracyMetric.NAME,
-                MulticlassConfusionMatrixMetric.NAME,
-                MeanSquaredErrorMetric.NAME,
-                RSquaredMetric.NAME));
+            hasItems(
+                registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, PrecisionMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, RecallMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrixMetric.NAME),
+                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
+                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
         assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME));
         assertEquals(Integer.valueOf(2), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));

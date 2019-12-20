@@ -2,7 +2,7 @@ tag::aggregations[]
 If set, the {dfeed} performs aggregation searches. Support for aggregations is
 limited and should only be used with low cardinality data. For more information,
 see
-{stack-ov}/ml-configuring-aggregation.html[Aggregating data for faster performance].
+{ml-docs}/ml-configuring-aggregation.html[Aggregating data for faster performance].
 end::aggregations[]
 
 tag::allow-lazy-open[]
@@ -185,6 +185,11 @@ The size of the interval that the analysis is aggregated into, typically between
 see <<time-units>>.
 end::bucket-span[]
 
+tag::bucket-span-results[]
+The length of the bucket in seconds. This value matches the `bucket_span`
+that is specified in the job.
+end::bucket-span-results[]
+
 tag::by-field-name[]
 The field used to split the data. In particular, this property is used for 
 analyzing the splits with respect to their own history. It is used for finding 
@@ -198,7 +203,7 @@ at the same time as `categorization_filters`. The categorization analyzer
 specifies how the `categorization_field` is interpreted by the categorization
 process. The syntax is very similar to that used to define the `analyzer` in the
 <<indices-analyze,Analyze endpoint>>. For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
 +
 --
 The `categorization_analyzer` field can be specified either as a string or as an
@@ -229,7 +234,7 @@ set this value to `0`, no examples are stored.
 --
 NOTE: The `categorization_examples_limit` only applies to analysis that uses
 categorization. For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
 
 --
 end::categorization-examples-limit[]
@@ -239,7 +244,7 @@ If this property is specified, the values of the specified field will be
 categorized. The resulting categories must be used in a detector by setting
 `by_field_name`, `over_field_name`, or `partition_field_name` to the keyword
 `mlcategory`. For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
 end::categorization-field-name[]
 
 tag::categorization-filters[]
@@ -249,7 +254,7 @@ are used to filter out matching sequences from the categorization field values.
 You can use this functionality to fine tune the categorization by excluding 
 sequences from consideration when categories are defined. For example, you can 
 exclude SQL statements that appear in your log files. For more information, see 
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages]. This
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages]. This
 property cannot be used at the same time as `categorization_analyzer`. If you
 only want to define simple regular expression filters that are applied prior to 
 tokenization, setting this property is the easiest method. If you also want to 
@@ -294,7 +299,7 @@ tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
 results should be skipped. For more examples, see 
-{stack-ov}/ml-configuring-detector-custom-rules.html[Configuring detector custom rules].
+{ml-docs}/ml-configuring-detector-custom-rules.html[Customizing detectors with custom rules].
 A custom rule has the following properties:
 +
 --
@@ -358,7 +363,7 @@ end::custom-rules[]
 tag::custom-settings[]
 Advanced configuration option. Contains custom meta data about the job. For
 example, it can contain custom URL information as shown in
-{stack-ov}/ml-configuring-url.html[Adding custom URLs to {ml} results].
+{ml-docs}/ml-configuring-url.html[Adding custom URLs to {ml} results].
 end::custom-settings[]
 
 tag::data-description[]
@@ -483,6 +488,11 @@ Identifier for the {dfeed}. It can be a {dfeed} identifier or a wildcard
 expression.
 end::datafeed-id-wildcard[]
 
+tag::decompress-definition[]
+Specifies whether the included model definition should be returned as a JSON map (`true`) or 
+in a custom compressed format (`false`). Defaults to `true`.
+end::decompress-definition[]
+
 tag::delayed-data-check-config[]
 Specifies whether the {dfeed} checks for missing data and the size of the
 window. For example: `{"enabled": true, "check_window": "1h"}`.
@@ -493,7 +503,7 @@ an effort to determine whether any data has subsequently been added to the index
 If missing data is found, it is a good indication that the `query_delay` option
 is set too low and the data is being indexed after the {dfeed} has passed that
 moment in time. See 
-{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
+{ml-docs}/ml-delayed-data-detection.html[Working with delayed data].
 
 This check runs only on real-time {dfeeds}.
 
@@ -519,6 +529,10 @@ the index being used to train. If this field is missing from a document, then
 that document will not be used for training, but a prediction with the trained 
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
+
+tag::desc-results[]
+If true, the results are sorted in descending order.
+end::desc-results[]
 
 tag::description-dfa[]
 A description of the job.
@@ -618,6 +632,11 @@ working with both over and by fields, then you can set `exclude_frequent` to
 `all` for both fields, or to `by` or `over` for those specific fields.
 end::exclude-frequent[]
 
+tag::exclude-interim-results[]
+If `true`, the output excludes interim results. By default, interim results are 
+included.
+end::exclude-interim-results[]
+
 tag::feature-bag-fraction[]
 Defines the fraction of features that will be used when 
 selecting a random bag for each candidate split. 
@@ -673,7 +692,7 @@ end::from[]
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`, 
 `max`, and `sum`. For more information, see
-{stack-ov}/ml-functions.html[Function reference].
+{ml-docs}/ml-functions.html[Function reference].
 end::function[]
 
 tag::gamma[]
@@ -687,6 +706,12 @@ end::gamma[]
 tag::groups[]
 A list of job groups. A job can belong to no groups or many.
 end::groups[]
+
+tag::include-model-definition[]
+Specifies if the model definition should be returned in the response. Defaults 
+to `false`. When `true`, only a single model must match the ID patterns 
+provided, otherwise a bad request is returned.
+end::include-model-definition[]
 
 tag::indices[]
 An array of index names. Wildcards are supported. For example:
@@ -706,6 +731,11 @@ also want to use a field name that is not specifically named in a detector, but
 is available as part of the input data. When you use multiple detectors, the use 
 of influencers is recommended as it aggregates results for each influencer entity.
 end::influencers[]
+
+tag::is-interim[]
+If `true`, this is an interim result. In other words, the results are calculated
+based on partial input data.
+end::is-interim[]
 
 tag::job-id-anomaly-detection[]
 Identifier for the {anomaly-job}.
@@ -828,6 +858,10 @@ recommended value.
 --
 end::mode[]
 
+tag::model-id[]
+The unique identifier of the trained {infer} model.
+end::model-id[]
+
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for 
 analytical processing. Once this limit is approached, data pruning becomes
@@ -945,7 +979,7 @@ tag::over-field-name[]
 The field used to split the data. In particular, this property is used for 
 analyzing the splits with respect to the history of all splits. It is used for 
 finding unusual values in the population of all splits. For more information,
-see {stack-ov}/ml-configuring-pop.html[Performing population analysis].
+see {ml-docs}/ml-configuring-pop.html[Performing population analysis].
 end::over-field-name[]
 
 tag::outlier-fraction[]
@@ -1015,7 +1049,7 @@ tag::script-fields[]
 Specifies scripts that evaluate custom expressions and returns script fields to
 the {dfeed}. The detector configuration objects in a job can contain functions
 that use these script fields. For more information, see
-{stack-ov}/ml-configuring-transform.html[Transforming data with script fields]
+{ml-docs}/ml-configuring-transform.html[Transforming data with script fields]
 and <<request-body-search-script-fields,Script fields>>.
 end::script-fields[]
 
@@ -1113,6 +1147,10 @@ tag::time-span[]
 The time span that each search will be querying. This setting is only applicable
 when the mode is set to `manual`. For example: `3h`.
 end::time-span[]
+
+tag::timestamp-results[]
+The start time of the bucket for which these results were calculated.
+end::timestamp-results[]
 
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after 

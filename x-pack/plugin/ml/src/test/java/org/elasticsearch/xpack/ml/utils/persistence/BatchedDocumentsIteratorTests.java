@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.persistence;
+package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;

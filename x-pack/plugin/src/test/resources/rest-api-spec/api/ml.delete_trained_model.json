@@ -1,7 +1,7 @@
 {
   "ml.delete_trained_model":{
     "documentation":{
-      "url":"TODO"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-inference.html"
     },
     "stability":"experimental",
     "url":{

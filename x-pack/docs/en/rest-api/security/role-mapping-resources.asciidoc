@@ -87,4 +87,4 @@ other groups they belong to:
 // NOTCONSOLE
 
 For additional realm-specific details, see
-{stack-ov}/mapping-roles.html#ldap-role-mapping[Mapping Users and Groups to Roles].
+<<ldap-role-mapping>>.

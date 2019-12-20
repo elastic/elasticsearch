@@ -42,7 +42,7 @@ distribution of {es}. You no longer need to install {xpack} separately.
 ==== Deprecation of the `x-pack` configuration directory
  
 In 6.2 and earlier releases, the 
-{stack-ov}/security-files.html[security configuration files], such as the 
+<<security-files,security configuration files>>, such as the 
 `log4j2.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles` 
 files, were located in an `x-pack` directory within the 
 <<config-files-location,config directory>>.  
@@ -55,7 +55,7 @@ exist in an `x-pack` folder. That path is deprecated, however, and you should
 move your files out of that folder. There is a known problem where the files in 
 the old path are disregarded in favor of the files in the new path: 
 {pull}/33688[#33688]. For more information, see 
-{stack-ov}/trb-security-path.html[Failures due to relocation of the configuration files].
+<<trb-security-path>>.
 
 Settings such as `files.role_mapping` now default to 
 `ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations, 
@@ -101,7 +101,8 @@ TTY (i.e., using interactive mode to accept the permissions), or by passing the
 
 The legacy `XPackExtension` extension mechanism has been removed and replaced
 with an SPI based extension mechanism that is installed and built as an
-elasticsearch plugin. For more information about using SPI loaded security extensions in custom realms, see {stack-ov}/custom-realms.html[Integrating with other authentication systems]. 
+elasticsearch plugin. For more information about using SPI loaded security
+extensions in custom realms, see <<custom-realms>>. 
 
 [float]
 [[breaking_63_settings_changes]]

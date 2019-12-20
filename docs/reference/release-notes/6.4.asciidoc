@@ -227,7 +227,7 @@ Java High Level REST Client::
 * Rest High Level client: Add List Tasks {pull}29546[#29546] (issue: {issue}27205[#27205])
 
 Machine learning::
-* Detectors now support {stack-ov}/ml-rules.html[custom rules] that enable the
+* Detectors now support {ml-docs}/ml-rules.html[custom rules] that enable the
 user to improve machine learning results by providing some domain-specific
 knowledge in the form of rule. {ml-pull}119[#119], {pull}31110[#31110], {pull}31294[#31294] (issue: {issue}31110[#31110])
 * Reverse engineer Grok patterns from categorization results {pull}30125[#30125]

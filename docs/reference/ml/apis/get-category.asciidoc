@@ -18,7 +18,7 @@ Retrieves job results for one or more categories.
 ==== Description
 
 For more information about categories, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
 
 ==== Path Parameters
 

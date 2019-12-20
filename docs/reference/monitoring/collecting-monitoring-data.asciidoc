@@ -129,9 +129,9 @@ xpack.monitoring.exporters:
 must provide appropriate credentials when data is shipped to the monitoring cluster:
 
 ... Create a user on the monitoring cluster that has the 
-{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+<<built-in-roles,`remote_monitoring_agent` built-in role>>. 
 Alternatively, use the 
-{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+<<built-in-users,`remote_monitoring_user` built-in user>>.
 
 ... Add the user ID and password settings to the HTTP exporter settings in the 
 `elasticsearch.yml` file on each node. +

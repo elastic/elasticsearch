@@ -23,7 +23,7 @@ To change a user's password, use the
 <<security-api-change-password, change password API>>.
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<configuring-native-realm>>. 
 
 ==== Path Parameters
 

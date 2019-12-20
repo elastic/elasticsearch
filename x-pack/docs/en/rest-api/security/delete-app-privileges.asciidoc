@@ -6,7 +6,7 @@
 ++++
 
 Removes 
-{stack-ov}/security-privileges.html#application-privileges[application privileges].
+<<application-privileges,application privileges>>.
 
 ==== Request
 

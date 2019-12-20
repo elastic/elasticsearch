@@ -1004,6 +1004,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
        assertBusy(() -> assertTrue(indexExists(thirdIndex)));
    }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         String index = "index";
 

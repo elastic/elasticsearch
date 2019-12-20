@@ -24,4 +24,4 @@ An events resource has the following properties:
  in milliseconds since the epoch or ISO 8601 format.
 
 For more information, see
-{stack-ov}/ml-calendars.html[Calendars and Scheduled Events].
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].

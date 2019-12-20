@@ -398,7 +398,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     if (stillRunningTasks.size() > 0) {
                         message.append("Could not stop the transforms ");
                         message.append(stillRunningTasks);
-                        message.append(" as they timed out.");
+                        message.append(" as they timed out [");
+                        message.append(timeout.toString());
+                        message.append("].");
                     }
 
                     listener.onFailure(new ElasticsearchStatusException(message.toString(), RestStatus.REQUEST_TIMEOUT));

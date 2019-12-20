@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -193,13 +194,16 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
     private Repository createRepository() {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final FsRepository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(),
-                                                         BlobStoreTestUtil.mockClusterService(repositoryMetaData)) {
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetaData);
+        final FsRepository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(), clusterService) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually
             }
         };
+        clusterService.addStateApplier(event -> repository.updateState(event.state()));
+        // Apply state once to initialize repo properly like RepositoriesService would
+        repository.updateState(clusterService.state());
         repository.start();
         return repository;
     }

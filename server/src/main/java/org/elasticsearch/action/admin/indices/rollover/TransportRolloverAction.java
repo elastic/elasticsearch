@@ -145,7 +145,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     if (conditionResults.size() == 0 || metConditions.size() > 0) {
                         CreateIndexClusterStateUpdateRequest createIndexRequest = prepareCreateIndexRequest(unresolvedName,
                             rolloverIndexName, rolloverRequest);
-                        clusterService.submitStateUpdateTask("rollover_index", new ClusterStateUpdateTask() {
+                        clusterService.submitStateUpdateTask("rollover_index source [" + sourceIndexName + "] to target ["
+                            + rolloverIndexName + "]", new ClusterStateUpdateTask() {
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexRequest);

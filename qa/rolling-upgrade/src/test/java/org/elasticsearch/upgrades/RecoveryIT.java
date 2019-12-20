@@ -747,8 +747,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2)))
                 .build());
+            ensureGreen(indexName);
+            updateIndexSettings(indexName,
+                Settings.builder().put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
         }
 
         ensureGreen(indexName);

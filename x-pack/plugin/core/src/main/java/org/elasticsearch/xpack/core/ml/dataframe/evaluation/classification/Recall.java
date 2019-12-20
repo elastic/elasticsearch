@@ -115,7 +115,7 @@ public class Recall implements EvaluationMetric {
                 aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
             if (byActualClassAgg.getSumOfOtherDocCounts() > 0) {
-                // This means there were more than {@code maxClassesCardinality} buckets.
+                // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average recall accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
                     "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField);
@@ -138,7 +138,6 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxClassesCardinality);
     }
 
     @Override

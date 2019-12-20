@@ -606,7 +606,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testScoreForParentChildQueriesWithFunctionScore() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
@@ -1066,7 +1066,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     // Issue #3818
     public void testHasChildQueryOnlyReturnsSingleChildType() throws Exception {
         assertAcked(prepareCreate("grandissue")
-            .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
@@ -1679,7 +1679,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testHighlightersIgnoreParentChild() throws IOException {
         assertAcked(prepareCreate("test")
-            .addMapping("doc", jsonBuilder().startObject().startObject("properties")
+            .setMapping(jsonBuilder().startObject().startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")

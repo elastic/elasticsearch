@@ -231,17 +231,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @param xContentType the content type of the mapping source
-     */
-    private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
+    private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
-        return mapping(type, mappingAsMap);
+        return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
     }
 
     /**
@@ -255,11 +248,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, BytesReference.bytes(source), source.contentType());
+    public CreateIndexRequest mapping(XContentBuilder source) {
+        return mapping(BytesReference.bytes(source), source.contentType());
     }
 
     /**
@@ -291,7 +283,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * ("field1", "type=string,store=true").
      */
     public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        mapping(PutMappingRequest.buildFromSimplifiedDef(MapperService.SINGLE_MAPPING_NAME, source));
         return this;
     }
 

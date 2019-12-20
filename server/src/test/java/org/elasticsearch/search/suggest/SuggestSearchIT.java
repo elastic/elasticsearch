@@ -115,12 +115,12 @@ public class SuggestSearchIT extends ESIntegTestCase {
         searchSuggest("test", termSuggest);
 
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("text").field("type", "text").field("analyzer", "keyword").endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test_2").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test_2").setMapping(mapping));
         ensureGreen();
 
         indexDoc("test_2", "1", "text", "ab cd");
@@ -181,7 +181,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 3));
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("name")
                     .field("type", "text")
@@ -195,7 +195,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
 
@@ -260,7 +260,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 3));
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("name")
                     .field("type", "text")
@@ -274,7 +274,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setSource("name", "I like iced tea"),
@@ -482,13 +482,13 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("body").field("type", "text").field("analyzer", "body").endObject()
                 .startObject("bigram").field("type", "text").field("analyzer", "bigram").endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         indexDoc("test", "1", "body", "hello world");
@@ -521,7 +521,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2)
                 .put("index.number_of_shards", 1));
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                     .startObject("properties")
                         .startObject("body").
                             field("type", "text").
@@ -533,7 +533,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                          .endObject()
                      .endObject()
                 .endObject().endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         String[] strings = new String[]{
@@ -656,7 +656,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type1")
+                    .startObject("_doc")
                         .startObject("properties")
                             .startObject("body")
                                 .field("type", "text")
@@ -669,7 +669,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                      .endObject()
                  .endObject()
              .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         String line = "xorr the god jewel";
@@ -723,7 +723,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
                 .put("index.analysis.filter.shingler.output_unigrams", true));
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type2")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                     .startObject("name")
                         .field("type", "text")
@@ -731,7 +731,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(builder.addMapping("type2", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         indexDoc("test", "1", "foo", "bar");
@@ -765,7 +765,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testEmptyShards() throws IOException, InterruptedException {
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().
                 startObject().
-                    startObject("type1").
+                    startObject("_doc").
                         startObject("properties").
                             startObject("name").
                                 field("type", "text").
@@ -783,7 +783,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
-                .put("index.analysis.filter.shingler.output_unigrams", true)).addMapping("type1", mappingBuilder));
+                .put("index.analysis.filter.shingler.output_unigrams", true)).setMapping(mappingBuilder));
         ensureGreen();
 
         // test phrase suggestion on completely empty index
@@ -855,7 +855,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type1")
+                    .startObject("_doc")
                         .startObject("properties")
                             .startObject("body")
                                 .field("type", "text")
@@ -864,7 +864,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         NumShards test = getNumShards("test");
@@ -910,7 +910,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type1")
+                    .startObject("_doc")
                         .startObject("properties")
                             .startObject("title")
                                 .field("type", "text")
@@ -919,7 +919,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         List<String> titles = new ArrayList<>();
@@ -1042,7 +1042,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testSuggestWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("text")
                             .field("type", "keyword")
@@ -1054,7 +1054,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test").setSource("text", "apple"));
@@ -1071,7 +1071,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testPhraseSuggestMinDocFreq() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("text")
                             .field("type", "keyword")
@@ -1081,7 +1081,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 1).build())
-            .addMapping("type", mapping));
+            .setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test").setSource("text", "apple"));
@@ -1182,7 +1182,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("title")
                 .field("type", "text")
@@ -1191,7 +1191,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         List<String> titles = new ArrayList<>();

@@ -90,7 +90,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testSimpleParentChild() throws Exception {
         assertAcked(prepareCreate("articles")
-            .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
@@ -188,7 +188,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testRandomParentChild() throws Exception {
         assertAcked(prepareCreate("idx")
-            .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("id")
                     .field("type", "keyword")
                 .endObject()

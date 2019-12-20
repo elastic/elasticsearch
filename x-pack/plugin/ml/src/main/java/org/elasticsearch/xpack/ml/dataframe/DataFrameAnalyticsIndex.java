@@ -123,7 +123,7 @@ public final class DataFrameAnalyticsIndex {
         String type = mappings.keysIt().next();
         Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
-        checkResultsFieldIsNotPresentInSourceIndex(config, properties);
+        checkResultsFieldIsNotPresentInProperties(config, properties);
         properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetaData(config.getId(), clock));
@@ -161,7 +161,7 @@ public final class DataFrameAnalyticsIndex {
     }
 
     private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config, Map<String, Object> mappingsProperties) {
-        HashMap<String, Object> properties = new HashMap<>();
+        Map<String, Object> properties = new HashMap<>();
         properties.put(ID_COPY, Map.of("type", "keyword"));
         for (Map.Entry<String, String> entry
                 : config.getAnalysis().getExplicitlyMappedFields(config.getDest().getResultsField()).entrySet()) {
@@ -176,7 +176,7 @@ public final class DataFrameAnalyticsIndex {
     }
 
     private static Map<String, Object> createMetaData(String analyticsId, Clock clock) {
-        HashMap<String, Object> metadata = new HashMap<>();
+        Map<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
         metadata.put(CREATED_BY, "data-frame-analytics");
         metadata.put(VERSION, Map.of(CREATED, Version.CURRENT));
@@ -205,8 +205,8 @@ public final class DataFrameAnalyticsIndex {
         Map<String, Object> destPropertiesAsMap =
             (Map<String, Object>)destMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
 
-        // Verify that the results field does not exist in the source indices
-        checkResultsFieldIsNotPresentInSourceIndex(config, destPropertiesAsMap);
+        // Verify that the results field does not exist in the dest index
+        checkResultsFieldIsNotPresentInProperties(config, destPropertiesAsMap);
 
         // Determine mappings to be added to the destination index
         Map<String, Object> addedMappings =
@@ -220,7 +220,7 @@ public final class DataFrameAnalyticsIndex {
             config.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE, putMappingRequest, listener);
     }
 
-    private static void checkResultsFieldIsNotPresentInSourceIndex(DataFrameAnalyticsConfig config, Map<String, Object> properties) {
+    private static void checkResultsFieldIsNotPresentInProperties(DataFrameAnalyticsConfig config, Map<String, Object> properties) {
         String resultsField = config.getDest().getResultsField();
         if (properties.containsKey(resultsField)) {
             throw ExceptionsHelper.badRequestException(

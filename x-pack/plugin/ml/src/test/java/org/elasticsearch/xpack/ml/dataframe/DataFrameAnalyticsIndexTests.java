@@ -223,7 +223,6 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
             new GetIndexResponse(
                 new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
-        ArgumentCaptor<GetMappingsRequest> getMappingsRequestCaptor = ArgumentCaptor.forClass(GetMappingsRequest.class);
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
 
         doAnswer(callListenerOnResponse(new AcknowledgedResponse(true)))

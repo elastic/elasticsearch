@@ -21,14 +21,15 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -40,78 +41,6 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
     // threshold when to audit concrete index names, above this threshold we only report the number of changes
     private static final int AUDIT_CONCRETED_SOURCE_INDEX_CHANGES = 10;
-
-    /**
-     * Builder for collecting checkpointing information for the purpose of _stats
-     */
-    private static class TransformCheckpointingInfoBuilder {
-        private TransformIndexerPosition nextCheckpointPosition;
-        private TransformProgress nextCheckpointProgress;
-        private TransformCheckpoint lastCheckpoint;
-        private TransformCheckpoint nextCheckpoint;
-        private TransformCheckpoint sourceCheckpoint;
-
-        TransformCheckpointingInfoBuilder() {}
-
-        TransformCheckpointingInfo build() {
-            if (lastCheckpoint == null) {
-                lastCheckpoint = TransformCheckpoint.EMPTY;
-            }
-            if (nextCheckpoint == null) {
-                nextCheckpoint = TransformCheckpoint.EMPTY;
-            }
-            if (sourceCheckpoint == null) {
-                sourceCheckpoint = TransformCheckpoint.EMPTY;
-            }
-
-            // checkpointstats requires a non-negative checkpoint number
-            long lastCheckpointNumber = lastCheckpoint.getCheckpoint() > 0 ? lastCheckpoint.getCheckpoint() : 0;
-            long nextCheckpointNumber = nextCheckpoint.getCheckpoint() > 0 ? nextCheckpoint.getCheckpoint() : 0;
-
-            return new TransformCheckpointingInfo(
-                new TransformCheckpointStats(
-                    lastCheckpointNumber,
-                    null,
-                    null,
-                    lastCheckpoint.getTimestamp(),
-                    lastCheckpoint.getTimeUpperBound()
-                ),
-                new TransformCheckpointStats(
-                    nextCheckpointNumber,
-                    nextCheckpointPosition,
-                    nextCheckpointProgress,
-                    nextCheckpoint.getTimestamp(),
-                    nextCheckpoint.getTimeUpperBound()
-                ),
-                TransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint)
-            );
-        }
-
-        public TransformCheckpointingInfoBuilder setLastCheckpoint(TransformCheckpoint lastCheckpoint) {
-            this.lastCheckpoint = lastCheckpoint;
-            return this;
-        }
-
-        public TransformCheckpointingInfoBuilder setNextCheckpoint(TransformCheckpoint nextCheckpoint) {
-            this.nextCheckpoint = nextCheckpoint;
-            return this;
-        }
-
-        public TransformCheckpointingInfoBuilder setSourceCheckpoint(TransformCheckpoint sourceCheckpoint) {
-            this.sourceCheckpoint = sourceCheckpoint;
-            return this;
-        }
-
-        public TransformCheckpointingInfoBuilder setNextCheckpointProgress(TransformProgress nextCheckpointProgress) {
-            this.nextCheckpointProgress = nextCheckpointProgress;
-            return this;
-        }
-
-        public TransformCheckpointingInfoBuilder setNextCheckpointPosition(TransformIndexerPosition nextCheckpointPosition) {
-            this.nextCheckpointPosition = nextCheckpointPosition;
-            return this;
-        }
-    }
 
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
@@ -250,10 +179,10 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         TransformCheckpoint nextCheckpoint,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
-        ActionListener<TransformCheckpointingInfo> listener
+        ActionListener<TransformCheckpointingInfoBuilder> listener
     ) {
-
-        TransformCheckpointingInfoBuilder checkpointingInfoBuilder = new TransformCheckpointingInfoBuilder();
+        TransformCheckpointingInfo.TransformCheckpointingInfoBuilder checkpointingInfoBuilder =
+            new TransformCheckpointingInfo.TransformCheckpointingInfoBuilder();
 
         checkpointingInfoBuilder.setLastCheckpoint(lastCheckpoint)
             .setNextCheckpoint(nextCheckpoint)
@@ -263,10 +192,10 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         long timestamp = System.currentTimeMillis();
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
-            checkpointingInfoBuilder.setSourceCheckpoint(
-                new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L)
-            );
-            listener.onResponse(checkpointingInfoBuilder.build());
+            TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
+            checkpointingInfoBuilder.setSourceCheckpoint(sourceCheckpoint);
+            checkpointingInfoBuilder.setOperationsBehind(TransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
+            listener.onResponse(checkpointingInfoBuilder);
         }, listener::onFailure));
     }
 
@@ -275,21 +204,24 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         long lastCheckpointNumber,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
-        ActionListener<TransformCheckpointingInfo> listener
+        ActionListener<TransformCheckpointingInfoBuilder> listener
     ) {
 
-        TransformCheckpointingInfoBuilder checkpointingInfoBuilder = new TransformCheckpointingInfoBuilder();
+        TransformCheckpointingInfo.TransformCheckpointingInfoBuilder checkpointingInfoBuilder =
+            new TransformCheckpointingInfo.TransformCheckpointingInfoBuilder();
 
         checkpointingInfoBuilder.setNextCheckpointPosition(nextCheckpointPosition).setNextCheckpointProgress(nextCheckpointProgress);
-
+        checkpointingInfoBuilder.setLastCheckpoint(TransformCheckpoint.EMPTY);
         long timestamp = System.currentTimeMillis();
 
         // <3> got the source checkpoint, notify the user
         ActionListener<Map<String, long[]>> checkpointsByIndexListener = ActionListener.wrap(checkpointsByIndex -> {
-            checkpointingInfoBuilder.setSourceCheckpoint(
-                new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L)
+            TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
+            checkpointingInfoBuilder.setSourceCheckpoint(sourceCheckpoint);
+            checkpointingInfoBuilder.setOperationsBehind(
+                TransformCheckpoint.getBehind(checkpointingInfoBuilder.getLastCheckpoint(), sourceCheckpoint)
             );
-            listener.onResponse(checkpointingInfoBuilder.build());
+            listener.onResponse(checkpointingInfoBuilder);
         }, e -> {
             logger.debug(
                 (Supplier<?>) () -> new ParameterizedMessage(
@@ -320,7 +252,8 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
         // <1> got last checkpoint, get the next checkpoint
         ActionListener<TransformCheckpoint> lastCheckpointListener = ActionListener.wrap(lastCheckpointObj -> {
-            checkpointingInfoBuilder.lastCheckpoint = lastCheckpointObj;
+            checkpointingInfoBuilder.setChangesLastDetectedAt(Instant.ofEpochMilli(lastCheckpointObj.getTimestamp()));
+            checkpointingInfoBuilder.setLastCheckpoint(lastCheckpointObj);
             transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
         }, e -> {
             logger.debug(

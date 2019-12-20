@@ -155,8 +155,9 @@ POST _scripts/calculate-score
 -----------------------------------
 // TEST[setup:twitter]
 
-Specify a context as part of the url path to test compile a stored script
-against that specific context in the form of `/_scripts/{id}/{context}`:
+You may also specify a context as part of the url path to compile a
+stored script against that specific context in the form of
+`/_scripts/{id}/{context}`:
 
 [source,console]
 -----------------------------------

@@ -203,7 +203,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         GetSettingsResponse getSettingsResponse = new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetaData("_doc", Map.of("properties", Map.of("ml", "some-mapping"))));
+        mappings.put("", new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping"))));
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
         doAnswer(callListenerOnResponse(getSettingsResponse)).when(client).execute(eq(GetSettingsAction.INSTANCE), any(), any());
@@ -227,7 +227,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         DataFrameAnalyticsConfig config = createConfig(analysis);
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetaData("_doc", Map.of("properties", properties)));
+        mappings.put("", new MappingMetaData("_doc", Collections.singletonMap("properties", properties)));
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(
                 new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
@@ -261,18 +261,24 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
     }
 
     public void testUpdateMappingsToDestIndex_OutlierDetection() throws IOException {
-        testUpdateMappingsToDestIndex(new OutlierDetection.Builder().build(), Map.of(DEPENDENT_VARIABLE, Map.of("type", "integer")));
+        testUpdateMappingsToDestIndex(
+            new OutlierDetection.Builder().build(),
+            Collections.singletonMap(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer")));
     }
 
     public void testUpdateMappingsToDestIndex_Regression() throws IOException {
         Map<String, Object> map =
-            testUpdateMappingsToDestIndex(new Regression(DEPENDENT_VARIABLE), Map.of(DEPENDENT_VARIABLE, Map.of("type", "integer")));
+            testUpdateMappingsToDestIndex(
+                new Regression(DEPENDENT_VARIABLE),
+                Collections.singletonMap(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer")));
         assertThat(extractValue("properties.ml.dep_var_prediction.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification() throws IOException {
         Map<String, Object> map =
-            testUpdateMappingsToDestIndex(new Classification(DEPENDENT_VARIABLE), Map.of(DEPENDENT_VARIABLE, Map.of("type", "integer")));
+            testUpdateMappingsToDestIndex(
+                new Classification(DEPENDENT_VARIABLE),
+                Collections.singletonMap(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer")));
         assertThat(extractValue("properties.ml.dep_var_prediction.type", map), equalTo("integer"));
         assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
     }
@@ -281,7 +287,9 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         DataFrameAnalyticsConfig config = createConfig(new OutlierDetection.Builder().build());
 
         ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetaData("_doc", Map.of("properties", Map.of("ml", "some-mapping"))));
+        mappings.put(
+            "",
+            new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping"))));
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(
                 new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());

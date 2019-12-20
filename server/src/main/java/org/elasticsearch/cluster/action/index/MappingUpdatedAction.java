@@ -74,7 +74,7 @@ public class MappingUpdatedAction {
         }
         client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
             .setMasterNodeTimeout(dynamicMappingUpdateTimeout).setTimeout(TimeValue.ZERO)
-            .execute(new ActionListener<>() {
+            .execute(new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     listener.onResponse(null);

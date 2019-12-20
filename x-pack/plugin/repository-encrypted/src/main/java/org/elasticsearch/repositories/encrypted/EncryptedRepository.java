@@ -6,6 +6,8 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.cms.CMSAlgorithm;
 import org.bouncycastle.cms.CMSEnvelopedData;
 import org.bouncycastle.cms.CMSEnvelopedDataGenerator;
@@ -43,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 public class EncryptedRepository extends BlobStoreRepository {
+
     static final int GCM_TAG_SIZE_IN_BYTES = 16;
     static final int GCM_IV_SIZE_IN_BYTES = 12;
     static final int AES_BLOCK_SIZE_IN_BYTES = 128;
@@ -68,7 +71,6 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.keyGenerator = KeyGenerator.getInstance("AES");
         this.keyGenerator.init(256, SecureRandom.getInstance("SHA1PRNG"));
         this.secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        // TODO run self-test to make sure encryption/decryption works correctly on this JVM
     }
 
     @Override

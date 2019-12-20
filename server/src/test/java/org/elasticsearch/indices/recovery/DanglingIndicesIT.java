@@ -24,7 +24,12 @@ import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRespon
 import org.elasticsearch.action.admin.indices.dangling.NodeDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -34,6 +39,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
@@ -225,12 +231,107 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             noExceptionThrown = true;
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(
-                e.getMessage(),
-                containsString("No dangling index found for UUID [NonExistentUUID]")
-            );
+            assertThat(e.getMessage(), containsString("No dangling index found for UUID [NonExistentUUID]"));
         }
 
         assertFalse("No exception thrown", noExceptionThrown);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDeleteDanglingIndex() throws Exception {
+        final Settings settings = Settings.builder()
+            // Don't keep any indices in the graveyard, so that when we delete an index,
+            // it's definitely considered to be dangling.
+            .put(SETTING_MAX_TOMBSTONES.getKey(), 1)
+            .put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), false)
+            .build();
+        internalCluster().startNodes(3, settings);
+
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        createIndex(INDEX_NAME + "-other", Settings.builder().put("number_of_replicas", 2).build());
+
+        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
+
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                stoppedNodeName.set(nodeName);
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME + "-other"));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        final AtomicReference<IndexMetaData> danglingIndex = new AtomicReference<>();
+
+        // Wait for the dangling index to be noticed
+        assertBusy(() -> {
+            final ListDanglingIndicesResponse response = client().admin()
+                .cluster()
+                .listDanglingIndices(new ListDanglingIndicesRequest())
+                .actionGet();
+            assertThat(response.status(), equalTo(RestStatus.OK));
+
+            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+
+            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+                if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
+                    final IndexMetaData danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
+                    assertThat(danglingIndexInfo.getIndex().getName(), equalTo(INDEX_NAME));
+
+                    danglingIndex.set(danglingIndexInfo);
+                    break;
+                }
+            }
+        });
+
+        final ClusterService clusterService = internalCluster().clusterService();
+
+        clusterService.submitStateUpdateTask("delete-dangling-index " + danglingIndex.get(), new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(final ClusterState currentState) {
+                    final MetaData meta = currentState.metaData();
+
+                    MetaData.Builder metaDataBuilder = MetaData.builder(meta);
+
+                    final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
+
+                    final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstone(danglingIndex.get().getIndex()).build(settings);
+                    metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+
+                    return ClusterState.builder(currentState).metaData(metaDataBuilder.build()).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.warn("\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n" + e.getMessage(), e);
+                    fail(e.getMessage());
+                }
+            });
+
+        // Check that the dangling index goes away
+        assertBusy(() -> {
+            final ListDanglingIndicesResponse response = client().admin()
+                .cluster()
+                .listDanglingIndices(new ListDanglingIndicesRequest())
+                .actionGet();
+            assertThat(response.status(), equalTo(RestStatus.OK));
+
+            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+
+            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+                assertThat(
+                    nodeResponse.getDanglingIndices()
+                        .stream()
+                        .map(each -> each.getIndex().getName())
+                        .collect(Collectors.toList())
+                        .toString(),
+                    nodeResponse.getDanglingIndices(),
+                    empty()
+                );
+            }
+        });
     }
 }

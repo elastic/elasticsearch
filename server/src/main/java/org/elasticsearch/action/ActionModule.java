@@ -104,8 +104,10 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.TransportDeleteDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.TransportRestoreDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -557,6 +559,7 @@ public class ActionModule extends AbstractModule {
         // Dangling indices
         actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
         actions.register(RestoreDanglingIndexAction.INSTANCE, TransportRestoreDanglingIndexAction.class);
+        actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
 
         // internal actions
         actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);
@@ -694,6 +697,7 @@ public class ActionModule extends AbstractModule {
         // Dangling indices API
         registerHandler.accept(new RestListDanglingIndicesAction(restController));
         registerHandler.accept(new RestRestoreDanglingIndexAction(restController));
+        registerHandler.accept(new RestDeleteRepositoryAction(restController));
 
         // CAT API
         registerHandler.accept(new RestAllocationAction(restController));

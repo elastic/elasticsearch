@@ -101,6 +101,8 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptReque
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
@@ -734,12 +736,22 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     ActionFuture<ListDanglingIndicesResponse> listDanglingIndices(ListDanglingIndicesRequest request);
 
     /**
-     * Recover specified dangling indices.
+     * Restore specified dangling indices.
      */
     void restoreDanglingIndex(RestoreDanglingIndexRequest request, ActionListener<RestoreDanglingIndexResponse> listener);
 
     /**
-     * Recover specified dangling indices.
+     * Restore specified dangling indices.
      */
     ActionFuture<RestoreDanglingIndexResponse> restoreDanglingIndex(RestoreDanglingIndexRequest request);
+
+    /**
+     * Delete specified dangling indices.
+     */
+    void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<DeleteDanglingIndexResponse> listener);
+
+    /**
+     * Delete specified dangling indices.
+     */
+    ActionFuture<DeleteDanglingIndexResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
 }

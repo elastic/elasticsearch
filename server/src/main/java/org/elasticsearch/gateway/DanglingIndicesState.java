@@ -153,6 +153,11 @@ public class DanglingIndicesState implements ClusterStateListener {
             final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
             final IndexGraveyard graveyard = metaData.indexGraveyard();
+
+            logger.warn("HERE ARE THE TOMBSTONES:");
+            for (IndexGraveyard.Tombstone tombstone : graveyard.getTombstones()) {
+                logger.warn("     TOMBSTONE: " + tombstone.getIndex().getName());
+            }
             for (IndexMetaData indexMetaData : indexMetaDataList) {
                 if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
                     logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
@@ -167,6 +172,9 @@ public class DanglingIndicesState implements ClusterStateListener {
                     newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));
                 }
             }
+
+            logger.warn("HERE ARE THE DANGLING INDICES: ");
+            newIndices.keySet().forEach(i -> logger.warn("    " + i.getName()));
             return newIndices;
         } catch (IOException e) {
             logger.warn("failed to list dangling indices", e);

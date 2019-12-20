@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -28,24 +29,25 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestRestoreDanglingIndexAction extends BaseRestHandler {
-    public RestRestoreDanglingIndexAction(RestController controller) {
-        controller.registerHandler(POST, "/_dangling/{indexUuid}", this);
+public class RestDeleteDanglingIndexAction extends BaseRestHandler {
+    public RestDeleteDanglingIndexAction(RestController controller) {
+        controller.registerHandler(DELETE, "/_dangling/{indexUuid}", this);
     }
 
     @Override
     public String getName() {
-        return "restore_dangling_index";
+        return "delete_dangling_index";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        final RestoreDanglingIndexRequest restoreRequest = new RestoreDanglingIndexRequest();
-        restoreRequest.setIndexUuid(request.param("indexUuid"));
-        request.applyContentParser(p -> restoreRequest.source(p.mapOrdered()));
+        final DeleteDanglingIndexRequest deleteRequest = new DeleteDanglingIndexRequest();
+        deleteRequest.setIndexUuid(request.param("indexUuid"));
+        request.applyContentParser(p -> deleteRequest.source(p.mapOrdered()));
 
-        return channel -> client.admin().cluster().restoreDanglingIndex(restoreRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.admin().cluster().deleteDanglingIndex(deleteRequest, new RestStatusToXContentListener<>(channel));
     }
 }

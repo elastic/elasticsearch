@@ -156,6 +156,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
@@ -335,6 +338,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.admin.cluster.RestDeleteDanglingIndexAction;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1168,6 +1172,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public void restoreDanglingIndex(RestoreDanglingIndexRequest request, ActionListener<RestoreDanglingIndexResponse> listener) {
             execute(RestoreDanglingIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<DeleteDanglingIndexResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
+            return execute(DeleteDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<DeleteDanglingIndexResponse> listener) {
+            execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
         }
 
         @Override

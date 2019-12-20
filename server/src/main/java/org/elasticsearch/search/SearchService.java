@@ -1029,6 +1029,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Rewriteable.rewrite(request.getRewriteable(), context, false);
             FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
             MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+            if (indexShard.isSearchIdle() && searcher.getDirectoryReader().isCurrent() == false) {
+                return new CanMatchResponse(true, minMax);
+            }
             if (canRewriteToMatchNone(request.source())) {
                 QueryBuilder queryBuilder = request.source().query();
                 return new CanMatchResponse(queryBuilder instanceof MatchNoneQueryBuilder == false, minMax);

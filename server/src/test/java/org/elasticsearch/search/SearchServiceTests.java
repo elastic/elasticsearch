@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -630,6 +631,45 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY),
             1f, -1, null, null)).close();
         assertEquals(numWrapReader+1, numWrapInvocations.get());
+    }
+
+    public void testCanMatchWhileIsSearchIdle() throws IOException {
+        createIndex("index", Settings.EMPTY, "doc", "s", "type=date");
+        client().prepareIndex("index").setId("1").setSource("s", "2019-12-18").get();
+        
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        RangeQueryBuilder rangeQuery = new RangeQueryBuilder("s");
+        rangeQuery.gte("2019-12-19");
+        rangeQuery.lte("2019-12-20");
+        sourceBuilder.query(rangeQuery);
+        SearchRequest searchRequest = new SearchRequest().indices("index").searchType(SearchType.QUERY_THEN_FETCH).source(sourceBuilder)
+                .allowPartialSearchResults(true);
+        ShardSearchRequest searchShardRequest = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null);
+
+        assertTrue(indexShard.scheduledRefresh());
+        assertFalse(indexShard.isSearchIdle());
+        assertFalse(service.canMatch(searchShardRequest).canMatch());
+        assertFalse(indexShard.isSearchIdle());
+        assertHitCount(client().prepareSearch("index").get(), 1);
+
+        client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().put(
+                IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)).get();
+        assertTrue(indexShard.isSearchIdle());
+        assertFalse(service.canMatch(searchShardRequest).canMatch());
+        assertTrue(indexShard.isSearchIdle());
+        
+        client().prepareIndex("index").setId("2").setSource("s", "2019-12-19").get();
+        assertTrue(indexShard.isSearchIdle());
+        assertTrue(service.canMatch(searchShardRequest).canMatch());
+        assertTrue(indexShard.isSearchIdle());
+        client().admin().indices().prepareRefresh("index").get();
+        assertHitCount(client().prepareSearch("index").setSource(sourceBuilder).get(), 1);
     }
 
     public void testCanRewriteToMatchNone() {

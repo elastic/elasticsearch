@@ -188,6 +188,7 @@ The output looks similar to the following:
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\d+/$body.$_path/]
 
 The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
 snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,

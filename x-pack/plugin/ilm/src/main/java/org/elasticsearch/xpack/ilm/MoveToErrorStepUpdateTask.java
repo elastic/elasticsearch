@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
@@ -24,17 +25,20 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     private final String policy;
     private final Step.StepKey currentStepKey;
     private final BiFunction<IndexMetaData, Step.StepKey, Step> stepLookupFunction;
+    private final Consumer<ClusterState> stateChangeConsumer;
     private LongSupplier nowSupplier;
     private Exception cause;
 
     public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier,
-                                     BiFunction<IndexMetaData, Step.StepKey, Step> stepLookupFunction) {
+                                     BiFunction<IndexMetaData, Step.StepKey, Step> stepLookupFunction,
+                                     Consumer<ClusterState> stateChangeConsumer) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
         this.cause = cause;
         this.nowSupplier = nowSupplier;
         this.stepLookupFunction = stepLookupFunction;
+        this.stateChangeConsumer = stateChangeConsumer;
     }
 
     Index getIndex() {
@@ -70,6 +74,13 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
             return currentState;
+        }
+    }
+
+    @Override
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        if (newState.equals(oldState) == false) {
+            stateChangeConsumer.accept(newState);
         }
     }
 

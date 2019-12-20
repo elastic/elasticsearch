@@ -466,12 +466,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         {   // Accuracy
             Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
             assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
-            List<Accuracy.ActualClass> actualClasses = accuracyResult.getActualClasses();
-            assertThat(
-                actualClasses.stream().map(Accuracy.ActualClass::getActualClass).collect(toList()),
-                equalTo(dependentVariableValuesAsStrings));
-            actualClasses.forEach(
-                actualClass -> assertThat(actualClass.getAccuracy(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
+            for (Accuracy.PerClassResult klass : accuracyResult.getClasses()) {
+                assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
+                assertThat(klass.getAccuracy(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+            }
         }
 
         {   // MulticlassConfusionMatrix

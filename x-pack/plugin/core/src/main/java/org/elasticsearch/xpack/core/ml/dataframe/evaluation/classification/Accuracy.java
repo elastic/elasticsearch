@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
@@ -81,9 +82,9 @@ public class Accuracy implements EvaluationMetric {
 
     private final int maxClassesCardinality;
     private final MulticlassConfusionMatrix matrix;
-    private String actualField;
-    private Double overallAccuracy;
-    private Result result;
+    private final SetOnce<String> actualField = new SetOnce<>();
+    private final SetOnce<Double> overallAccuracy = new SetOnce<>();
+    private final SetOnce<Result> result = new SetOnce<>();
 
     public Accuracy() {
         this((Integer) null);
@@ -113,13 +114,13 @@ public class Accuracy implements EvaluationMetric {
     @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField = actualField;
+        this.actualField.trySet(actualField);
         List<AggregationBuilder> aggs = new ArrayList<>();
         List<PipelineAggregationBuilder> pipelineAggs = new ArrayList<>();
-        if (overallAccuracy == null) {
+        if (overallAccuracy.get() == null) {
             aggs.add(AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(buildScript(actualField, predictedField)));
         }
-        if (result == null) {
+        if (result.get() == null) {
             Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> matrixAggs = matrix.aggs(actualField, predictedField);
             aggs.addAll(matrixAggs.v1());
             pipelineAggs.addAll(matrixAggs.v2());
@@ -129,25 +130,25 @@ public class Accuracy implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (overallAccuracy == null && aggs.get(OVERALL_ACCURACY_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
+        if (overallAccuracy.get() == null && aggs.get(OVERALL_ACCURACY_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             NumericMetricsAggregation.SingleValue overallAccuracyAgg = aggs.get(OVERALL_ACCURACY_AGG_NAME);
-            overallAccuracy = overallAccuracyAgg.value();
+            overallAccuracy.set(overallAccuracyAgg.value());
         }
         matrix.process(aggs);
-        if (result == null && matrix.getResult().isPresent()) {
+        if (result.get() == null && matrix.getResult().isPresent()) {
             if (matrix.getResult().get().getOtherActualClassCount() > 0) {
                 // This means there were more than {@code maxClassesCardinality} buckets.
                 // We cannot calculate per-class accuracy accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate per-class accuracy. Cardinality of field [{}] is too high", actualField);
+                    "Cannot calculate per-class accuracy. Cardinality of field [{}] is too high", actualField.get());
             }
-            result = new Result(computePerClassAccuracy(matrix.getResult().get()), overallAccuracy);
+            result.set(new Result(computePerClassAccuracy(matrix.getResult().get()), overallAccuracy.get()));
         }
     }
 
     @Override
     public Optional<Result> getResult() {
-        return Optional.ofNullable(result);
+        return Optional.ofNullable(result.get());
     }
 
     /**

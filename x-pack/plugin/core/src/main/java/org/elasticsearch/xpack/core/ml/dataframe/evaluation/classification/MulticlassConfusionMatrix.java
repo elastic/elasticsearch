@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -81,8 +82,8 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     private final int size;
     private final String aggNamePrefix;
-    private List<String> topActualClassNames;
-    private Result result;
+    private final SetOnce<List<String>> topActualClassNames = new SetOnce<>();
+    private final SetOnce<Result> result = new SetOnce<>();
 
     public MulticlassConfusionMatrix() {
         this(null, null);
@@ -121,7 +122,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
-        if (topActualClassNames == null) {  // This is step 1
+        if (topActualClassNames.get() == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.terms(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS))
@@ -130,13 +131,13 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
                         .size(size)),
                 List.of());
         }
-        if (result == null) {  // This is step 2
+        if (result.get() == null) {  // This is step 2
             KeyedFilter[] keyedFiltersActual =
-                topActualClassNames.stream()
+                topActualClassNames.get().stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(actualField, className)))
                     .toArray(KeyedFilter[]::new);
             KeyedFilter[] keyedFiltersPredicted =
-                topActualClassNames.stream()
+                topActualClassNames.get().stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
             return Tuple.tuple(
@@ -154,11 +155,11 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (topActualClassNames == null && aggs.get(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)) != null) {
+        if (topActualClassNames.get() == null && aggs.get(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)) != null) {
             Terms termsAgg = aggs.get(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS));
-            topActualClassNames = termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());
+            topActualClassNames.set(termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList()));
         }
-        if (result == null && aggs.get(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS)) != null) {
+        if (result.get() == null && aggs.get(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS)) != null) {
             Cardinality cardinalityAgg = aggs.get(aggName(STEP_2_CARDINALITY_OF_ACTUAL_CLASS));
             Filters filtersAgg = aggs.get(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS));
             List<ActualClass> actualClasses = new ArrayList<>(filtersAgg.getBuckets().size());
@@ -180,7 +181,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
                 predictedClasses.sort(comparing(PredictedClass::getPredictedClass));
                 actualClasses.add(new ActualClass(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassDocCount));
             }
-            result = new Result(actualClasses, Math.max(cardinalityAgg.getValue() - size, 0));
+            result.set(new Result(actualClasses, Math.max(cardinalityAgg.getValue() - size, 0)));
         }
     }
 
@@ -190,7 +191,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     @Override
     public Optional<Result> getResult() {
-        return Optional.ofNullable(result);
+        return Optional.ofNullable(result.get());
     }
 
     @Override

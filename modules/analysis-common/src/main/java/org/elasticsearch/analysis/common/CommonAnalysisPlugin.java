@@ -241,15 +241,22 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                throw new IllegalArgumentException("The [edgeNGram] token filter name was deprecated in 6.4 and "
-                        + "cannot be used in new indices. Please change the filter name to [edge_ngram] instead.");
-            } else {
-                deprecationLogger.deprecatedAndMaybeLog("edgeNGram_deprecation",
-                        "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                                + "Please change the filter name to [edge_ngram] instead.");
-            }
-            return new EdgeNGramTokenFilterFactory(indexSettings, environment, name, settings);
+            return new EdgeNGramTokenFilterFactory(indexSettings, environment, name, settings) {
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+                        throw new IllegalArgumentException(
+                                "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                                        + "Please change the filter name to [edge_ngram] instead.");
+                    } else {
+                        deprecationLogger.deprecatedAndMaybeLog("edgeNGram_deprecation",
+                                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                                        + "Please change the filter name to [edge_ngram] instead.");
+                    }
+                    return super.create(tokenStream);
+                }
+
+            };
         });
         filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
         filters.put("fingerprint", FingerprintTokenFilterFactory::new);
@@ -271,15 +278,22 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("multiplexer", MultiplexerTokenFilterFactory::new);
         filters.put("ngram", NGramTokenFilterFactory::new);
         filters.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                throw new IllegalArgumentException("The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                        + "Please change the filter name to [ngram] instead.");
-            } else {
-                deprecationLogger.deprecatedAndMaybeLog("nGram_deprecation",
-                        "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                                + "Please change the filter name to [ngram] instead.");
-            }
-            return new NGramTokenFilterFactory(indexSettings, environment, name, settings);
+            return new NGramTokenFilterFactory(indexSettings, environment, name, settings) {
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+                        throw new IllegalArgumentException(
+                                "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                                        + "Please change the filter name to [ngram] instead.");
+                    } else {
+                        deprecationLogger.deprecatedAndMaybeLog("nGram_deprecation",
+                                "The [nGram] token filter name is deprecated and will be removed in a future version. "
+                                        + "Please change the filter name to [ngram] instead.");
+                    }
+                    return super.create(tokenStream);
+                }
+
+            };
         });
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
         filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceTokenFilterFactory::new));

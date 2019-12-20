@@ -25,7 +25,8 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class DateDiff extends ThreeArgsDateTimeFunction {
 
@@ -39,15 +40,11 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
         DAYOFYEAR((start, end) -> safeInt(diffInDays(start, end)), "dy", "y"),
         DAY(DAYOFYEAR::diff, "days", "dd", "d"),
         WEEK((start, end) -> {
-            int extraWeek = NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(end) -
-                NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(start) == 0 ? 0 : 1;
-            long diffWeeks = diffInDays(start, end) / 7;
-            if (diffWeeks < 0) {
-                diffWeeks -= extraWeek;
-            } else {
-                diffWeeks += extraWeek;
-            }
-            return safeInt(diffWeeks);
+            long startInDays =  start.toInstant().toEpochMilli() / DAY_IN_MILLIS -
+                    DatePart.Part.WEEKDAY.extract(start.withZoneSameInstant(UTC));
+            long endInDays =  end.toInstant().toEpochMilli() / DAY_IN_MILLIS -
+                    DatePart.Part.WEEKDAY.extract(end.withZoneSameInstant(UTC));
+            return safeInt((endInDays - startInDays) / 7);
         }, "weeks", "wk", "ww"),
         WEEKDAY(DAYOFYEAR::diff,  "weekdays", "dw"),
         HOUR((start, end) -> safeInt(diffInHours(start, end)),  "hours", "hh"),

@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -68,8 +67,6 @@ public final class ELambda extends AExpression implements ILambda {
     private final List<String> paramNameStrs;
     private final List<AStatement> statements;
 
-    private CompilerSettings settings;
-
     // extracted variables required to determine captures
     private final Set<String> extractedVariables;
     // desugared synthetic method (lambda body)
@@ -90,15 +87,6 @@ public final class ELambda extends AExpression implements ILambda {
         this.statements = Collections.unmodifiableList(statements);
 
         this.extractedVariables = new HashSet<>();
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        for (AStatement statement : statements) {
-            statement.storeSettings(settings);
-        }
-
-        this.settings = settings;
     }
 
     @Override
@@ -180,10 +168,9 @@ public final class ELambda extends AExpression implements ILambda {
         desugared = new SFunction(
                 location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames,
                 new SBlock(location, statements), true);
-        desugared.storeSettings(settings);
         desugared.generateSignature(scriptRoot.getPainlessLookup());
         desugared.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
-                                                desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
+                desugared.parameters, captures.size(), scriptRoot.getCompilerSettings().getMaxLoopCounter()));
         scriptRoot.getFunctionTable().addFunction(desugared.name, desugared.returnType, desugared.typeParameters, true);
         scriptRoot.getClassNode().addFunction(desugared);
 

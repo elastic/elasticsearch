@@ -10,11 +10,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ExpressionIdTests extends ESTestCase {
     /**
-     * Each {@link ExpressionId} should be unique. Technically
+     * Each {@link NameId} should be unique. Technically
      * you can roll the {@link AtomicLong} that backs them but
      * that is not going to happen within a single query.
      */
     public void testUnique() {
-        assertNotEquals(new ExpressionId(), new ExpressionId());
+        assertNotEquals(new NameId(), new NameId());
     }
 }

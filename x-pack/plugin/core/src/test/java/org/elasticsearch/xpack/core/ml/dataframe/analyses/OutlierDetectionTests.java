@@ -51,7 +51,7 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
 
     public void testGetParams_GivenDefaults() {
         OutlierDetection outlierDetection = new OutlierDetection.Builder().build();
-        Map<String, Object> params = outlierDetection.getParams();
+        Map<String, Object> params = outlierDetection.getParams(null);
         assertThat(params.size(), equalTo(3));
         assertThat(params.containsKey("compute_feature_influence"), is(true));
         assertThat(params.get("compute_feature_influence"), is(true));
@@ -71,7 +71,7 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
             .setStandardizationEnabled(false)
             .build();
 
-        Map<String, Object> params = outlierDetection.getParams();
+        Map<String, Object> params = outlierDetection.getParams(null);
 
         assertThat(params.size(), equalTo(6));
         assertThat(params.get(OutlierDetection.N_NEIGHBORS.getPreferredName()), equalTo(42));

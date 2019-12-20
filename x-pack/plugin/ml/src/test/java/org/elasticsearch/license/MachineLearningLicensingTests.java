@@ -619,7 +619,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
             modelId,
             Collections.singletonList(Collections.emptyMap()),
-            new RegressionConfig(),
+            RegressionConfig.EMPTY_PARAMS,
             false
         ), inferModelSuccess);
         InternalInferModelAction.Response response = inferModelSuccess.actionGet();
@@ -636,7 +636,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
-                new RegressionConfig(),
+                RegressionConfig.EMPTY_PARAMS,
                 false
             )).actionGet();
         });
@@ -649,7 +649,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
             modelId,
             Collections.singletonList(Collections.emptyMap()),
-            new RegressionConfig(),
+            RegressionConfig.EMPTY_PARAMS,
             true
         ), inferModelSuccess);
         response = inferModelSuccess.actionGet();
@@ -665,7 +665,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
             modelId,
             Collections.singletonList(Collections.emptyMap()),
-            new RegressionConfig(),
+            RegressionConfig.EMPTY_PARAMS,
             false
         ), listener);
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));

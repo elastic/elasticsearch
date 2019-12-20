@@ -138,7 +138,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         if (script == null) {
             return null;
         } else {
-            AggregationScript.Factory factory = context.getScriptService().compile(script, AggregationScript.CONTEXT);
+            AggregationScript.Factory factory = context.compile(script, AggregationScript.CONTEXT);
             return factory.newFactory(script.getParams(), context.lookup());
         }
     }

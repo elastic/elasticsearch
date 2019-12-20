@@ -62,8 +62,8 @@ public class ExtractedFields {
         return new TimeField(name, method);
     }
 
-    public static <T> ExtractedField applyBooleanMapping(ExtractedField field, T trueValue, T falseValue) {
-        return new BooleanMapper<>(field, trueValue, falseValue);
+    public static ExtractedField applyBooleanMapping(ExtractedField field) {
+        return new BooleanMapper<>(field, 1, 0);
     }
 
     public static class ExtractionMethodDetector {

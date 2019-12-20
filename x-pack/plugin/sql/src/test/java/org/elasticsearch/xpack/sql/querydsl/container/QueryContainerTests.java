@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.sql.querydsl.container;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.AttributeMap;
+import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
@@ -81,11 +82,11 @@ public class QueryContainerTests extends ESTestCase {
         Attribute fourth = new FieldAttribute(Source.EMPTY, "fourth", esField);
         Alias firstAliased = new Alias(Source.EMPTY, "firstAliased", first);
 
-        Map<ExpressionId,Attribute> aliasesMap = new LinkedHashMap<>();
-        aliasesMap.put(firstAliased.id(), first);
+        Map<Attribute, Expression> aliasesMap = new LinkedHashMap<>();
+        aliasesMap.put(firstAliased.toAttribute(), first);
 
         QueryContainer queryContainer = new QueryContainer()
-            .withAliases(aliasesMap)
+            .withAliases(new AttributeMap<>(aliasesMap))
             .addColumn(third)
             .addColumn(first)
             .addColumn(fourth)

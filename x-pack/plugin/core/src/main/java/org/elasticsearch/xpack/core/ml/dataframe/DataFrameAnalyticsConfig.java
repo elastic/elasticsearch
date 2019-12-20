@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -127,7 +128,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Version version;
     private final boolean allowLazyStart;
 
-    public DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
+    private DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
                                     FetchSourceContext analyzedFields, Instant createTime, Version version, boolean allowLazyStart) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
@@ -225,7 +226,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(DEST.getPreferredName(), dest);
 
         builder.startObject(ANALYSIS.getPreferredName());
-        builder.field(analysis.getWriteableName(), analysis);
+        builder.field(analysis.getWriteableName(), analysis,
+            new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString())));
         builder.endObject();
 
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
@@ -307,6 +309,15 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public static String documentId(String id) {
         return TYPE + "-" + id;
+    }
+
+    /**
+     * Returns the job id from the doc id. Returns {@code null} if the doc id is invalid.
+     */
+    @Nullable
+    public static String extractJobIdFromDocId(String docId) {
+        String jobId = docId.replaceAll("^" + TYPE +"-", "");
+        return jobId.equals(docId) ? null : jobId;
     }
 
     public static class Builder {

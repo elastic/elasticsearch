@@ -84,8 +84,6 @@ public final class DataFrameAnalyticsIndex {
                                                          ActionListener<CreateIndexRequest> listener) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
-        String[] sourceIndex = config.getSource().getIndex();
-
         ActionListener<ImmutableOpenMap<String, MappingMetaData>> mappingsListener = ActionListener.wrap(
             mappings -> listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappings)),
             listener::onFailure
@@ -94,7 +92,7 @@ public final class DataFrameAnalyticsIndex {
         ActionListener<Settings> settingsListener = ActionListener.wrap(
             settings -> {
                 settingsHolder.set(settings);
-                MappingsMerger.mergeMappings(client, config.getHeaders(), sourceIndex, mappingsListener);
+                MappingsMerger.mergeMappings(client, config.getHeaders(), config.getSource(), mappingsListener);
             },
             listener::onFailure
         );
@@ -105,7 +103,7 @@ public final class DataFrameAnalyticsIndex {
         );
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
-        getSettingsRequest.indices(sourceIndex);
+        getSettingsRequest.indices(config.getSource().getIndex());
         getSettingsRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         getSettingsRequest.names(PRESERVED_SETTINGS);
         ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, GetSettingsAction.INSTANCE,

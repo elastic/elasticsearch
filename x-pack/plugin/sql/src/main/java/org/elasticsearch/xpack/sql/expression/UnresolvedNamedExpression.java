@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -16,7 +15,7 @@ import java.util.List;
 abstract class UnresolvedNamedExpression extends NamedExpression implements Unresolvable {
 
     UnresolvedNamedExpression(Source source, List<Expression> children) {
-        super(source, "<unresolved>", children, new ExpressionId());
+        super(source, "<unresolved>", children, new NameId());
     }
 
     @Override
@@ -30,7 +29,7 @@ abstract class UnresolvedNamedExpression extends NamedExpression implements Unre
     }
 
     @Override
-    public ExpressionId id() {
+    public NameId id() {
         throw new UnresolvedException("id", this);
     }
 
@@ -42,10 +41,5 @@ abstract class UnresolvedNamedExpression extends NamedExpression implements Unre
     @Override
     public Attribute toAttribute() {
         throw new UnresolvedException("attribute", this);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnresolvedException("script", this);
     }
 }

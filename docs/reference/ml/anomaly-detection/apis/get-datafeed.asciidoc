@@ -42,35 +42,71 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Optional, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
-  or a wildcard expression. If you do not specify one of these options, the API
-  returns information about all {dfeeds}.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+If you do not specify one of these options, the API returns information about
+all {dfeeds}.
 
 [[ml-get-datafeed-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_datafeeds`::
-  (Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no {datafeeds} that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches. 
-
-The default value is `true`, which returns an empty `datafeeds` array when
-there are no matches and the subset of results when there are partial matches.
-If this parameter is `false`, the request returns a `404` status code when there
-are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 [[ml-get-datafeed-results]]
 ==== {api-response-body-title}
 
-The API returns the following information:
+The API returns an array of {dfeed} resources, which have the following
+properties:
 
-`datafeeds`::
-  (array) An array of {dfeed} objects.
-  For more information, see <<ml-datafeed-resource>>.
+`aggregations`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
+
+`chunking_config`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
+
+`datafeed_id`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+`delayed_data_check_config`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
+
+`frequency`::
+(<<time-units,time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
+
+`indices`::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
+
+`job_id`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-datafeed]
+
+`max_empty_searches`::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
+
+`query`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query]
+
+`query_delay`::
+(<<time-units,time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`script_fields`::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
+
+`scroll_size`::
+(unsigned integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 [[ml-get-datafeed-response-codes]]
 ==== {api-response-codes-title}
@@ -83,39 +119,48 @@ The API returns the following information:
 ==== {api-examples-title}
 
 The following example gets configuration information for the
-`datafeed-total-requests` {dfeed}:
+`datafeed-high_sum_total_sales` {dfeed}:
 
 [source,console]
 --------------------------------------------------
-GET _ml/datafeeds/datafeed-total-requests
+GET _ml/datafeeds/datafeed-high_sum_total_sales
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_datafeed]
+// TEST[skip:kibana sample data]
 
 The API returns the following results:
 
 [source,console-result]
 ----
 {
-  "count": 1,
-  "datafeeds": [
+  "count" : 1,
+  "datafeeds" : [
     {
-      "datafeed_id": "datafeed-total-requests",
-      "job_id": "total-requests",
-      "query_delay": "83474ms",
-      "indices": [
-        "server-metrics"
+      "datafeed_id" : "datafeed-high_sum_total_sales",
+      "job_id" : "high_sum_total_sales",
+      "query_delay" : "93169ms",
+      "indices" : [
+        "kibana_sample_data_ecommerce"
       ],
-      "query": {
-        "match_all": {
-          "boost": 1.0
+      "query" : {
+        "bool" : {
+          "filter" : [
+            {
+              "term" : {
+                "_index" : "kibana_sample_data_ecommerce"
+              }
+            }
+          ]
         }
       },
-      "scroll_size": 1000,
-      "chunking_config": {
-        "mode": "auto"
+      "scroll_size" : 1000,
+      "chunking_config" : {
+        "mode" : "auto"
+      },
+      "delayed_data_check_config" : {
+        "enabled" : true
       }
     }
   ]
 }
 ----
-// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]
+// TESTRESPONSE[s/"query.boost": "93169ms"/"query.boost": $body.query.boost/]

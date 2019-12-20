@@ -56,6 +56,10 @@ public class DataFrameDataExtractorFactory {
         return new DataFrameDataExtractor(client, context);
     }
 
+    public ExtractedFields getExtractedFields() {
+        return extractedFields;
+    }
+
     private QueryBuilder createQuery() {
         BoolQueryBuilder query = QueryBuilders.boolQuery();
         query.filter(sourceQuery);

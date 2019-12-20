@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -47,17 +46,6 @@ public final class STry extends AStatement {
 
         this.block = block;
         this.catches = Collections.unmodifiableList(catches);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        if (block != null) {
-            block.storeSettings(settings);
-        }
-
-        for (SCatch ctch : catches) {
-            ctch.storeSettings(settings);
-        }
     }
 
     @Override

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -59,21 +60,24 @@ public class IndexLifecycleService
     private final Clock clock;
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
+    private final ILMHistoryStore ilmHistoryStore;
     private final Settings settings;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,
-                                 LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry) {
+                                 LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry,
+                                 ILMHistoryStore ilmHistoryStore) {
         super();
         this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
+        this.ilmHistoryStore = ilmHistoryStore;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
-        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, threadPool, nowSupplier);
+        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);
@@ -87,13 +91,33 @@ public class IndexLifecycleService
         lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetaData, policyName, nextStepKey);
     }
 
-    public ClusterState moveClusterStateToStep(ClusterState currentState, String indexName, StepKey currentStepKey, StepKey nextStepKey) {
-        return IndexLifecycleRunner.moveClusterStateToStep(indexName, currentState, currentStepKey, nextStepKey,
-            nowSupplier, policyRegistry);
+    /**
+     * Move the cluster state to an arbitrary step for the provided index.
+     *
+     * In order to avoid a check-then-set race condition, the current step key
+     * is required in order to validate that the index is currently on the
+     * provided step. If it is not, an {@link IllegalArgumentException} is
+     * thrown.
+     * @throws IllegalArgumentException if the step movement cannot be validated
+     */
+    public ClusterState moveClusterStateToStep(ClusterState currentState, Index index, StepKey currentStepKey, StepKey newStepKey) {
+        // We manually validate here, because any API must correctly specify the current step key
+        // when moving to an arbitrary step key (to avoid race conditions between the
+        // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
+        // the user-input for the current step (which is why we validate here for a passed in step)
+        IndexLifecycleTransition.validateTransition(currentState.getMetaData().index(index),
+            currentStepKey, newStepKey, policyRegistry);
+        return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, newStepKey,
+            nowSupplier, policyRegistry, true);
     }
 
     public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {
-        return lifecycleRunner.moveClusterStateToPreviouslyFailedStep(currentState, indices);
+        ClusterState newState = currentState;
+        for (String index : indices) {
+            newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(newState, index,
+                nowSupplier, policyRegistry, false);
+        }
+        return newState;
     }
 
     @Override
@@ -118,7 +142,7 @@ public class IndexLifecycleService
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-                    StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+                    StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
 
                     try {
                         if (OperationMode.STOPPING == currentMode) {
@@ -279,7 +303,7 @@ public class IndexLifecycleService
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-                StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+                StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
 
                 try {
                     if (OperationMode.STOPPING == currentMode) {

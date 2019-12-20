@@ -45,10 +45,10 @@ public abstract class DataTypeConversion {
         if (left == right) {
             return left;
         }
-        if (DataTypes.isNull(left)) {
+        if (left.isNull()) {
             return right;
         }
-        if (DataTypes.isNull(right)) {
+        if (right.isNull()) {
             return left;
         }
         if (left.isString() && right.isString()) {

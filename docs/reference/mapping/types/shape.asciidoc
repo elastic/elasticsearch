@@ -74,8 +74,8 @@ The following features are not yet supported:
    over each individual point. For now, if this is absolutely needed, this can be achieved
    using a `bool` query with each individual point. (Note: this could be very costly)
 
-* `CONTAINS` relation query - `shape` queries with `relation` defined as `contains` are not
-   yet supported.
+* `CONTAINS` relation query - `shape` queries with `relation` defined as `contains` are supported
+   for indices created with ElasticSearch 7.5.0 or higher.
 
 [float]
 ===== Example

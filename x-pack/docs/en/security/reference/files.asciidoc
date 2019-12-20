@@ -16,7 +16,7 @@ The {es} {security-features} use the following files:
 
 * `ES_PATH_CONF/role_mapping.yml` defines the role assignments for a
   Distinguished Name (DN) to a role. This allows for LDAP and Active Directory
-  groups and users and PKI users to be mapped to roles. See <<mapping-roles.>>.
+  groups and users and PKI users to be mapped to roles. See <<mapping-roles>>.
 
 * `ES_PATH_CONF/log4j2.properties` contains audit information. See
 <<audit-log-output>>.

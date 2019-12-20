@@ -33,17 +33,6 @@ class AsyncSearchId {
         this.encoded = encode(indexName, docId, taskId);
     }
 
-    AsyncSearchId(String id) throws IOException {
-        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap( Base64.getDecoder().decode(id)))) {
-            this.indexName = in.readString();
-            this.docId = in.readString();
-            this.taskId = new TaskId(in.readString());
-            this.encoded = id;
-        } catch (IOException e) {
-            throw new IOException("invalid id: " + id);
-        }
-    }
-
     /**
      * The index name where to find the response if the task is not running.
      */

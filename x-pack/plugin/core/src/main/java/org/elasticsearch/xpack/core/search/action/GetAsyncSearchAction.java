@@ -35,7 +35,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
         private final String id;
         private final int lastVersion;
         private final TimeValue waitForCompletion;
-        private final boolean cleanOnCompletion;
 
         /**
          * Create a new request
@@ -43,11 +42,10 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
          * @param waitForCompletion The minimum time that the request should wait before returning a partial result.
          * @param lastVersion The last version returned by a previous call.
          */
-        public Request(String id, TimeValue waitForCompletion, int lastVersion, boolean cleanOnCompletion) {
+        public Request(String id, TimeValue waitForCompletion, int lastVersion) {
             this.id = id;
             this.waitForCompletion = waitForCompletion;
             this.lastVersion = lastVersion;
-            this.cleanOnCompletion = cleanOnCompletion;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -55,7 +53,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
             this.id = in.readString();
             this.waitForCompletion = TimeValue.timeValueMillis(in.readLong());
             this.lastVersion = in.readInt();
-            this.cleanOnCompletion = in.readBoolean();
         }
 
         @Override
@@ -64,7 +61,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
             out.writeString(id);
             out.writeLong(waitForCompletion.millis());
             out.writeInt(lastVersion);
-            out.writeBoolean(cleanOnCompletion);
         }
 
         @Override
@@ -90,13 +86,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
          */
         public TimeValue getWaitForCompletion() {
             return waitForCompletion;
-        }
-
-        /**
-         * Cleanup the resource on completion or failure.
-         */
-        public boolean isCleanOnCompletion() {
-            return cleanOnCompletion;
         }
 
         @Override

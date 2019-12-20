@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -132,10 +131,14 @@ class AsyncSearchStoreService {
      * Store an empty document in the .async-search index that is used
      * as a place-holder for the future response.
      */
-    void storeInitialResponse(Map<String, String> headers, String index, String docID, ActionListener<IndexResponse> listener) {
+    void storeInitialResponse(Map<String, String> headers, String index, String docID, AsyncSearchResponse response,
+                              ActionListener<IndexResponse> listener) throws IOException {
+        Map<String, Object> source = new HashMap<>();
+        source.put(RESULT_FIELD, encodeResponse(response));
+        source.put(HEADERS_FIELD, headers);
         IndexRequest request = new IndexRequest(index)
             .id(docID)
-            .source(Collections.singletonMap(HEADERS_FIELD, headers), XContentType.JSON);
+            .source(source, XContentType.JSON);
         client.index(request, listener);
     }
 
@@ -144,7 +147,7 @@ class AsyncSearchStoreService {
      */
     void storeFinalResponse(Map<String, String> headers, AsyncSearchResponse response,
                             ActionListener<UpdateResponse> listener) throws IOException {
-        AsyncSearchId searchId = AsyncSearchId.decode(response.id());
+        AsyncSearchId searchId = AsyncSearchId.decode(response.getId());
         Map<String, Object> source = new HashMap<>();
         source.put(RESULT_FIELD, encodeResponse(response));
         source.put(HEADERS_FIELD, headers);
@@ -216,7 +219,7 @@ class AsyncSearchStoreService {
             },
             exc -> {
                 logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);
-                listener.onFailure(new ResourceNotFoundException("id [{}] not found", searchId.getEncoded()));
+                listener.onFailure(exc);
             })
         );
     }

@@ -140,7 +140,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
     }
 
     static void assertEqualResponses(AsyncSearchResponse expected, AsyncSearchResponse actual) {
-        assertEquals(expected.id(), actual.id());
+        assertEquals(expected.getId(), actual.getId());
         assertEquals(expected.getVersion(), actual.getVersion());
         assertEquals(expected.status(), actual.status());
         assertEquals(expected.getPartialResponse(), actual.getPartialResponse());

@@ -79,11 +79,11 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             submitListener.onFailure(exc);
             return;
         }
-
+        final String docID = UUIDs.randomBase64UUID(random);
         store.ensureAsyncSearchIndex(clusterService.state(), new ActionListener<>() {
             @Override
             public void onResponse(String indexName) {
-                executeSearch(request, indexName, UUIDs.randomBase64UUID(random), submitListener);
+                executeSearch(request, indexName, docID, submitListener);
             }
 
             @Override
@@ -113,14 +113,12 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 @Override
                 public void onResponse(SearchResponse response) {
                     progressListener.onResponse(response);
-                    logger.debug(() -> new ParameterizedMessage("store async-search [{}]", task.getSearchId().getEncoded()));
                     onTaskCompletion(threadPool, task, shouldStoreResult);
                 }
 
                 @Override
                 public void onFailure(Exception exc) {
                     progressListener.onFailure(exc);
-                    logger.error(() -> new ParameterizedMessage("store failed async-search [{}]", task.getSearchId().getEncoded()), exc);
                     onTaskCompletion(threadPool, task, shouldStoreResult);
                 }
             }
@@ -128,7 +126,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
         // and get the response asynchronously
         GetAsyncSearchAction.Request getRequest = new GetAsyncSearchAction.Request(task.getSearchId().getEncoded(),
-            submitRequest.getWaitForCompletion(), -1, submitRequest.isCleanOnCompletion());
+            submitRequest.getWaitForCompletion(), -1);
         nodeClient.executeLocally(GetAsyncSearchAction.INSTANCE, getRequest,
             new ActionListener<>() {
                 @Override
@@ -136,15 +134,19 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                     if (response.isRunning() || submitRequest.isCleanOnCompletion() == false) {
                         // the task is still running and the user cannot wait more so we create
                         // an empty document for further retrieval
-                        store.storeInitialResponse(originHeaders, indexName, docID,
-                            ActionListener.wrap(() -> {
-                                shouldStoreResult.set(true);
-                                submitListener.onResponse(response);
-                            }));
+                        try {
+                            store.storeInitialResponse(originHeaders, indexName, docID, response,
+                                ActionListener.wrap(() -> {
+                                    shouldStoreResult.set(true);
+                                    submitListener.onResponse(response);
+                                }));
+                        } catch (IOException exc) {
+                            onFailure(exc);
+                        }
                     } else {
                         // the user will get a final response directly so no need to store the result on completion
                         shouldStoreResult.set(false);
-                        submitListener.onResponse(response);
+                        submitListener.onResponse(new AsyncSearchResponse(null, response));
                     }
                 }
 
@@ -160,19 +162,18 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onTaskCompletion(ThreadPool threadPool, AsyncSearchTask task,
                                     AtomicReference<Boolean> reference) {
         final Boolean shouldStoreResult = reference.get();
-        try {
-            if (shouldStoreResult == null) {
-                // the user is still waiting for a response so we schedule a retry in 100ms
-                threadPool.schedule(() -> onTaskCompletion(threadPool, task, reference),
-                    TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
-            } else if (shouldStoreResult) {
-                // the user retrieved an initial partial response so we need to store the final one
-                // for further retrieval
-                store.storeFinalResponse(task.getOriginHeaders(), task.getAsyncResponse(true, false),
+        if (shouldStoreResult == null) {
+            // the user is still waiting for a response so we schedule a retry in 100ms
+            threadPool.schedule(() -> onTaskCompletion(threadPool, task, reference),
+                TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
+        } else if (shouldStoreResult) {
+            // the user retrieved an initial partial response so we need to store the final one
+            // for further retrieval
+            try {
+                store.storeFinalResponse(task.getOriginHeaders(), task.getAsyncResponse(true),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            logger.debug(() -> new ParameterizedMessage("store async-search [{}]", task.getSearchId().getEncoded()));
                             taskManager.unregister(task);
                         }
 
@@ -183,12 +184,12 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             taskManager.unregister(task);
                         }
                     });
-            } else {
-                // the user retrieved the final response already so we don't need to store it
+            }  catch (IOException exc) {
+                logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", task.getSearchId().getEncoded()), exc);
                 taskManager.unregister(task);
             }
-        } catch (IOException exc) {
-            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", task.getSearchId().getEncoded()), exc);
+        } else {
+            // the user retrieved the final response already so we don't need to store it
             taskManager.unregister(task);
         }
     }

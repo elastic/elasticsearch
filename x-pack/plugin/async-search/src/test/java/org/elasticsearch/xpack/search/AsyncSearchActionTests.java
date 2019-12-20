@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AsyncSearchIT extends AsyncSearchIntegTestCase {
+public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
     private String indexName;
     private int numShards;
     private int numDocs;
@@ -98,7 +98,7 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
             if (numFailures == numShards) {
                 assertTrue(response.hasFailed());
             } else {
-                assertTrue(response.isFinalResponse());
+                assertTrue(response.hasResponse());
                 assertNotNull(response.getSearchResponse().getAggregations());
                 assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                 assertNotNull(response.getSearchResponse().getAggregations().get("min"));
@@ -112,7 +112,8 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                     assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
                 }
             }
-            ensureTaskRemoval(response.id());
+            deleteAsyncSearch(response.getId());
+            ensureTaskRemoval(response.getId());
         }
     }
 
@@ -142,7 +143,7 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
             if (numFailures == numShards) {
                 assertTrue(response.hasFailed());
             } else {
-                assertTrue(response.isFinalResponse());
+                assertTrue(response.hasResponse());
                 assertNotNull(response.getSearchResponse().getAggregations());
                 assertNotNull(response.getSearchResponse().getAggregations().get("terms"));
                 StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
@@ -157,7 +158,8 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                     }
                 }
             }
-            ensureTaskRemoval(response.id());
+            deleteAsyncSearch(response.getId());
+            ensureTaskRemoval(response.getId());
         }
     }
 
@@ -167,13 +169,14 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                  assertBlockingIterator(indexName, new SearchSourceBuilder(), 0, 2)) {
             initial = it.next();
         }
-        ensureTaskCompletion(initial.id());
-        restartTaskNode(initial.id());
-        AsyncSearchResponse response = getAsyncSearch(initial.id());
-        assertTrue(response.isFinalResponse());
+        ensureTaskCompletion(initial.getId());
+        restartTaskNode(initial.getId());
+        AsyncSearchResponse response = getAsyncSearch(initial.getId());
+        assertTrue(response.hasResponse());
         assertFalse(response.isRunning());
         assertFalse(response.hasPartialResponse());
-        ensureTaskRemoval(response.id());
+        deleteAsyncSearch(response.getId());
+        ensureTaskRemoval(response.getId());
     }
 
     public void testDeleteCancelRunningTask() throws Exception {
@@ -181,10 +184,10 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         initial = it.next();
-        deleteAsyncSearch(initial.id());
+        deleteAsyncSearch(initial.getId());
         it.close();
-        ensureTaskCompletion(initial.id());
-        ensureTaskRemoval(initial.id());
+        ensureTaskCompletion(initial.getId());
+        ensureTaskRemoval(initial.getId());
     }
 
     public void testDeleteCleanupIndex() throws Exception {
@@ -193,10 +196,10 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         AsyncSearchResponse response = it.next();
-        deleteAsyncSearch(response.id());
+        deleteAsyncSearch(response.getId());
         it.close();
-        ensureTaskCompletion(response.id());
-        ensureTaskRemoval(response.id());
+        ensureTaskCompletion(response.getId());
+        ensureTaskRemoval(response.getId());
     }
 
     public void testCleanupOnFailure() throws Exception {
@@ -205,13 +208,14 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
                  assertBlockingIterator(indexName, new SearchSourceBuilder(), numShards, 2)) {
             initial = it.next();
         }
-        ensureTaskCompletion(initial.id());
-        AsyncSearchResponse response = getAsyncSearch(initial.id());
+        ensureTaskCompletion(initial.getId());
+        AsyncSearchResponse response = getAsyncSearch(initial.getId());
         assertTrue(response.hasFailed());
         assertTrue(response.hasPartialResponse());
         assertThat(response.getPartialResponse().getTotalShards(), equalTo(numShards));
         assertThat(response.getPartialResponse().getShardFailures(), equalTo(numShards));
-        ensureTaskRemoval(initial.id());
+        deleteAsyncSearch(initial.getId());
+        ensureTaskRemoval(initial.getId());
     }
 
     public void testInvalidId() throws Exception {
@@ -220,7 +224,7 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         AsyncSearchResponse response = it.next();
-        AsyncSearchId original = AsyncSearchId.decode(response.id());
+        AsyncSearchId original = AsyncSearchId.decode(response.getId());
         String invalid = AsyncSearchId.encode("another_index", original.getDocId(), original.getTaskId());
         ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch(invalid));
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
@@ -228,6 +232,6 @@ public class AsyncSearchIT extends AsyncSearchIntegTestCase {
         while (it.hasNext()) {
             response = it.next();
         }
-        assertTrue(response.isFinalResponse());
+        assertFalse(response.isRunning());
     }
 }

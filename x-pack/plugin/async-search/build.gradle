@@ -20,17 +20,6 @@ compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
 
 integTest.enabled = false
 
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: Test) {
-  description = 'Java fantasy integration tests'
-  mustRunAfter test
-
-  include '**/*IT.class'
-}
-
-check.dependsOn internalClusterTest
-
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {
   project.subprojects
@@ -50,10 +39,4 @@ dependencies {
 
 dependencyLicenses {
   ignoreSha 'x-pack-core'
-}
-
-testingConventions.naming {
-  IT {
-    baseClass "org.elasticsearch.xpack.search.AsyncSearchIntegTestCase"
-  }
 }

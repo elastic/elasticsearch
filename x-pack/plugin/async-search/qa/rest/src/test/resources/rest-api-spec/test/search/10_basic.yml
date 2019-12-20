@@ -44,6 +44,28 @@
                 field: max
           sort: max
 
+  - is_false: id
+  - match: { version:   4 }
+  - match: { response.is_partial: false }
+  - length: { response.hits.hits:        3 }
+  - match: { response.hits.hits.0._source.max: 1 }
+  - match: { response.aggregations.1.value:  3.0 }
+
+  - do:
+      async_search.submit:
+        index: test-*
+        batched_reduce_size: 2
+        wait_for_completion: 10s
+        clean_on_completion: false
+        body:
+          query:
+            match_all: {}
+          aggs:
+            1:
+              max:
+                field: max
+          sort: max
+
   - set: { id: id }
   - set: { version: version }
   - match: { version:   4 }
@@ -53,6 +75,29 @@
   - match: { response.aggregations.1.value:  3.0 }
 
   - do:
+      async_search.get:
+        id: "$id"
+
+  - match: { version:   4 }
+  - match: { response.is_partial: false }
+  - length: { response.hits.hits:        3 }
+  - match: { response.hits.hits.0._source.max: 1 }
+  - match: { response.aggregations.1.value:  3.0 }
+
+  - do:
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }
+
+  - do:
       catch: missing
       async_search.get:
         id: "$id"
+
+  - do:
+      catch: missing
+      async_search.delete:
+        id: "$id"
+
+

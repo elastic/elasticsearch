@@ -33,6 +33,10 @@
         "type":"time",
         "description":"Specify the time that the request should block waiting for the final response (default: 1s)"
       },
+      "clean_on_completion":{
+        "type":"boolean",
+        "description":"Specify whether the response should not be stored in the cluster if it completed within the provided wait_for_completion time (default: true)"
+      },
       "analyzer":{
         "type":"string",
         "description":"The analyzer to use for the query string"

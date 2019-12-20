@@ -132,8 +132,6 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
         final Request request = new Request("GET",  "/_async_search/" + id);
         setRunAsHeader(request, user);
         request.addParameter("wait_for_completion", "0ms");
-        // we do the cleanup explicitly
-        request.addParameter("clean_on_completion", "false");
         return client().performRequest(request);
     }
 

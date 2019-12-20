@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,9 +33,6 @@ class AsyncSearchTask extends SearchTask {
     private final AsyncSearchId searchId;
     private final Supplier<InternalAggregation.ReduceContext> reduceContextSupplier;
     private final Listener progressListener;
-
-    // indicate if the user retrieved the final response
-    private boolean isFinalResponseRetrieved;
 
     private final Map<String, String> originHeaders;
 
@@ -74,19 +70,12 @@ class AsyncSearchTask extends SearchTask {
      * Note that this function returns <code>null</code> until {@link Listener#onListShards}
      * or {@link Listener#onFailure} is called on the search task.
      */
-    synchronized AsyncSearchResponse getAsyncResponse(boolean doFinalReduce, boolean cleanOnCompletion) {
-        AsyncSearchResponse resp = progressListener.response != null ? progressListener.response.get(doFinalReduce) : null;
-        if (resp != null
-                && doFinalReduce
-                && cleanOnCompletion
-                && resp.isRunning() == false) {
-            if (isFinalResponseRetrieved) {
-                // the response was already retrieved in a previous call
-                throw new ResourceNotFoundException(resp.id() + " not found");
-            }
-            isFinalResponseRetrieved = true;
+    AsyncSearchResponse getAsyncResponse(boolean doFinalReduce) {
+        AsyncSearchResponse response = progressListener.response != null ? progressListener.response.get(doFinalReduce) : null;
+        if (response != null) {
+            response.addTaskInfo(taskInfo(searchId.getTaskId().getNodeId(), false));
         }
-        return resp;
+        return response;
     }
 
     private class Listener extends SearchProgressActionListener {
@@ -179,7 +168,7 @@ class AsyncSearchTask extends SearchTask {
                 PartialSearchResponse clone = new PartialSearchResponse(old.getTotalShards(), old.getSuccessfulShards(),
                     old.getShardFailures(), old.getTotalHits(), reducedAggs);
                 needFinalReduce = false;
-                return internal = new AsyncSearchResponse(internal.id(), clone, internal.getFailure(), internal.getVersion(), true);
+                return internal = new AsyncSearchResponse(internal.getId(), clone, internal.getFailure(), internal.getVersion(), true);
             } else {
                 return internal;
             }

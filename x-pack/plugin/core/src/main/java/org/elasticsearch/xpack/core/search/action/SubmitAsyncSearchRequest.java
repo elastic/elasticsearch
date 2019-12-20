@@ -125,7 +125,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest implements Composite
         if (o == null || getClass() != o.getClass()) return false;
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
         return cleanOnCompletion == request1.cleanOnCompletion &&
-            Objects.equals(waitForCompletion, request1.waitForCompletion) &&
+            waitForCompletion.equals(request1.waitForCompletion) &&
             request.equals(request1.request);
     }
 

@@ -33,8 +33,7 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
         String id = request.param("id");
         int lastVersion = request.paramAsInt("last_version", -1);
         TimeValue waitForCompletion = request.paramAsTime("wait_for_completion", TimeValue.timeValueSeconds(1));
-        boolean cleanOnCompletion = request.paramAsBoolean("clean_on_completion", true);
-        GetAsyncSearchAction.Request get = new GetAsyncSearchAction.Request(id, waitForCompletion, lastVersion, cleanOnCompletion);
+        GetAsyncSearchAction.Request get = new GetAsyncSearchAction.Request(id, waitForCompletion, lastVersion);
         return channel -> client.execute(GetAsyncSearchAction.INSTANCE, get, new RestStatusToXContentListener<>(channel));
     }
 }

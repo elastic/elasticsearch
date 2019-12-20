@@ -96,7 +96,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     protected AsyncSearchResponse getAsyncSearch(String id) throws ExecutionException, InterruptedException {
         return client().execute(GetAsyncSearchAction.INSTANCE,
-            new GetAsyncSearchAction.Request(id, TimeValue.MINUS_ONE, -1, true)).get();
+            new GetAsyncSearchAction.Request(id, TimeValue.MINUS_ONE, -1)).get();
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
@@ -207,7 +207,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 }
                 assertBusy(() -> {
                     AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
-                        new GetAsyncSearchAction.Request(response.id(), TimeValue.timeValueMillis(10), lastVersion, true)
+                        new GetAsyncSearchAction.Request(response.getId(), TimeValue.timeValueMillis(10), lastVersion)
                     ).get();
                     atomic.set(newResp);
                     assertNotEquals(RestStatus.NOT_MODIFIED, newResp.status());
@@ -219,14 +219,14 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertThat(newResponse.status(),  equalTo(RestStatus.PARTIAL_CONTENT));
                     assertTrue(newResponse.hasPartialResponse());
                     assertFalse(newResponse.hasFailed());
-                    assertFalse(newResponse.isFinalResponse());
+                    assertFalse(newResponse.hasResponse());
                     assertThat(newResponse.getPartialResponse().getTotalShards(), equalTo(shardLatchArray.length));
                     assertThat(newResponse.getPartialResponse().getShardFailures(), lessThanOrEqualTo(numFailures));
                 } else if (numFailures == shardLatchArray.length) {
                     assertThat(newResponse.status(),  equalTo(RestStatus.INTERNAL_SERVER_ERROR));
                     assertTrue(newResponse.hasFailed());
                     assertTrue(newResponse.hasPartialResponse());
-                    assertFalse(newResponse.isFinalResponse());
+                    assertFalse(newResponse.hasResponse());
                     assertThat(newResponse.getPartialResponse().getTotalShards(), equalTo(shardLatchArray.length));
                     assertThat(newResponse.getPartialResponse().getSuccessfulShards(), equalTo(0));
                     assertThat(newResponse.getPartialResponse().getShardFailures(), equalTo(numFailures));
@@ -234,7 +234,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertNull(newResponse.getPartialResponse().getTotalHits());
                 } else {
                     assertThat(newResponse.status(),  equalTo(RestStatus.OK));
-                    assertTrue(newResponse.isFinalResponse());
+                    assertTrue(newResponse.hasResponse());
                     assertFalse(newResponse.hasPartialResponse());
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));

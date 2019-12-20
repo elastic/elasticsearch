@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.core.search.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 
@@ -24,14 +26,16 @@ import static org.elasticsearch.rest.RestStatus.PARTIAL_CONTENT;
  * before completion, or a final {@link SearchResponse} if the request succeeded.
  */
 public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject {
+    @Nullable
     private final String id;
     private final int version;
-    private final SearchResponse finalResponse;
+    private final SearchResponse response;
     private final PartialSearchResponse partialResponse;
     private final ElasticsearchException failure;
-
-    private final long timestamp;
     private final boolean isRunning;
+
+    private long startDateMillis;
+    private long runningTimeNanos;
 
     public AsyncSearchResponse(String id, int version, boolean isRunning) {
         this(id, null, null, null, version, isRunning);
@@ -49,46 +53,61 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         this(id, response, null, failure, version, isRunning);
     }
 
+    public AsyncSearchResponse(String id, AsyncSearchResponse clone) {
+        this(id, clone.partialResponse, clone.response, clone.failure, clone.version, clone.isRunning);
+        this.startDateMillis = clone.startDateMillis;
+        this.runningTimeNanos = clone.runningTimeNanos;
+    }
+
     private AsyncSearchResponse(String id,
                                 PartialSearchResponse partialResponse,
-                                SearchResponse finalResponse,
+                                SearchResponse response,
                                 ElasticsearchException failure,
                                 int version,
                                 boolean isRunning) {
+        assert id != null || isRunning == false;
         this.id = id;
         this.version = version;
         this.partialResponse = partialResponse;
         this.failure = failure;
-        this.finalResponse = finalResponse != null ? wrapFinalResponse(finalResponse) : null;
-        this.timestamp = System.currentTimeMillis();
+        this.response = response != null ? wrapFinalResponse(response) : null;
         this.isRunning = isRunning;
     }
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
-        this.id = in.readString();
+        this.id = in.readOptionalString();
         this.version = in.readVInt();
         this.partialResponse = in.readOptionalWriteable(PartialSearchResponse::new);
         this.failure = in.readOptionalWriteable(ElasticsearchException::new);
-        this.finalResponse = in.readOptionalWriteable(SearchResponse::new);
-        this.timestamp = in.readLong();
+        this.response = in.readOptionalWriteable(SearchResponse::new);
         this.isRunning = in.readBoolean();
+        this.startDateMillis = in.readLong();
+        this.runningTimeNanos = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
+        out.writeOptionalString(id);
         out.writeVInt(version);
         out.writeOptionalWriteable(partialResponse);
         out.writeOptionalWriteable(failure);
-        out.writeOptionalWriteable(finalResponse);
-        out.writeLong(timestamp);
+        out.writeOptionalWriteable(response);
         out.writeBoolean(isRunning);
+        out.writeLong(startDateMillis);
+        out.writeLong(runningTimeNanos);
+    }
+
+    public void addTaskInfo(TaskInfo taskInfo) {
+        this.startDateMillis = taskInfo.getStartTime();
+        this.runningTimeNanos = taskInfo.getRunningTimeNanos();
     }
 
     /**
-     * Return the id of the search progress request.
+     * Return the id of the async search request or null if the response
+     * was cleaned on completion.
      */
-    public String id() {
+    @Nullable
+    public String getId() {
         return id;
     }
 
@@ -116,8 +135,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     /**
      * Return <code>true</code> if the final response is available.
      */
-    public boolean isFinalResponse() {
-        return finalResponse != null;
+    public boolean hasResponse() {
+        return response != null;
     }
 
     /**
@@ -125,7 +144,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      * request is running or failed.
      */
     public SearchResponse getSearchResponse() {
-        return finalResponse;
+        return response;
     }
 
     /**
@@ -144,10 +163,14 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * When this response was created.
+     * When this response was created as a timestamp in milliseconds since epoch.
      */
-    public long getTimestamp() {
-        return timestamp;
+    public long getStartDate() {
+        return startDateMillis;
+    }
+
+    public long getRunningTimeNanos() {
+        return runningTimeNanos;
     }
 
     /**
@@ -159,27 +182,30 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public RestStatus status() {
-        if (finalResponse == null && partialResponse == null) {
+        if (response == null && partialResponse == null) {
             return failure != null ? failure.status() : NOT_MODIFIED;
-        } else if (finalResponse == null) {
+        } else if (response == null) {
             return failure != null ? failure.status() : PARTIAL_CONTENT;
         } else {
-            return finalResponse.status();
+            return response.status();
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("id", id);
+        if (id != null) {
+            builder.field("id", id);
+        }
         builder.field("version", version);
         builder.field("is_running", isRunning);
-        builder.field("timestamp", timestamp);
+        builder.field("start_date_in_millis", startDateMillis);
+        builder.field("running_time_in_nanos", runningTimeNanos);
 
         if (partialResponse != null) {
             builder.field("response", partialResponse);
-        } else if (finalResponse != null) {
-            builder.field("response", finalResponse);
+        } else if (response != null) {
+            builder.field("response", response);
         }
         if (failure != null) {
             builder.startObject("failure");

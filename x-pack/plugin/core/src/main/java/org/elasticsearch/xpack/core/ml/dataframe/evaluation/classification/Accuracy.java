@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -78,26 +77,18 @@ public class Accuracy implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
-    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+    private static final int MAX_CLASSES_CARDINALITY = 1000;
 
-    private final int maxClassesCardinality;
     private final MulticlassConfusionMatrix matrix;
     private final SetOnce<String> actualField = new SetOnce<>();
     private final SetOnce<Double> overallAccuracy = new SetOnce<>();
     private final SetOnce<Result> result = new SetOnce<>();
 
     public Accuracy() {
-        this((Integer) null);
-    }
-
-    // Visible for testing
-    public Accuracy(@Nullable Integer maxClassesCardinality) {
-        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
-        this.matrix = new MulticlassConfusionMatrix(this.maxClassesCardinality, NAME.getPreferredName() + "_");
+        this.matrix = new MulticlassConfusionMatrix(MAX_CLASSES_CARDINALITY, NAME.getPreferredName() + "_");
     }
 
     public Accuracy(StreamInput in) throws IOException {
-        this.maxClassesCardinality = DEFAULT_MAX_CLASSES_CARDINALITY;
         this.matrix = new MulticlassConfusionMatrix(in);
     }
 

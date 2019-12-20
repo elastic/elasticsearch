@@ -142,15 +142,6 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(45.0 / 75));
     }
 
-    public void testEvaluate_Accuracy_CardinalityTooHigh() {
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Accuracy(4)))));
-        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
-    }
-
     public void testEvaluate_Precision() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(

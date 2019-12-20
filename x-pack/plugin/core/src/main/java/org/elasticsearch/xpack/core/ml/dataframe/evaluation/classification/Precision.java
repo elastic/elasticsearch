@@ -108,7 +108,7 @@ public class Precision implements EvaluationMetric {
                         .size(MAX_CLASSES_CARDINALITY)),
                 List.of());
         }
-        if (result == null) {  // This is step 2
+        if (result.get() == null) {  // This is step 2
             KeyedFilter[] keyedFiltersPredicted =
                 topActualClassNames.get().stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))

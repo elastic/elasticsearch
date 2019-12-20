@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ml.integration;
 
 import com.google.common.collect.Ordering;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -39,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -64,6 +67,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String jobId;
     private String sourceIndex;
     private String destIndex;
+    private boolean analysisUsesExistingDestIndex;
 
     @After
     public void cleanup() {
@@ -72,6 +76,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("classification_single_numeric_feature_and_mixed_data_set");
+        String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
@@ -88,12 +93,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
-
-            assertThat(resultsObject.containsKey("keyword-field_prediction"), is(true));
-            assertThat((String) resultsObject.get("keyword-field_prediction"), is(in(KEYWORD_FIELD_VALUES)));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
+            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+            assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
+            assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
         }
 
@@ -101,19 +103,21 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
-            "Creating destination index [" + destIndex + "]",
+            expectedDestIndexAuditMessage(),
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
-        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml.keyword-field_prediction.keyword");
+        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
         initialize("classification_only_training_data_and_training_percent_is_100");
+        String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
@@ -129,12 +133,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().indices().refresh(new RefreshRequest(destIndex));
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
-
-            assertThat(resultsObject.containsKey("keyword-field_prediction"), is(true));
-            assertThat((String) resultsObject.get("keyword-field_prediction"), is(in(KEYWORD_FIELD_VALUES)));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(true));
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+            assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
+            assertThat(getFieldValue(resultsObject, "is_training"), is(true));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
         }
 
@@ -142,19 +144,22 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
-            "Creating destination index [" + destIndex + "]",
+            expectedDestIndexAuditMessage(),
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
-        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml.keyword-field_prediction.keyword");
+        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
-    public <T> void testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
-            String jobId, String dependentVariable, List<T> dependentVariableValues) throws Exception {
+    public <T> void testWithOnlyTrainingRowsAndTrainingPercentIsFifty(String jobId,
+                                                                      String dependentVariable,
+                                                                      List<T> dependentVariableValues,
+                                                                      String expectedMappingTypeForPredictedField) throws Exception {
         initialize(jobId);
         String predictedClassField = dependentVariable + "_prediction";
         indexData(sourceIndex, 300, 0, dependentVariable);
@@ -181,16 +186,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().indices().refresh(new RefreshRequest(destIndex));
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            @SuppressWarnings("unchecked")
-            T predictedClassValue = (T) resultsObject.get(predictedClassField);
-            assertThat(predictedClassValue, is(in(dependentVariableValues)));
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+            assertThat(getFieldValue(resultsObject, predictedClassField), is(in(dependentVariableValues)));
             assertTopClasses(resultsObject, numTopClasses, dependentVariable, dependentVariableValues);
 
-            assertThat(resultsObject.containsKey("is_training"), is(true));
             // Let's just assert there's both training and non-training results
-            if ((boolean) resultsObject.get("is_training")) {
+            if (getFieldValue(resultsObject, "is_training")) {
                 trainingRowsCount++;
             } else {
                 nonTrainingRowsCount++;
@@ -203,40 +205,39 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(predictedClassField, expectedMappingTypeForPredictedField);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
-            "Creating destination index [" + destIndex + "]",
+            expectedDestIndexAuditMessage(),
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
+        assertEvaluation(dependentVariable, dependentVariableValues, "ml." + predictedClassField);
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword() throws Exception {
         testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
-            "classification_training_percent_is_50_keyword", KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
-        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml.keyword-field_prediction.keyword");
+            "classification_training_percent_is_50_keyword", KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "keyword");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsInteger() throws Exception {
         testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
-            "classification_training_percent_is_50_integer", DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES);
-        assertEvaluation(DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES, "ml.discrete-numerical-field_prediction");
+            "classification_training_percent_is_50_integer", DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES, "integer");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsDouble() throws Exception {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
-                "classification_training_percent_is_50_double", NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES));
+                "classification_training_percent_is_50_double", NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES, null));
         assertThat(e.getMessage(), startsWith("invalid types [double] for required field [numerical-field];"));
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean() throws Exception {
         testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
-            "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES);
-        assertEvaluation(BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "ml.boolean-field_prediction");
+            "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
     }
 
     public void testDependentVariableCardinalityTooHighError() throws Exception {
@@ -282,6 +283,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
         String dependentVariable = KEYWORD_FIELD;
 
+        createIndex(sourceIndex);
         // We use 100 rows as we can't set this too low. If too low it is possible
         // we only train with rows of one of the two classes which leads to a failure.
         indexData(sourceIndex, 100, 0, dependentVariable);
@@ -355,17 +357,24 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
         this.destIndex = sourceIndex + "_results";
+        this.analysisUsesExistingDestIndex = randomBoolean();
+        createIndex(sourceIndex);
+        if (analysisUsesExistingDestIndex) {
+            createIndex(destIndex);
+        }
     }
 
-    private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
-        client().admin().indices().prepareCreate(sourceIndex)
+    private static void createIndex(String index) {
+        client().admin().indices().prepareCreate(index)
             .addMapping("_doc",
                 BOOLEAN_FIELD, "type=boolean",
                 NUMERICAL_FIELD, "type=double",
                 DISCRETE_NUMERICAL_FIELD, "type=integer",
                 KEYWORD_FIELD, "type=keyword")
             .get();
+    }
 
+    private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {
@@ -407,34 +416,30 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         Map<String, Object> sourceDoc = hit.getSourceAsMap();
         Map<String, Object> destDoc = destDocGetResponse.getSource();
         for (String field : sourceDoc.keySet()) {
-            assertThat(destDoc.containsKey(field), is(true));
+            assertThat(destDoc, hasKey(field));
             assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
         }
         return destDoc;
     }
 
-    private static Map<String, Object> getMlResultsObjectFromDestDoc(Map<String, Object> destDoc) {
-        assertThat(destDoc.containsKey("ml"), is(true));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
-        return resultsObject;
+    /**
+     * Wrapper around extractValue with implicit casting to the appropriate type.
+     */
+    private static <T> T getFieldValue(Map<String, Object> doc, String... path) {
+        return (T)extractValue(doc, path);
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> void assertTopClasses(
-        Map<String, Object> resultsObject,
-    int numTopClasses,
-    String dependentVariable,
-    List<T> dependentVariableValues) {
-        assertThat(resultsObject.containsKey("top_classes"), is(true));
-        List<Map<String, Object>> topClasses = (List<Map<String, Object>>) resultsObject.get("top_classes");
+    private static <T> void assertTopClasses(Map<String, Object> resultsObject,
+                                             int numTopClasses,
+                                             String dependentVariable,
+                                             List<T> dependentVariableValues) {
+        List<Map<String, Object>> topClasses = getFieldValue(resultsObject, "top_classes");
         assertThat(topClasses, hasSize(numTopClasses));
         List<T> classNames = new ArrayList<>(topClasses.size());
         List<Double> classProbabilities = new ArrayList<>(topClasses.size());
         for (Map<String, Object> topClass : topClasses) {
-            assertThat(topClass, allOf(hasKey("class_name"), hasKey("class_probability")));
-            classNames.add((T) topClass.get("class_name"));
-            classProbabilities.add((Double) topClass.get("class_probability"));
+            classNames.add(getFieldValue(topClass, "class_name"));
+            classProbabilities.add(getFieldValue(topClass, "class_probability"));
         }
         // Assert that all the predicted class names come from the set of dependent variable values.
         classNames.forEach(className -> assertThat(className, is(in(dependentVariableValues))));
@@ -507,7 +512,25 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
     }
 
-    protected String stateDocId() {
+    private void assertMlResultsFieldMappings(String predictedClassField, String expectedType) {
+        Map<String, Object> mappings =
+            client()
+                .execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(destIndex))
+                .actionGet()
+                .mappings()
+                .get(destIndex)
+                .sourceAsMap();
+        assertThat(getFieldValue(mappings, "properties", "ml", "properties", predictedClassField, "type"), equalTo(expectedType));
+        assertThat(
+            getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
+            equalTo(expectedType));
+    }
+
+    private String stateDocId() {
         return jobId + "_classification_state#1";
+    }
+
+    private String expectedDestIndexAuditMessage() {
+        return (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]";
     }
 }

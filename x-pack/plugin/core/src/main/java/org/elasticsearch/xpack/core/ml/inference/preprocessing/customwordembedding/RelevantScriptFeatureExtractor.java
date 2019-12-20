@@ -44,10 +44,8 @@ public class RelevantScriptFeatureExtractor implements FeatureExtractor {
         for (Map.Entry<ScriptDetector.Script, Counter> entry : counts.entrySet()) {
             ScriptDetector.Script scriptId = entry.getKey();
             long count = entry.getValue().get();
-            if (count > 0) {
-                double weight = (double) count / (double) totalCount.get();
-                result[index++] = new ContinuousFeatureValue(scriptId.toInt(), weight);
-            }
+            double weight = (double) count / (double) totalCount.get();
+            result[index++] = new ContinuousFeatureValue(scriptId.toInt(), weight);
         }
 
         return result;

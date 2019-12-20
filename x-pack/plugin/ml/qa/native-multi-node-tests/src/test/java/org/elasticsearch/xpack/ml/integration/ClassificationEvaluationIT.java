@@ -38,6 +38,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     @Before
     public void setup() {
+        createAnimalsIndex(ANIMALS_DATA_INDEX);
         indexAnimalsData(ANIMALS_DATA_INDEX);
     }
 
@@ -141,11 +142,12 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Precision_CardinalityTooHigh() {
+        indexDistinctAnimals(ANIMALS_DATA_INDEX, 1001);
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision(4)))));
+                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
     }
 
@@ -172,11 +174,12 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Recall_CardinalityTooHigh() {
+        indexDistinctAnimals(ANIMALS_DATA_INDEX, 1001);
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall(4)))));
+                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
     }
 
@@ -281,7 +284,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(2L));
     }
 
-    private static void indexAnimalsData(String indexName) {
+    private static void createAnimalsIndex(String indexName) {
         client().admin().indices().prepareCreate(indexName)
             .addMapping("_doc",
                 ANIMAL_NAME_FIELD, "type=keyword",
@@ -291,7 +294,9 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 IS_PREDATOR_FIELD, "type=boolean",
                 IS_PREDATOR_PREDICTION_FIELD, "type=boolean")
             .get();
+    }
 
+    private static void indexAnimalsData(String indexName) {
         List<String> animalNames = List.of("dog", "cat", "mouse", "ant", "fox");
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -309,6 +314,19 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                                 IS_PREDATOR_PREDICTION_FIELD, (i + j) % 2 == 0));
                 }
             }
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+    }
+
+    private static void indexDistinctAnimals(String indexName, int distinctAnimalCount) {
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < distinctAnimalCount; i++) {
+            bulkRequestBuilder.add(
+                new IndexRequest(indexName).source(ANIMAL_NAME_FIELD, "animal_" + i, ANIMAL_NAME_PREDICTION_FIELD, randomAlphaOfLength(5)));
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         if (bulkResponse.hasFailures()) {

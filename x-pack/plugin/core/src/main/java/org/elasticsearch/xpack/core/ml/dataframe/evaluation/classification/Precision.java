@@ -131,7 +131,7 @@ public class Precision implements EvaluationMetric {
         if (topActualClassNames.get() == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
             Terms topActualClassesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
             if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {
-                // This means there were more than {@code maxClassesCardinality} buckets.
+                // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average precision accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
                     "Cannot calculate average precision. Cardinality of field [{}] is too high", actualField.get());

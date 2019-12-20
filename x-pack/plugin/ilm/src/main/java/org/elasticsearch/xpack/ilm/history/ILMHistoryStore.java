@@ -80,7 +80,7 @@ public class ILMHistoryStore implements Closeable {
                                 logger.warn("failed to create ILM history store index prior to issuing bulk request", ex);
                                 indexCreated.completeExceptionally(ex);
                             }));
-                        indexCreated.get();
+                        indexCreated.get(2, TimeUnit.MINUTES);
                     } catch (Exception e) {
                         logger.warn(new ParameterizedMessage("unable to index the following ILM history items:\n{}",
                             request.requests().stream()

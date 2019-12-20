@@ -10,7 +10,7 @@ Get auto-follow patterns.
 
 ==== Description
 
-This API gets configured {stack-ov}/ccr-auto-follow.html[auto-follow patterns].
+This API gets configured <<ccr-auto-follow,auto-follow patterns>>.
 This API will return the specified auto-follow pattern collection.
 
 ==== Request
@@ -66,7 +66,7 @@ GET /_ccr/auto_follow/<auto_follow_pattern_name>
 
 If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
 privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
 ==== Example
 

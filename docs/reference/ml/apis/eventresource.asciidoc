@@ -24,4 +24,4 @@ An events resource has the following properties:
  string is in ISO 8601 format.
 
 For more information, see
-{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].

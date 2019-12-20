@@ -34,7 +34,7 @@ to control which users have authority to manage {ccr}.
 By default, you can perform all of the steps in this tutorial by
 using the built-in `elastic` user. However, a password must be set for this user
 before the user can do anything. For information about how to set that password,
-see {stack-ov}/security-getting-started.html[Tutorial: Getting started with security].
+see <<security-getting-started>>.
 
 If you are performing these steps in a production environment, take extra care
 because the `elastic` user has the `superuser` role and you could inadvertently

@@ -20,8 +20,7 @@ indices are then replayed on the follower indices. This functionality is useful
 for replicating data to a second cluster for disaster recovery purposes and for
 geo-proximity so that reads can be served locally.
 
-For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication]
-and <<ccr-apis>>.
+For more information, see <<xpack-ccr>> and <<ccr-apis>>.
 
 [float]
 === Index lifecycle management

@@ -31,7 +31,7 @@ current master node fails.
 
 The {ccr} feature enables you to replicate indices in remote clusters to your
 local cluster. For more information, see 
-{stack-ov}/xpack-ccr.html[{ccr-cap}].  
+{ref}/xpack-ccr.html[{ccr-cap}].  
   
 [[glossary-ccs]] {ccs} (CCS)::
 

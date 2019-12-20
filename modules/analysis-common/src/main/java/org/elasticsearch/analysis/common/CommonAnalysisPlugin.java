@@ -118,9 +118,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -242,7 +244,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
-        filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
+        filters.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
+            deprecationLogger.deprecatedAndMaybeLog("edgeNGram_deprecation",
+                    "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                            + "Please change the filter name to [edge_ngram] instead.");
+            return new EdgeNGramTokenFilterFactory(indexSettings, environment, name, settings);
+        });
         filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
         filters.put("fingerprint", FingerprintTokenFilterFactory::new);
         filters.put("flatten_graph", FlattenGraphTokenFilterFactory::new);
@@ -262,7 +269,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("min_hash", MinHashTokenFilterFactory::new);
         filters.put("multiplexer", MultiplexerTokenFilterFactory::new);
         filters.put("ngram", NGramTokenFilterFactory::new);
-        filters.put("nGram", NGramTokenFilterFactory::new);
+        filters.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
+            deprecationLogger.deprecatedAndMaybeLog("nGram_deprecation",
+                    "The [nGram] token filter name is deprecated and will be removed in a future version. "
+                            + "Please change the filter name to [ngram] instead.");
+            return new NGramTokenFilterFactory(indexSettings, environment, name, settings);
+        });
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
         filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);

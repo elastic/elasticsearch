@@ -35,7 +35,7 @@ one or more forecasts before they expire.
 NOTE: When you delete a job, its associated forecasts are deleted. 
 
 For more information, see
-{stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
+{ml-docs}/ml-overview.html#ml-forecasting[Forecasting the future].
 
 [[ml-delete-forecast-path-parms]]
 ==== {api-path-parms-title}

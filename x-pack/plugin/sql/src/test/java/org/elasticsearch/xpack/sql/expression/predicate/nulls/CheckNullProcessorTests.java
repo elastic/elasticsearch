@@ -9,14 +9,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 public class CheckNullProcessorTests extends AbstractWireSerializingTestCase<CheckNullProcessor> {
-
-    private static final Processor FALSE = new ConstantProcessor(false);
-    private static final Processor TRUE = new ConstantProcessor(true);
-    private static final Processor NULL = new ConstantProcessor((Object) null);
 
     public static CheckNullProcessor randomProcessor() {
         return new CheckNullProcessor(randomFrom(CheckNullProcessor.CheckNullOperation.values()));

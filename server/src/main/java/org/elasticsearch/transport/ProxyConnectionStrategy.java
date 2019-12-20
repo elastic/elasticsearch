@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,46 +38,40 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 
-public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
+public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     /**
-     * A list of addresses for remote cluster connections. The connections will be opened to the configured addresses in a round-robin
-     * fashion.
+     * The remote address for the proxy. The connections will be opened to the configured address.
      */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_ADDRESSES = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_ADDRESSES = Setting.affixKeySetting(
         "cluster.remote.",
-        "simple.addresses",
-        (ns, key) -> Setting.listSetting(key, Collections.emptyList(), s -> {
-                // validate address
-                parsePort(s);
-                return s;
-            }, new StrategyValidator<>(ns, key, ConnectionStrategy.SIMPLE),
-            Setting.Property.Dynamic, Setting.Property.NodeScope));
+        "proxy_address",
+        (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY, s -> {
+                if (Strings.hasLength(s)) {
+                    parsePort(s);
+                }
+            }), Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     /**
      * The maximum number of socket connections that will be established to a remote cluster. The default is 18.
      */
     public static final Setting.AffixSetting<Integer> REMOTE_SOCKET_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
-        "simple.socket_connections",
-        (ns, key) -> intSetting(key, 18, 1, new StrategyValidator<>(ns, key, ConnectionStrategy.SIMPLE),
+        "proxy_socket_connections",
+        (ns, key) -> intSetting(key, 18, 1, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     /**
@@ -84,26 +79,26 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<Boolean> INCLUDE_SERVER_NAME = Setting.affixKeySetting(
         "cluster.remote.",
-        "simple.include_server_name",
-        (ns, key) -> boolSetting(key, false, new StrategyValidator<>(ns, key, ConnectionStrategy.SIMPLE),
+        "include_server_name",
+        (ns, key) -> boolSetting(key, false, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 1;
 
     private static final int MAX_CONNECT_ATTEMPTS_PER_RUN = 3;
-    private static final Logger logger = LogManager.getLogger(SimpleConnectionStrategy.class);
+    private static final Logger logger = LogManager.getLogger(ProxyConnectionStrategy.class);
 
     private final int maxNumConnections;
     private final AtomicLong counter = new AtomicLong(0);
-    private final List<String> configuredAddresses;
+    private final String configuredAddress;
     private final boolean includeServerName;
-    private final List<Supplier<TransportAddress>> addresses;
+    private final Supplier<TransportAddress> address;
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionProfile profile;
     private final ConnectionManager.ConnectionValidator clusterNameValidator;
 
-    SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                             Settings settings) {
+    ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                            Settings settings) {
         this(
             clusterAlias,
             transportService,
@@ -113,29 +108,27 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
             INCLUDE_SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
-    SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                             int maxNumConnections, List<String> configuredAddresses) {
-        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddresses,
-            configuredAddresses.stream().map(address ->
-                (Supplier<TransportAddress>) () -> resolveAddress(address)).collect(Collectors.toList()), false);
+    ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                            int maxNumConnections, String configuredAddress) {
+        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
+            () -> resolveAddress(configuredAddress), false);
     }
 
-    SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                             int maxNumConnections, List<String> configuredAddresses, boolean includeServerName) {
-        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddresses,
-            configuredAddresses.stream().map(address ->
-                (Supplier<TransportAddress>) () -> resolveAddress(address)).collect(Collectors.toList()), includeServerName);
+    ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                            int maxNumConnections, String configuredAddress, boolean includeServerName) {
+        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
+            () -> resolveAddress(configuredAddress), includeServerName);
     }
 
-    SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                             int maxNumConnections, List<String> configuredAddresses, List<Supplier<TransportAddress>> addresses,
-                             boolean includeServerName) {
+    ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                            int maxNumConnections, String configuredAddress, Supplier<TransportAddress> address,
+                            boolean includeServerName) {
         super(clusterAlias, transportService, connectionManager);
         this.maxNumConnections = maxNumConnections;
-        this.configuredAddresses = configuredAddresses;
+        this.configuredAddress = configuredAddress;
         this.includeServerName = includeServerName;
-        assert addresses.isEmpty() == false : "Cannot use simple connection strategy with no configured addresses";
-        this.addresses = addresses;
+        assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
+        this.address = address;
         // TODO: Move into the ConnectionManager
         this.profile = new ConnectionProfile.Builder()
             .addConnections(1, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING)
@@ -158,11 +151,11 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
-        return Stream.of(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES);
+        return Stream.of(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES);
     }
 
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
-        return SimpleModeInfo::new;
+        return ProxyModeInfo::new;
     }
 
     @Override
@@ -172,33 +165,33 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
-        List<String> addresses = REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        String address = REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return numOfSockets != maxNumConnections || addressesChanged(configuredAddresses, addresses);
+        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false;
     }
 
     @Override
     protected ConnectionStrategy strategyType() {
-        return ConnectionStrategy.SIMPLE;
+        return ConnectionStrategy.PROXY;
     }
 
     @Override
     protected void connectImpl(ActionListener<Void> listener) {
-        performSimpleConnectionProcess(listener);
+        performProxyConnectionProcess(listener);
     }
 
     @Override
     public RemoteConnectionInfo.ModeInfo getModeInfo() {
-        return new SimpleModeInfo(configuredAddresses, maxNumConnections, connectionManager.size());
+        return new ProxyModeInfo(configuredAddress, maxNumConnections, connectionManager.size());
     }
 
-    private void performSimpleConnectionProcess(ActionListener<Void> listener) {
+    private void performProxyConnectionProcess(ActionListener<Void> listener) {
         openConnections(listener, 1);
     }
 
     private void openConnections(ActionListener<Void> finished, int attemptNumber) {
         if (attemptNumber <= MAX_CONNECT_ATTEMPTS_PER_RUN) {
-            List<TransportAddress> resolved = addresses.stream().map(Supplier::get).collect(Collectors.toList());
+            TransportAddress resolved = address.get();
 
             int remaining = maxNumConnections - connectionManager.size();
             ActionListener<Void> compositeListener = new ActionListener<>() {
@@ -228,15 +221,14 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
 
             for (int i = 0; i < remaining; ++i) {
-                TransportAddress address = nextAddress(resolved);
-                String id = clusterAlias + "#" + address;
+                String id = clusterAlias + "#" + resolved;
                 Map<String, String> attributes;
                 if (includeServerName) {
-                    attributes = Collections.singletonMap("server_name", address.address().getHostString());
+                    attributes = Collections.singletonMap("server_name", resolved.address().getHostString());
                 } else {
                     attributes = Collections.emptyMap();
                 }
-                DiscoveryNode node = new DiscoveryNode(id, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
+                DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
                     Version.CURRENT.minimumCompatibilityVersion());
 
                 connectionManager.connectToNode(node, profile, clusterNameValidator, new ActionListener<>() {
@@ -248,7 +240,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(new ParameterizedMessage("failed to open remote connection [remote cluster: {}, address: {}]",
-                            clusterAlias, address), e);
+                            clusterAlias, resolved), e);
                         compositeListener.onFailure(e);
                     }
                 });
@@ -256,7 +248,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         } else {
             int openConnections = connectionManager.size();
             if (openConnections == 0) {
-                finished.onFailure(new IllegalStateException("Unable to open any simple connections to remote cluster [" + clusterAlias
+                finished.onFailure(new IllegalStateException("Unable to open any proxy connections to remote cluster [" + clusterAlias
                     + "]"));
             } else {
                 logger.debug("unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]", clusterAlias,
@@ -276,40 +268,27 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         return new TransportAddress(parseConfiguredAddress(address));
     }
 
-    private boolean addressesChanged(final List<String> oldAddresses, final List<String> newAddresses) {
-        if (oldAddresses.size() != newAddresses.size()) {
-            return true;
-        }
-        Set<String> oldSeeds = new HashSet<>(oldAddresses);
-        Set<String> newSeeds = new HashSet<>(newAddresses);
-        return oldSeeds.equals(newSeeds) == false;
-    }
+    static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
 
-    static class SimpleModeInfo implements RemoteConnectionInfo.ModeInfo {
-
-        private final List<String> addresses;
+        private final String address;
         private final int maxSocketConnections;
         private final int numSocketsConnected;
 
-        SimpleModeInfo(List<String> addresses, int maxSocketConnections, int numSocketsConnected) {
-            this.addresses = addresses;
+        ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
+            this.address = address;
             this.maxSocketConnections = maxSocketConnections;
             this.numSocketsConnected = numSocketsConnected;
         }
 
-        private SimpleModeInfo(StreamInput input) throws IOException {
-            addresses = Arrays.asList(input.readStringArray());
+        private ProxyModeInfo(StreamInput input) throws IOException {
+            address = input.readString();
             maxSocketConnections = input.readVInt();
             numSocketsConnected = input.readVInt();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray("addresses");
-            for (String address : addresses) {
-                builder.value(address);
-            }
-            builder.endArray();
+            builder.field("address", address);
             builder.field("num_sockets_connected", numSocketsConnected);
             builder.field("max_socket_connections", maxSocketConnections);
             return builder;
@@ -317,7 +296,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(addresses.toArray(new String[0]));
+            out.writeString(address);
             out.writeVInt(maxSocketConnections);
             out.writeVInt(numSocketsConnected);
         }
@@ -329,27 +308,27 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public String modeName() {
-            return "simple";
+            return "proxy";
         }
 
         @Override
         public RemoteConnectionStrategy.ConnectionStrategy modeType() {
-            return RemoteConnectionStrategy.ConnectionStrategy.SIMPLE;
+            return RemoteConnectionStrategy.ConnectionStrategy.PROXY;
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            SimpleModeInfo simple = (SimpleModeInfo) o;
-            return maxSocketConnections == simple.maxSocketConnections &&
-                numSocketsConnected == simple.numSocketsConnected &&
-                Objects.equals(addresses, simple.addresses);
+            ProxyModeInfo otherProxy = (ProxyModeInfo) o;
+            return maxSocketConnections == otherProxy.maxSocketConnections &&
+                numSocketsConnected == otherProxy.numSocketsConnected &&
+                Objects.equals(address, otherProxy.address);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(addresses, maxSocketConnections, numSocketsConnected);
+            return Objects.hash(address, maxSocketConnections, numSocketsConnected);
         }
     }
 }

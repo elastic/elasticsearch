@@ -17,29 +17,33 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
@@ -66,8 +70,8 @@ public class TransportPreviewTransformAction extends
     private final XPackLicenseState licenseState;
     private final Client client;
     private final ThreadPool threadPool;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -77,7 +81,8 @@ public class TransportPreviewTransformAction extends
         ThreadPool threadPool,
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Settings settings
     ) {
         this(
             PreviewTransformAction.NAME,
@@ -87,7 +92,8 @@ public class TransportPreviewTransformAction extends
             threadPool,
             licenseState,
             indexNameExpressionResolver,
-            clusterService
+            clusterService,
+            settings
         );
     }
 
@@ -99,14 +105,23 @@ public class TransportPreviewTransformAction extends
         ThreadPool threadPool,
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Settings settings
     ) {
         super(name, transportService, actionFilters, PreviewTransformAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
     }
 
     @Override
@@ -119,39 +134,41 @@ public class TransportPreviewTransformAction extends
         ClusterState clusterState = clusterService.state();
 
         final TransformConfig config = request.getConfig();
-        for (String src : config.getSource().getIndex()) {
-            String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
-            if (concreteNames.length == 0) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING, src),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-                return;
-            }
-        }
 
-        Pivot pivot = new Pivot(config.getPivotConfig());
-        try {
-            pivot.validateConfig();
-        } catch (ElasticsearchStatusException e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
-            );
-            return;
-        } catch (Exception e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e
-                )
-            );
-            return;
-        }
+        sourceDestValidator.validate(
+            clusterState,
+            config.getSource().getIndex(),
+            config.getDestination().getIndex(),
+            SourceDestValidator.PREVIEW_VALIDATIONS,
+            ActionListener.wrap(r -> {
 
-        getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
+                Pivot pivot = new Pivot(config.getPivotConfig());
+                try {
+                    pivot.validateConfig();
+                } catch (ElasticsearchStatusException e) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                            e.status(),
+                            e
+                        )
+                    );
+                    return;
+                } catch (Exception e) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            e
+                        )
+                    );
+                    return;
+                }
+
+                getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
+
+            }, listener::onFailure)
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -216,10 +233,8 @@ public class TransportPreviewTransformAction extends
                                 builder.startObject();
                                 builder.field("docs", results);
                                 builder.endObject();
-                                SimulatePipelineRequest pipelineRequest = new SimulatePipelineRequest(
-                                    BytesReference.bytes(builder),
-                                    XContentType.JSON
-                                );
+                                SimulatePipelineRequest pipelineRequest =
+                                    new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                                 pipelineRequest.setId(pipeline);
                                 ClientHelper.executeAsyncWithOrigin(
                                     client,

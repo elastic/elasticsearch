@@ -85,7 +85,7 @@ or you need to restore {es} data.
 [float]
 ==== API key management
 
-New {stack-ov}/security-privileges.html[cluster privileges] to manage API keys have been added,
+New {ref}/security-privileges.html[cluster privileges] to manage API keys have been added,
 allowing cluster administrators to manage everything,
 and regular users to manage their own keys.
 Users can create API keys
@@ -133,7 +133,7 @@ facilitates notarization of {es} for continued support on macOS.
 [float]
 ==== Regression analysis - Experimental
 
-{stack-ov}/dfa-regression.html[Regression analysis] is an experimental machine learning process
+{ml-docs}/dfa-regression.html[Regression analysis] is an experimental machine learning process
 for estimating the relationships among a number of feature variables and a dependent variable,
 then making further predictions based on the described relationship.
 

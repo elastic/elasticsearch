@@ -95,7 +95,7 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T extends ScriptFactory> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
+    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         MockDeterministicScript script = scripts.get(source);
@@ -254,7 +254,6 @@ public class MockScriptEngine implements ScriptEngine {
 
     @Override
     public Set<ScriptContext<?>> getSupportedContexts() {
-        // TODO(stu): make part of `compile()`
         return Stream.of(
             FieldScript.CONTEXT,
             TermsSetQueryScript.CONTEXT,
@@ -397,7 +396,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public static class MockMetricAggInitScriptFactory implements ScriptedMetricAggContexts.InitScript.Factory, ScriptFactory {
+    public static class MockMetricAggInitScriptFactory implements ScriptedMetricAggContexts.InitScript.Factory {
         private final MockDeterministicScript script;
         MockMetricAggInitScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
@@ -430,7 +429,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public static class MockMetricAggMapScriptFactory implements  ScriptedMetricAggContexts.MapScript.Factory, ScriptFactory {
+    public static class MockMetricAggMapScriptFactory implements  ScriptedMetricAggContexts.MapScript.Factory {
         private final MockDeterministicScript script;
         MockMetricAggMapScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
@@ -478,7 +477,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public static class MockMetricAggCombineScriptFactory implements ScriptedMetricAggContexts.CombineScript.Factory, ScriptFactory {
+    public static class MockMetricAggCombineScriptFactory implements ScriptedMetricAggContexts.CombineScript.Factory {
         private final MockDeterministicScript script;
         MockMetricAggCombineScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
@@ -510,7 +509,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public static class MockMetricAggReduceScriptFactory implements ScriptedMetricAggContexts.ReduceScript.Factory, ScriptFactory {
+    public static class MockMetricAggReduceScriptFactory implements ScriptedMetricAggContexts.ReduceScript.Factory {
         private final MockDeterministicScript script;
         MockMetricAggReduceScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
@@ -586,7 +585,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    class MockAggregationScript implements AggregationScript.Factory, ScriptFactory {
+    class MockAggregationScript implements AggregationScript.Factory {
         private final MockDeterministicScript script;
         MockAggregationScript(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
@@ -617,7 +616,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    class MockSignificantTermsHeuristicScoreScript implements SignificantTermsHeuristicScoreScript.Factory, ScriptFactory {
+    class MockSignificantTermsHeuristicScoreScript implements SignificantTermsHeuristicScoreScript.Factory {
         private final MockDeterministicScript script;
         MockSignificantTermsHeuristicScoreScript(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
@@ -633,7 +632,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    class MockFieldScriptFactory implements FieldScript.Factory, ScriptFactory {
+    class MockFieldScriptFactory implements FieldScript.Factory {
         private final MockDeterministicScript script;
         MockFieldScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
@@ -652,7 +651,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    class MockStringSortScriptFactory implements StringSortScript.Factory, ScriptFactory {
+    class MockStringSortScriptFactory implements StringSortScript.Factory {
         private final MockDeterministicScript script;
         MockStringSortScriptFactory(MockDeterministicScript script) { this.script = script; }
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }

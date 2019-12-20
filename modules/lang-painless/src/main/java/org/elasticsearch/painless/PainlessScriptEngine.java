@@ -28,7 +28,6 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptFactory;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -123,7 +122,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T extends ScriptFactory> T compile(
+    public <T> T compile(
         String scriptName,
         String scriptSource,
         ScriptContext<T> context,
@@ -169,7 +168,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T extends ScriptFactory> Type generateStatefulFactory(
+    private <T> Type generateStatefulFactory(
         Loader loader,
         ScriptContext<T> context,
         Set<String> extractedVariables
@@ -275,7 +274,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T extends ScriptFactory> T generateFactory(
+    private <T> T generateFactory(
         Loader loader,
         ScriptContext<T> context,
         Set<String> extractedVariables,

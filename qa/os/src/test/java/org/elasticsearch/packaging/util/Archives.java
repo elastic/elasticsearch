@@ -204,7 +204,7 @@ public class Archives {
         Stream.of(
             "NOTICE.txt",
             "LICENSE.txt",
-            "README.textile"
+            "README.asciidoc"
         ).forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, owner, p644)));
     }
 

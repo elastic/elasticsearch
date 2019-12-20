@@ -307,7 +307,7 @@ of you running JDK 11. In order to help new users from inadvertently running
 with low security, we’ve also dropped TLSv1.0 from our defaults. For those
 running older versions of Java, we have default options of TLSv1.2 and
 TLSv1.1. Have a look at our
-https://www.elastic.co/guide/en/elastic-stack-overview/7.0/ssl-tls.html[TLS
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/ssl-tls.html[TLS
 setup instructions] if you need help getting started.
 //end::notable-highlights[]
 

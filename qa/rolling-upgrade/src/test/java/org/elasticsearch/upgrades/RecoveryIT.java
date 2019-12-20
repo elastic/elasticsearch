@@ -775,6 +775,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50426")
     public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
         final String indexName = "test-auto-expand-filtering";
         final Version minimumNodeVersion = minimumNodeVersion();

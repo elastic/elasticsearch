@@ -43,19 +43,17 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 
 --
 
-`detectors`::
-`custom_rules`:::
+`detectors`.`custom_rules`::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
-`description`:::
+`detectors`.`description`::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
-`detector_index`:::
+`detectors`.`detector_index`::
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
 
-[[update-analysislimits]]`analysis_limits`::
-`model_memory_limit`:::
+[[update-analysislimits]]`analysis_limits`.`model_memory_limit`::
 (long or string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
 +

@@ -23,7 +23,7 @@ Predicts the future behavior of a time series by using its historical behavior.
 [[ml-forecast-desc]]
 ==== {api-description-title}
 
-See {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
+See {ml-docs}/ml-overview.html#ml-forecasting[Forecasting the future].
 
 [NOTE]
 ===============================

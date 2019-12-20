@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
@@ -66,9 +67,8 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("is_partial", true);
-        builder.field("total_shards", totalShards);
-        builder.field("successful_shards", successfulShards);
-        builder.field("shard_failures", shardFailures);
+        RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, 0,
+            shardFailures, null);
         if (totalHits != null) {
             builder.startObject(SearchHits.Fields.TOTAL);
             builder.field("value", totalHits.value);

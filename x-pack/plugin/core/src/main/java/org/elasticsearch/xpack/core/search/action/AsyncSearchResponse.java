@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestStatus.NOT_MODIFIED;
 import static org.elasticsearch.rest.RestStatus.PARTIAL_CONTENT;
@@ -35,7 +36,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final boolean isRunning;
 
     private long startDateMillis;
-    private long runningTimeNanos;
+    private long runningTimeMillis;
 
     public AsyncSearchResponse(String id, int version, boolean isRunning) {
         this(id, null, null, null, version, isRunning);
@@ -56,7 +57,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     public AsyncSearchResponse(String id, AsyncSearchResponse clone) {
         this(id, clone.partialResponse, clone.response, clone.failure, clone.version, clone.isRunning);
         this.startDateMillis = clone.startDateMillis;
-        this.runningTimeNanos = clone.runningTimeNanos;
+        this.runningTimeMillis = clone.runningTimeMillis;
     }
 
     private AsyncSearchResponse(String id,
@@ -82,7 +83,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         this.response = in.readOptionalWriteable(SearchResponse::new);
         this.isRunning = in.readBoolean();
         this.startDateMillis = in.readLong();
-        this.runningTimeNanos = in.readLong();
+        this.runningTimeMillis = in.readLong();
     }
 
     @Override
@@ -94,12 +95,12 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         out.writeOptionalWriteable(response);
         out.writeBoolean(isRunning);
         out.writeLong(startDateMillis);
-        out.writeLong(runningTimeNanos);
+        out.writeLong(runningTimeMillis);
     }
 
     public void addTaskInfo(TaskInfo taskInfo) {
         this.startDateMillis = taskInfo.getStartTime();
-        this.runningTimeNanos = taskInfo.getRunningTimeNanos();
+        this.runningTimeMillis = TimeUnit.NANOSECONDS.toMillis(taskInfo.getRunningTimeNanos());
     }
 
     /**
@@ -169,8 +170,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         return startDateMillis;
     }
 
-    public long getRunningTimeNanos() {
-        return runningTimeNanos;
+    public long getRunningTime() {
+        return runningTimeMillis;
     }
 
     /**
@@ -200,7 +201,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         builder.field("version", version);
         builder.field("is_running", isRunning);
         builder.field("start_date_in_millis", startDateMillis);
-        builder.field("running_time_in_nanos", runningTimeNanos);
+        builder.field("running_time_in_millis", runningTimeMillis);
 
         if (partialResponse != null) {
             builder.field("response", partialResponse);

@@ -887,7 +887,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 && Objects.equals(seqNo, other.seqNo)
                 && Objects.equals(primaryTerm, other.primaryTerm)
                 && Objects.equals(source, other.source)
-                && Objects.equals(fields, other.fields)
+                && Objects.equals(getFields(), other.getFields())
                 && Objects.equals(getHighlightFields(), other.getHighlightFields())
                 && Arrays.equals(matchedQueries, other.matchedQueries)
                 && Objects.equals(explanation, other.explanation)

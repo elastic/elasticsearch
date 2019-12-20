@@ -23,7 +23,7 @@ Instantiates a filter.
 [[ml-put-filter-desc]]
 ==== {api-description-title}
 
-A {stack-ov}/ml-rules.html[filter] contains a list of strings. 
+A {ml-docs}/ml-rules.html[filter] contains a list of strings. 
 It can be used by one or more jobs. Specifically, filters are referenced in 
 the `custom_rules` property of detector configuration objects. 
 

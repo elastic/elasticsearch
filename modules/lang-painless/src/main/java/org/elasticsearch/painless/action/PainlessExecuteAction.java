@@ -75,7 +75,6 @@ import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -416,7 +415,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         public abstract Object execute();
 
-        public interface Factory extends ScriptFactory {
+        public interface Factory {
 
             PainlessTestScript newInstance(Map<String, Object> params);
 

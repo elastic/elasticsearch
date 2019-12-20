@@ -167,13 +167,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                             @Override
                             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                                activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
-                                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                    rolloverRequest.masterNodeTimeout(),
-                                    isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
-                                        sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
-                                        isShardsAcknowledged)),
-                                    listener::onFailure);
+                                if (newState.equals(oldState) == false) {
+                                    activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
+                                        rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                                        rolloverRequest.masterNodeTimeout(),
+                                        isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
+                                            sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
+                                            isShardsAcknowledged)),
+                                        listener::onFailure);
+                                }
                             }
                         });
                     } else {

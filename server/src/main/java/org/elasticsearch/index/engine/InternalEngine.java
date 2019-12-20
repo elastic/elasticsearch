@@ -26,8 +26,10 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -2648,40 +2650,29 @@ public class InternalEngine extends Engine {
         return commitData;
     }
 
-    private final class AssertingIndexWriter extends IndexWriter {
+    private static class AssertingIndexWriter extends IndexWriter {
         AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
         }
+
         @Override
-        public long updateDocument(Term term, Iterable<? extends IndexableField> doc) throws IOException {
-            assert softDeleteEnabled == false : "Call #updateDocument but soft-deletes is enabled";
-            return super.updateDocument(term, doc);
+        public long updateDocument(Term term, Iterable<? extends IndexableField> doc) {
+            throw new AssertionError("must not hard update document");
         }
+
         @Override
-        public long updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
-            assert softDeleteEnabled == false : "Call #updateDocuments but soft-deletes is enabled";
-            return super.updateDocuments(delTerm, docs);
+        public long updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) {
+            throw new AssertionError("must not hard update documents");
         }
+
         @Override
-        public long deleteDocuments(Term... terms) throws IOException {
-            assert softDeleteEnabled == false : "Call #deleteDocuments but soft-deletes is enabled";
-            return super.deleteDocuments(terms);
+        public long deleteDocuments(Term... terms) {
+            throw new AssertionError("must not hard delete documents");
         }
-        @Override
-        public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
-            assert softDeleteEnabled : "Call #softUpdateDocument but soft-deletes is disabled";
-            return super.softUpdateDocument(term, doc, softDeletes);
-        }
-        @Override
-        public long softUpdateDocuments(Term term, Iterable<? extends Iterable<? extends IndexableField>> docs,
-                                            Field... softDeletes) throws IOException {
-            assert softDeleteEnabled : "Call #softUpdateDocuments but soft-deletes is disabled";
-            return super.softUpdateDocuments(term, docs, softDeletes);
-        }
+
         @Override
         public long tryDeleteDocument(IndexReader readerIn, int docID) {
-            assert false : "#tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs";
-            throw new UnsupportedOperationException();
+            throw new AssertionError("tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs");
         }
     }
 

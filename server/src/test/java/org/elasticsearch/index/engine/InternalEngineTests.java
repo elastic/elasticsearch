@@ -2362,7 +2362,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
-
+            engine.close();
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();

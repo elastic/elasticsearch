@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -391,7 +392,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testForceMergeAction() throws Exception {
+    public void forceMergeActionWithCodec(Codec codec) throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -415,7 +416,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         };
         assertThat(numSegments.get(), greaterThan(1));
 
-        createNewSingletonPolicy("warm", new ForceMergeAction(1, Codec.getDefault()));
+        createNewSingletonPolicy("warm", new ForceMergeAction(1, codec));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
@@ -426,6 +427,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
         expectThrows(ResponseException.class, this::indexDocument);
     }
+
+    public void testForceMergeAction() throws Exception {
+        forceMergeActionWithCodec(null);
+        forceMergeActionWithCodec(Codec.forName(CodecService.BEST_COMPRESSION_CODEC));
+    }
+
 
     public void testShrinkAction() throws Exception {
         int numShards = 6;

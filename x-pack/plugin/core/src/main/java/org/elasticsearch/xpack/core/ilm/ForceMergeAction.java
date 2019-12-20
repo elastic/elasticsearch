@@ -61,8 +61,8 @@ public class ForceMergeAction implements LifecycleAction {
                 + "] must be a positive integer");
         }
         this.maxNumSegments = maxNumSegments;
-        if (codec != null && Codec.forName(codec.getName()) == null) {
-            throw new IllegalArgumentException("Compression type of " + codec.getName() + "does not exist");
+        if (codec != null && CodecService.BEST_COMPRESSION_CODEC.equals(codec.getName()) == false) {
+            throw new IllegalArgumentException("Compression type not found instead " + codec.getName() + " is used.");
         }
         this.codec = codec;
     }

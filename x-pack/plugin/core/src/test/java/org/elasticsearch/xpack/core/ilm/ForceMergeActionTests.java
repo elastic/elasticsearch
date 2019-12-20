@@ -118,7 +118,9 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     public void testInvalidCodec() {
-
+        Exception r = expectThrows(IllegalArgumentException.class, () -> new
+            ForceMergeAction(randomIntBetween(-10, 0), Codec.forName(CodecService.DEFAULT_CODEC)));
+        assertThat(r.getMessage(), equalTo("Best Compression type not found instead " + CodecService.DEFAULT_CODEC + " is used."));
     }
 
     public void testToSteps() {

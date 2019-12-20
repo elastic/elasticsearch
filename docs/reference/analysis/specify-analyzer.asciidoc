@@ -1,55 +1,205 @@
 [[specify-analyzer]]
 == Specify an analyzer
 
-After choosing an <<analysis-analyzers,analyzer>>, you can apply it to an index,
-individual <<text,`text`>> fields, or <<full-text-queries,full text queries>>.
+<<analysis,Analysis>> occurs in two contexts:
 
+Index time::
+When a <<text,`text`>> field value is converted to tokens and added to the
+field's <<inverted-index,inverted index>>.
+
+Search time::
+When using a <<full-text-queries,full text query>>, such as the
+<<query-dsl-match-query,`match`>> query, to search a `text` field. Usually, this
+converts the query string into the same type of tokens stored in the field's
+inverted index. Search time is also called _query time_.
+
+The <<analysis-analyzers,analyzers>> used are called
+<<specify-index-time-analyzer,_index-time analyzers_>> and
+<<specify-search-time-analyzer,_search-time analyzers_>> respectively.
+
+[discrete]
 [[specify-index-time-analyzer]]
-=== Specifying an index time analyzer
+=== Index-time analyzer
 
-Each <<text,`text`>> field in a mapping can specify its own
-<<analyzer,`analyzer`>>:
+You can specify index-time analyzers for
+<<specify-index-time-field-analyzer,individual fields>>, an
+<<specify-index-time-default-analyzer,index>>, or both.
+
+When indexing a `text` field value, {es} determines which analyzer to use by
+checking the following parameters in this order:
+
+. The <<analyzer,`analyzer`>> mapping parameter of the field
+. The `default` analyzer in the index settings
+
+If none of these parameters are specified, the
+<<analysis-standard-analyzer,`standard` analyzer>> is used.
+
+[discrete]
+[[specify-index-time-field-analyzer]]
+==== Specify an index-time analyzer for a field
+
+You can use the <<analyzer,`analyzer`>> mapping parameter to specify the
+index-time analyzer for an individual `text` field.
+
+For example, the following <<indices-create-index,create index>> API request
+specifies the <<analysis-simple-analyzer,`simple`>> analyzer as the index-time
+analyzer for the `title` field.
 
 [source,console]
 -------------------------
-PUT my_index
+PUT books
 {
   "mappings": {
     "properties": {
       "title": {
         "type":     "text",
-        "analyzer": "standard"
+        "analyzer": "simple"
       }
     }
   }
 }
 -------------------------
 
-At index time, if no `analyzer` has been specified, it looks for an analyzer
-in the index settings called `default`.  Failing that, it defaults to using
-the <<analysis-standard-analyzer,`standard` analyzer>>.
+[discrete]
+[[specify-index-time-default-analyzer]]
+==== Specify a default index-time analyzer
 
+When creating an index, you can set a default index-time analyzer using the
+index's `default` setting.
 
-[specify-search-time-analyzer]
-=== Specifying a search time analyzer
+For example, the following <<indices-create-index,create index>> API request
+specifies the <<analysis-whitespace-analyzer,`whitespace`>> analyzer as the
+default index-time analyzer for the `books` index.
 
-This same analysis process is applied to the query string at search time in
-<<full-text-queries,full text queries>> like the
-<<query-dsl-match-query,`match` query>>
-to convert the text in the query string into terms of the same form as those
-that are stored in the inverted index.
+[source,console]
+----
+PUT books
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "type": "whitespace"
+        }
+      }
+    }
+  }
+}
+----
 
-Usually the same analyzer should be used both at
-index time and at search time, and <<full-text-queries,full text queries>>
-like the  <<query-dsl-match-query,`match` query>> will use the mapping to look
-up the analyzer to use for each field.
+A default index-time analyzer can be useful when mapping multiple `text` fields
+that use the same analyzer. This analyzer also works as a general fallback if no
+other analyzer is specified for a field or query.
 
-The analyzer to use to search a particular field is determined by
-looking for:
+[discrete]
+[[specify-search-time-analyzer]]
+=== Search-time analyzer
 
-* An `analyzer` specified in the query itself.
-* The <<search-analyzer,`search_analyzer`>> mapping parameter.
-* The <<analyzer,`analyzer`>> mapping parameter.
-* An analyzer in the index settings called `default_search`.
-* An analyzer in the index settings called `default`.
-* The `standard` analyzer.
+[IMPORTANT]
+====
+In most cases, the same analyzer should be used at both index and search time.
+This means specifying a search-time analyzer is usually unnecessary.
+
+By default, full-text queries use a field's index-time analyzer as the
+search-time analyzer. This converts the query string into the same type of
+tokens stored in the field's inverted index, ensuring better search matches.
+
+If you choose to use a separate search-time analyzer, we recommend thoroughly
+testing before going into production.
+====
+
+You can specify search-time analyzers for a
+<<specify-search-time-query-analyzer,full-text query>>, an
+<<specify-search-time-field-analyzer,individual field>>, and an
+<<specify-search-time-default-analyzer,index>>.
+
+Full-text queries determine which search-time analyzer to use during a search by
+checking the following parameters in this order:
+
+. The `analyzer` parameter in the query
+. The <<search-analyzer,`search_analyzer`>> mapping parameter for the field
+. The <<analyzer,`analyzer`>> mapping parameter for the field
+. The `default_search` analyzer in the index settings
+. The `default` analyzer in the index settings
+
+If none of these parameters are specified, the
+<<analysis-standard-analyzer,`standard` analyzer>> is used.
+
+[discrete]
+[[specify-search-time-query-analyzer]]
+==== Specify a search-time analyzer in a query
+
+You can use the `analyzer` parameter in a <<full-text-queries,full-text
+query>> to specify a search-time analyzer for the query.
+
+For example, the following `match` query uses the
+<<analysis-simple-analyzer,`simple`>> analyzer as the query's search-time
+analyzer.
+
+[source,console]
+----
+GET _search
+{
+    "query": {
+        "match" : {
+            "title" : {
+                "query" : "Heart of Darkness",
+                "analyzer" : "simple"
+            }
+        }
+    }
+}
+----
+
+[discrete]
+[[specify-search-time-field-analyzer]]
+==== Specify a search-time analyzer for a field
+
+You can use the <<search-analyzer,`search_analyzer`>> mapping parameter to
+specify the search-time analyzer for an individual `text` field.
+
+For example, the following <<indices-create-index,create index>> API request
+specifies the <<analysis-whitespace-analyzer,`whitespace`>> analyzer as the
+search-time analyzer for the `title` field.
+
+[source,console]
+-------------------------
+PUT books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type":     "text",
+        "search_analyzer": "whitespace"
+      }
+    }
+  }
+}
+-------------------------
+
+[discrete]
+[[specify-search-time-default-analyzer]]
+==== Specify a default search-time analyzer
+
+When creating an index, you can set a default search-time analyzer using the
+index's `default_search` setting.
+
+For example, the following <<indices-create-index,create index>> API request
+specifies the <<english-analyzer,`english`>> analyzer as the
+default search-time analyzer for the `books` index.
+
+[source,console]
+----
+PUT books
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default_search": {
+          "type": "english"
+        }
+      }
+    }
+  }
+}
+----

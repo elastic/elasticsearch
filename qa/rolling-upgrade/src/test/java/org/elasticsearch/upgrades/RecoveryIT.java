@@ -695,7 +695,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureGreen(index);
             indexDocs(index, 0, randomIntBetween(100, 200));
             flush(index, randomBoolean());
-            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, false);
             // uncommitted docs must be less than 10% of committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
         } else {
@@ -705,6 +705,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 || nodeName.startsWith(CLUSTER_NAME + "-0")
                 || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+            if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, true);
+            }
         }
     }
 

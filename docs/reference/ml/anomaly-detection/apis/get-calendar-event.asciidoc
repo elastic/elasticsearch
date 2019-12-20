@@ -29,7 +29,7 @@ You can get scheduled event information for a single calendar or for all
 calendars by using `_all`.
 
 For more information, see
-{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].
 
 [[ml-get-calendar-event-path-parms]]
 ==== {api-path-parms-title}

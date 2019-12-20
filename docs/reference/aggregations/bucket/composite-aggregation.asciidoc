@@ -117,6 +117,7 @@ Example:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -135,6 +136,7 @@ Like the `terms` aggregation it is also possible to use a script to create the v
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -170,6 +172,7 @@ Example:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -188,6 +191,7 @@ The values are built from a numeric field or a script that return numerical valu
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -220,6 +224,7 @@ is specified by date/time expression:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -249,6 +254,7 @@ the format specified with the format parameter:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -291,6 +297,7 @@ For example:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -313,6 +320,7 @@ in the composite buckets.
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -342,6 +350,7 @@ For example:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -368,6 +377,7 @@ It is possible to include them in the response by setting `missing_bucket` to
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -393,7 +403,7 @@ first 10 composite buckets created from the values source.
 The response contains the values for each composite bucket in an array containing the values extracted
 from each value source.
 
-==== After
+==== Pagination
 
 If the number of composite buckets is too high (or unknown) to be returned in a single response
 it is possible to split the retrieval in multiple requests.
@@ -407,6 +417,7 @@ For example:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -472,6 +483,7 @@ round of result can be retrieved with:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {
@@ -489,6 +501,116 @@ GET /_search
 
 <1> Should restrict the aggregation to buckets that sort **after** the provided values.
 
+==== Early termination
+
+For optimal performance the <<index-modules-index-sorting,index sort>> should be set on the index so that it matches
+parts or fully the source order in the composite aggregation.
+For instance the following index sort:
+
+[source,console]
+--------------------------------------------------
+PUT twitter
+{
+    "settings" : {
+        "index" : {
+            "sort.field" : ["username", "timestamp"],   <1>
+            "sort.order" : ["asc", "desc"]              <2>
+        }
+    },
+    "mappings": {
+        "properties": {
+            "username": {
+                "type": "keyword",
+                "doc_values": true
+            },
+            "timestamp": {
+                "type": "date"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> This index is sorted by `username` first then by `timestamp`.
+<2> ... in ascending order for the `username` field and in descending order for the `timestamp` field.
+
+.. could be used to optimize these composite aggregations:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+    "size": 0,
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "user_name": { "terms" : { "field": "user_name" } } }     <1>
+                ]
+            }
+        }
+     }
+}
+--------------------------------------------------
+
+<1> `user_name` is a prefix of the index sort and the order matches (`asc`).
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+    "size": 0,
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "user_name": { "terms" : { "field": "user_name" } } }, <1>
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } } <2>
+                ]
+            }
+        }
+     }
+}
+--------------------------------------------------
+
+<1> `user_name` is a prefix of the index sort and the order matches (`asc`).
+<2> `timestamp` matches also the prefix and the order matches (`desc`).
+
+In order to optimize the early termination it is advised to set `track_total_hits` in the request
+to `false`. The number of total hits that match the request can be retrieved on the first request
+and it would be costly to compute this number on every page:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+    "size": 0,
+    "track_total_hits": false,
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "user_name": { "terms" : { "field": "user_name" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } }
+                ]
+            }
+        }
+     }
+}
+--------------------------------------------------
+
+Note that the order of the source is important, in the example below switching the `user_name` with the `timestamp`
+would deactivate the sort optimization since this configuration wouldn't match the index sort specification.
+If the order of sources do not matter for your use case you can follow these simple guidelines:
+
+  * Put the fields with the highest cardinality first.
+  * Make sure that the order of the field matches the order of the index sort.
+  * Put multi-valued fields last since they cannot be used for early termination.
+
+WARNING: <<index-modules-index-sorting,index sort>> can slowdown indexing, it is very important to test index sorting
+with your specific use case and dataset to ensure that it matches your requirement. If it doesn't note that `composite`
+aggregations will also try to early terminate on non-sorted indices if the query matches all document (`match_all` query).
+
 ==== Sub-aggregations
 
 Like any `multi-bucket` aggregations the `composite` aggregation can hold sub-aggregations.
@@ -501,6 +623,7 @@ per composite bucket:
 --------------------------------------------------
 GET /_search
 {
+    "size": 0,
     "aggs" : {
         "my_buckets": {
             "composite" : {

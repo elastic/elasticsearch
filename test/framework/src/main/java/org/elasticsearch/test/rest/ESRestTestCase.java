@@ -52,6 +52,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -87,12 +88,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -1128,7 +1132,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Peer recovery retention leases are renewed and synced to replicas periodically (every 30 seconds). This ensures
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
-    public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
+    public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index, boolean alwaysExists) throws Exception {
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked") Map<String, List<Map<String, ?>>> shards =
@@ -1139,13 +1143,23 @@ public abstract class ESRestTestCase extends ESTestCase {
                     assertNotNull(globalCheckpoint);
                     @SuppressWarnings("unchecked") List<Map<String, ?>> retentionLeases =
                         (List<Map<String, ?>>) XContentMapValues.extractValue("retention_leases.leases", copy);
-                    if (retentionLeases == null) {
+                    if (alwaysExists == false && retentionLeases == null) {
                         continue;
                     }
+                    assertNotNull(retentionLeases);
                     for (Map<String, ?> retentionLease : retentionLeases) {
                         if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
                             assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
                         }
+                    }
+                    if (alwaysExists) {
+                        List<String> existingLeaseIds = retentionLeases.stream().map(lease -> (String) lease.get("id"))
+                            .collect(Collectors.toList());
+                        List<String> expectedLeaseIds = shard.stream()
+                            .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
+                            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                            .collect(Collectors.toList());
+                        assertThat("not every active copy has established its PPRL", expectedLeaseIds, everyItem(in(existingLeaseIds)));
                     }
                 }
             }

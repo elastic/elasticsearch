@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,25 +75,15 @@ public class Precision implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
-    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+    private static final int MAX_CLASSES_CARDINALITY = 1000;
 
-    private final int maxClassesCardinality;
-    private String actualField;
-    private List<String> topActualClassNames;
-    private EvaluationMetricResult result;
+    private final SetOnce<String> actualField = new SetOnce<>();
+    private final SetOnce<List<String>> topActualClassNames = new SetOnce<>();
+    private final SetOnce<Result> result = new SetOnce<>();
 
-    public Precision() {
-        this((Integer) null);
-    }
+    public Precision() {}
 
-    // Visible for testing
-    public Precision(@Nullable Integer maxClassesCardinality) {
-        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
-    }
-
-    public Precision(StreamInput in) throws IOException {
-        this.maxClassesCardinality = DEFAULT_MAX_CLASSES_CARDINALITY;
-    }
+    public Precision(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -108,19 +98,19 @@ public class Precision implements EvaluationMetric {
     @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField = actualField;
-        if (topActualClassNames == null) {  // This is step 1
+        this.actualField.trySet(actualField);
+        if (topActualClassNames.get() == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
                         .field(actualField)
                         .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                        .size(maxClassesCardinality)),
+                        .size(MAX_CLASSES_CARDINALITY)),
                 List.of());
         }
-        if (result == null) {  // This is step 2
+        if (result.get() == null) {  // This is step 2
             KeyedFilter[] keyedFiltersPredicted =
-                topActualClassNames.stream()
+                topActualClassNames.get().stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
             Script script = buildScript(actualField, predictedField);
@@ -138,18 +128,18 @@ public class Precision implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (topActualClassNames == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
+        if (topActualClassNames.get() == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
             Terms topActualClassesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
             if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {
-                // This means there were more than {@code maxClassesCardinality} buckets.
+                // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average precision accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate average precision. Cardinality of field [{}] is too high", actualField);
+                    "Cannot calculate average precision. Cardinality of field [{}] is too high", actualField.get());
             }
-            topActualClassNames =
-                topActualClassesAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());
+            topActualClassNames.set(
+                topActualClassesAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList()));
         }
-        if (result == null &&
+        if (result.get() == null &&
                 aggs.get(BY_PREDICTED_CLASS_AGG_NAME) instanceof Filters &&
                 aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Filters byPredictedClassAgg = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
@@ -163,13 +153,13 @@ public class Precision implements EvaluationMetric {
                     classes.add(new PerClassResult(className, precision));
                 }
             }
-            result = new Result(classes, avgPrecisionAgg.value());
+            result.set(new Result(classes, avgPrecisionAgg.value()));
         }
     }
 
     @Override
-    public Optional<EvaluationMetricResult> getResult() {
-        return Optional.ofNullable(result);
+    public Optional<Result> getResult() {
+        return Optional.ofNullable(result.get());
     }
 
     @Override

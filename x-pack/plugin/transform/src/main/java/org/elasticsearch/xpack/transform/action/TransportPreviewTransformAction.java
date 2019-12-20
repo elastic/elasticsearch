@@ -233,7 +233,8 @@ public class TransportPreviewTransformAction extends
                                 builder.startObject();
                                 builder.field("docs", results);
                                 builder.endObject();
-                                SimulatePipelineRequest pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
+                                SimulatePipelineRequest pipelineRequest =
+                                    new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                                 pipelineRequest.setId(pipeline);
                                 ClientHelper.executeAsyncWithOrigin(
                                     client,

@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.dangling;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -49,6 +51,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, DeleteDanglingIndexResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
 
@@ -62,7 +65,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         Settings settings
     ) {
         super(
-            DeleteIndexAction.NAME,
+            DeleteDanglingIndexAction.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -75,7 +78,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SAME;
+        return ThreadPool.Names.WRITE;
     }
 
     @Override
@@ -97,9 +100,24 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
             listener.onFailure(e);
             return;
         }
+        final String indexName = indexMetaDataToDelete.getIndex().getName();
 
-        this.clusterService.submitStateUpdateTask("delete-dangling-index " + indexMetaDataToDelete.getIndex().getName(),
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+        final ActionListener<ClusterStateUpdateResponse> actionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                listener.onResponse(new DeleteDanglingIndexResponse());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Failed to delete dangling index [{}]" + indexName, e);
+                listener.onFailure(e);
+            }
+        };
+
+        this.clusterService.submitStateUpdateTask(
+            "delete-dangling-index " + indexName,
+            new AckedClusterStateUpdateTask<>(Priority.NORMAL, new DeleteIndexRequest(), actionListener) {
 
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -108,29 +126,21 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    final MetaData meta = currentState.metaData();
-
-                    MetaData.Builder metaDataBuilder = MetaData.builder(meta);
-
-                    final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
-
-                    final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstone(indexMetaDataToDelete.getIndex()).build(settings);
-                    metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
-
-                    return ClusterState.builder(currentState).metaData(metaDataBuilder.build()).build();
+                    return deleteDanglingIndex(currentState, indexMetaDataToDelete);
                 }
-            });
+            }
+        );
     }
-    
-    private void deleteDanglingIndex(ClusterState currentState) {
+
+    private ClusterState deleteDanglingIndex(ClusterState currentState, IndexMetaData indexMetaDataToDelete) {
         final MetaData meta = currentState.metaData();
 
         MetaData.Builder metaDataBuilder = MetaData.builder(meta);
 
         final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
 
-        final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstone(indexMetaDataToDelete.getIndex()).build(settings);
-        metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+        final IndexGraveyard newGraveyard = graveyardBuilder.addTombstone(indexMetaDataToDelete.getIndex()).build(settings);
+        metaDataBuilder.indexGraveyard(newGraveyard);
 
         return ClusterState.builder(currentState).metaData(metaDataBuilder.build()).build();
     }
@@ -150,9 +160,11 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
         List<IndexMetaData> matchingMetaData = new ArrayList<>();
 
-        for (NodeDanglingIndicesResponse response : fetchDanglingIndices().actionGet().getNodes()) {
+        final List<NodeDanglingIndicesResponse> nodes = fetchDanglingIndices().actionGet().getNodes();
+
+        for (NodeDanglingIndicesResponse response : nodes) {
             for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
-                if (danglingIndex.getIndexUUID().equals(indexUuid) && (nodeId == null || response.getNode().getId().equals(nodeId))) {
+                if (danglingIndex.getIndexUUID().equals(indexUuid) && (nodeId == null || response.getNode().getName().equals(nodeId))) {
                     matchingMetaData.add(danglingIndex);
                 }
             }

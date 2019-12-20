@@ -43,9 +43,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.util.CollectionUtils.map;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
@@ -135,6 +135,16 @@ public class DanglingIndicesState implements ClusterStateListener {
      * to the currently tracked dangling indices.
      */
     void findNewAndAddDanglingIndices(final MetaData metaData) {
+        final IndexGraveyard graveyard = metaData.indexGraveyard();
+
+        // If a tombstone is created for a dangling index, we need to make sure that the
+        // index is no longer considered dangling.
+        for (Index key : danglingIndices.keySet()) {
+            if (graveyard.containsIndex(key)) {
+                danglingIndices.remove(key);
+            }
+        }
+
         danglingIndices.putAll(findNewDanglingIndices(metaData));
     }
 
@@ -148,16 +158,12 @@ public class DanglingIndicesState implements ClusterStateListener {
         for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
         }
-        excludeIndexPathIds.addAll(danglingIndices.keySet().stream().map(Index::getUUID).collect(Collectors.toList()));
+        excludeIndexPathIds.addAll(map(danglingIndices.keySet(), Index::getUUID));
         try {
             final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
             final IndexGraveyard graveyard = metaData.indexGraveyard();
 
-            logger.warn("HERE ARE THE TOMBSTONES:");
-            for (IndexGraveyard.Tombstone tombstone : graveyard.getTombstones()) {
-                logger.warn("     TOMBSTONE: " + tombstone.getIndex().getName());
-            }
             for (IndexMetaData indexMetaData : indexMetaDataList) {
                 if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
                     logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
@@ -167,14 +173,12 @@ public class DanglingIndicesState implements ClusterStateListener {
                                 "index tombstones.  This situation is likely caused by copying over the data directory for an index " +
                                 "that was previously deleted.", indexMetaData.getIndex());
                 } else {
-                    logger.info("[{}] dangling index exists on local file system, but not in cluster metadata, " +
-                                "auto import to cluster state", indexMetaData.getIndex());
+                    logger.info("[{}] dangling index exists on local file system, but not in cluster metadata" +
+                        (this.isAutoImportDanglingIndicesEnabled ? ", auto import to cluster state" : ""), indexMetaData.getIndex());
                     newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));
                 }
             }
 
-            logger.warn("HERE ARE THE DANGLING INDICES: ");
-            newIndices.keySet().forEach(i -> logger.warn("    " + i.getName()));
             return newIndices;
         } catch (IOException e) {
             logger.warn("failed to list dangling indices", e);

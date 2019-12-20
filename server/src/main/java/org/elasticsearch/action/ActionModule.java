@@ -252,6 +252,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.RestDeleteDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
@@ -697,7 +698,7 @@ public class ActionModule extends AbstractModule {
         // Dangling indices API
         registerHandler.accept(new RestListDanglingIndicesAction(restController));
         registerHandler.accept(new RestRestoreDanglingIndexAction(restController));
-        registerHandler.accept(new RestDeleteRepositoryAction(restController));
+        registerHandler.accept(new RestDeleteDanglingIndexAction(restController));
 
         // CAT API
         registerHandler.accept(new RestAllocationAction(restController));

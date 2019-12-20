@@ -41,6 +41,12 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         super();
     }
 
+    public DeleteDanglingIndexRequest(String indexUuid, String nodeId) {
+        super();
+        this.indexUuid = indexUuid;
+        this.nodeId = nodeId;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         if (this.indexUuid == null) {

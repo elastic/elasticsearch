@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -30,7 +29,6 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestDeleteDanglingIndexAction extends BaseRestHandler {
     public RestDeleteDanglingIndexAction(RestController controller) {

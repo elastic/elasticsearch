@@ -380,6 +380,32 @@ public class CollectionUtils {
     }
 
     /**
+     * Utility method that removes some of the boilerplate around streams and mapping. Instead of writing e.g.
+     *
+     * <pre>
+     * Set&lt;String&gt; ids = indexMetaData
+     *   .stream()
+     *   .map(each -&gt; each.getIndexUUID())
+     *   .collect(Collectors.toSet());
+     * </pre>
+     *
+     * You can instead write:
+     *
+     * <pre>
+     * Set&lt;String&gt; ids = map(indexMetaData, each -&gt; each.getIndexUUID());
+     * </pre>
+     *
+     * @param set the set to map
+     * @param mapper a mapping function to apply to each element of the set
+     * @param <T1> the type that the supplied set contains
+     * @param <T2> the type that the returned set contains
+     * @return a set containing the result of applying the <code>mapper</code> function to each element in <code>set</code>.
+     */
+    public static <T1, T2> Set<T2> map(Set<T1> set, Function<T1, T2> mapper) {
+        return set.stream().map(mapper).collect(Collectors.toSet());
+    }
+
+    /**
      * Utility method that removes some of the boilerplate around streams and filtering. Instead of writing e.g.
      *
      * <pre>

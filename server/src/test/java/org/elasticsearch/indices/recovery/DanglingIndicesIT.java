@@ -19,22 +19,19 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.NodeDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -237,7 +234,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         assertFalse("No exception thrown", noExceptionThrown);
     }
 
-    @SuppressWarnings("unchecked")
     public void testDeleteDanglingIndex() throws Exception {
         final Settings settings = Settings.builder()
             // Don't keep any indices in the graveyard, so that when we delete an index,
@@ -287,29 +283,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             }
         });
 
-        final ClusterService clusterService = internalCluster().clusterService();
+        final IndexMetaData indexMetaData = danglingIndex.get();
 
-        clusterService.submitStateUpdateTask("delete-dangling-index " + danglingIndex.get(), new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(final ClusterState currentState) {
-                    final MetaData meta = currentState.metaData();
-
-                    MetaData.Builder metaDataBuilder = MetaData.builder(meta);
-
-                    final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
-
-                    final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstone(danglingIndex.get().getIndex()).build(settings);
-                    metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
-
-                    return ClusterState.builder(currentState).metaData(metaDataBuilder.build()).build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn("\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n" + e.getMessage(), e);
-                    fail(e.getMessage());
-                }
-            });
+        client().admin()
+            .cluster()
+            .deleteDanglingIndex(new DeleteDanglingIndexRequest(indexMetaData.getIndexUUID(), stoppedNodeName.get()))
+            .actionGet();
 
         // Check that the dangling index goes away
         assertBusy(() -> {

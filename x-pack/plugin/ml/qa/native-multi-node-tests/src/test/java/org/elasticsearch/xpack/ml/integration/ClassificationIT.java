@@ -519,6 +519,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 .actionGet()
                 .mappings()
                 .get(destIndex)
+                .get("_doc")
                 .sourceAsMap();
         assertThat(getFieldValue(mappings, "properties", "ml", "properties", predictedClassField, "type"), equalTo(expectedType));
         assertThat(

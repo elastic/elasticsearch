@@ -197,13 +197,17 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
     }
 
-    public void testCreateDestinationIndex_ResultsFieldsExistsInSourceIndex() {
+    public void testCreateDestinationIndex_ResultsFieldsExistsInSourceIndex() throws IOException {
         DataFrameAnalyticsConfig config = createConfig(new OutlierDetection.Builder().build());
 
         GetSettingsResponse getSettingsResponse = new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping"))));
+        MappingMetaData index1MappingMetaData =
+            new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
+        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
+        index1MappingsMap.put("_doc", index1MappingMetaData);
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingsMap.build());
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
         doAnswer(callListenerOnResponse(getSettingsResponse)).when(client).execute(eq(GetSettingsAction.INSTANCE), any(), any());
@@ -226,8 +230,11 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
                                                               Map<String, Object> properties) throws IOException {
         DataFrameAnalyticsConfig config = createConfig(analysis);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetaData("_doc", Collections.singletonMap("properties", properties)));
+        MappingMetaData indexMappingMetaData = new MappingMetaData("_doc", Collections.singletonMap("properties", properties));
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappingsMap = ImmutableOpenMap.builder();
+        indexMappingsMap.put("_doc", indexMappingMetaData);
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        mappings.put(DEST_INDEX, indexMappingsMap.build());
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(
                 new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
@@ -283,13 +290,15 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
     }
 
-    public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() {
+    public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() throws IOException {
         DataFrameAnalyticsConfig config = createConfig(new OutlierDetection.Builder().build());
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put(
-            "",
-            new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping"))));
+        MappingMetaData indexMappingMetaData =
+            new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappingsMap = ImmutableOpenMap.builder();
+        indexMappingsMap.put("_doc", indexMappingMetaData);
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        mappings.put(DEST_INDEX, indexMappingsMap.build());
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(
                 new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());

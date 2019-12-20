@@ -205,8 +205,9 @@ public final class DataFrameAnalyticsIndex {
         assert getIndexResponse.indices().length == 1;
 
         // Fetch mappings from destination index
-        String type = getIndexResponse.mappings().keysIt().next();
-        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().valuesIt().next().sourceAsMap();
+        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.getMappings().get(getIndexResponse.indices()[0]);
+        String type = mappings.keysIt().next();
+        Map<String, Object> destMappingsAsMap = mappings.valuesIt().next().sourceAsMap();
         Map<String, Object> destPropertiesAsMap =
             (Map<String, Object>)destMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
 
@@ -220,7 +221,7 @@ public final class DataFrameAnalyticsIndex {
         // Add the mappings to the destination index
         PutMappingRequest putMappingRequest =
             new PutMappingRequest(getIndexResponse.indices())
-                .type(type);
+                .type(type)
                 .source(addedMappings);
         ClientHelper.executeWithHeadersAsync(
             config.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE, putMappingRequest, listener);

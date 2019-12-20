@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.history;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -38,7 +39,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -80,33 +80,29 @@ public class ILMHistoryStore implements Closeable {
                                 logger.warn("failed to create ILM history store index prior to issuing bulk request", ex);
                                 indexCreated.completeExceptionally(ex);
                             }));
-                        try {
-                            indexCreated.get();
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException("interrupted waiting for ILM history index to be created prior to indexing", e);
-                        } catch (ExecutionException e) {
-                            throw new RuntimeException("cannot index ILM history items as index could not be created", e);
-                        }
+                        indexCreated.get();
                     } catch (Exception e) {
-                        logger.warn("unable to index the following ILM history items:\n{}",
+                        logger.warn(new ParameterizedMessage("unable to index the following ILM history items:\n{}",
                             request.requests().stream()
                                 .filter(dwr -> (dwr instanceof IndexRequest))
                                 .map(dwr -> ((IndexRequest) dwr))
                                 .map(IndexRequest::sourceAsMap)
                                 .map(Object::toString)
-                                .collect(Collectors.joining("\n")));
-                        throw e;
+                                .collect(Collectors.joining("\n"))), e);
+                        throw new ElasticsearchException(e);
                     }
                 }
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                     long items = request.numberOfActions();
-                    logger.trace("indexed [{}] items into ILM history index [{}]", items,
-                        Arrays.stream(response.getItems())
-                            .map(BulkItemResponse::getIndex)
-                            .distinct()
-                            .collect(Collectors.joining(",")));
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("indexed [{}] items into ILM history index [{}]", items,
+                            Arrays.stream(response.getItems())
+                                .map(BulkItemResponse::getIndex)
+                                .distinct()
+                                .collect(Collectors.joining(",")));
+                    }
                     if (response.hasFailures()) {
                         Map<String, String> failures = Arrays.stream(response.getItems())
                             .filter(BulkItemResponse::isFailed)
@@ -144,6 +140,7 @@ public class ILMHistoryStore implements Closeable {
             IndexRequest request = new IndexRequest(ILM_HISTORY_ALIAS).source(builder);
             // TODO: remove the threadpool wrapping when the .add call is non-blocking
             //  (it can currently execute the bulk request occasionally)
+            //  see: https://github.com/elastic/elasticsearch/issues/50440
             threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                 try {
                     processor.add(request);

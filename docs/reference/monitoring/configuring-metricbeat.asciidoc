@@ -14,9 +14,6 @@ as described in <<collecting-monitoring-data>>.
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
 
-To learn about monitoring in general, see 
-<<xpack-monitoring>>. 
-
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
 . Enable the collection of monitoring data.

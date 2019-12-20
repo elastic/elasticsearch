@@ -170,6 +170,7 @@ PUT books
     "properties": {
       "title": {
         "type":     "text",
+        "analyzer": "simple",
         "search_analyzer": "whitespace"
       }
     }

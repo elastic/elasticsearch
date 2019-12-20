@@ -15,20 +15,20 @@ import java.util.List;
 
 public class ScriptFeatureExtractorTests extends ESTestCase {
 
-    private void testScriptId(String text, ULScript expected) {
+    private void testScriptId(String text, ScriptCode expected) {
         long actual = ScriptFeatureExtractor.getScriptFeatureValue(text);
         assertEquals(expected.toInt(), actual);
     }
 
     public void testBasicExamples() {
-        testScriptId("food", ULScript.ULScript_Latin);
-        testScriptId("字", ULScript.ULScript_Hani);
-        testScriptId("워드", ULScript.NUM_ULSCRIPTS);
+        testScriptId("food", ScriptCode.Latin);
+        testScriptId("字", ScriptCode.Hani);
+        testScriptId("워드", ScriptCode.MAX_SCRIPT_CODE);
     }
 
     public void testSimpleJa() {
-        testScriptId("オリンピック大会", ULScript.ULScript_Hani);
-        testScriptId("にほんごの クラスは かようびと もくようびで", ULScript.ULScript_Hani);
+        testScriptId("オリンピック大会", ScriptCode.Hani);
+        testScriptId("にほんごの クラスは かようびと もくようびで", ScriptCode.Hani);
     }
 
     public void testAllExamples() throws IOException {

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
 
-import java.nio.charset.StandardCharsets;
-
 import static java.lang.Character.UnicodeBlock.ARABIC;
 import static java.lang.Character.UnicodeBlock.CYRILLIC;
 import static java.lang.Character.UnicodeBlock.GREEK;
@@ -46,14 +44,7 @@ public final class ScriptDetector {
         kScriptArabic(8),
         kScriptHangulJamo(9),  // Used primarily for Korean.
         kScriptHiragana(10),    // Used primarily for Japanese.
-        kScriptKatakana(11),    // Used primarily for Japanese.
-
-        // Add new scripts here.
-
-        // Do not add any script after kNumRelevantScripts.  This value indicates the
-        // number of elements in this enum Script (except this value) such that we can
-        // easily iterate over the scripts.
-        kNumRelevantScripts(12);
+        kScriptKatakana(11);    // Used primarily for Japanese.
 
         private final int code;
 
@@ -69,43 +60,46 @@ public final class ScriptDetector {
             // Using blocks for the HANGUL vs HANGUL_JANO distinctions
             // If one exists. Needs investigated
             Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
-            if (block.equals(GREEK)) {
+            if (GREEK.equals(block)) {
                 return kScriptGreek;
             }
-            if (block.equals(CYRILLIC)) {
+            if (CYRILLIC.equals(block)) {
                 return kScriptCyrillic;
             }
-            if (block.equals(ARABIC)) {
+            if (ARABIC.equals(block)) {
                 return kScriptArabic;
             }
-            if (block.equals(HEBREW)) {
+            if (HEBREW.equals(block)) {
                 return kScriptHebrew;
             }
-            if (block.equals(KATAKANA)) {
+            if (KATAKANA.equals(block)) {
                 return kScriptKatakana;
             }
-            if (block.equals(HIRAGANA)) {
+            if (HIRAGANA.equals(block)) {
                 return kScriptHiragana;
             }
-            if (block.equals(HANGUL_JAMO)) {
+            if (HANGUL_JAMO.equals(block)) {
                 return kScriptHangulJamo;
             }
 
             // Not one of our special cases, need to determine the utf8 byte size
-            String str = new String(Character.toChars(codePoint));
-            byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
-            switch (utf8Bytes.length) {
-                case 1:
+            if (codePoint > 0) {
+                // Fits in a single UTF-8 byte
+                if (codePoint < 128) {
                     return kScriptOtherUtf8OneByte;
-                case 2:
+                }
+                if (codePoint < 2048) {
                     return kScriptOtherUtf8TwoBytes;
-                case 3:
+                }
+                if (codePoint < 65536) {
                     return kScriptOtherUtf8ThreeBytes;
-                case 4:
+                }
+                if (codePoint < 1114112) {
                     return kScriptOtherUtf8FourBytes;
-                default:
-                    return kScriptError;
+                }
             }
+
+            return kScriptError;
         }
     }
 }

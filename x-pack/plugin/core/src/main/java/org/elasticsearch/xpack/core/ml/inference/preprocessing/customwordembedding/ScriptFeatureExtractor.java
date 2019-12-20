@@ -13,26 +13,25 @@ import java.util.OptionalInt;
 
 public final class ScriptFeatureExtractor implements FeatureExtractor {
 
-    private static ULScript getScriptIdOfFirstLetter(String text) {
+    private static ScriptCode getScriptIdOfFirstLetter(String text) {
         OptionalInt optionalCp = text.codePoints().filter(Character::isLetter).findFirst();
         if (optionalCp.isPresent() == false) {
-            return ULScript.ULScript_Common;
+            return ScriptCode.Common;
         }
         Character.UnicodeScript unicodeScript = Character.UnicodeScript.of(optionalCp.getAsInt());
-        return ULScript.unicodeScriptToULScript(unicodeScript);
+        return ScriptCode.unicodeScriptToULScript(unicodeScript);
     }
 
     // Get script feature value for the string
     static int getScriptFeatureValue(String text) {
-        ULScript ulScript = getScriptIdOfFirstLetter(text);
-        if (ulScript != ULScript.ULScript_Hani) {
-            return ulScript.toInt();
+        ScriptCode scriptCode = getScriptIdOfFirstLetter(text);
+        if (scriptCode != ScriptCode.Hani) {
+            return scriptCode.toInt();
         }
         // Out of the codepoints captured by ULScript_Hani, separately count those
         // in Hangul (Korean script) and those in a script other than Hangul.
         Counter hangulCounter = Counter.newCounter();
         Counter nonHangulCounter = Counter.newCounter();
-        // TODO this assumes whole string is same characterset
         text.codePoints().forEach(cp -> {
             if (Character.isSpaceChar(cp)) {
                 return;
@@ -44,7 +43,7 @@ public final class ScriptFeatureExtractor implements FeatureExtractor {
             }
         });
 
-        return hangulCounter.get() > nonHangulCounter.get() ? ULScript.NUM_ULSCRIPTS.toInt() : ULScript.ULScript_Hani.toInt();
+        return hangulCounter.get() > nonHangulCounter.get() ? ScriptCode.MAX_SCRIPT_CODE.toInt() : ScriptCode.Hani.toInt();
     }
 
     @Override

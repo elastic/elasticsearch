@@ -48,7 +48,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         ConstructingObjectParser<CustomWordEmbedding, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new CustomWordEmbedding((short[][])a[0], (int[][])a[1], (String)a[2], (String)a[3]));
+            a -> new CustomWordEmbedding((short[][])a[0], (byte[][])a[1], (String)a[2], (String)a[3]));
 
         parser.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> {
@@ -70,13 +70,16 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
             ObjectParser.ValueType.VALUE_ARRAY);
         parser.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> {
-                List<List<Integer>> listOfListOfInts = parseArrays(EMBEDDING_WEIGHTS.getPreferredName(), XContentParser::intValue, p);
-                int[][] primitiveInts = new int[listOfListOfInts.size()][];
-                int i = 0;
-                for (List<Integer> ints : listOfListOfInts) {
-                    primitiveInts[i++] = ints.stream().mapToInt(Integer::intValue).toArray();
+                List<byte[]> values = new ArrayList<>();
+                while(p.nextToken() != XContentParser.Token.END_ARRAY) {
+                    values.add(p.binaryValue());
                 }
-                return primitiveInts;
+                byte[][] primitiveBytes = new byte[values.size()][];
+                int i = 0;
+                for (byte[] bytes : values) {
+                    primitiveBytes[i++] = bytes;
+                }
+                return primitiveBytes;
             },
             EMBEDDING_WEIGHTS,
             ObjectParser.ValueType.VALUE_ARRAY);
@@ -131,14 +134,14 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     );
 
     private final short[][] embeddingsQuantScales;
-    private final int[][] embeddingsWeights;
+    private final byte[][] embeddingsWeights;
     private final String fieldName;
     private final String destField;
 
     public CustomWordEmbedding(StreamInput in) throws IOException {
         this.fieldName = in.readString();
         this.destField = in.readString();
-        this.embeddingsWeights = in.readArray(StreamInput::readVIntArray, (length) -> new int[length][]);
+        this.embeddingsWeights = in.readArray(StreamInput::readByteArray, (length) -> new byte[length][]);
         this.embeddingsQuantScales = in.readArray((input -> {
             int length = input.readVInt();
             short[] shorts = new short[length];
@@ -149,7 +152,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         }), (length) -> new short[length][]);
     }
 
-    public CustomWordEmbedding(short[][] embeddingsQuantScales, int[][] embeddingsWeights, String fieldName, String destField) {
+    public CustomWordEmbedding(short[][] embeddingsQuantScales, byte[][] embeddingsWeights, String fieldName, String destField) {
         this.embeddingsQuantScales = embeddingsQuantScales;
         this.embeddingsWeights = embeddingsWeights;
         this.fieldName = fieldName;
@@ -165,7 +168,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         int offset = 0;
         // "esIndex" stands for "embedding space index".
         for (int esIndex = 0; esIndex < featureVectors.size(); ++esIndex) {
-            int[] embeddingWeight = this.embeddingsWeights[esIndex];
+            byte[] embeddingWeight = this.embeddingsWeights[esIndex];
             short[] quants = this.embeddingsQuantScales[esIndex];
             int embeddingDim = EMBEDDING_DIMENSIONS[esIndex];
 
@@ -179,7 +182,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
                 // Iterate across columns for this row
                 for (int i = 0; i < embeddingDim; ++i) {
                     // 128 is bias for UINT8 quantization, only one we currently support.
-                    double value = (getRowMajorData(embeddingWeight, embeddingDim, row, i) - 128) * multiplier;
+                    double value = (getRowMajorData(embeddingWeight, embeddingDim, row, i)) * multiplier;
                     int concatIndex = offset + i;
                     concat[concatIndex] += value;
                 }
@@ -204,7 +207,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         return Float.intBitsToFloat(s << 16);
     }
 
-    private static int getRowMajorData(int[] data, int colDim, int row, int col) {
+    private static int getRowMajorData(byte[] data, int colDim, int row, int col) {
         return data[row * colDim + col];
     }
 
@@ -227,8 +230,8 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
-        for(int[] ints : embeddingsWeights) {
-            size += RamUsageEstimator.sizeOf(ints);
+        for(byte[] bytes : embeddingsWeights) {
+            size += RamUsageEstimator.sizeOf(bytes);
         }
         for(short[] shorts : embeddingsQuantScales) {
             size += RamUsageEstimator.sizeOf(shorts);
@@ -245,7 +248,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeString(destField);
-        out.writeArray(StreamOutput::writeVIntArray, embeddingsWeights);
+        out.writeArray(StreamOutput::writeByteArray, embeddingsWeights);
         out.writeArray((output, value) -> {
             output.writeVInt(value.length);
             for(short s : value) {

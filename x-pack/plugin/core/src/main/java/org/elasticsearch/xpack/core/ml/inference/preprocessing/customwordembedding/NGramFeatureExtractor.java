@@ -49,7 +49,8 @@ public class NGramFeatureExtractor implements FeatureExtractor {
         Map<String, Counter> charNGrams = new TreeMap<>();
 
         int countSum = 0;
-        for (int start = 0; start <= (newText.toString().length()) - nGrams; ++start) {
+        int end = newText.toString().length() - nGrams;
+        for (int start = 0; start <= end; ++start) {
             StringBuilder charNGram = new StringBuilder();
 
             int index;
@@ -74,6 +75,8 @@ public class NGramFeatureExtractor implements FeatureExtractor {
             long value = entry.getValue().get();
 
             double weight = (double) value / (double) countSum;
+            // We need to use the special hashing so that we choose the appropriate weight+ quantile
+            // when building the feature vector.
             int id = (int)(hashing.hash(key) % dimensionId);
 
             results[index++] = new ContinuousFeatureValue(id, weight);

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedd
 
 import org.apache.lucene.util.Counter;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -29,8 +28,10 @@ public class RelevantScriptFeatureExtractor implements FeatureExtractor {
         TreeMap<ScriptDetector.Script, Counter> counts = new TreeMap<>();
 
         text.codePoints().forEach(cp -> {
-            // Get anything that is a letter, or anything complex enough warranting a check (more than one byte).
-            if(Character.isLetter(cp) || (new String(Character.toChars(cp)).getBytes(StandardCharsets.UTF_8).length > 1)) {
+            // Get anything that is a letter, or anything complex enough warranting a check (more than one UTF-8 byte).
+            // cp > Byte.MAX_VALUE works as the first 127 codepoints are the same as the ASCII encoding,
+            // which is the same as one UTF-8 byte.
+            if(Character.isLetter(cp) || cp > Byte.MAX_VALUE) {
                 ScriptDetector.Script script = ScriptDetector.Script.fromCodePoint(cp);
                 counts.computeIfAbsent(script, (s) -> Counter.newCounter()).addAndGet(1);
                 totalCount.addAndGet(1L);

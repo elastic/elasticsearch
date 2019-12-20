@@ -29,6 +29,9 @@ final class Hash32 {
 
     /**
      * Derived from https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/utils.cc#L137
+     *
+     * It is critical that we utilize this hash as it determines which weight and quantile column/row we choose
+     * when building the feature array.
      */
     private int hash32(byte[] data) {
         int n = data.length;

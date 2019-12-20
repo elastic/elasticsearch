@@ -34,10 +34,10 @@ public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbed
         }
         int weightsSize = randomIntBetween(1, 10);
         int internalWeightsSize = randomIntBetween(1, 10);
-        int[][] weights = new int[weightsSize][internalWeightsSize];
+        byte[][] weights = new byte[weightsSize][internalWeightsSize];
         for (int i = 0; i < weightsSize; i++) {
             for (int j = 0; j < internalWeightsSize; j++) {
-                weights[i][j] = randomInt((int)Character.MAX_VALUE);
+                weights[i][j] = randomByte();
             }
         }
         return new CustomWordEmbedding(quantiles, weights, randomAlphaOfLength(10), randomAlphaOfLength(10));

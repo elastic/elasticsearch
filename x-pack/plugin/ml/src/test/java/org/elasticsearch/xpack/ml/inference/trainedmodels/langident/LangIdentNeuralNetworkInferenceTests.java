@@ -47,8 +47,9 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
                 (ClassificationInferenceResults) trainedModelDefinition.infer(inferenceFields, classificationConfig);
 
             assertThat(singleValueInferenceResults.valueAsString(), equalTo(cld3Actual));
+            double eps = entry.getLanguage().equals("hr") ? 0.001 : 0.00001;
             assertThat("mismatch probability for language " + cld3Actual,
-                singleValueInferenceResults.getTopClasses().get(0).getProbability(), closeTo(cld3Probability, 0.001));
+                singleValueInferenceResults.getTopClasses().get(0).getProbability(), closeTo(cld3Probability, eps));
         }
     }
 

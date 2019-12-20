@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,24 +69,14 @@ public class Recall implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
-    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+    private static final int MAX_CLASSES_CARDINALITY = 1000;
 
-    private final int maxClassesCardinality;
     private String actualField;
     private EvaluationMetricResult result;
 
-    public Recall() {
-        this((Integer) null);
-    }
+    public Recall() {}
 
-    // Visible for testing
-    public Recall(@Nullable Integer maxClassesCardinality) {
-        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
-    }
-
-    public Recall(StreamInput in) throws IOException {
-        this.maxClassesCardinality = in.readVInt();
-    }
+    public Recall(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -111,7 +100,7 @@ public class Recall implements EvaluationMetric {
             Arrays.asList(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
-                    .size(maxClassesCardinality)
+                    .size(MAX_CLASSES_CARDINALITY)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             Arrays.asList(
                 PipelineAggregatorBuilders.avgBucket(
@@ -126,7 +115,7 @@ public class Recall implements EvaluationMetric {
                 aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
             if (byActualClassAgg.getSumOfOtherDocCounts() > 0) {
-                // This means there were more than {@code maxClassesCardinality} buckets.
+                // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average recall accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
                     "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField);
@@ -149,7 +138,6 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxClassesCardinality);
     }
 
     @Override

@@ -682,6 +682,8 @@ public class IndexNameExpressionResolver {
                 return resolveEmptyOrTrivialWildcard(options, metaData);
             }
 
+            // TODO: Fix API to work with sets rather than lists since we need to convert to sets
+            // internally anyway
             final Set<String> result = innerResolve(context, expressions, options, metaData);
 
             if (result == null) {
@@ -699,7 +701,7 @@ public class IndexNameExpressionResolver {
             Set<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(0);
+                String expression = expressions.get(i);
                 if (Strings.isEmpty(expression)) {
                     throw indexNotFoundException(expression);
                 }

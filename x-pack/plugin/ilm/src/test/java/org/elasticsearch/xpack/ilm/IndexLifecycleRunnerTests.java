@@ -1118,7 +1118,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private final List<ILMHistoryItem> items = new ArrayList<>();
 
         NoOpHistoryStore() {
-            super(Settings.EMPTY, noopClient, null);
+            super(Settings.EMPTY, noopClient, null, null);
         }
 
         public List<ILMHistoryItem> getItems() {

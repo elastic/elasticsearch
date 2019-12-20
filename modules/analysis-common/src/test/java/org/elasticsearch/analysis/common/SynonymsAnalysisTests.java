@@ -250,8 +250,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testPreconfiguredTokenFilters() throws IOException {
         Set<String> disallowedFilters = new HashSet<>(Arrays.asList(
-            "common_grams", "edge_ngram", "edgeNGram", "keyword_repeat", "ngram", "nGram",
-            "shingle", "word_delimiter", "word_delimiter_graph"
+            "common_grams", "edge_ngram", "keyword_repeat", "ngram", "shingle",
+            "word_delimiter", "word_delimiter_graph"
         ));
 
         Settings settings = Settings.builder()

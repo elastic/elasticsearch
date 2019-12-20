@@ -77,7 +77,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         }
       }
       from(rootProject.projectDir) {
-        include 'README.textile'
+        include 'README.asciidoc'
       }
       from(rootProject.file('licenses')) {
         include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'

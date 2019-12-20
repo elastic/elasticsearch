@@ -187,7 +187,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
             searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
             searchRequest.source().size(1);
-            searchRequest.source().query(QueryBuilders.idsQuery().addIds(DataFrameAnalyticsTask.progressDocId(configId)));
+            searchRequest.source().query(QueryBuilders.idsQuery().addIds(StoredProgress.documentId(configId)));
             multiSearchRequest.add(searchRequest);
         }
 

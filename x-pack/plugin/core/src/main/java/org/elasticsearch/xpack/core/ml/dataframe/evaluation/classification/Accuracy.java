@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,8 +19,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -33,6 +36,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * {@link Accuracy} is a metric that answers the question:
@@ -40,7 +44,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  *
  * equation: accuracy = 1/n * Σ(y == y´)
  */
-public class Accuracy implements ClassificationMetric {
+public class Accuracy implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("accuracy");
 
@@ -67,7 +71,7 @@ public class Accuracy implements ClassificationMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Classification.NAME, NAME);
     }
 
     @Override
@@ -76,16 +80,18 @@ public class Accuracy implements ClassificationMetric {
     }
 
     @Override
-    public final List<AggregationBuilder> aggs(String actualField, String predictedField) {
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
         if (result != null) {
-            return List.of();
+            return Tuple.tuple(List.of(), List.of());
         }
         Script accuracyScript = new Script(buildScript(actualField, predictedField));
-        return List.of(
-            AggregationBuilders.terms(CLASSES_AGG_NAME)
-                .field(actualField)
-                .subAggregation(AggregationBuilders.avg(PER_CLASS_ACCURACY_AGG_NAME).script(accuracyScript)),
-            AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(accuracyScript));
+        return Tuple.tuple(
+            List.of(
+                AggregationBuilders.terms(CLASSES_AGG_NAME)
+                    .field(actualField)
+                    .subAggregation(AggregationBuilders.avg(PER_CLASS_ACCURACY_AGG_NAME).script(accuracyScript)),
+                AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(accuracyScript)),
+            List.of());
     }
 
     @Override
@@ -168,7 +174,7 @@ public class Accuracy implements ClassificationMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Classification.NAME, NAME);
         }
 
         @Override

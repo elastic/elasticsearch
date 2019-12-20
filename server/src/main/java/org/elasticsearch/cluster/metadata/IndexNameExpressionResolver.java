@@ -174,7 +174,7 @@ public class IndexNameExpressionResolver {
                 } else {
                     infe = new IndexNotFoundException((String)null);
                 }
-                infe.setResources("index_expression", indexExpressions);
+                infe.setResources("index_expression", expressions.toArray(Strings.EMPTY_ARRAY));
                 throw infe;
             } else {
                 return Index.EMPTY_ARRAY;

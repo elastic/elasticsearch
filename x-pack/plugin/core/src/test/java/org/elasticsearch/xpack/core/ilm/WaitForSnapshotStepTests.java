@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -147,8 +148,6 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     }
 
     private String getMessage(ClusterStateWaitStep.Result result) throws IOException {
-        XContentBuilder s = result.getInfomationContext().toXContent(JsonXContent.contentBuilder(), null);
-        s.flush();
-        return new String(((ByteArrayOutputStream) s.getOutputStream()).toByteArray(), StandardCharsets.UTF_8);
+        return Strings.toString(result.getInfomationContext());
     }
 }

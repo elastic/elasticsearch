@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,25 +75,15 @@ public class Precision implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
-    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+    private static final int MAX_CLASSES_CARDINALITY = 1000;
 
-    private final int maxClassesCardinality;
     private String actualField;
     private List<String> topActualClassNames;
     private EvaluationMetricResult result;
 
-    public Precision() {
-        this((Integer) null);
-    }
+    public Precision() {}
 
-    // Visible for testing
-    public Precision(@Nullable Integer maxClassesCardinality) {
-        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
-    }
-
-    public Precision(StreamInput in) throws IOException {
-        this.maxClassesCardinality = in.readVInt();
-    }
+    public Precision(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -116,7 +105,7 @@ public class Precision implements EvaluationMetric {
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
                         .field(actualField)
                         .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
-                        .size(maxClassesCardinality)),
+                        .size(MAX_CLASSES_CARDINALITY)),
                 Collections.emptyList());
         }
         if (result == null) {  // This is step 2

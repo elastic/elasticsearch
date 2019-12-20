@@ -775,7 +775,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50426")
     public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
         final String indexName = "test-auto-expand-filtering";
         final Version minimumNodeVersion = minimumNodeVersion();
@@ -796,15 +795,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 Settings.builder().put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
         }
 
-        ensureGreen(indexName);
-
-        final int numberOfReplicas = Integer.parseInt(
-            getIndexSettingsAsMap(indexName).get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS).toString());
-        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
-            assertEquals(nodes.size() - 2, numberOfReplicas);
-        } else {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
-        }
+        assertBusy(() -> {
+            final int numberOfReplicas = Integer.parseInt(
+                getIndexSettingsAsMap(indexName).get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS).toString());
+            if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
+                assertEquals(nodes.size() - 2, numberOfReplicas);
+            } else {
+                assertEquals(nodes.size() - 1, numberOfReplicas);
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")

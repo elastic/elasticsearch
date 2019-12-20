@@ -135,7 +135,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
             Object extract = extractor.extract(hit);
-            assertFieldHitEquals(hasSource ? value : null, extract);
+            assertEquals(hasSource ? value : null, extract);
         }
     }
 
@@ -188,7 +188,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             source.endObject();
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
-            assertFieldHitEquals(value, extractor.extract(hit));
+            assertEquals(value, extractor.extract(hit));
         }
     }
 
@@ -234,7 +234,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        assertFieldHitEquals(value, fe.extract(hit));
+        assertEquals(value, fe.extract(hit));
     }
 
     public void testExtractSourcePath() {
@@ -605,16 +605,6 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
                 () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
                 () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254")));
         return value.get();
-    }
-
-    private void assertFieldHitEquals(Object expected, Object actual) {
-        if (expected instanceof BigDecimal) {
-            // parsing will, by default, build a Double even if the initial value is BigDecimal
-            // Elasticsearch does this the same when returning the results
-            assertEquals(((BigDecimal) expected).doubleValue(), actual);
-        } else {
-            assertEquals(expected, actual);
-        }
     }
 
     private Object randomPoint(double lat, double lon) {

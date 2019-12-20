@@ -20,13 +20,18 @@
 package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -88,6 +93,140 @@ public class XContentParserTests extends ESTestCase {
                 assertTrue(number instanceof Double);
             }
         }
+    }
+
+    public void testDetectBigIntegerJSON() throws IOException {
+        doTestDetectBigInteger(XContentType.JSON);
+    }
+
+    public void testDetectBigIntegerCBOR() throws IOException {
+        doTestDetectBigInteger(XContentType.CBOR);
+    }
+
+    public void testDetectBigIntegerSmile() throws IOException {
+        doTestDetectBigInteger(XContentType.SMILE);
+    }
+
+    public void testDetectBigIntegerYaml() throws IOException {
+        doTestDetectBigInteger(XContentType.YAML);
+    }
+
+    private void doTestDetectBigInteger(XContentType xcontentType) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        XContentGenerator generator = xcontentType.xContent().createGenerator(out);
+        generator.writeStartObject();
+        generator.writeFieldName("foo");
+        BigInteger bigInt = new BigInteger("9999999999999999999999999999999");
+        assertThat(bigInt, Matchers.greaterThan(BigInteger.valueOf(Long.MAX_VALUE)));
+        generator.writeNumber(bigInt);
+        generator.writeEndObject();
+        generator.flush();
+
+        XContentParser parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+        assertEquals(XContentParser.NumberType.BIG_INTEGER, parser.numberType());
+        assertEquals(bigInt, parser.numberValue());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertNull(parser.nextToken());
+
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        Map<String, Object> map = parser.map();
+        assertEquals(Collections.singletonMap("foo", new BigInteger("9999999999999999999999999999999")), map);
+
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        out = new BytesStreamOutput();
+        generator = xcontentType.xContent().createGenerator(out);
+        generator.copyCurrentStructure(parser);
+        generator.flush();
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        map = parser.map();
+        assertEquals(Collections.singletonMap("foo", new BigInteger("9999999999999999999999999999999")), map);
+
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        out = new BytesStreamOutput();
+        // filtering triggers different logic
+        generator = xcontentType.xContent().createGenerator(out, Collections.emptySet(), Collections.singleton("bar"));
+        generator.copyCurrentStructure(parser);
+        generator.flush();
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        map = parser.map();
+        assertEquals(Collections.singletonMap("foo", new BigInteger("9999999999999999999999999999999")), map);
+    }
+
+    public void testDetectBigDecimalJSON() throws IOException {
+        doTestDetectBigDecimal(XContentType.JSON);
+    }
+
+    public void testDetectBigDecimalCBOR() throws IOException {
+        doTestDetectBigDecimal(XContentType.CBOR);
+    }
+
+    public void testDetectBigDecimalSmile() throws IOException {
+        doTestDetectBigDecimal(XContentType.SMILE);
+    }
+
+    public void testDetectBigDecimalYaml() throws IOException {
+        doTestDetectBigDecimal(XContentType.YAML);
+    }
+
+    private void doTestDetectBigDecimal(XContentType xcontentType) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        XContentGenerator generator = xcontentType.xContent().createGenerator(out);
+        generator.writeStartObject();
+        generator.writeFieldName("foo");
+        BigDecimal bigDec = new BigDecimal("4.000000000000000000000000002");
+        generator.writeNumber(bigDec);
+        generator.writeEndObject();
+        generator.flush();
+
+        XContentParser parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+        assertEquals(XContentParser.NumberType.BIG_DECIMAL, parser.numberType());
+        assertEquals(bigDec, parser.numberValue());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertNull(parser.nextToken());
+
+        // parser.map()
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        Map<String, Object> map = parser.map();
+        assertEquals(Collections.singletonMap("foo", new BigDecimal("4.000000000000000000000000002")), map);
+
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        out = new BytesStreamOutput();
+        generator = xcontentType.xContent().createGenerator(out);
+        generator.copyCurrentStructure(parser);
+        generator.flush();
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        map = parser.map();
+        assertEquals(Collections.singletonMap("foo", new BigDecimal("4.000000000000000000000000002")), map);
+
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        out = new BytesStreamOutput();
+        // filtering triggers different logic
+        generator = xcontentType.xContent().createGenerator(out, Collections.emptySet(), Collections.singleton("bar"));
+        generator.copyCurrentStructure(parser);
+        generator.flush();
+        parser = xcontentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, out.bytes().streamInput());
+        map = parser.map();
+        assertEquals(Collections.singletonMap("foo", new BigDecimal("4.000000000000000000000000002")), map);
     }
 
     public void testReadList() throws IOException {

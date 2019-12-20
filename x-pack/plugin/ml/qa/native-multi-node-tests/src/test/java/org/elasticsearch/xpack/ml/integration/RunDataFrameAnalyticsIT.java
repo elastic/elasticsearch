@@ -104,7 +104,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
 
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
-            double outlierScore = (double) resultsObject.get("outlier_score");
+            double outlierScore = ((Number) resultsObject.get("outlier_score")).doubleValue();
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             if (hit.getId().equals("outlier")) {
                 scoreOfOutlier = outlierScore;
@@ -250,7 +250,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
 
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
-            double outlierScore = (double) resultsObject.get("outlier_score");
+            double outlierScore = ((Number) resultsObject.get("outlier_score")).doubleValue();
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
         }
 

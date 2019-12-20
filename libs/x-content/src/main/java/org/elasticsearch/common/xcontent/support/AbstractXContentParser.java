@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public abstract class AbstractXContentParser implements XContentParser {
@@ -53,6 +54,86 @@ public abstract class AbstractXContentParser implements XContentParser {
             //NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
         }
+    }
+
+    /**
+     * If the provided char sequence represents a number, then this method
+     * returns true if, and only if the given char buffer represents a
+     * non-finite double, or there exists a double whose string representation
+     * is mathematically equal to the number represented in the provided char
+     * sequence. The behavior is undefined if the given char buffer doesn't
+     * actually represent a number.
+     */
+    protected static boolean isDouble(char[] chars, int charsOff, int charsLen) {
+        Objects.checkFromIndexSize(charsOff, charsLen, chars.length);
+        if (charsLen <= 17) { // 15 significant digits, plus '.' and '-'
+            // Avoid numbers that use a scientific notation because they might
+            // be short yet have an exponent that is greater than the maximum
+            // double exponent, eg. 9E999.
+            boolean scientificNotation = false;
+            int numSigDigits = 0;
+            for (int i = charsOff, end = charsOff + charsLen; i < end; ++i) {
+                char c = chars[i];
+                if (c >= '0' && c <= '9') {
+                    numSigDigits++;
+                } else if (c != '-' && c != '.') {
+                    scientificNotation = true;
+                    break;
+                }
+            }
+            if (scientificNotation == false && numSigDigits <= 15) { // Fast path
+                // Doubles have 53 bits of mantissa including the implicit bit.
+                // If a String with 15 significant digits or less was not the
+                // string representation of a double, it would mean that two
+                // consecutive doubles would differ (relatively) by more than
+                // 10^-15, which is impossible since 10^-15 > 2^-53.
+                return true;
+            }
+        }
+        return slowIsDouble(chars, charsOff, charsLen);
+    }
+
+    private static final int MAX_DOUBLE_BASE10_EXPONENT = getBase10Exponent(BigDecimal.valueOf(Double.MAX_VALUE));
+    private static final int MIN_NORMAL_DOUBLE_BASE10_EXPONENT = getBase10Exponent(BigDecimal.valueOf(Double.MIN_NORMAL));
+
+    // pkg-private for testing
+    static boolean slowIsDouble(char[] chars, int charsOff, int charsLen) {
+        try {
+            BigDecimal bigDec = new BigDecimal(chars, charsOff, charsLen);
+            if (bigDec.precision() <= 15) { // See comment in #isDouble
+                final int base10Exponent = getBase10Exponent(bigDec);
+                if (base10Exponent < MAX_DOUBLE_BASE10_EXPONENT &&
+                        base10Exponent > MIN_NORMAL_DOUBLE_BASE10_EXPONENT) {
+                    return true;
+                }
+            }
+            return slowIsDouble(bigDec);
+        } catch (NumberFormatException e) {
+            // We need to return true for NaN and +/-Infinity
+            // For malformed strings, the return value is undefined, so true is fine too.
+            return true;
+        }
+    }
+
+    /**
+     * Return the exponent of {@code bigDec} in its scientific base 10 representation.
+     */
+    static int getBase10Exponent(BigDecimal bigDec) {
+        // A bigdecimal is equal to unscaledValue*10^-scale and the
+        // unscaled value can be written as C * 10 ^(precision-1) where
+        // C is in [1,10). So the bigdecimal is equal to
+        // C * 10^(precision-scale-1)
+        return bigDec.precision() - bigDec.scale() - 1;
+    }
+
+    private static boolean slowIsDouble(BigDecimal bigDec) {
+        double asDouble = bigDec.doubleValue();
+        if (Double.isFinite(asDouble) == false) {
+            return false;
+        }
+        // Don't use equals since it returns false for decimals that have the
+        // same value but different scales.
+        return bigDec.compareTo(new BigDecimal(Double.toString(asDouble))) == 0;
     }
 
     private final NamedXContentRegistry xContentRegistry;
@@ -397,4 +478,5 @@ public abstract class AbstractXContentParser implements XContentParser {
     public DeprecationHandler getDeprecationHandler() {
         return deprecationHandler;
     }
+
 }

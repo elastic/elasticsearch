@@ -105,7 +105,7 @@ And the following may be the response:
          ]
       },
       "avg_monthly_sales": {
-          "value": 328.33333333333333
+          "value": 328.3333333333333
       }
    }
 }

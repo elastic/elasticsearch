@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 
 public class JsonXContentParser extends AbstractXContentParser {
@@ -148,7 +149,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public Number numberValue() throws IOException {
-        return parser.getNumberValue();
+        Number number = parser.getNumberValue();
+        if (number instanceof Double && isDouble(textCharacters(), textOffset(), textLength()) == false) {
+            number = parser.getDecimalValue();
+        }
+        return number;
     }
 
     @Override
@@ -206,7 +211,15 @@ public class JsonXContentParser extends AbstractXContentParser {
             case FLOAT:
                 return NumberType.FLOAT;
             case DOUBLE:
-                return NumberType.DOUBLE;
+                try {
+                    if (isDouble(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength())) {
+                        return NumberType.DOUBLE;
+                    } else {
+                        return NumberType.BIG_DECIMAL;
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             case BIG_DECIMAL:
                 return NumberType.BIG_DECIMAL;
         }

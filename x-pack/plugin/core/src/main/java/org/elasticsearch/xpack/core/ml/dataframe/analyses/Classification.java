@@ -247,6 +247,14 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
+        return new HashMap<>() {{
+            put(resultsFieldName + "." + predictionFieldName, dependentVariable);
+            put(resultsFieldName + ".top_classes.class_name", dependentVariable);
+        }};
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return true;
     }

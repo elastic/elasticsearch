@@ -188,7 +188,8 @@ The output looks similar to the following:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/\d+/$body.$_path/]
+// TESTRESPONSE[s/"uuid": XuBo4l4ISYiVg0nYUen9zg/"uuid": $body.uuid/]
+// TESTRESPONSE[s/"done": 5/"uuid": $body.done/]
 
 The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
 snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,

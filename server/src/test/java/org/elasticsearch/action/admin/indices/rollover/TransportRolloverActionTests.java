@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -219,15 +218,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         results2.forEach((k, v) -> assertFalse(v));
     }
 
-    public void testCreateUpdateAliasRequest() {
+    public void testRolloverAliasActions() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-        final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
 
-        List<AliasAction> actions = updateRequest.actions();
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, false);
         assertThat(actions, hasSize(2));
         boolean foundAdd = false;
         boolean foundRemove = false;
@@ -246,15 +243,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertTrue(foundRemove);
     }
 
-    public void testCreateUpdateAliasRequestWithExplicitWriteIndex() {
+    public void testRolloverAliasActionsWithExplicitWriteIndex() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-        final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareRolloverAliasesWriteIndexUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, true);
 
-        List<AliasAction> actions = updateRequest.actions();
         assertThat(actions, hasSize(2));
         boolean foundAddWrite = false;
         boolean foundRemoveWrite = false;

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.SnapshotAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.hamcrest.Matchers;
@@ -316,6 +317,83 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo(String.valueOf(finalNumReplicas)));
         });
     }
+
+    public void testWaitForSnapshot() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("delete", new SnapshotAction("slm"));
+        updatePolicy(index, policy);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
+
+        createSnapshotRepo();
+        createSlmPolicy();
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
+
+        Request request = new Request("PUT", "/_slm/policy/slm/_execute");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")));
+    }
+
+    public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("delete", new SnapshotAction("slm"));
+
+        createSnapshotRepo();
+        createSlmPolicy();
+
+        Request request = new Request("PUT", "/_slm/policy/slm/_execute");
+        assertOK(client().performRequest(request));
+
+        updatePolicy(index, policy);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
+
+        request = new Request("PUT", "/_slm/policy/slm/_execute");
+        assertOK(client().performRequest(request));
+
+        request = new Request("PUT", "/_slm/policy/slm/_execute");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")));
+    }
+
+    private void createSlmPolicy() throws IOException {
+        Request request;
+        request = new Request("PUT", "/_slm/policy/slm");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("schedule", "59 59 23 31 12 ? 2099")
+                .field("repository", "repo")
+                .field("name", "snap" + randomAlphaOfLengthBetween(5, 10).toLowerCase())
+                .startObject("config")
+                .endObject()
+                .endObject()));
+
+        assertOK(client().performRequest(request));
+    }
+
+    private void createSnapshotRepo() throws IOException {
+        Request request = new Request("PUT", "/_snapshot/repo");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+    }
+
 
     public void testDelete() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

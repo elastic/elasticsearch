@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;

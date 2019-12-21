@@ -20,12 +20,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 public class TcpHeader {
-    
+
     public static final Version VERSION_WITH_HEADER_SIZE = Version.V_7_6_0;
 
     public static final int MARKER_BYTES_SIZE = 2;
@@ -42,7 +43,11 @@ public class TcpHeader {
 
     public static final int BYTES_REQUIRED_FOR_MESSAGE_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE;
 
-    private static final int PRE_76_HEADER_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE;
+    public static final int VERSION_POSITION = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE;
+
+    public static final int VARIABLE_HEADER_SIZE_POSITION = VERSION_POSITION + VERSION_ID_SIZE;
+
+    private static final int PRE_76_HEADER_SIZE = VERSION_POSITION + VERSION_ID_SIZE;
 
     public static final int BYTES_REQUIRED_FOR_VERSION = PRE_76_HEADER_SIZE;
 

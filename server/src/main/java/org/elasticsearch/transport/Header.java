@@ -40,10 +40,17 @@ public class Header {
     private Tuple<Map<String, String>, Map<String, Set<String>>> headers;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
+        this(networkMessageSize, requestId, status, version, null, null);
+    }
+
+    Header(int networkMessageSize, long requestId, byte status, Version version, String actionName,
+           Tuple<Map<String, String>, Map<String, Set<String>>> headers) {
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
         this.status = status;
+        this.actionName = actionName;
+        this.headers = headers;
     }
 
     public int getNetworkMessageSize() {
@@ -86,8 +93,8 @@ public class Header {
         return TransportStatus.isCompress(status);
     }
 
-    boolean isVariableHeaderUncompressed() {
-        return version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE);
+    boolean needsParseVariableHeader() {
+        return headers == null;
     }
 
     void finishParsingHeader(StreamInput input) throws IOException {

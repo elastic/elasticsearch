@@ -52,24 +52,31 @@ public class InboundDecoder implements Releasable {
     public int handle(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         try (reference) {
             if (isOnHeader()) {
-                int expectedLength = TcpTransport.readMessageLength(reference);
-                if (expectedLength == -1) {
+                int messageLength = TcpTransport.readMessageLength(reference);
+                if (messageLength == -1) {
                     return 0;
-                } else if (expectedLength == 0) {
+                } else if (messageLength == 0) {
                     aggregator.pingReceived(channel);
                     return 6;
                 } else {
                     if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
                         return 0;
                     } else {
-                        networkMessageSize = expectedLength;
-                        Header header = parseHeader(networkMessageSize, reference);
-                        bytesConsumed += TcpHeader.BYTES_REQUIRED_FOR_VERSION - 6;
-                        if (header.isCompressed()) {
-                            decompressor = new TransportDecompressor(recycler);
+                        int decoderHeaderSize = decoderHeaderSize(reference);
+                        if (reference.length() < decoderHeaderSize) {
+                            return 0;
+                        } else {
+                            networkMessageSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
+
+                            Header header = readHeader(networkMessageSize, reference);
+                            bytesConsumed += decoderHeaderSize;
+                            if (header.isCompressed()) {
+                                decompressor = new TransportDecompressor(recycler);
+                            }
+                            aggregator.headerReceived(header);
+                            return bytesConsumed;
                         }
-                        aggregator.headerReceived(header);
-                        return TcpHeader.BYTES_REQUIRED_FOR_VERSION;
+
                     }
                 }
             } else {
@@ -124,20 +131,33 @@ public class InboundDecoder implements Releasable {
             int consumed = decompressor.decompress(content);
             assert consumed == content.length();
         }
-
     }
 
     private boolean isDone() {
         return bytesConsumed == networkMessageSize;
     }
 
-    private Header parseHeader(int networkMessageSize, BytesReference bytesReference) throws IOException {
+    private int decoderHeaderSize(BytesReference bytesReference) {
+        Version remoteVersion = Version.fromId(bytesReference.getInt(TcpHeader.VERSION_POSITION));
+        if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+            return TcpHeader.headerSize(remoteVersion);
+        } else {
+            int variableHeaderSize = bytesReference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+            return TcpHeader.headerSize(remoteVersion) + variableHeaderSize;
+        }
+    }
+
+    private Header readHeader(int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
-            streamInput.skip(6);
+            streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
             Version remoteVersion = Version.fromId(streamInput.readInt());
-            return new Header(networkMessageSize, requestId, status, remoteVersion);
+            Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
+            if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                header.finishParsingHeader(streamInput);
+            }
+            return header;
         }
     }
 

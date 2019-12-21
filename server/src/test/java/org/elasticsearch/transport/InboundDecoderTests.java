@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,7 +44,7 @@ import static org.mockito.Mockito.verify;
 public class InboundDecoderTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
-    private final Version version = Version.CURRENT;
+    private final ThreadContext threadContext = threadPool.getThreadContext();
     private final AtomicInteger releasedCount = new AtomicInteger(0);
     private final Releasable releasable = releasedCount::incrementAndGet;
 
@@ -55,55 +56,95 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testDecode() throws IOException {
         String action = "test-request";
-        boolean isCompressed = false;
         long requestId = randomNonNegativeLong();
-        OutboundMessage message;
-        if (randomBoolean()) {
-            message = new OutboundMessage.Request(threadPool.getThreadContext(), new TestRequest(randomAlphaOfLength(100)), version,
-                action, requestId, false, isCompressed);
-        } else {
-            message = new OutboundMessage.Response(threadPool.getThreadContext(), new TestResponse(randomAlphaOfLength(100)), version,
-                requestId, false, isCompressed);
-        }
+        threadContext.putHeader(randomAlphaOfLength(10), randomAlphaOfLength(20));
+        OutboundMessage message = new OutboundMessage.Request(threadContext, new TestRequest(randomAlphaOfLength(100)),
+            Version.CURRENT, action, requestId, false, false);
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
+        int fixedHeaderSize = TcpHeader.headerSize(Version.CURRENT);
+        int variableHeaderSize = bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+        int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
 
         InboundAggregator aggregator = mock(InboundAggregator.class);
         InboundDecoder decoder = new InboundDecoder(aggregator);
         int bytesConsumed = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes, releasable));
         verify(aggregator).headerReceived(any(Header.class));
-        assertEquals(TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed);
+        assertEquals(totalHeaderSize, bytesConsumed);
 
         final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
         int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
-        assertEquals(bytes.length() - TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed2);
+        assertEquals(bytes.length() - totalHeaderSize, bytesConsumed2);
+        verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
+    }
+
+    public void testDecodeHandshakeCompatibility() throws IOException {
+        String action = "test-request";
+        long requestId = randomNonNegativeLong();
+        threadContext.putHeader(randomAlphaOfLength(10), randomAlphaOfLength(20));
+        Version handshakeCompat = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        OutboundMessage message = new OutboundMessage.Request(threadContext, new TestRequest(randomAlphaOfLength(100)),
+            handshakeCompat, action, requestId, true, false);
+
+        final BytesReference bytes = message.serialize(new BytesStreamOutput());
+        int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
+
+        InboundAggregator aggregator = mock(InboundAggregator.class);
+        InboundDecoder decoder = new InboundDecoder(aggregator);
+        int bytesConsumed = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes, releasable));
+        verify(aggregator).headerReceived(any(Header.class));
+        assertEquals(totalHeaderSize, bytesConsumed);
+
+        final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
+        int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
+        assertEquals(bytes.length() - totalHeaderSize, bytesConsumed2);
         verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
     }
 
     public void testCompressedDecode() throws IOException {
         String action = "test-request";
-        boolean isCompressed = true;
         long requestId = randomNonNegativeLong();
-        OutboundMessage message;
-        if (randomBoolean()) {
-            message = new OutboundMessage.Request(threadPool.getThreadContext(), new TestRequest(randomAlphaOfLength(100)), version,
-                action, requestId, false, isCompressed);
-        } else {
-            message = new OutboundMessage.Response(threadPool.getThreadContext(), new TestResponse(randomAlphaOfLength(100)), version,
-                requestId, false, isCompressed);
-        }
+        threadContext.putHeader(randomAlphaOfLength(10), randomAlphaOfLength(20));
+        OutboundMessage message = new OutboundMessage.Request(threadContext, new TestRequest(randomAlphaOfLength(100)), Version.CURRENT,
+            action, requestId, false, true);
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
+        int fixedHeaderSize = TcpHeader.headerSize(Version.CURRENT);
+        int variableHeaderSize = bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+        int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
 
         InboundAggregator aggregator = mock(InboundAggregator.class);
         InboundDecoder decoder = new InboundDecoder(aggregator);
         int bytesConsumed = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes, releasable));
         verify(aggregator).headerReceived(any(Header.class));
-        assertEquals(TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed);
+        assertEquals(totalHeaderSize, bytesConsumed);
 
         final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
         int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
-        assertEquals(bytes.length() - TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed2);
+        assertEquals(bytes.length() - totalHeaderSize, bytesConsumed2);
+        verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
+    }
+
+    public void testCompressedDecodeHandshakeCompatibility() throws IOException {
+        String action = "test-request";
+        long requestId = randomNonNegativeLong();
+        threadContext.putHeader(randomAlphaOfLength(10), randomAlphaOfLength(20));
+        Version handshakeCompat = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        OutboundMessage message = new OutboundMessage.Request(threadContext, new TestRequest(randomAlphaOfLength(100)), handshakeCompat,
+            action, requestId, true, true);
+
+        final BytesReference bytes = message.serialize(new BytesStreamOutput());
+        int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
+
+        InboundAggregator aggregator = mock(InboundAggregator.class);
+        InboundDecoder decoder = new InboundDecoder(aggregator);
+        int bytesConsumed = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes, releasable));
+        verify(aggregator).headerReceived(any(Header.class));
+        assertEquals(totalHeaderSize, bytesConsumed);
+
+        final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
+        int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
+        assertEquals(bytes.length() - totalHeaderSize, bytesConsumed2);
         verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
     }
 

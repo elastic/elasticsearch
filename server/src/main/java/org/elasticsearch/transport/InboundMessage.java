@@ -119,19 +119,18 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 ensureVersionCompatibility(remoteVersion, this.version, header.isHandshake());
-                streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
-                streamInput.setVersion(remoteVersion);
 
-                threadContext.readHeaders(streamInput);
+                if (header.needsToReadVariableHeader()) {
+                    header.finishParsingHeader(streamInput);
+                }
+
+                threadContext.setHeaders(header.getHeaders());
+
+                streamInput = namedWriteableStream(streamInput, remoteVersion);
 
                 InboundMessage message;
                 if (header.isRequest()) {
-                    if (remoteVersion.before(Version.V_8_0_0)) {
-                        // discard features
-                        streamInput.readStringArray();
-                    }
-                    final String action = streamInput.readString();
-                    message = new Request(threadContext, header, action, streamInput);
+                    message = new Request(threadContext, header, header.getActionName(), streamInput);
                 } else {
                     message = new Response(threadContext, header, streamInput);
                 }

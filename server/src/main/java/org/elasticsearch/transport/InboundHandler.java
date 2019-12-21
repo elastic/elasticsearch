@@ -97,7 +97,7 @@ public class InboundHandler {
         TransportLogger.logInboundMessage(channel, message);
 
         if (message.isPing()) {
-            readBytesMetric.inc(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
+            readBytesMetric.inc(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             keepAlive.receiveKeepAlive(channel);
         } else {
             readBytesMetric.inc(message.getHeader().getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);

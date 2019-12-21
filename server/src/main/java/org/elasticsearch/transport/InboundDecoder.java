@@ -37,7 +37,7 @@ public class InboundDecoder implements Releasable {
     private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
     private TransportDecompressor decompressor;
-    private int networkMessageSize = -1;
+    private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
 
     public InboundDecoder(InboundAggregator aggregator) {
@@ -59,28 +59,27 @@ public class InboundDecoder implements Releasable {
                     aggregator.pingReceived(channel);
                     return 6;
                 } else {
-                    if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
+                    int headerBytesToRead = headerBytesToRead(reference);
+                    if (headerBytesToRead == 0) {
                         return 0;
                     } else {
-                        int decoderHeaderSize = decoderHeaderSize(reference);
-                        if (reference.length() < decoderHeaderSize) {
-                            return 0;
-                        } else {
-                            networkMessageSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
+                        totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                            Header header = readHeader(networkMessageSize, reference);
-                            bytesConsumed += decoderHeaderSize;
-                            if (header.isCompressed()) {
-                                decompressor = new TransportDecompressor(recycler);
-                            }
-                            aggregator.headerReceived(header);
-                            return bytesConsumed;
+                        Header header = readHeader(messageLength, reference);
+                        bytesConsumed += headerBytesToRead;
+                        if (header.isCompressed()) {
+                            decompressor = new TransportDecompressor(recycler);
                         }
+                        aggregator.headerReceived(header);
 
+                        if (isDone()) {
+                            finishMessage(channel);
+                        }
+                        return bytesConsumed;
                     }
                 }
             } else {
-                int bytesToConsume = Math.min(reference.length(), networkMessageSize - bytesConsumed);
+                int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
                 bytesConsumed += bytesToConsume;
                 ReleasableBytesReference retainedContent;
                 if (isDone()) {
@@ -98,10 +97,7 @@ public class InboundDecoder implements Releasable {
                     forwardNonEmptyContent(channel, retainedContent);
                 }
                 if (isDone()) {
-                    decompressor = null;
-                    networkMessageSize = -1;
-                    bytesConsumed = 0;
-                    aggregator.contentReceived(channel, END_CONTENT);
+                    finishMessage(channel);
                 }
 
                 return bytesToConsume;
@@ -113,7 +109,7 @@ public class InboundDecoder implements Releasable {
     public void close() {
         IOUtils.closeWhileHandlingException(decompressor);
         decompressor = null;
-        networkMessageSize = -1;
+        totalNetworkSize = -1;
         bytesConsumed = 0;
     }
 
@@ -126,6 +122,13 @@ public class InboundDecoder implements Releasable {
         }
     }
 
+    private void finishMessage(TcpChannel channel) {
+        decompressor = null;
+        totalNetworkSize = -1;
+        bytesConsumed = 0;
+        aggregator.contentReceived(channel, END_CONTENT);
+    }
+
     private void decompress(ReleasableBytesReference content) throws IOException {
         try (content) {
             int consumed = decompressor.decompress(content);
@@ -134,16 +137,28 @@ public class InboundDecoder implements Releasable {
     }
 
     private boolean isDone() {
-        return bytesConsumed == networkMessageSize;
+        return bytesConsumed == totalNetworkSize;
     }
 
-    private int decoderHeaderSize(BytesReference bytesReference) {
-        Version remoteVersion = Version.fromId(bytesReference.getInt(TcpHeader.VERSION_POSITION));
-        if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            return TcpHeader.headerSize(remoteVersion);
+    private int headerBytesToRead(BytesReference reference) {
+        if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
+            return 0;
+        }
+
+        Version remoteVersion = Version.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
+        int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
+        if (fixedHeaderSize > reference.length()) {
+            return 0;
+        } else if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+            return fixedHeaderSize;
         } else {
-            int variableHeaderSize = bytesReference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
-            return TcpHeader.headerSize(remoteVersion) + variableHeaderSize;
+            int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+            int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
+            if (totalHeaderSize > reference.length()) {
+                return 0;
+            } else {
+                return totalHeaderSize;
+            }
         }
     }
 
@@ -155,6 +170,8 @@ public class InboundDecoder implements Releasable {
             Version remoteVersion = Version.fromId(streamInput.readInt());
             Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
             if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                // Skip since we already have ensured enough data available
+                streamInput.readInt();
                 header.finishParsingHeader(streamInput);
             }
             return header;
@@ -162,6 +179,6 @@ public class InboundDecoder implements Releasable {
     }
 
     private boolean isOnHeader() {
-        return networkMessageSize == -1;
+        return totalNetworkSize == -1;
     }
 }

@@ -202,4 +202,4 @@ Multiple ids are also supported:
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1,snapshot_2/_status
 -----------------------------------
-// TEST[continued]
+// TEST[skip: no snapshot_2 to get]

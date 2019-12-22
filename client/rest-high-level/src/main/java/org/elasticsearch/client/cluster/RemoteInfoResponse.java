@@ -19,7 +19,6 @@
 package org.elasticsearch.client.cluster;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.transport.RemoteConnectionInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

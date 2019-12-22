@@ -6,7 +6,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
@@ -42,7 +41,7 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
         assertThat(clientInstance.getInfos().size(), equalTo(serverTestInstance.getInfos().size()));
         Map<String, RemoteConnectionInfo> serverInfos = serverTestInstance.getInfos().stream()
                 .collect(toMap(RemoteConnectionInfo::getClusterAlias, identity()));
-        for (RemoteConnectionInfo clientRemoteInfo : clientInstance.getInfos()) {
+        for (org.elasticsearch.client.cluster.RemoteConnectionInfo clientRemoteInfo : clientInstance.getInfos()) {
             RemoteConnectionInfo serverRemoteInfo = serverInfos.get(clientRemoteInfo.getClusterAlias());
             assertThat(clientRemoteInfo.getClusterAlias(), equalTo(serverRemoteInfo.getClusterAlias()));
             assertThat(clientRemoteInfo.getInitialConnectionTimeout(), equalTo(serverRemoteInfo.getInitialConnectionTimeout()));
@@ -50,18 +49,17 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
             assertThat(clientRemoteInfo.isSkipUnavailable(), equalTo(serverRemoteInfo.isSkipUnavailable()));
             assertThat(clientRemoteInfo.getModeInfo().isConnected(), equalTo(serverRemoteInfo.getModeInfo().isConnected()));
             assertThat(clientRemoteInfo.getModeInfo().modeName(), equalTo(serverRemoteInfo.getModeInfo().modeName()));
-            assertThat(clientRemoteInfo.getModeInfo().modeType(), equalTo(serverRemoteInfo.getModeInfo().modeType()));
-            if (clientRemoteInfo.getModeInfo().modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {
-                SniffConnectionStrategy.SniffModeInfo clientModeInfo =
-                        (SniffConnectionStrategy.SniffModeInfo) clientRemoteInfo.getModeInfo();
+            if (clientRemoteInfo.getModeInfo().modeName().equals(SniffModeInfo.NAME)) {
+                SniffModeInfo clientModeInfo =
+                        (SniffModeInfo) clientRemoteInfo.getModeInfo();
                 SniffConnectionStrategy.SniffModeInfo serverModeInfo =
                         (SniffConnectionStrategy.SniffModeInfo) serverRemoteInfo.getModeInfo();
                 assertThat(clientModeInfo.getMaxConnectionsPerCluster(), equalTo(serverModeInfo.getMaxConnectionsPerCluster()));
                 assertThat(clientModeInfo.getNumNodesConnected(), equalTo(serverModeInfo.getNumNodesConnected()));
                 assertThat(clientModeInfo.getSeedNodes(), equalTo(serverModeInfo.getSeedNodes()));
-            } else if (clientRemoteInfo.getModeInfo().modeType() == RemoteConnectionStrategy.ConnectionStrategy.PROXY) {
-                ProxyConnectionStrategy.ProxyModeInfo clientModeInfo =
-                        (ProxyConnectionStrategy.ProxyModeInfo) clientRemoteInfo.getModeInfo();
+            } else if (clientRemoteInfo.getModeInfo().modeName().equals(ProxyModeInfo.NAME)) {
+                ProxyModeInfo clientModeInfo =
+                        (ProxyModeInfo) clientRemoteInfo.getModeInfo();
                 ProxyConnectionStrategy.ProxyModeInfo serverModeInfo =
                         (ProxyConnectionStrategy.ProxyModeInfo) serverRemoteInfo.getModeInfo();
                 assertThat(clientModeInfo.getAddress(), equalTo(serverModeInfo.getAddress()));

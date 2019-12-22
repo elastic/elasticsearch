@@ -269,10 +269,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
-        public static final String NAME = "proxy";
-        public static final String ADDRESS = "address";
-        public static final String NUM_SOCKETS_CONNECTED = "num_sockets_connected";
-        public static final String MAX_SOCKET_CONNECTIONS = "max_socket_connections";
+
         private final String address;
         private final int maxSocketConnections;
         private final int numSocketsConnected;
@@ -291,9 +288,9 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(ADDRESS, address);
-            builder.field(NUM_SOCKETS_CONNECTED, numSocketsConnected);
-            builder.field(MAX_SOCKET_CONNECTIONS, maxSocketConnections);
+            builder.field("address", address);
+            builder.field("num_sockets_connected", numSocketsConnected);
+            builder.field("max_socket_connections", maxSocketConnections);
             return builder;
         }
 
@@ -311,7 +308,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public String modeName() {
-            return NAME;
+            return "proxy";
         }
 
         public String getAddress() {

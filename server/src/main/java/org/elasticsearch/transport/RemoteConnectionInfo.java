@@ -20,67 +20,23 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 /**
  * This class encapsulates all remote cluster information to be rendered on
  * {@code _remote/info} requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
-    private static final String CONNECTED = "connected";
-    private static final String MODE = "mode";
-    private static final String INITIAL_CONNECT_TIMEOUT = "initial_connect_timeout";
-    private static final String SKIP_UNAVAILABLE = "skip_unavailable";
-
-    private static final ConstructingObjectParser<RemoteConnectionInfo, String> PARSER = new ConstructingObjectParser<>(
-            "RemoteConnectionInfoObjectParser",
-            false,
-            (args, clusterAlias) -> {
-                String mode = (String) args[1];
-                ModeInfo modeInfo;
-                if (mode.equals(ProxyConnectionStrategy.ProxyModeInfo.NAME)) {
-                    modeInfo = new ProxyConnectionStrategy.ProxyModeInfo((String) args[4], (int) args[5], (int) args[6]);
-                } else if (mode.equals(SniffConnectionStrategy.SniffModeInfo.NAME)) {
-                    modeInfo = new SniffConnectionStrategy.SniffModeInfo((List<String>) args[7], (int) args[8], (int) args[9]);
-                } else {
-                    throw new IllegalArgumentException("mode cannot be " + mode);
-                }
-                return new RemoteConnectionInfo(clusterAlias,
-                        modeInfo,
-                        TimeValue.parseTimeValue((String) args[2], INITIAL_CONNECT_TIMEOUT),
-                        (boolean) args[3]);
-            });
-
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField(CONNECTED));
-        PARSER.declareString(constructorArg(), new ParseField(MODE));
-        PARSER.declareString(constructorArg(), new ParseField(INITIAL_CONNECT_TIMEOUT));
-        PARSER.declareBoolean(constructorArg(), new ParseField(SKIP_UNAVAILABLE));
-
-        PARSER.declareString(optionalConstructorArg(), new ParseField(ProxyConnectionStrategy.ProxyModeInfo.ADDRESS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyConnectionStrategy.ProxyModeInfo.MAX_SOCKET_CONNECTIONS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyConnectionStrategy.ProxyModeInfo.NUM_SOCKETS_CONNECTED));
-
-        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.SEEDS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.MAX_CONNECTIONS_PER_CLUSTER));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.NUM_NODES_CONNECTED));
-    }
 
     final ModeInfo modeInfo;
     final TimeValue initialConnectionTimeout;
@@ -162,18 +118,14 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(clusterAlias);
         {
-            builder.field(CONNECTED, modeInfo.isConnected());
-            builder.field(MODE, modeInfo.modeName());
+            builder.field("connected", modeInfo.isConnected());
+            builder.field("mode", modeInfo.modeName());
             modeInfo.toXContent(builder, params);
-            builder.field(INITIAL_CONNECT_TIMEOUT, initialConnectionTimeout.getStringRep());
-            builder.field(SKIP_UNAVAILABLE, skipUnavailable);
+            builder.field("initial_connect_timeout", initialConnectionTimeout);
+            builder.field("skip_unavailable", skipUnavailable);
         }
         builder.endObject();
         return builder;
-    }
-
-    public static RemoteConnectionInfo fromXContent(XContentParser parser, String clusterAlias) throws IOException {
-        return PARSER.parse(parser, clusterAlias);
     }
 
     @Override

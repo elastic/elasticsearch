@@ -74,6 +74,13 @@ class AsyncSearchStoreService {
     }
 
     /**
+     * Return the internal client with origin.
+     */
+    Client getClient() {
+        return client;
+    }
+
+    /**
      * Checks if the async-search index exists, and if not, creates it.
      * The provided {@link ActionListener} is called with the index name that should
      * be used to store the response.

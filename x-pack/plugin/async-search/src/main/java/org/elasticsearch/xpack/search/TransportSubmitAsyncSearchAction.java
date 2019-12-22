@@ -80,17 +80,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             return;
         }
         final String docID = UUIDs.randomBase64UUID(random);
-        store.ensureAsyncSearchIndex(clusterService.state(), new ActionListener<>() {
-            @Override
-            public void onResponse(String indexName) {
-                executeSearch(request, indexName, docID, submitListener);
-            }
-
-            @Override
-            public void onFailure(Exception exc) {
-                submitListener.onFailure(exc);
-            }
-        });
+        store.ensureAsyncSearchIndex(clusterService.state(), ActionListener.wrap(
+            indexName -> executeSearch(request, indexName, docID, submitListener),
+            submitListener::onFailure
+        ));
     }
 
     private void executeSearch(SubmitAsyncSearchRequest submitRequest, String indexName, String docID,

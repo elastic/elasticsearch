@@ -10,11 +10,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.xpack.search.AsyncSearchStoreService.ASYNC_SEARCH_INDEX_PREFIX;
+
 public class AsyncSearchIdTests extends ESTestCase {
-    public void testEncode() throws Exception {
+    public void testEncode() {
         for (int i = 0; i < 10; i++) {
-            AsyncSearchId instance = new AsyncSearchId(randomAlphaOfLengthBetween(5, 20), UUIDs.randomBase64UUID(),
-                new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()));
+            AsyncSearchId instance = new AsyncSearchId(ASYNC_SEARCH_INDEX_PREFIX + randomAlphaOfLengthBetween(5, 20),
+                UUIDs.randomBase64UUID(), new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()));
             String encoded = AsyncSearchId.encode(instance.getIndexName(), instance.getDocId(), instance.getTaskId());
             AsyncSearchId same = AsyncSearchId.decode(encoded);
             assertEquals(same, instance);

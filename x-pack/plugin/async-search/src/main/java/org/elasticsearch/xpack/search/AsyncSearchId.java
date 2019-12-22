@@ -12,10 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.search.AsyncSearchStoreService.ASYNC_SEARCH_INDEX_PREFIX;
 
 /**
  * A class that contains all information related to a submitted async search.
@@ -85,9 +86,9 @@ class AsyncSearchId {
             out.writeString(indexName);
             out.writeString(docId);
             out.writeString(taskId.toString());
-            return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
+            return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new IllegalArgumentException(e);
         }
     }
 
@@ -95,11 +96,21 @@ class AsyncSearchId {
      * Decode a base64 encoded string into an {@link AsyncSearchId} that can be used
      * to retrieve the response of an async search.
      */
-    static AsyncSearchId decode(String id) throws IOException {
-        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap( Base64.getDecoder().decode(id)))) {
-            return new AsyncSearchId(in.readString(), in.readString(), new TaskId(in.readString()));
+    static AsyncSearchId decode(String id) {
+        final AsyncSearchId searchId;
+        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap( Base64.getUrlDecoder().decode(id)))) {
+            searchId = new AsyncSearchId(in.readString(), in.readString(), new TaskId(in.readString()));
         } catch (IOException e) {
-            throw new IOException("invalid id: " + id);
+            throw new IllegalArgumentException("invalid id: " + id);
+        }
+        validateAsyncSearchId(searchId);
+        return searchId;
+    }
+
+    static void validateAsyncSearchId(AsyncSearchId searchId) {
+        if (searchId.getIndexName().startsWith(ASYNC_SEARCH_INDEX_PREFIX) == false) {
+            throw new IllegalArgumentException("invalid id [" + searchId.getEncoded() + "] that references the wrong index ["
+                + searchId.getIndexName() + "]");
         }
     }
 }

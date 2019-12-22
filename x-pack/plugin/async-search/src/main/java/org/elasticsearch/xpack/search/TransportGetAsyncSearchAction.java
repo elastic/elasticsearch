@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.search.AsyncSearchStoreService.ASYNC_SEARCH_INDEX_PREFIX;
-
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -50,10 +48,6 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
     protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
         try {
             AsyncSearchId searchId = AsyncSearchId.decode(request.getId());
-            if (searchId.getIndexName().startsWith(ASYNC_SEARCH_INDEX_PREFIX) == false) {
-                listener.onFailure(new IllegalArgumentException("invalid id [" + request.getId() + "] that references the wrong index ["
-                    + searchId.getIndexName() + "]"));
-            }
             if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId())) {
                 getSearchResponseFromTask(request, searchId, listener);
             } else {

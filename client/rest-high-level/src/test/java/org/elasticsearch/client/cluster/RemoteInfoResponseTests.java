@@ -4,9 +4,9 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
-import org.elasticsearch.transport.SimpleConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
@@ -59,12 +59,12 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
                 assertThat(clientModeInfo.getMaxConnectionsPerCluster(), equalTo(serverModeInfo.getMaxConnectionsPerCluster()));
                 assertThat(clientModeInfo.getNumNodesConnected(), equalTo(serverModeInfo.getNumNodesConnected()));
                 assertThat(clientModeInfo.getSeedNodes(), equalTo(serverModeInfo.getSeedNodes()));
-            } else if (clientRemoteInfo.getModeInfo().modeType() == RemoteConnectionStrategy.ConnectionStrategy.SIMPLE) {
-                SimpleConnectionStrategy.SimpleModeInfo clientModeInfo =
-                        (SimpleConnectionStrategy.SimpleModeInfo) clientRemoteInfo.getModeInfo();
-                SimpleConnectionStrategy.SimpleModeInfo serverModeInfo =
-                        (SimpleConnectionStrategy.SimpleModeInfo) serverRemoteInfo.getModeInfo();
-                assertThat(clientModeInfo.getAddresses(), equalTo(serverModeInfo.getAddresses()));
+            } else if (clientRemoteInfo.getModeInfo().modeType() == RemoteConnectionStrategy.ConnectionStrategy.PROXY) {
+                ProxyConnectionStrategy.ProxyModeInfo clientModeInfo =
+                        (ProxyConnectionStrategy.ProxyModeInfo) clientRemoteInfo.getModeInfo();
+                ProxyConnectionStrategy.ProxyModeInfo serverModeInfo =
+                        (ProxyConnectionStrategy.ProxyModeInfo) serverRemoteInfo.getModeInfo();
+                assertThat(clientModeInfo.getAddress(), equalTo(serverModeInfo.getAddress()));
                 assertThat(clientModeInfo.getMaxSocketConnections(), equalTo(serverModeInfo.getMaxSocketConnections()));
                 assertThat(clientModeInfo.getNumSocketsConnected(), equalTo(serverModeInfo.getNumSocketsConnected()));
             } else {
@@ -76,10 +76,10 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
     private static RemoteConnectionInfo createRandomRemoteConnectionInfo() {
         RemoteConnectionInfo.ModeInfo modeInfo;
         if (randomBoolean()) {
-            List<String> addresses = randomList(randomInt(8), () -> randomAlphaOfLength(8));
+            String address = randomAlphaOfLength(8);
             int maxSocketConnections = randomInt(5);
             int numSocketsConnected = randomInt(5);
-            modeInfo = new SimpleConnectionStrategy.SimpleModeInfo(addresses, maxSocketConnections, numSocketsConnected);
+            modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(address, maxSocketConnections, numSocketsConnected);
         } else {
             List<String> seedNodes = randomList(randomInt(8), () -> randomAlphaOfLength(8));
             int maxConnectionsPerCluster = randomInt(5);

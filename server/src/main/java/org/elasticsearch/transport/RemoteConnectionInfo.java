@@ -54,8 +54,8 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             (args, clusterAlias) -> {
                 String mode = (String) args[1];
                 ModeInfo modeInfo;
-                if (mode.equals(SimpleConnectionStrategy.SimpleModeInfo.NAME)) {
-                    modeInfo = new SimpleConnectionStrategy.SimpleModeInfo((List<String>) args[4], (int) args[5], (int) args[6]);
+                if (mode.equals(ProxyConnectionStrategy.ProxyModeInfo.NAME)) {
+                    modeInfo = new ProxyConnectionStrategy.ProxyModeInfo((String) args[4], (int) args[5], (int) args[6]);
                 } else if (mode.equals(SniffConnectionStrategy.SniffModeInfo.NAME)) {
                     modeInfo = new SniffConnectionStrategy.SniffModeInfo((List<String>) args[7], (int) args[8], (int) args[9]);
                 } else {
@@ -73,9 +73,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         PARSER.declareString(constructorArg(), new ParseField(INITIAL_CONNECT_TIMEOUT));
         PARSER.declareBoolean(constructorArg(), new ParseField(SKIP_UNAVAILABLE));
 
-        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(SimpleConnectionStrategy.SimpleModeInfo.ADDRESSES));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(SimpleConnectionStrategy.SimpleModeInfo.MAX_SOCKET_CONNECTIONS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(SimpleConnectionStrategy.SimpleModeInfo.NUM_SOCKETS_CONNECTED));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ProxyConnectionStrategy.ProxyModeInfo.ADDRESS));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyConnectionStrategy.ProxyModeInfo.MAX_SOCKET_CONNECTIONS));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyConnectionStrategy.ProxyModeInfo.NUM_SOCKETS_CONNECTED));
 
         PARSER.declareStringArray(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.SEEDS));
         PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffConnectionStrategy.SniffModeInfo.MAX_CONNECTIONS_PER_CLUSTER));

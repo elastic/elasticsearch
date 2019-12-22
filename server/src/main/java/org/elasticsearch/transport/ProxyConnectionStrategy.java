@@ -268,8 +268,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         return new TransportAddress(parseConfiguredAddress(address));
     }
 
-    static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
-    public static final String NAME = "proxy";
+    public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
+        public static final String NAME = "proxy";
         public static final String ADDRESS = "address";
         public static final String NUM_SOCKETS_CONNECTED = "num_sockets_connected";
         public static final String MAX_SOCKET_CONNECTIONS = "max_socket_connections";
@@ -277,7 +277,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         private final int maxSocketConnections;
         private final int numSocketsConnected;
 
-        ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
+        public ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
             this.address = address;
             this.maxSocketConnections = maxSocketConnections;
             this.numSocketsConnected = numSocketsConnected;
@@ -314,8 +314,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             return NAME;
         }
 
-        public List<String> getAddresses() {
-            return addresses;
+        public String getAddress() {
+            return address;
         }
 
         public int getMaxSocketConnections() {

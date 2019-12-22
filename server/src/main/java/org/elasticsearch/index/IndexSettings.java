@@ -19,6 +19,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -631,14 +632,14 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return customDataPath() != null;
+        return Strings.isNotEmpty(customDataPath());
     }
 
     /**
-     * Returns the customDataPath for this index, if configured. <code>null</code> o.w.
+     * Returns the customDataPath for this index, if configured. <code>""</code> o.w.
      */
     public String customDataPath() {
-        return settings.get(IndexMetaData.SETTING_DATA_PATH);
+        return IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
     }
 
     /**

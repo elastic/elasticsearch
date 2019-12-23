@@ -33,7 +33,7 @@ import java.util.Objects;
  * the resulting stream.
  * <p>
  * The packets are encrypted using the same {@link SecretKey} but using a different initialization
- * vector. The IV is 12 bytes wide and it's comprised of an integer {@code nonce}, the same for
+ * vector. The IV is 12 bytes wide and is comprised of a 4-byte integer {@code nonce}, the same for
  * every packet in a stream, but which MUST not otherwise be repeated for the same {@code SecretKey}
  * across other streams, and a monotonically increasing long counter. When assembling the resulting
  * stream, the IV is prepended to the corresponding packet's ciphertext.

@@ -218,7 +218,7 @@ Please follow these formatting guidelines:
 
 #### Editor / IDE Support
 
-Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
+Eclipse IDEs can import the file [.eclipseformat.xml]
 directly.
 
 IntelliJ IDEs can

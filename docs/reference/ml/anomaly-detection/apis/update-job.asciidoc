@@ -95,6 +95,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 
+`model_plot_config`.`enabled`:::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
+
+`model_plot_config`.`terms`:::
+experimental[] (string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
+
 `model_snapshot_retention_days`::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]

@@ -17,7 +17,6 @@ return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
 
-
 tag::allow-lazy-start[]
 Whether this job should be allowed to start when there is insufficient {ml} node 
 capacity for it to be immediately assigned to a node. The default is `false`, 
@@ -80,71 +79,16 @@ example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.
 end::analysis[]
 
 tag::analysis-config[]
-The analysis configuration, which specifies how to analyze the data.
-After you create a job, you cannot change the analysis configuration; all
-the properties are informational. An analysis configuration object has the 
-following properties:
-
-`analysis_config`.`bucket_span`:::
-(<<time-units,time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span]
-
-`analysis_config`.`categorization_field_name`:::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-field-name]
-
-`analysis_config`.`categorization_filters`:::
-(array of strings)
-include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-filters]
-
-`analysis_config`.`categorization_analyzer`:::
-(object or string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-analyzer]
-
-`analysis_config`.`detectors`:::
-(array) An array of detector configuration objects. Detector configuration
-objects specify which data fields a job analyzes. They also specify which
-analytical functions are used. You can specify multiple detectors for a job. 
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector]
-+
---
-NOTE: If the `detectors` array does not contain at least one detector,
-no analysis can occur and an error is returned.
-
---
-
-`analysis_config`.`influencers`:::
-(array of strings)
-include::{docdir}/ml/ml-shared.asciidoc[tag=influencers]
-
-`analysis_config`.`latency`:::
-(time units)
-include::{docdir}/ml/ml-shared.asciidoc[tag=latency]
-
-`analysis_config`.`multivariate_by_fields`:::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
-
-`analysis_config`.`summary_count_field_name`:::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=summary-count-field-name]
-
+The analysis configuration, which specifies how to analyze the data. After you
+create a job, you cannot change the analysis configuration; all the properties
+are informational.
 end::analysis-config[]
 
 tag::analysis-limits[]
 Limits can be applied for the resources required to hold the mathematical models
 in memory. These limits are approximate and can be set per job. They do not
-control the memory used by other processes, for example the {es} Java
-processes. If necessary, you can increase the limits after the job is created.
-The `analysis_limits` object has the following properties:
-
-`analysis_limits`.`categorization_examples_limit`:::
-(long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
-
-`analysis_limits`.`model_memory_limit`:::
-(long or string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
+control the memory used by other processes, for example the {es} Java processes.
+If necessary, you can increase the limits after the job is created.
 end::analysis-limits[]
 
 tag::analyzed-fields[]
@@ -638,54 +582,6 @@ the detectors in the `analysis_config`, starting at zero. You can use this
 identifier when you want to update a specific detector.
 end::detector-index[]
 
-tag::detector[]
-A detector has the following properties:
-
-`analysis_config`.`detectors`.`by_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
-
-`analysis_config`.`detectors`.`custom_rules`::::
-+
---
-(array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-put]
---
-
-`analysis_config`.`detectors`.`detector_description`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
-
-`analysis_config`.`detectors`.`detector_index`::::
-(integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
-
-`analysis_config`.`detectors`.`exclude_frequent`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
-
-`analysis_config`.`detectors`.`field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
-
-`analysis_config`.`detectors`.`function`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=function]
-
-`analysis_config`.`detectors`.`over_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
-
-`analysis_config`.`detectors`.`partition_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
-
-`analysis_config`.`detectors`.`use_null`::::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
-
-end::detector[]
-
 tag::eta[]
 The shrinkage applied to the weights. Smaller values result 
 in larger forests which have better generalization error. However, the smaller 
@@ -981,19 +877,20 @@ be seen in the model plot.
 
 Model plot config can be configured when the job is created or updated later. It 
 must be disabled if performance issues are experienced.
-
-`model_plot_config`.`enabled`:::
-(boolean) If true, enables calculation and storage of the model bounds for
-each entity that is being analyzed. By default, this is not enabled.
-
-`model_plot_config`.`terms`:::
-experimental[] (string) Limits data collection to this comma separated list of 
-partition or by field values. If terms are not specified or it is an empty 
-string, no filtering is applied. For example, "CPU,NetworkIn,DiskWrites". 
-Wildcards are not supported. Only the specified `terms` can be viewed when 
-using the Single Metric Viewer.
 --
 end::model-plot-config[]
+
+tag::model-plot-config-enabled[]
+If true, enables calculation and storage of the model bounds for each entity
+that is being analyzed. By default, this is not enabled.
+end::model-plot-config-enabled[]
+
+tag::model-plot-config-terms[]
+Limits data collection to this comma separated list of partition or by field
+values. If terms are not specified or it is an empty string, no filtering is
+applied. For example, "CPU,NetworkIn,DiskWrites". Wildcards are not supported.
+Only the specified `terms` can be viewed when using the Single Metric Viewer.
+end::model-plot-config-terms[]
 
 tag::model-snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot. For 

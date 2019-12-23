@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -22,6 +23,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.text.MessageFormat;
@@ -32,6 +34,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
@@ -59,6 +62,9 @@ public final class SourceDestValidator {
         + "alias [{0}], at least a [{1}] license is required, found license [{2}]";
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
+
+    // workaround for 7.x: remoteClusterAliases does not throw
+    private static final ClusterNameExpressionResolver clusterNameExpressionResolver = new ClusterNameExpressionResolver();
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RemoteClusterService remoteClusterService;
@@ -375,7 +381,7 @@ public final class SourceDestValidator {
             // this can throw
             List<String> remoteAliases;
             try {
-                remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
+                remoteAliases = remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
             } catch (NoSuchRemoteClusterException e) {
                 context.addValidationError(e.getMessage());
                 listener.onResponse(context);
@@ -456,5 +462,28 @@ public final class SourceDestValidator {
 
     private static String getMessage(String message, Object... args) {
         return new MessageFormat(message, Locale.ROOT).format(args);
+    }
+
+    /**
+     * Workaround for 7.x: remoteClusterAliases does not throw
+     *
+     * copied from {@link RemoteClusterLicenseChecker#remoteClusterAliases}, creates a NoSuchRemoteClusterException iff
+     * {@link ClusterNameExpressionResolver#resolveClusterNames} returns an empty list (throws in 8.x).
+     */
+    private static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
+        return indices.stream()
+                .filter(RemoteClusterLicenseChecker::isRemoteIndex)
+                .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+                .distinct()
+                .flatMap(clusterExpression ->
+                {
+                    List<String> resolved = clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression);
+                    if (resolved.isEmpty()) {
+                        throw new NoSuchRemoteClusterException(clusterExpression);
+                    }
+                    return resolved.stream();
+                })
+                .distinct()
+                .collect(Collectors.toList());
     }
 }

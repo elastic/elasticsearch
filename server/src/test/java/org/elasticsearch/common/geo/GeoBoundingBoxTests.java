@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 
 /**
- * Tests for {@code GeoJSONShapeParser}
+ * Tests for {@link GeoBoundingBox}
  */
 public class GeoBoundingBoxTests extends ESTestCase {
 

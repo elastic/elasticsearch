@@ -27,7 +27,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -108,7 +108,7 @@ public class GeoBoundingBoxTests extends ESTestCase {
     public void testNullTopBottomLeftRight() throws Exception {
         GeoBoundingBox geoBoundingBox = randomBBox();
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        for (String field : randomSubsetOf(List.of("top", "bottom", "left", "right"))) {
+        for (String field : randomSubsetOf(Arrays.asList("top", "bottom", "left", "right"))) {
             switch (field) {
                 case "top":
                     builder.field("top", geoBoundingBox.top());

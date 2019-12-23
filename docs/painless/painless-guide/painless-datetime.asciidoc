@@ -293,7 +293,7 @@ if (timestamp1 > timestamp2) {
 }
 ----
 +
-* Equality comparision of two complex datetimes
+* Equality comparison of two complex datetimes
 +
 [source,Painless]
 ----
@@ -307,7 +307,7 @@ if (zdt1.equals(zdt2)) {
 }
 ----
 +
-* Less than comparision of two complex datetimes
+* Less than comparison of two complex datetimes
 +
 [source,Painless]
 ----
@@ -321,7 +321,7 @@ if (zdt1.isBefore(zdt2)) {
 }
 ----
 +
-* Greater than comparision of two complex datetimes
+* Greater than comparison of two complex datetimes
 +
 [source,Painless]
 ----
@@ -611,7 +611,7 @@ per document, so each time the script is run a different `now` is returned. The
 second is scripts are often run in a distributed fashion without a way to
 appropriately synchronize `now`. Instead, pass in a user-defined parameter with
 either a string datetime or numeric datetime for `now`. A numeric datetime is
-preferred as there is no need to parse it for comparision.
+preferred as there is no need to parse it for comparison.
 
 ===== Datetime Now Examples
 

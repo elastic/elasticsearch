@@ -251,6 +251,13 @@ for large number of values is that the law of large numbers makes the distributi
 values more and more uniform and the t-digest tree can do a better job at summarizing
 it. It would not be the case on more skewed distributions.
 
+[WARNING]
+====
+Percentile aggregations are also
+https://en.wikipedia.org/wiki/Nondeterministic_algorithm[non-deterministic].
+This means you can get slightly different results using the same data.
+====
+
 [[search-aggregations-metrics-percentile-aggregation-compression]]
 ==== Compression
 

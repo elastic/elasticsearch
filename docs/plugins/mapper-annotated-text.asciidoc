@@ -119,7 +119,7 @@ PUT my_index/_doc/1
 
 PUT my_index/_doc/2
 {
-  "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a start"<2>
+  "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a strat"<2>
 }
 
 # Example search

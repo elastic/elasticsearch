@@ -29,7 +29,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -49,6 +51,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
@@ -134,35 +137,34 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
 
-        Rectangle rectangle = GeometryTestUtils.randomRectangle();
+        GeoBoundingBox bbox = GeoBoundingBoxTests.randomBBox();
 
         int in = 0, out = 0;
         List<LatLonDocValuesField> docs = new ArrayList<>();
         while (in + out < numDocs) {
-            if (rectangle.getMinX() > rectangle.getMaxX()) {
+            if (bbox.left() > bbox.right()) {
                 if (randomBoolean()) {
                     double lonWithin = randomBoolean() ?
-                        randomDoubleBetween(rectangle.getMinX(), 180.0, true)
-                        : randomDoubleBetween(-180.0, rectangle.getMaxX(), true);
-                    double latWithin = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), true);
+                        randomDoubleBetween(bbox.left(), 180.0, true)
+                        : randomDoubleBetween(-180.0, bbox.right(), true);
+                    double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
                     in++;
                     docs.add(new LatLonDocValuesField(FIELD_NAME, latWithin, lonWithin));
                 } else {
-                    double lonOutside = (rectangle.getMinX() + rectangle.getMaxX()) / 2;
-                    double latOutside = rectangle.getMinX() - randomIntBetween(1, 10);
+                    double lonOutside = randomDoubleBetween(bbox.left(), bbox.right(), true);
+                    double latOutside = randomDoubleBetween(bbox.top(), -90, false);
                     out++;
                     docs.add(new LatLonDocValuesField(FIELD_NAME, latOutside, lonOutside));
                 }
-
             } else {
                 if (randomBoolean()) {
-                    double lonWithin = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), true);
-                    double latWithin = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), true);
+                    double lonWithin = randomDoubleBetween(bbox.left(), bbox.right(), true);
+                    double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
                     in++;
                     docs.add(new LatLonDocValuesField(FIELD_NAME, latWithin, lonWithin));
                 } else {
-                    double lonOutside = randomDoubleBetween(rectangle.getMaxX(), 180.0, false);
-                    double latOutside = randomDoubleBetween(rectangle.getMaxY(), 90.0, false);
+                    double lonOutside = GeoUtils.normalizeLon(randomDoubleBetween(bbox.right(), 180.001, false));
+                    double latOutside = GeoUtils.normalizeLat(randomDoubleBetween(bbox.top(), 90.001, false));
                     out++;
                     docs.add(new LatLonDocValuesField(FIELD_NAME, latOutside, lonOutside));
                 }
@@ -171,12 +173,15 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         }
 
         final long numDocsInBucket = in;
+        final int precision = randomPrecision();
 
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, 0, rectangle, geoGrid -> {
-            assertThat(geoGrid.getBuckets().size(), equalTo(1));
-            long docCount = geoGrid.getBuckets().get(0).getDocCount();
-            assertThat(docCount, equalTo(numDocsInBucket));
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, geoGrid -> {
             assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
+            long docCount = 0;
+            for (int i = 0; i < geoGrid.getBuckets().size(); i++) {
+                docCount += geoGrid.getBuckets().get(i).getDocCount();
+            }
+            assertThat(docCount, equalTo(numDocsInBucket));
         }, iw -> {
             for (LatLonDocValuesField docField : docs) {
                 iw.addDocument(Collections.singletonList(docField));
@@ -184,7 +189,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         });
     }
 
-    private void testCase(Query query, String field, int precision, Rectangle boundingBox,
+    private void testCase(Query query, String field, int precision, GeoBoundingBox geoBoundingBox,
                           Consumer<InternalGeoGrid<T>> verify,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex) throws IOException {
         Directory directory = newDirectory();
@@ -197,9 +202,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
 
         GeoGridAggregationBuilder aggregationBuilder = createBuilder("_name").field(field);
         aggregationBuilder.precision(precision);
-        if (boundingBox != null) {
-            GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(boundingBox.getMaxLat(), boundingBox.getMinLon()),
-                new GeoPoint(boundingBox.getMinLat(), boundingBox.getMaxLon()));
+        if (geoBoundingBox != null) {
             aggregationBuilder.setGeoBoundingBox(geoBoundingBox);
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }

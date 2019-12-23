@@ -291,7 +291,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     private static boolean licenseIsCompatible(License license, Version version) {
-        if (License.LicenseType.ENTERPRISE.getTypeName().equalsIgnoreCase(license.type())) {
+        if (license.version() >= License.VERSION_ENTERPRISE) {
             return version.onOrAfter(Version.V_7_6_0);
         } else {
             return true;

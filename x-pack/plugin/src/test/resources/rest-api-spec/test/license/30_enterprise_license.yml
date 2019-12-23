@@ -15,7 +15,7 @@ teardown:
       license.post:
         acknowledge: true
         body: |
-          {"license":{"uid":"6e57906b-a8d1-4c1f-acb7-73a16edc3934","type":"enterprise","issue_date_in_millis":1523456691721,"expiry_date_in_millis":1838816691721,"max_nodes":50,"issued_to":"rest-test","issuer":"elasticsearch","signature":"AAAABAAAAA03e8BZRVXaCV4CpPGRAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAZNhjABV6PRfa7P7sJgn70XCGoKtAVT75yU13JvKBd/UjD4TPhuZcztqZ/tcLEPxm/TSvGlogWmnw/Rw8xs8jMpBpKsJ+LOXjHhDdvXb2y7JJhCH8nlSEblMDRXysNvWpKe60Z/hb7hS4JynEUt0EBb6ji7BL42O07PNll1EGmkfsHazfs46iV91BG1VxXksI78XgWSaA0F/h7tvrNW9PTgsUaLo06InlQ8jA1dal90AoXp+MVDOHWQjVFZzUnO87/7lEb+VXt0IwchaW17ahihJqkCtGvKpWFwpuhx9xiFvkySN/g5LIVjYCvgBkiWExQ9p0Zzg3VoSlMBnVy0BWo=","start_date_in_millis":-1}}
+          {"license":{"uid":"6e57906b-a8d1-4c1f-acb7-73a16edc3934","type":"enterprise","issue_date_in_millis":1523456691721,"expiry_date_in_millis":1838816691721,"max_resource_units":50,"issued_to":"rest-test","issuer":"elasticsearch","signature":"AAAABAAAAA3Wt3ur+CT/Az0MEFfVAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAJSA5lNqTVANVP54jWJL52PI7UAZvwrEaXodQY5CYA3f9joMQFiLoKSQGPRSOO1B/8z08xcjzVoe6XWl1vV9qlZ+0JZkWdec40V8eQ4v9HdN1NcsbKPtQpIvDslkI9n+/DFgQg4CUYD9immsk+/nswd0dyl/24bCt8E1hELo6VWZLmP05EPae2I8ajDUpGTL35aJtr+gdvu3AjO3hXcPFAZ5d/ZQEgNVmBkUro8PG+4QpjYpp9+Scn+2VzaU5gTzlXsRTUjr/vZ3t/SHWvVov7WtUVTwaOxXLgbd3kUJGRQgAccR/ytIQekvOT7sWl6GKgdDcmnGaoBJYhs3QVCzRoY=","start_date_in_millis":-1}}
 
   - match: { license_status:  "valid" }
 
@@ -27,6 +27,8 @@ teardown:
 
   ## In 8.0, the enterprise license is always reports truthfully
   - match: { license.type: "enterprise" }
+  - match: { license.max_resource_units: 50 }
+  - match: { license.max_nodes: null }
 
   - do:
       warnings:

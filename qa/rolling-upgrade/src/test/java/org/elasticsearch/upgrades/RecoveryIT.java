@@ -750,6 +750,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 || nodeName.startsWith(CLUSTER_NAME + "-0")
                 || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
     }
 

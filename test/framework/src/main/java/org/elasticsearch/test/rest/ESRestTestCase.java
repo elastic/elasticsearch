@@ -1142,6 +1142,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 for (Map<String, ?> copy : shard) {
                     Integer globalCheckpoint = (Integer) XContentMapValues.extractValue("seq_no.global_checkpoint", copy);
                     assertNotNull(globalCheckpoint);
+                    assertThat(XContentMapValues.extractValue("seq_no.max_seq_no", copy), equalTo(globalCheckpoint));
                     @SuppressWarnings("unchecked") List<Map<String, ?>> retentionLeases =
                         (List<Map<String, ?>>) XContentMapValues.extractValue("retention_leases.leases", copy);
                     if (retentionLeases == null) {

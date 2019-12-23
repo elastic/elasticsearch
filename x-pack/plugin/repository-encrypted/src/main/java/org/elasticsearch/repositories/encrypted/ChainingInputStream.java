@@ -33,7 +33,8 @@ import org.elasticsearch.common.Nullable;
  * The {@code close} call will close the current component input stream and any subsequent {@code read},
  * {@code skip}, {@code available} and {@code reset} calls will throw {@code IOException}s.
  * <p>
- * The {@code ChainingInputStream} is similar in purpose to the {@link java.io.SequenceInputStream}.
+ * The {@code ChainingInputStream} is similar in purpose to the {@link java.io.SequenceInputStream},
+ with the addition of `mark` / `reset` support.
  * <p>
  * This is NOT thread-safe, multiple threads sharing a single instance must synchronize access.
  */

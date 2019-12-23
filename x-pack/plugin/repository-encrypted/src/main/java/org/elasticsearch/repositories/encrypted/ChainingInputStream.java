@@ -19,7 +19,8 @@ import org.elasticsearch.common.Nullable;
  * <p>
  * The implementing subclass provides the component input streams by implementing the
  * {@link #nextComponent(InputStream)} method. This method receives the instance of the
- * current input stream, which has been exhausted, and must return the next input stream.
+ * current input stream, which has been exhausted, and must return the next input stream,
+ or {@code null} if there are no more component streams.
  * The {@code ChainingInputStream} assumes ownership of the newly generated component input
  * stream, i.e. they should not be used by other callers and they will be closed when they
  * are exhausted or when the {@code ChainingInputStream} is closed.

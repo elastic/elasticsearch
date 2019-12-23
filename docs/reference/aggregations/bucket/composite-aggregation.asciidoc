@@ -467,9 +467,9 @@ GET /_search
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 
-To get the next set buckets send the same aggregation again but add the `after`
-parameter with the value set to the `after_key` returned in the last response.
-This will continue the example above:
+To get the next set of buckets, resend the same aggregation with the `after`
+parameter set to the `after_key` value returned in the response.
+For example, this request uses the `after_key` value provided in the previous response:
 
 [source,console,id=composite-aggregation-after-example]
 --------------------------------------------------
@@ -493,8 +493,8 @@ GET /_search
 
 <1> Should restrict the aggregation to buckets that sort **after** the provided values.
 
-NOTE: While the `after_key` is *usually* the key to the last bucket returned in
-the response that isn't guaranteed. Always use the returned `after_key` instead
+NOTE: The `after_key` is *usually* the key to the last bucket returned in
+the response, but that isn't guaranteed. Always use the returned `after_key` instead
 of derriving it from the buckets.
 
 ==== Early termination

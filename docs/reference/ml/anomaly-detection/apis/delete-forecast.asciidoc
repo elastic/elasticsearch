@@ -41,12 +41,14 @@ For more information, see
 ==== {api-path-parms-title}
 
 `<forecast_id>`::
-  (Optional, string) A comma-separated list of forecast identifiers. 
-  If you do not specify this optional parameter or if you specify `_all`, the 
-  API deletes all forecasts from the job. 
+(Optional, string) A comma-separated list of forecast identifiers. If you do not
+specify this optional parameter or if you specify `_all`, the API deletes all
+forecasts from the job. 
   
 `<job_id>`::
-  (Required, string) Required. Identifier for the job.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+  
 
 [[ml-delete-forecast-query-parms]]
 ==== {api-query-parms-title}

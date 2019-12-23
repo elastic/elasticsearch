@@ -43,16 +43,6 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 
 --
 
-`detectors`.`custom_rules`::
-(array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
-`detectors`.`description`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
-`detectors`.`detector_index`::
-(integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
-
 [[update-analysislimits]]`analysis_limits`.`model_memory_limit`::
 (long or string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
@@ -84,6 +74,18 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
 `description`::
 (string) A description of the job.
+
+`detectors`::
+(array) An array of detector update objects.
+`detectors`.`custom_rules`::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-update]
+`detectors`.`description`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
+`detectors`.`detector_index`::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
 
 `groups`::
 (array of strings)

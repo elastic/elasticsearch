@@ -71,7 +71,8 @@ The API returns an array of category objects, which have the following propertie
 
 `grok_pattern`::
 experimental[] (string) A Grok pattern that could be used in {ls} or an ingest 
-pipeline to extract fields from messages that match the category. This field is experimental and may be changed or removed in a future release. The Grok
+pipeline to extract fields from messages that match the category. This field is
+experimental and may be changed or removed in a future release. The Grok
 patterns that are found are not optimal, but are often a good starting point for
 manual tweaking.
 

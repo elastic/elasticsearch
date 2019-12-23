@@ -72,7 +72,8 @@ informational; you cannot update their values.
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `node`::
-(object) For started {dfeeds} only, the node upon which the {dfeed} is started. The {dfeed} and job will be on the same node.
+(object) For started {dfeeds} only, the node upon which the {dfeed} is started.
+The {dfeed} and job will be on the same node.
 `node`.`id`::: The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
 `node`.`name`::: The node name. For example, `0-o0tOo`.
 `node`.`ephemeral_id`::: The node ephemeral ID.

@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,7 +36,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -73,8 +72,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-
 public class ShardStateAction {
 
     private static final Logger logger = LogManager.getLogger(ShardStateAction.class);
@@ -92,16 +89,19 @@ public class ShardStateAction {
 
     @Inject
     public ShardStateAction(ClusterService clusterService, TransportService transportService,
-                            AllocationService allocationService, RoutingService routingService, ThreadPool threadPool) {
+                            AllocationService allocationService, RerouteService rerouteService, ThreadPool threadPool) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
         transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ThreadPool.Names.SAME, StartedShardEntry::new,
-            new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
+            new ShardStartedTransportHandler(clusterService,
+                new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService, logger),
+                logger));
         transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ThreadPool.Names.SAME, FailedShardEntry::new,
             new ShardFailedTransportHandler(clusterService,
-                new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
+                new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService, logger),
+                logger));
     }
 
     private void sendShardAction(final String actionName, final ClusterState currentState,
@@ -283,12 +283,12 @@ public class ShardStateAction {
 
     public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardEntry> {
         private final AllocationService allocationService;
-        private final RoutingService routingService;
+        private final RerouteService rerouteService;
         private final Logger logger;
 
-        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RoutingService routingService, Logger logger) {
+        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService, Logger logger) {
             this.allocationService = allocationService;
-            this.routingService = routingService;
+            this.rerouteService = rerouteService;
             this.logger = logger;
         }
 
@@ -378,11 +378,14 @@ public class ShardStateAction {
         public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
             int numberOfUnassignedShards = clusterChangedEvent.state().getRoutingNodes().unassigned().size();
             if (numberOfUnassignedShards > 0) {
-                String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("{}, scheduling a reroute", reason);
-                }
-                routingService.reroute(reason);
+                // The reroute called after failing some shards will not assign any shard back to the node on which it failed. If there were
+                // no other options for a failed shard then it is left unassigned. However, absent other options it's better to try and
+                // assign it again, even if that means putting it back on the node on which it previously failed:
+                final String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
+                logger.trace("{}, scheduling a reroute", reason);
+                rerouteService.reroute(reason, Priority.NORMAL, ActionListener.wrap(
+                    r -> logger.trace("{}, reroute completed", reason),
+                    e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)));
             }
         }
     }
@@ -397,16 +400,12 @@ public class ShardStateAction {
 
         FailedShardEntry(StreamInput in) throws IOException {
             super(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             allocationId = in.readString();
             primaryTerm = in.readVLong();
             message = in.readString();
             failure = in.readException();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                markAsStale = in.readBoolean();
-            } else {
-                markAsStale = true;
-            }
+            markAsStale = in.readBoolean();
         }
 
         public FailedShardEntry(ShardId shardId, String allocationId, long primaryTerm,
@@ -435,9 +434,7 @@ public class ShardStateAction {
             out.writeVLong(primaryTerm);
             out.writeString(message);
             out.writeException(failure);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeBoolean(markAsStale);
-            }
+            out.writeBoolean(markAsStale);
         }
 
         @Override
@@ -447,10 +444,10 @@ public class ShardStateAction {
             components.add("allocation id [" + allocationId + "]");
             components.add("primary term [" + primaryTerm + "]");
             components.add("message [" + message + "]");
-            if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
-            }
             components.add("markAsStale [" + markAsStale + "]");
+            if (failure != null) {
+                components.add("failure [" + ExceptionsHelper.stackTrace(failure) + "]");
+            }
             return String.join(", ", components);
         }
 
@@ -517,10 +514,12 @@ public class ShardStateAction {
             implements ClusterStateTaskExecutor<StartedShardEntry>, ClusterStateTaskListener {
         private final AllocationService allocationService;
         private final Logger logger;
+        private final RerouteService rerouteService;
 
-        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, Logger logger) {
+        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService, Logger logger) {
             this.allocationService = allocationService;
             this.logger = logger;
+            this.rerouteService = rerouteService;
         }
 
         @Override
@@ -589,7 +588,18 @@ public class ShardStateAction {
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
+                logger.debug(() -> new ParameterizedMessage("failure during [{}]", source), e);
+            } else {
+                logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            }
+        }
+
+        @Override
+        public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            rerouteService.reroute("reroute after starting shards", Priority.NORMAL, ActionListener.wrap(
+                r -> logger.trace("reroute after starting shards succeeded"),
+                e -> logger.debug("reroute after starting shards failed", e)));
         }
     }
 
@@ -601,21 +611,10 @@ public class ShardStateAction {
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             allocationId = in.readString();
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                primaryTerm = in.readVLong();
-                assert primaryTerm == UNASSIGNED_PRIMARY_TERM : "shard is only started by itself: primary term [" + primaryTerm + "]";
-            } else if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                primaryTerm = in.readVLong();
-            } else {
-                primaryTerm = UNASSIGNED_PRIMARY_TERM;
-            }
+            primaryTerm = in.readVLong();
             this.message = in.readString();
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                final Exception ex = in.readException();
-                assert ex == null : "started shard must not have failure [" + ex + "]";
-            }
         }
 
         public StartedShardEntry(final ShardId shardId, final String allocationId, final long primaryTerm, final String message) {
@@ -630,15 +629,8 @@ public class ShardStateAction {
             super.writeTo(out);
             shardId.writeTo(out);
             out.writeString(allocationId);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                out.writeVLong(0L);
-            } else if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeVLong(primaryTerm);
-            }
+            out.writeVLong(primaryTerm);
             out.writeString(message);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                out.writeException(null);
-            }
         }
 
         @Override

@@ -3,6 +3,7 @@
 :request: StopDatafeedRequest
 :response: StopDatafeedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Stop Datafeed API
 

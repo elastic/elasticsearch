@@ -20,17 +20,13 @@
 package org.elasticsearch;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 
-import java.io.IOException;
-
 public class RestDieWithDignityAction extends BaseRestHandler {
 
-    RestDieWithDignityAction(final Settings settings, final RestController restController) {
-        super(settings);
+    RestDieWithDignityAction(final RestController restController) {
         restController.registerHandler(RestRequest.Method.GET, "/_die_with_dignity", this);
     }
 
@@ -40,7 +36,7 @@ public class RestDieWithDignityAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         throw new OutOfMemoryError("die with dignity");
     }
 

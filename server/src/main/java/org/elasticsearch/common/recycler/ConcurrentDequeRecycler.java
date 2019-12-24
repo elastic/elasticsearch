@@ -33,20 +33,13 @@ public class ConcurrentDequeRecycler<T> extends DequeRecycler<T> {
     final AtomicInteger size;
 
     public ConcurrentDequeRecycler(C<T> c, int maxSize) {
-        super(c, ConcurrentCollections.<T>newDeque(), maxSize);
+        super(c, ConcurrentCollections.newDeque(), maxSize);
         this.size = new AtomicInteger();
     }
 
     @Override
-    public void close() {
-        assert deque.size() == size.get();
-        super.close();
-        size.set(0);
-    }
-
-    @Override
-    public V<T> obtain(int sizing) {
-        final V<T> v = super.obtain(sizing);
+    public V<T> obtain() {
+        final V<T> v = super.obtain();
         if (v.isRecycled()) {
             size.decrementAndGet();
         }

@@ -85,8 +85,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
     public void testWatcherStats() throws Exception {
         WatcherStatsRequest request = new WatcherStatsRequest();
         request.includeStats(true);
-        WatcherStatsResponse.Node nodeResponse1 = action.nodeOperation(new WatcherStatsRequest.Node(request, "nodeId"));
-        WatcherStatsResponse.Node nodeResponse2 = action.nodeOperation(new WatcherStatsRequest.Node(request, "nodeId2"));
+        WatcherStatsResponse.Node nodeResponse1 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
+        WatcherStatsResponse.Node nodeResponse2 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
 
         WatcherStatsResponse response = action.newResponse(request,
             Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());

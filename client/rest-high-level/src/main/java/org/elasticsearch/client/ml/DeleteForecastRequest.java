@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -37,7 +36,7 @@ import java.util.Objects;
 /**
  * POJO for a delete forecast request
  */
-public class DeleteForecastRequest extends ActionRequest implements ToXContentObject {
+public class DeleteForecastRequest implements Validatable, ToXContentObject {
 
     public static final ParseField FORECAST_ID = new ParseField("forecast_id");
     public static final ParseField ALLOW_NO_FORECASTS = new ParseField("allow_no_forecasts");
@@ -157,11 +156,6 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
     @Override
     public int hashCode() {
         return Objects.hash(jobId, forecastIds, allowNoForecasts, timeout);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

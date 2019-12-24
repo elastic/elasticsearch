@@ -44,7 +44,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -613,7 +612,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(0, reader, () -> 0L, null);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(0, searcher, () -> 0L, null);
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
         sortBuilder.setNestedSort(new NestedSortBuilder("chapters").setNestedSort(new NestedSortBuilder("chapters.paragraphs")));
@@ -793,13 +792,15 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
         }
+
+        searcher.getIndexReader().close();
     }
 
     private static TopFieldDocs search(QueryBuilder queryBuilder, FieldSortBuilder sortBuilder, QueryShardContext queryShardContext,
                                        IndexSearcher searcher) throws IOException {
         Query query = new BooleanQuery.Builder()
             .add(queryBuilder.toQuery(queryShardContext), Occur.MUST)
-            .add(Queries.newNonNestedFilter(Version.CURRENT), Occur.FILTER)
+            .add(Queries.newNonNestedFilter(), Occur.FILTER)
             .build();
         Sort sort = new Sort(sortBuilder.build(queryShardContext).field);
         return searcher.search(query, 10, sort);

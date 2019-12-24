@@ -47,6 +47,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext);
     }
 
+    @SuppressWarnings("rawtypes")
     public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);

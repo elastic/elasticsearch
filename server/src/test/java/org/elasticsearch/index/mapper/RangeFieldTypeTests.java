@@ -28,6 +28,7 @@ import org.apache.lucene.document.LongRange;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
@@ -37,9 +38,9 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
-import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
@@ -49,6 +50,7 @@ import java.net.InetAddress;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
@@ -92,19 +94,144 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         boolean includeUpper = randomBoolean();
         Object from = nextFrom();
         Object to = nextTo(from);
+        if (includeLower == false && includeUpper == false) {
+            // need to increase once more, otherwise interval is empty because edge values are exclusive
+            to = nextTo(to);
+        }
 
         assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
             ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
+    }
+
+    /**
+     * test the queries are correct if from/to are adjacent and the range is exclusive of those values
+     */
+    public void testRangeQueryIntersectsAdjacentValues() throws Exception {
+        QueryShardContext context = createContext();
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+        RangeFieldType ft = new RangeFieldType(type);
+        ft.setName(FIELDNAME);
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Object from = null;
+        Object to = null;
+        switch (type) {
+            case LONG: {
+                long fromValue = randomLong();
+                from = fromValue;
+                to = fromValue + 1;
+                break;
+            }
+            case DATE: {
+                long fromValue = randomInt();
+                from = new DateTime(fromValue);
+                to = new DateTime(fromValue + 1);
+                break;
+            }
+            case INTEGER: {
+                int fromValue = randomInt();
+                from = fromValue;
+                to = fromValue + 1;
+                break;
+            }
+            case DOUBLE: {
+                double fromValue = randomDoubleBetween(0, 100, true);
+                from = fromValue;
+                to = Math.nextUp(fromValue);
+                break;
+            }
+            case FLOAT: {
+                float fromValue = randomFloat();
+                from = fromValue;
+                to = Math.nextUp(fromValue);
+                break;
+            }
+            case IP: {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                InetAddress fromValue = InetAddress.getByAddress(ipv4);
+                from = fromValue;
+                to = InetAddressPoint.nextUp(fromValue);
+                break;
+            }
+            default:
+                from = nextFrom();
+                to = nextTo(from);
+        }
+        Query rangeQuery = ft.rangeQuery(from, to, false, false, relation, null, null, context);
+            assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
+            assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
+    }
+    
+    /**
+     * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
+     */
+    public void testFromLargerToErrors() throws Exception {
+        QueryShardContext context = createContext();
+        RangeFieldType ft = new RangeFieldType(type);
+        ft.setName(FIELDNAME);
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        final Object from;
+        final Object to;
+        switch (type) {
+            case LONG: {
+                long fromValue = randomLong();
+                from = fromValue;
+                to = fromValue - 1L;
+                break;
+            }
+            case DATE: {
+                long fromValue = randomInt();
+                from = new DateTime(fromValue);
+                to = new DateTime(fromValue - 1);
+                break;
+            }
+            case INTEGER: {
+                int fromValue = randomInt();
+                from = fromValue;
+                to = fromValue - 1;
+                break;
+            }
+            case DOUBLE: {
+                double fromValue = randomDoubleBetween(0, 100, true);
+                from = fromValue;
+                to = fromValue - 1.0d;
+                break;
+            }
+            case FLOAT: {
+                float fromValue = randomFloat();
+                from = fromValue;
+                to = fromValue - 1.0f;
+                break;
+            }
+            case IP: {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                InetAddress fromValue = InetAddress.getByAddress(ipv4);
+                from = fromValue;
+                to = InetAddressPoint.nextDown(fromValue);
+                break;
+            }
+            default:
+                // quit test for other range types
+                return;
+        }
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () ->   ft.rangeQuery(from, to, true, true, relation, null, null, context));
+        assertTrue(ex.getMessage().contains("Range query `from` value"));
+        assertTrue(ex.getMessage().contains("is greater than `to` value"));
     }
 
     private QueryShardContext createContext() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null);
+        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null);
     }
-
+    
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
@@ -307,9 +434,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseIp() {
-        assertEquals(InetAddresses.forString("::1"), RangeFieldMapper.RangeType.IP.parse(InetAddresses.forString("::1"), randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeFieldMapper.RangeType.IP.parse("::1", randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeFieldMapper.RangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(InetAddresses.forString("::1"), randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse("::1", randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
     }
 
     public void testTermQuery() throws Exception {

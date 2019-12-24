@@ -16,10 +16,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 
@@ -27,6 +29,9 @@ import java.util.function.BiFunction;
  * A holder for the current state of the license for all xpack features.
  */
 public class XPackLicenseState {
+
+    public static final Set<OperationMode> FIPS_ALLOWED_LICENSE_OPERATION_MODES =
+        EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);
 
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
@@ -70,6 +75,13 @@ public class XPackLicenseState {
             "Creating and Starting rollup jobs will no longer be allowed.",
             "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function."
         });
+        messages.put(XPackField.TRANSFORM, new String[] {
+            "Creating, starting, updating transforms will no longer be allowed.",
+            "Stopping/Deleting existing transforms continue to function."
+        });
+        messages.put(XPackField.ANALYTICS, new String[] {
+            "Aggregations provided by Data Science plugin are no longer usable."
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -95,13 +107,18 @@ public class XPackLicenseState {
         switch (newMode) {
             case BASIC:
                 switch (currentMode) {
-                    case TRIAL:
                     case STANDARD:
+                        return new String[] {
+                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
+                        };
+                    case TRIAL:
                     case GOLD:
                     case PLATINUM:
                         return new String[] {
-                            "The following X-Pack security functionality will be disabled: authentication, authorization, " +
-                                "ip filtering, and auditing. Please restart your node after applying the license.",
+                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
+                            "Authentication will be limited to the native and file realms.",
+                            "Security tokens and API keys will not be supported.",
+                            "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
                             "A custom authorization engine will be ignored."
@@ -125,7 +142,7 @@ public class XPackLicenseState {
             case STANDARD:
                 switch (currentMode) {
                     case BASIC:
-                        // ^^ though technically it was already disabled, it's not bad to remind them
+                        // ^^ though technically it doesn't change the feature set, it's not bad to remind them
                     case GOLD:
                     case PLATINUM:
                     case TRIAL:
@@ -277,7 +294,7 @@ public class XPackLicenseState {
     public XPackLicenseState(Settings settings) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.isSecurityExplicitlyEnabled = isSecurityEnabled && settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
+        this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
     }
 
     private XPackLicenseState(XPackLicenseState xPackLicenseState) {
@@ -285,6 +302,10 @@ public class XPackLicenseState {
         this.isSecurityEnabled = xPackLicenseState.isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = xPackLicenseState.isSecurityExplicitlyEnabled;
         this.status = xPackLicenseState.status;
+    }
+
+    private static boolean isSecurityExplicitlyEnabled(Settings settings) {
+        return settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
     }
 
     /**
@@ -331,8 +352,17 @@ public class XPackLicenseState {
         OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled =
             isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-        return isSecurityCurrentlyEnabled && (mode == OperationMode.STANDARD || mode == OperationMode.GOLD
-            || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+        if (isSecurityCurrentlyEnabled) {
+            switch (mode) {
+                case BASIC:
+                case STANDARD:
+                case GOLD:
+                case PLATINUM:
+                case TRIAL:
+                    return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -405,6 +435,7 @@ public class XPackLicenseState {
                     return AllowedRealmType.ALL;
                 case GOLD:
                     return AllowedRealmType.DEFAULT;
+                case BASIC:
                 case STANDARD:
                     return AllowedRealmType.NATIVE;
                 default:
@@ -423,6 +454,24 @@ public class XPackLicenseState {
             isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (status.mode == OperationMode.PLATINUM || status.mode == OperationMode.TRIAL)
                 && status.active;
+    }
+
+    /**
+     * @return whether the Elasticsearch {@code TokenService} is allowed based on the license {@link OperationMode}
+     */
+    public synchronized boolean isTokenServiceAllowed() {
+        final OperationMode mode = status.mode;
+        final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+    }
+
+    /**
+     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the current node/cluster state
+     */
+    public synchronized boolean isApiKeyServiceAllowed() {
+        final OperationMode mode = status.mode;
+        final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled;
     }
 
     /**
@@ -554,12 +603,17 @@ public class XPackLicenseState {
     }
 
     /**
-     * Data Frame is always available as long as there is a valid license
+     * Transform is always available as long as there is a valid license
      *
      * @return true if the license is active
      */
-    public synchronized boolean isDataFrameAllowed() {
+    public synchronized boolean isTransformAllowed() {
         return status.active;
+    }
+
+    public static boolean isTransformAllowedForOperationMode(final OperationMode operationMode) {
+        // any license (basic and upwards)
+        return operationMode != License.OperationMode.MISSING;
     }
 
     /**
@@ -568,6 +622,15 @@ public class XPackLicenseState {
      * @return true if the license is active
      */
     public synchronized boolean isRollupAllowed() {
+        return status.active;
+    }
+
+    /**
+     * Voting only node functionality is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isVotingOnlyAllowed() {
         return status.active;
     }
 
@@ -628,6 +691,22 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if the enrich processor and related APIs are allowed to be used.
+     * <p>
+     * This is available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isEnrichAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
+    /**
      * Determine if SQL support should be enabled.
      * <p>
      *  SQL is available for all license types except {@link OperationMode#MISSING}
@@ -651,6 +730,24 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if support for flattened object fields should be enabled.
+     * <p>
+     * Flattened fields are available for all license types except {@link OperationMode#MISSING}.
+     */
+    public synchronized boolean isFlattenedAllowed() {
+        return status.active;
+    }
+
+    /**
+     * Determine if Vectors support should be enabled.
+     * <p>
+     *  Vectors is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isVectorsAllowed() {
+        return status.active;
+    }
+
+    /**
      * Determine if ODBC support should be enabled.
      * <p>
      * ODBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
@@ -664,6 +761,31 @@ public class XPackLicenseState {
         return licensed && localStatus.active;
     }
 
+    /**
+     * Determine if Spatial features should be enabled.
+     * <p>
+     * Spatial features are available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isSpatialAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
+    /**
+     * Datascience is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isDataScienceAllowed() {
+        return status.active;
+    }
+
     public synchronized boolean isTrialLicense() {
         return status.mode == OperationMode.TRIAL;
     }
@@ -674,24 +796,54 @@ public class XPackLicenseState {
     public synchronized boolean isSecurityAvailable() {
         OperationMode mode = status.mode;
         return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
-                mode == OperationMode.TRIAL;
+                mode == OperationMode.TRIAL || mode == OperationMode.BASIC;
     }
 
     /**
-     * @return true if security has been disabled by a trial license which is the case of the
-     *         default distribution post 6.3.0. The conditions necessary for this are:
+     * @return true if security has been disabled due it being the default setting for this license type.
+     *  The conditions necessary for this are:
      *         <ul>
-     *             <li>A trial license</li>
+     *             <li>A trial or basic license</li>
      *             <li>xpack.security.enabled not specified as a setting</li>
      *         </ul>
      */
-    public synchronized boolean isSecurityDisabledByTrialLicense() {
-        return status.mode == OperationMode.TRIAL && isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+    public synchronized boolean isSecurityDisabledByLicenseDefaults() {
+        switch (status.mode) {
+            case TRIAL:
+            case BASIC:
+                return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+        }
+        return false;
+    }
+
+    public static boolean isTransportTlsRequired(License license, Settings settings) {
+        if (license == null) {
+            return false;
+        }
+        switch (license.operationMode()) {
+            case STANDARD:
+            case GOLD:
+            case PLATINUM:
+                return XPackSettings.SECURITY_ENABLED.get(settings);
+            case BASIC:
+                return XPackSettings.SECURITY_ENABLED.get(settings) && isSecurityExplicitlyEnabled(settings);
+            case MISSING:
+            case TRIAL:
+                return false;
+            default:
+                throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
+        }
     }
 
     private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,
                                              final boolean isSecurityEnabled) {
-        return mode == OperationMode.TRIAL ? isSecurityExplicitlyEnabled : isSecurityEnabled;
+        switch (mode) {
+            case TRIAL:
+            case BASIC:
+                return isSecurityExplicitlyEnabled;
+            default:
+                return isSecurityEnabled;
+        }
     }
 
     /**

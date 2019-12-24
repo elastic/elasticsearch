@@ -48,15 +48,18 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
         PARSER.declareField(constructorArg(), (parser, context) -> parser.intValue(), NUMFREED, ObjectParser.ValueType.INT);
     }
 
-    private boolean succeeded;
-    private int numFreed;
+    private final boolean succeeded;
+    private final int numFreed;
 
     public ClearScrollResponse(boolean succeeded, int numFreed) {
         this.succeeded = succeeded;
         this.numFreed = numFreed;
     }
 
-    ClearScrollResponse() {
+    public ClearScrollResponse(StreamInput in) throws IOException {
+        super(in);
+        succeeded = in.readBoolean();
+        numFreed = in.readVInt();
     }
 
     /**
@@ -96,15 +99,7 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        succeeded = in.readBoolean();
-        numFreed = in.readVInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(succeeded);
         out.writeVInt(numFreed);
     }

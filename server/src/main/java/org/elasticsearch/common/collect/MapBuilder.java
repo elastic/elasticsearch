@@ -22,8 +22,7 @@ package org.elasticsearch.common.collect;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.unmodifiableMap;
-
+// TODO: replace with usages of Map.of and Map.ofEntries
 public class MapBuilder<K, V> {
 
     public static <K, V> MapBuilder<K, V> newMapBuilder() {
@@ -86,6 +85,6 @@ public class MapBuilder<K, V> {
      */
     public Map<K, V> immutableMap() {
         // TODO: follow the directions in the Javadoc for this method
-        return unmodifiableMap(new HashMap<>(map));
+        return Map.copyOf(map);
     }
 }

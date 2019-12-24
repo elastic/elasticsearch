@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Optional;
 
 /**
@@ -110,13 +111,20 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
 
-        final ShardRouting shardRouting;
         try {
-            shardRouting = allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
+            allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
-        if (shardRouting.unassigned() == false) {
+
+        ShardRouting shardRouting = null;
+        for (ShardRouting shard : allocation.routingNodes().unassigned()) {
+            if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary()) {
+                shardRouting = shard;
+                break;
+            }
+        }
+        if (shardRouting == null) {
             return explainOrThrowRejectedCommand(explain, allocation, "primary [" + index + "][" + shardId + "] is already assigned");
         }
 
@@ -132,7 +140,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                 ", " + shardRouting.unassignedInfo().getMessage();
             unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY, unassignedInfoMessage,
                 shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis(), false,
-                shardRouting.unassignedInfo().getLastAllocationStatus());
+                shardRouting.unassignedInfo().getLastAllocationStatus(), Collections.emptySet());
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate,

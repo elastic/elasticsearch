@@ -83,7 +83,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collections;
@@ -703,7 +702,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts").id("4")  // <3>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
-            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT); 
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
 
@@ -824,19 +823,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::reindex-request-conflicts
-            // tag::reindex-request-size
-            request.setSize(10); // <1>
-            // end::reindex-request-size
+            // tag::reindex-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::reindex-request-maxDocs
             // tag::reindex-request-sourceSize
             request.setSourceBatchSize(100); // <1>
             // end::reindex-request-sourceSize
             // tag::reindex-request-pipeline
             request.setDestPipeline("my_pipeline"); // <1>
             // end::reindex-request-pipeline
-            // tag::reindex-request-sort
-            request.addSortField("field1", SortOrder.DESC); // <1>
-            request.addSortField("field2", SortOrder.ASC); // <2>
-            // end::reindex-request-sort
             // tag::reindex-request-script
             request.setScript(
                 new Script(
@@ -1026,9 +1021,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::update-by-query-request-query
-            // tag::update-by-query-request-size
-            request.setSize(10); // <1>
-            // end::update-by-query-request-size
+            // tag::update-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::update-by-query-request-maxDocs
             // tag::update-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::update-by-query-request-scrollSize
@@ -1148,9 +1143,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::delete-by-query-request-query
-            // tag::delete-by-query-request-size
-            request.setSize(10); // <1>
-            // end::delete-by-query-request-size
+            // tag::delete-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::delete-by-query-request-maxDocs
             // tag::delete-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::delete-by-query-request-scrollSize
@@ -1614,9 +1609,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::term-vectors-response
         String index = response.getIndex(); // <1>
-        String type = response.getType(); // <2>
-        String id = response.getId(); // <3>
-        boolean found = response.getFound(); // <4>
+        String id = response.getId(); // <2>
+        boolean found = response.getFound(); // <3>
         // end::term-vectors-response
 
         if (response.getTermVectorsList() != null) {
@@ -1944,7 +1938,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getResponses(), arrayWithSize(1));
         MultiGetItemResponse item = response.getResponses()[0];
         assertEquals("index", item.getIndex());
-        assertEquals("_doc", item.getType());
         assertEquals("example_id", item.getId());
         return item;
     }

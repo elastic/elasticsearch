@@ -1,5 +1,6 @@
 ---
 "Test execute watch api with minimal body":
+
   - do:
       cluster.health:
           wait_for_status: green

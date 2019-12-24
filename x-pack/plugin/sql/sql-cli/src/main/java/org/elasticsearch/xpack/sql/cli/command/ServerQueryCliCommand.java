@@ -25,7 +25,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         BasicFormatter formatter;
         String data;
         try {
-            response = cliClient.queryInit(line, cliSession.getFetchSize());
+            response = cliClient.basicQuery(line, cliSession.getFetchSize());
             formatter = new BasicFormatter(response.columns(), response.rows(), CLI);
             data = formatter.formatWithHeader(response.columns(), response.rows());
             while (true) {

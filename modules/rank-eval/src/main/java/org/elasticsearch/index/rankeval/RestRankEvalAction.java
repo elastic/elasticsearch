@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -90,8 +90,7 @@ public class RestRankEvalAction extends BaseRestHandler {
 
     public static String ENDPOINT = "_rank_eval";
 
-    public RestRankEvalAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestRankEvalAction(RestController controller) {
         controller.registerHandler(GET, "/" + ENDPOINT, this);
         controller.registerHandler(POST, "/" + ENDPOINT, this);
         controller.registerHandler(GET, "/{index}/" + ENDPOINT, this);
@@ -111,6 +110,9 @@ public class RestRankEvalAction extends BaseRestHandler {
     private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {
         rankEvalRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         rankEvalRequest.indicesOptions(IndicesOptions.fromRequest(request, rankEvalRequest.indicesOptions()));
+        if (request.hasParam("search_type")) {
+            rankEvalRequest.searchType(SearchType.fromString(request.param("search_type")));
+        }
         RankEvalSpec spec = RankEvalSpec.parse(parser);
         rankEvalRequest.setRankEvalSpec(spec);
     }

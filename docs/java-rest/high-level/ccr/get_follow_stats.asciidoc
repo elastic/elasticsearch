@@ -3,7 +3,7 @@
 :request: FollowStatsRequest
 :response: FollowStatsResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Follow Stats API
 

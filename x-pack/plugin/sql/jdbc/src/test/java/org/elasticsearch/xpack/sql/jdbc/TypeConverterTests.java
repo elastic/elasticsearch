@@ -11,16 +11,18 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.sql.Date;
 import java.sql.Timestamp;
-import java.time.Clock;
-import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
+import static org.elasticsearch.xpack.sql.jdbc.JdbcTestUtils.nowWithMillisResolution;
 import static org.hamcrest.Matchers.instanceOf;
 
 
 public class TypeConverterTests extends ESTestCase {
+
+    private static final ZoneId UTC = ZoneId.of("Z");
 
     public void testFloatAsNative() throws Exception {
         assertThat(convertAsNative(42.0f, EsType.FLOAT), instanceOf(Float.class));
@@ -41,9 +43,22 @@ public class TypeConverterTests extends ESTestCase {
     }
 
     public void testTimestampAsNative() throws Exception {
-        ZonedDateTime now = ZonedDateTime.now(Clock.tick(Clock.system(ZoneId.of("Z")), Duration.ofMillis(1)));
-        assertThat(convertAsNative(now, EsType.DATETIME), instanceOf(Timestamp.class));
-        assertEquals(now.toInstant().toEpochMilli(), ((Timestamp) convertAsNative(now, EsType.DATETIME)).getTime());
+        ZonedDateTime now = nowWithMillisResolution(UTC);
+        Object nativeObject = convertAsNative(now, EsType.DATETIME);
+        assertThat(nativeObject, instanceOf(Timestamp.class));
+        assertEquals(now.toInstant().toEpochMilli(), ((Timestamp) nativeObject).getTime());
+    }
+
+    public void testDateAsNative() throws Exception {
+        ZonedDateTime now = nowWithMillisResolution(UTC);
+        Object nativeObject = convertAsNative(now, EsType.DATE);
+        assertThat(nativeObject, instanceOf(Date.class));
+        assertEquals(now.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli(), ((Date) nativeObject).getTime());
+
+        now = nowWithMillisResolution(ZoneId.of("Etc/GMT-10"));
+        nativeObject = convertAsNative(now, EsType.DATE);
+        assertThat(nativeObject, instanceOf(Date.class));
+        assertEquals(now.toLocalDate().atStartOfDay(ZoneId.of("Etc/GMT-10")).toInstant().toEpochMilli(), ((Date) nativeObject).getTime());
     }
 
     private Object convertAsNative(Object value, EsType type) throws Exception {

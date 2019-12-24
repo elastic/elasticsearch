@@ -80,8 +80,8 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
         }
 
         @Override
-        public AbstractStringProcessor create(Map<String, Processor.Factory> registry, String tag,
-                                              Map<String, Object> config) throws Exception {
+        public AbstractStringProcessor<?> create(Map<String, Processor.Factory> registry, String tag,
+                                                 Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(processorType, tag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(processorType, tag, config, "target_field", field);
@@ -89,7 +89,7 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             return newProcessor(tag, config, field, ignoreMissing, targetField);
         }
 
-        protected abstract AbstractStringProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
-                                                                boolean ignoreMissing, String targetField);
+        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, Map<String, Object> config, String field,
+                                                                   boolean ignoreMissing, String targetField);
     }
 }

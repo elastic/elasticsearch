@@ -51,10 +51,7 @@ public class GroupedActionListenerTests extends ESTestCase {
         };
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
-        Collection<Integer> defaults = randomBoolean() ? Collections.singletonList(-1) :
-            Collections.emptyList();
-        GroupedActionListener<Integer> listener = new GroupedActionListener<>(result, groupSize,
-            defaults);
+        GroupedActionListener<Integer> listener = new GroupedActionListener<>(result, groupSize);
         int numThreads = randomIntBetween(2, 5);
         Thread[] threads = new Thread[numThreads];
         CyclicBarrier barrier = new CyclicBarrier(numThreads);
@@ -65,7 +62,7 @@ public class GroupedActionListenerTests extends ESTestCase {
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }
-                int c = 0;
+                int c;
                 while((c = count.incrementAndGet()) <= groupSize) {
                     listener.onResponse(c-1);
                 }
@@ -78,10 +75,9 @@ public class GroupedActionListenerTests extends ESTestCase {
         assertNotNull(resRef.get());
         ArrayList<Integer> list = new ArrayList<>(resRef.get());
         Collections.sort(list);
-        int expectedSize = groupSize + defaults.size();
-        assertEquals(expectedSize, resRef.get().size());
-        int expectedValue = defaults.isEmpty() ? 0 : -1;
-        for (int i = 0; i < expectedSize; i++) {
+        assertEquals(groupSize, resRef.get().size());
+        int expectedValue = 0;
+        for (int i = 0; i < groupSize; i++) {
             assertEquals(Integer.valueOf(expectedValue++), list.get(i));
         }
     }
@@ -101,9 +97,8 @@ public class GroupedActionListenerTests extends ESTestCase {
                 excRef.set(e);
             }
         };
-        Collection<Integer> defaults = randomBoolean() ? Collections.singletonList(-1) : Collections.emptyList();
         int size = randomIntBetween(3, 4);
-        GroupedActionListener<Integer> listener = new GroupedActionListener<>(result, size, defaults);
+        GroupedActionListener<Integer> listener = new GroupedActionListener<>(result, size);
         listener.onResponse(0);
         IOException ioException = new IOException();
         RuntimeException rtException = new RuntimeException();
@@ -124,8 +119,7 @@ public class GroupedActionListenerTests extends ESTestCase {
     public void testConcurrentFailures() throws InterruptedException {
         AtomicReference<Exception> finalException = new AtomicReference<>();
         int numGroups = randomIntBetween(10, 100);
-        GroupedActionListener<Void> listener = new GroupedActionListener<>(
-            ActionListener.wrap(r -> {}, finalException::set), numGroups, Collections.emptyList());
+        GroupedActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(r -> {}, finalException::set), numGroups);
         ExecutorService executorService = Executors.newFixedThreadPool(numGroups);
         for (int i = 0; i < numGroups; i++) {
             executorService.submit(() -> listener.onFailure(new IOException()));

@@ -158,6 +158,3 @@ which is used to determine whether the resource should be replaced. The `version
 field value represents the latest version of {monitoring} that changed the 
 resource. If a resource is edited by someone or something external to 
 {monitoring}, those changes are lost the next time an automatic update occurs. 
-
-include::local-export.asciidoc[]
-include::http-export.asciidoc[]

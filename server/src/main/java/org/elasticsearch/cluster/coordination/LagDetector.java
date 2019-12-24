@@ -162,7 +162,9 @@ public class LagDetector {
                 return;
             }
 
-            logger.debug("{}, detected lag at version {}, node has only applied version {}", this, version, appliedVersion);
+            logger.warn(
+                "node [{}] is lagging at cluster state version [{}], although publication of cluster state version [{}] completed [{}] ago",
+                discoveryNode, appliedVersion, version, clusterStateApplicationTimeout);
             onLagDetected.accept(discoveryNode);
         }
     }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.validate;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -26,8 +25,7 @@ public class RestValidateJobConfigAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestValidateJobConfigAction.class));
 
-    public RestValidateJobConfigAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestValidateJobConfigAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             POST, MachineLearning.BASE_PATH + "anomaly_detectors/_validate", this,

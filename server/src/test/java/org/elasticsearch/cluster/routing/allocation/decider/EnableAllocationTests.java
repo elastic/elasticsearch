@@ -109,8 +109,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
-        routingTable = strategy.applyStartedShards(clusterState,
-            clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
+        routingTable = startInitializingShardsAndReroute(strategy, clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
@@ -143,9 +142,9 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
         logger.info("--> start the shards (primaries)");
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         logger.info("--> start the shards (replicas)");
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("--> verify only enabled index has been routed");
         assertThat(clusterState.getRoutingNodes().shardsWithState("enabled", STARTED).size(), equalTo(2));
@@ -192,11 +191,11 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
         logger.info("--> start the shards (primaries)");
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
 
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(8));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 
@@ -250,7 +249,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             default:
                 fail("only replicas, primaries or all are allowed");
         }
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(8));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 
@@ -288,7 +287,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(6));
         logger.info("--> start the shards (primaries)");
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(6));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 

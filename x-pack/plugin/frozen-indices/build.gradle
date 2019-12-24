@@ -1,0 +1,20 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'frozen-indices'
+  description 'A plugin for the frozen indices functionality'
+  classname 'org.elasticsearch.xpack.frozen.FrozenIndices'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-frozen-indices'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+// xpack modules are installed in real clusters as the meta plugin, so
+// installing them as individual plugins for integ tests doesn't make sense,
+// so we disable integ tests
+integTest.enabled = false

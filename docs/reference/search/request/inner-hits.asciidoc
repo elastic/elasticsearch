@@ -1,5 +1,5 @@
-[[search-request-inner-hits]]
-=== Inner hits
+[[request-body-search-inner-hits]]
+==== Inner hits
 
 The <<parent-join, parent-join>> and <<nested, nested>> features allow the return of documents that
 have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child
@@ -39,7 +39,6 @@ If `inner_hits` is defined on a query that supports it then each search hit will
                  "total": ...,
                  "hits": [
                     {
-                       "_type": ...,
                        "_id": ...,
                        ...
                     },
@@ -55,7 +54,7 @@ If `inner_hits` is defined on a query that supports it then each search hit will
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Options
+===== Options
 
 Inner hits support the following options:
 
@@ -70,20 +69,20 @@ Inner hits support the following options:
 
 Inner hits also supports the following per document features:
 
-* <<search-request-highlighting,Highlighting>>
-* <<search-request-explain,Explain>>
-* <<search-request-source-filtering,Source filtering>>
-* <<search-request-script-fields,Script fields>>
-* <<search-request-docvalue-fields,Doc value fields>>
-* <<search-request-version,Include versions>>
-* <<search-request-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
+* <<request-body-search-highlighting,Highlighting>>
+* <<request-body-search-explain,Explain>>
+* <<request-body-search-source-filtering,Source filtering>>
+* <<request-body-search-script-fields,Script fields>>
+* <<request-body-search-docvalue-fields,Doc value fields>>
+* <<request-body-search-version,Include versions>>
+* <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 [[nested-inner-hits]]
-==== Nested inner hits
+===== Nested inner hits
 
 The nested `inner_hits` can be used to include nested inner objects as inner hits to a search hit.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -124,13 +123,12 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition in the nested query. No other options need to be defined.
 
 An example of a response snippet that could be generated from the above search request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...,
@@ -143,7 +141,6 @@ An example of a response snippet that could be generated from the above search r
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": ...,
@@ -158,7 +155,6 @@ An example of a response snippet that could be generated from the above search r
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -198,7 +194,7 @@ So in the above example only the comment part is returned per nested hit and not
 document that contained the comment.
 
 [[nested-inner-hits-source]]
-==== Nested inner hits and +_source+
+===== Nested inner hits and +_source+
 
 Nested document don't have a `_source` field, because the entire source of document is stored with the root document under
 its `_source` field. To include the source of just the nested document, the source of the root document is parsed and just
@@ -207,7 +203,7 @@ has an impact on the time it takes to execute the entire search request, especia
 are set higher than the default. To avoid the relatively expensive source extraction for nested inner hits, one can disable
 including the source and solely rely on doc values fields. Like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -253,13 +249,12 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////
 
 Response not included in text but tested for completeness sake.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...,
@@ -272,7 +267,6 @@ Response not included in text but tested for completeness sake.
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0444684,
         "_source": ...,
@@ -287,7 +281,6 @@ Response not included in text but tested for completeness sake.
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -315,13 +308,13 @@ Response not included in text but tested for completeness sake.
 ////
 
 [[hierarchical-nested-inner-hits]]
-==== Hierarchical levels of nested object fields and inner hits.
+===== Hierarchical levels of nested object fields and inner hits.
 
 If a mapping has multiple levels of hierarchical nested object fields each level can be accessed via dot notated path.
 For example if there is a `comments` nested field that contains a `votes` nested field and votes should directly be returned
 with the root hits then the following path can be defined:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -374,11 +367,10 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Which would look like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...,
@@ -387,13 +379,12 @@ Which would look like:
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 0.6931472,
+    "max_score": 0.6931471,
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
-        "_score": 0.6931472,
+        "_score": 0.6931471,
         "_source": ...,
         "inner_hits": {
           "comments.votes": { <1>
@@ -402,11 +393,10 @@ Which would look like:
                   "value": 1,
                   "relation": "eq"
               },
-              "max_score": 0.6931472,
+              "max_score": 0.6931471,
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -416,7 +406,7 @@ Which would look like:
                       "offset": 0
                     }
                   },
-                  "_score": 0.6931472,
+                  "_score": 0.6931471,
                   "_source": {
                     "value": 1,
                     "voter": "kimchy"
@@ -437,11 +427,11 @@ Which would look like:
 This indirect referencing is only supported for nested inner hits.
 
 [[parent-child-inner-hits]]
-==== Parent/child inner hits
+===== Parent/child inner hits
 
 The parent/child `inner_hits` can be used to include parent or child:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -487,13 +477,12 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition like in the nested example.
 
 An example of a response snippet that could be generated from the above search request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...,
@@ -506,7 +495,6 @@ An example of a response snippet that could be generated from the above search r
         "hits": [
             {
                 "_index": "test",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -524,7 +512,6 @@ An example of a response snippet that could be generated from the above search r
                             "hits": [
                                 {
                                     "_index": "test",
-                                    "_type": "_doc",
                                     "_id": "2",
                                     "_score": 1.0,
                                     "_routing": "1",

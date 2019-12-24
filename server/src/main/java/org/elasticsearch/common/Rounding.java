@@ -19,7 +19,6 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -219,17 +218,21 @@ public abstract class Rounding implements Writeable {
     static class TimeUnitRounding extends Rounding {
 
         static final byte ID = 1;
+        /** Since, there is no offset of -1 ms, it is safe to use -1 for non-fixed timezones */
+        static final long TZ_OFFSET_NON_FIXED = -1;
 
         private final DateTimeUnit unit;
         private final ZoneId timeZone;
         private final boolean unitRoundsToMidnight;
-        private final boolean isUtcTimeZone;
+        /** For fixed offset timezones, this is the offset in milliseconds, otherwise TZ_OFFSET_NON_FIXED */
+        private final long fixedOffsetMillis;
 
         TimeUnitRounding(DateTimeUnit unit, ZoneId timeZone) {
             this.unit = unit;
             this.timeZone = timeZone;
             this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 3600000L;
-            this.isUtcTimeZone = timeZone.normalized().equals(ZoneOffset.UTC);
+            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() == true ?
+                timeZone.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000 : TZ_OFFSET_NON_FIXED;
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
@@ -277,11 +280,12 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public long round(long utcMillis) {
-            // this works as long as the offset doesn't change.  It is worth getting this case out of the way first, as
-            // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
-            // of working in UTC.
-            if (isUtcTimeZone) {
-                return unit.roundFloor(utcMillis);
+            // This works as long as the tz offset doesn't change. It is worth getting this case out of the way first,
+            // as the calculations for fixing things near to offset changes are a little expensive and unnecessary
+            // in the common case of working with fixed offset timezones (such as UTC).
+            if (fixedOffsetMillis != TZ_OFFSET_NON_FIXED) {
+                long localMillis = utcMillis + fixedOffsetMillis;
+                return unit.roundFloor(localMillis) - fixedOffsetMillis;
             }
 
             Instant instant = Instant.ofEpochMilli(utcMillis);
@@ -397,11 +401,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeString(timeZone.getId());
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeString(timeZone.getId());
         }
 
         @Override
@@ -437,20 +437,25 @@ public abstract class Rounding implements Writeable {
         }
 
         static final byte ID = 2;
+        /** Since, there is no offset of -1 ms, it is safe to use -1 for non-fixed timezones */
+        private static final long TZ_OFFSET_NON_FIXED = -1;
 
         private final long interval;
         private final ZoneId timeZone;
+        /** For fixed offset timezones, this is the offset in milliseconds, otherwise TZ_OFFSET_NON_FIXED */
+        private final long fixedOffsetMillis;
 
         TimeIntervalRounding(long interval, ZoneId timeZone) {
             if (interval < 1)
                 throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
+            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() == true ?
+                timeZone.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000 : TZ_OFFSET_NON_FIXED;
         }
 
         TimeIntervalRounding(StreamInput in) throws IOException {
-            interval = in.readVLong();
-            timeZone = DateUtils.of(in.readString());
+            this(in.readVLong(), DateUtils.of(in.readString()));
         }
 
         @Override
@@ -460,6 +465,14 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public long round(final long utcMillis) {
+            // This works as long as the tz offset doesn't change. It is worth getting this case out of the way first,
+            // as the calculations for fixing things near to offset changes are a little expensive and unnecessary
+            // in the common case of working with fixed offset timezones (such as UTC).
+            if (fixedOffsetMillis != TZ_OFFSET_NON_FIXED) {
+                long localMillis = utcMillis + fixedOffsetMillis;
+                return (roundKey(localMillis, interval) * interval) - fixedOffsetMillis;
+            }
+
             final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
             final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
 
@@ -522,11 +535,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeString(timeZone.getId());
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeString(timeZone.getId());
         }
 
         @Override

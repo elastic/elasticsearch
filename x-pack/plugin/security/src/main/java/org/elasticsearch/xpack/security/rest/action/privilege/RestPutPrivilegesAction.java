@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -57,9 +56,9 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutPrivilegesRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutPrivileges(request.requiredContent(), request.getXContentType())
-                .setRefreshPolicy(request.param("refresh"));
+        PutPrivilegesRequestBuilder requestBuilder = new PutPrivilegesRequestBuilder(client)
+            .source(request.requiredContent(), request.getXContentType())
+            .setRefreshPolicy(request.param("refresh"));
 
         return execute(requestBuilder);
     }

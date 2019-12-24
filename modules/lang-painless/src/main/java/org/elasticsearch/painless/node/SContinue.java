@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Set;
 
@@ -41,7 +43,7 @@ public final class SContinue extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (!inLoop) {
             throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
         }
@@ -56,8 +58,8 @@ public final class SContinue extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.goTo(continu);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.goTo(continu);
     }
 
     @Override

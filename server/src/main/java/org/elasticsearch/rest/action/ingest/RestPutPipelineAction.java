@@ -23,7 +23,6 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -34,8 +33,8 @@ import java.io.IOException;
 
 
 public class RestPutPipelineAction extends BaseRestHandler {
-    public RestPutPipelineAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestPutPipelineAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_ingest/pipeline/{id}", this);
     }
 

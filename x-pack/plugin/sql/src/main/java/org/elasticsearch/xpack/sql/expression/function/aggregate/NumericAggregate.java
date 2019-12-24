@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 abstract class NumericAggregate extends AggregateFunction {
 
@@ -25,7 +26,7 @@ abstract class NumericAggregate extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

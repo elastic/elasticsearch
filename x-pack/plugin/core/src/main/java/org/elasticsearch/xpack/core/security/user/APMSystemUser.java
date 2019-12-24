@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 /**
@@ -15,7 +14,6 @@ public class APMSystemUser extends User {
 
     public static final String NAME = UsernamesField.APM_NAME;
     public static final String ROLE_NAME = UsernamesField.APM_ROLE;
-    public static final Version DEFINED_SINCE = Version.V_6_5_0;
 
     public APMSystemUser(boolean enabled) {
         super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);

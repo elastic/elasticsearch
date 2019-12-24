@@ -29,11 +29,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -57,8 +54,8 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
                 // end up being implicitly set to null in that request.
                 int i = 0;
                 final String application = (String) constructorObjects[i++];
-                final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
-                final Collection<String> resources = (Collection<String>) constructorObjects[i];
+                final List<String> privileges = (List<String>) constructorObjects[i++];
+                final List<String> resources = (List<String>) constructorObjects[i];
                 return new ApplicationResourcePrivileges(application, privileges, resources);
             });
 
@@ -69,8 +66,8 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     }
 
     private final String application;
-    private final Set<String> privileges;
-    private final Set<String> resources;
+    private final List<String> privileges;
+    private final List<String> resources;
 
     /**
      * Constructs privileges for resources under an application scope.
@@ -85,7 +82,7 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
      *            The resources names. Cannot be null or empty. Resource identifiers
      *            are completely under the clients control.
      */
-    public ApplicationResourcePrivileges(String application, Collection<String> privileges, Collection<String> resources) {
+    public ApplicationResourcePrivileges(String application, List<String> privileges, List<String> resources) {
         if (Strings.isNullOrEmpty(application)) {
             throw new IllegalArgumentException("application privileges must have an application name");
         }
@@ -96,19 +93,19 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
             throw new IllegalArgumentException("application privileges must refer to at least one resource");
         }
         this.application = application;
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
-        this.resources = Collections.unmodifiableSet(new HashSet<>(resources));
+        this.privileges = List.copyOf(privileges);
+        this.resources = List.copyOf(resources);
     }
 
     public String getApplication() {
         return application;
     }
 
-    public Set<String> getResources() {
+    public List<String> getResources() {
         return this.resources;
     }
 
-    public Set<String> getPrivileges() {
+    public List<String> getPrivileges() {
         return this.privileges;
     }
 

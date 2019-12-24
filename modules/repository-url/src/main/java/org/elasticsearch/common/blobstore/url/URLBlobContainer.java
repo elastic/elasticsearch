@@ -20,8 +20,10 @@
 package org.elasticsearch.common.blobstore.url;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.BufferedInputStream;
@@ -33,6 +35,7 @@ import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -74,6 +77,11 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
+    @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
     /**
      * This operation is not supported by URLBlobContainer
      */
@@ -86,16 +94,13 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public void deleteBlob(String blobName) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 
-    /**
-     * This operation is not supported by URLBlobContainer
-     */
     @Override
-    public boolean blobExists(String blobName) {
-        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    public DeleteResult delete() {
+        throw new UnsupportedOperationException("URL repository is read only");
     }
 
     @Override

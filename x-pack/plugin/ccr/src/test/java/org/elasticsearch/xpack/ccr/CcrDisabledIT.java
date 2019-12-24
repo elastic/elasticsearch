@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
@@ -29,17 +28,7 @@ public class CcrDisabledIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(LocalStateCcr.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(XPackClientPlugin.class);
     }
 }

@@ -22,14 +22,12 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -60,17 +58,15 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import java.util.stream.StreamSupport;
 
 /**
  * Represents the current state of the cluster.
@@ -80,9 +76,8 @@ import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
  * The cluster state can be updated only on the master node. All updates are performed by on a
  * single thread and controlled by the {@link ClusterService}. After every update the
  * {@link Discovery#publish} method publishes a new version of the cluster state to all other nodes in the
- * cluster.  The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
- * the type of discovery. In the Zen Discovery it is handled in the {@link PublishClusterStateAction#publish} method. The
- * publishing mechanism can be overridden by other discovery.
+ * cluster. The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
+ * the type of discovery.
  * <p>
  * The cluster state implements the {@link Diffable} interface in order to support publishing of cluster state
  * differences instead of the entire state on each change. The publishing mechanism should only send differences
@@ -99,51 +94,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    /**
-     * An interface that implementors use when a class requires a client to maybe have a feature.
-     */
-    public interface FeatureAware {
-
-        /**
-         * An optional feature that is required for the client to have.
-         *
-         * @return an empty optional if no feature is required otherwise a string representing the required feature
-         */
-        default Optional<String> getRequiredFeature() {
-            return Optional.empty();
-        }
-
-        /**
-         * Tests whether or not the custom should be serialized. The criteria are:
-         * <ul>
-         * <li>the output stream must be at least the minimum supported version of the custom</li>
-         * <li>the output stream must have the feature required by the custom (if any) or not be a transport client</li>
-         * </ul>
-         * <p>
-         * That is, we only serialize customs to clients than can understand the custom based on the version of the client and the features
-         * that the client has. For transport clients we can be lenient in requiring a feature in which case we do not send the custom but
-         * for connected nodes we always require that the node has the required feature.
-         *
-         * @param out    the output stream
-         * @param custom the custom to serialize
-         * @param <T>    the type of the custom
-         * @return true if the custom should be serialized and false otherwise
-         */
-        static <T extends VersionedNamedWriteable & FeatureAware> boolean shouldSerialize(final StreamOutput out, final T custom) {
-            if (out.getVersion().before(custom.getMinimalSupportedVersion())) {
-                return false;
-            }
-            if (custom.getRequiredFeature().isPresent()) {
-                final String requiredFeature = custom.getRequiredFeature().get();
-                // if it is a transport client we are lenient yet for a connected node it must have the required feature
-                return out.hasFeature(requiredFeature) || out.hasFeature(TransportClient.TRANSPORT_CLIENT_FEATURE) == false;
-            }
-            return true;
-        }
-
-    }
-
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, FeatureAware {
+    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
         /**
          * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
@@ -179,19 +130,17 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final boolean wasReadFromDiff;
 
-    private final int minimumMasterNodesOnPublishingMaster;
-
     // built on demand
     private volatile RoutingNodes routingNodes;
 
     public ClusterState(long version, String stateUUID, ClusterState state) {
         this(state.clusterName, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(),
-                state.customs(), -1, false);
+                state.customs(), false);
     }
 
     public ClusterState(ClusterName clusterName, long version, String stateUUID, MetaData metaData, RoutingTable routingTable,
                         DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs,
-                        int minimumMasterNodesOnPublishingMaster, boolean wasReadFromDiff) {
+                        boolean wasReadFromDiff) {
         this.version = version;
         this.stateUUID = stateUUID;
         this.clusterName = clusterName;
@@ -200,7 +149,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.nodes = nodes;
         this.blocks = blocks;
         this.customs = customs;
-        this.minimumMasterNodesOnPublishingMaster = minimumMasterNodesOnPublishingMaster;
         this.wasReadFromDiff = wasReadFromDiff;
     }
 
@@ -214,12 +162,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public long getVersion() {
         return version();
-    }
-
-    public long getVersionOrMetaDataVersion() {
-        // When following a Zen1 master, the cluster state version is not guaranteed to increase, so instead it is preferable to use the
-        // metadata version to determine the freshest node. However when following a Zen2 master the cluster state version should be used.
-        return term() == ZEN1_BWC_TERM ? metaData().version() : version();
     }
 
     /**
@@ -274,6 +216,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return this.customs;
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
     }
@@ -295,22 +238,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     /**
-     * The node-level `discovery.zen.minimum_master_nodes` setting on the master node that published this cluster state, for use in rolling
-     * upgrades from 6.x to 7.x. Once all the 6.x master-eligible nodes have left the cluster, the 7.x nodes use this value to determine how
-     * many master-eligible nodes must be discovered before the cluster can be bootstrapped. Note that this method returns the node-level
-     * value of this setting, and ignores any cluster-level override that was set via the API. Callers are expected to combine this value
-     * with any value set in the cluster-level settings. This should be removed once we no longer need support for {@link Version#V_6_7_0}.
-     */
-    public int getMinimumMasterNodesOnPublishingMaster() {
-        return minimumMasterNodesOnPublishingMaster;
-    }
-
-    // Used for testing and logging to determine how this cluster state was send over the wire
-    public boolean wasReadFromDiff() {
-        return wasReadFromDiff;
-    }
-
-    /**
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
@@ -325,7 +252,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public String toString() {
         StringBuilder sb = new StringBuilder();
         final String TAB = "   ";
-        sb.append("cluster uuid: ").append(metaData.clusterUUID()).append("\n");
+        sb.append("cluster uuid: ").append(metaData.clusterUUID())
+            .append(" [committed: ").append(metaData.clusterUUIDCommitted()).append("]").append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
@@ -343,6 +271,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             sb.append(": v[").append(indexMetaData.getVersion())
                     .append("], mv[").append(indexMetaData.getMappingVersion())
                     .append("], sv[").append(indexMetaData.getSettingsVersion())
+                    .append("], av[").append(indexMetaData.getAliasesVersion())
                     .append("]\n");
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
@@ -438,6 +367,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
 
@@ -539,14 +469,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
+                MappingMetaData mmd = indexMetaData.mapping();
+                if (mmd != null) {
                     Map<String, Object> mapping = XContentHelper
-                            .convertToMap(new BytesArray(cursor.value.source().uncompressed()), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                            .convertToMap(new BytesArray(mmd.source().uncompressed()), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
                         // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
+                        mapping = (Map<String, Object>) mapping.get(mmd.type());
                     }
-                    builder.field(cursor.key);
+                    builder.field(mmd.type());
                     builder.map(mapping);
                 }
                 builder.endObject();
@@ -659,7 +590,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private boolean fromDiff;
-        private int minimumMasterNodesOnPublishingMaster = -1;
 
         public Builder(ClusterState state) {
             this.clusterName = state.clusterName;
@@ -670,7 +600,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             this.metaData = state.metaData();
             this.blocks = state.blocks();
             this.customs = ImmutableOpenMap.builder(state.customs());
-            this.minimumMasterNodesOnPublishingMaster = state.minimumMasterNodesOnPublishingMaster;
             this.fromDiff = false;
         }
 
@@ -731,13 +660,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder minimumMasterNodesOnPublishingMaster(int minimumMasterNodesOnPublishingMaster) {
-            this.minimumMasterNodesOnPublishingMaster = minimumMasterNodesOnPublishingMaster;
-            return this;
-        }
-
         public Builder putCustom(String type, Custom custom) {
-            customs.put(type, custom);
+            customs.put(type, Objects.requireNonNull(custom, type));
             return this;
         }
 
@@ -747,6 +671,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
             this.customs.putAll(customs);
             return this;
         }
@@ -760,8 +685,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
-            return new ClusterState(clusterName, version, uuid, metaData, routingTable, nodes, blocks, customs.build(),
-                minimumMasterNodesOnPublishingMaster, fromDiff);
+            return new ClusterState(clusterName, version, uuid, metaData, routingTable, nodes, blocks, customs.build(), fromDiff);
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -804,7 +728,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
-        builder.minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_6_7_0) ? in.readVInt() : -1;
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
+        }
         return builder.build();
     }
 
@@ -820,18 +746,18 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerialize(out, cursor.value)) {
+            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
         for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerialize(out, cursor.value)) {
+            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
                 out.writeNamedWriteable(cursor.value);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeVInt(minimumMasterNodesOnPublishingMaster);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
     }
 
@@ -855,8 +781,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
 
-        private final int minimumMasterNodesOnPublishingMaster;
-
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
             toUuid = after.stateUUID;
@@ -867,7 +791,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metaData = after.metaData.diff(before.metaData);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            minimumMasterNodesOnPublishingMaster = after.minimumMasterNodesOnPublishingMaster;
         }
 
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
@@ -880,7 +803,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metaData = MetaData.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_6_7_0) ? in.readVInt() : -1;
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
+            }
         }
 
         @Override
@@ -894,8 +819,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metaData.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeVInt(minimumMasterNodesOnPublishingMaster);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }
 
@@ -916,7 +841,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.metaData(metaData.apply(state.metaData));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.minimumMasterNodesOnPublishingMaster(minimumMasterNodesOnPublishingMaster);
             builder.fromDiff(true);
             return builder.build();
         }

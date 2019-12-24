@@ -1,5 +1,5 @@
 ---
-"Test cat indices output":
+"Test cat indices output (no indices)":
 
   - do:
       cat.indices: {}
@@ -7,6 +7,8 @@
   - match:
       $body: |
                /^$/
+---
+"Test cat indices output":
 
   - do:
       indices.create:
@@ -47,29 +49,88 @@
                   (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s*
                 )
                 $/
+---
+"Test cat indices output for closed index (pre 7.2.0)":
+  - skip:
+      version: "7.2.0 - "
+      reason:  "closed indices are replicated starting version 7.2.0"
+
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+
   - do:
       indices.close:
-        index: index1
+        index: index-2
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       cat.indices:
-        index: index*
+        index: index-*
 
   - match:
       $body: |
-               /^(       \s+
-                  close  \s+
-                  index1 \s+
+               /^(        \s+
+                  close   \s+
+                  index-2 \s+
                   ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
-                         \s+
-                         \s+
-                         \s+
-                         \s+
-                         \s+
-                         \s*
+                          \s+
+                          \s+
+                          \s+
+                          \s+
+                          \s+
+                          \s*
                 )
                 $/
+---
+"Test cat indices output for closed index":
+  - skip:
+      version: " - 7.1.99"
+      reason:  "closed indices are replicated starting version 7.2.0"
 
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: index-2
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      cat.indices:
+        index: index-*
+
+  - match:
+      $body: |
+        /^(green  \s+
+           close   \s+
+           index-2 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           3       \s+
+           0       \s+
+                   \s+
+                   \s+
+                   \s+
+                   \s*
+         )
+         $/
 ---
 "Test cat indices using health status":
 

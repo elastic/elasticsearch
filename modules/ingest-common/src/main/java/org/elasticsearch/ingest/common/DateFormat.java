@@ -89,19 +89,19 @@ enum DateFormat {
 
             boolean isUtc = ZoneOffset.UTC.equals(zoneId);
 
-            int year = LocalDate.now(ZoneOffset.UTC).getYear();
             DateFormatter dateFormatter = DateFormatter.forPattern(format)
                 .withLocale(locale);
-            // if UTC zone is set here, the the time zone specified in the format will be ignored, leading to wrong dates
+            // if UTC zone is set here, the time zone specified in the format will be ignored, leading to wrong dates
             if (isUtc == false) {
                 dateFormatter = dateFormatter.withZone(zoneId);
             }
             final DateFormatter formatter = dateFormatter;
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
-                // if there is no year, we fall back to the current one and
+                // if there is no year nor year-of-era, we fall back to the current one and
                 // fill the rest of the date up with the parsed date
-                if (accessor.isSupported(ChronoField.YEAR) == false) {
+                if (accessor.isSupported(ChronoField.YEAR) == false && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false ) {
+                    int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {
                         if (accessor.isSupported(field)) {

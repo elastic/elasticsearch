@@ -9,7 +9,6 @@ import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,10 +23,10 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
@@ -125,12 +124,6 @@ class IndicesAndAliasesResolver {
             final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
                     || indicesRequest.indicesOptions().expandWildcardsClosed();
             IndicesOptions indicesOptions = indicesRequest.indicesOptions();
-            if (indicesRequest instanceof IndicesExistsRequest) {
-                //indices exists api should never throw exception, make sure that ignore_unavailable and allow_no_indices are true
-                //we have to mimic what TransportIndicesExistsAction#checkBlock does in es core
-                indicesOptions = IndicesOptions.fromOptions(true, true,
-                        indicesOptions.expandWildcardsOpen(), indicesOptions.expandWildcardsClosed());
-            }
 
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
@@ -210,11 +203,15 @@ class IndicesAndAliasesResolver {
             } else {
                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
             }
-            // if no aliases are authorized, then fill in an expression that
-            // MetaData#findAliases evaluates to the empty alias list. You cannot put
-            // "nothing" (the empty list) explicitly because this is resolved by es core to
-            // _all
-            if (aliasesRequest.aliases().length == 0) {
+            /*
+             * If no aliases are authorized, then fill in an expression that MetaData#findAliases evaluates to an
+             * empty alias list. We can not put an empty list here because core resolves this as _all. For other
+             * request types, this replacement is not needed and can trigger issues when we rewrite the request
+             * on the coordinating node. For example, for a remove index request, if we did this replacement,
+             * the request would be rewritten to include "*","-*" and for a user that does not have permissions
+             * on "*", the master node would not authorize the request.
+             */
+            if (aliasesRequest.expandAliasesWildcards() && aliasesRequest.aliases().length == 0) {
                 aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
             }
         }
@@ -249,7 +246,17 @@ class IndicesAndAliasesResolver {
                 Optional<String> foundAlias = aliasMetaData.stream()
                     .map(AliasMetaData::alias)
                     .filter(authorizedIndicesList::contains)
-                    .filter(aliasName -> metaData.getAliasAndIndexLookup().get(aliasName).getIndices().size() == 1)
+                    .filter(aliasName -> {
+                        AliasOrIndex alias = metaData.getAliasAndIndexLookup().get(aliasName);
+                        List<IndexMetaData> indexMetadata = alias.getIndices();
+                        if (indexMetadata.size() == 1) {
+                            return true;
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias;
+                            IndexMetaData idxMeta = ((AliasOrIndex.Alias) alias).getWriteIndex();
+                            return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
+                        }
+                    })
                     .findFirst();
                 resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
             } else {
@@ -434,22 +441,21 @@ class IndicesAndAliasesResolver {
 
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersDynamicConfig(settings).keySet());
+            clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
             listenForUpdates(clusterSettings);
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, boolean compressionEnabled,
-                                           TimeValue pingSchedule) {
-            if (addresses.isEmpty()) {
-                clusters.remove(clusterAlias);
-            } else {
+        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+            if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
                 clusters.add(clusterAlias);
+            } else {
+                clusters.remove(clusterAlias);
             }
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
-            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices, exists -> false);
+            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
             final List<String> remote = map.entrySet().stream()
                     .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))

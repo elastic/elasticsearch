@@ -95,6 +95,7 @@ public class QueryRewriteContext {
      * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void executeAsyncActions(ActionListener listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);

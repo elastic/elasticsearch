@@ -1,0 +1,23 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'x-pack-analytics'
+  description 'Elasticsearch Expanded Pack Plugin - Analytics'
+  classname 'org.elasticsearch.xpack.analytics.AnalyticsPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-analytics'
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
+
+
+dependencies {
+  compileOnly project(":server")
+
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTest.enabled = false

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -31,7 +30,14 @@ public class MovFnPipelineAggregationBuilderSerializationTests extends AbstractS
 
     @Override
     protected MovFnPipelineAggregationBuilder createTestInstance() {
-        return new MovFnPipelineAggregationBuilder(randomAlphaOfLength(10), "foo", new Script("foo"), randomIntBetween(1, 10));
+        MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder(
+            randomAlphaOfLength(10),
+            "foo",
+            new Script("foo"),
+            randomIntBetween(1, 10)
+        );
+        builder.setShift(randomIntBetween(1, 10));
+        return builder;
     }
 
     @Override

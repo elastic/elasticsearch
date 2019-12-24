@@ -21,7 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,8 +33,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.search.dfs.AggregatedDfs.readAggregatedDfs;
 
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
@@ -56,7 +54,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public QuerySearchRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readLong();
-        dfs = readAggregatedDfs(in);
+        dfs = new AggregatedDfs(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -87,13 +85,8 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     public String getDescription() {

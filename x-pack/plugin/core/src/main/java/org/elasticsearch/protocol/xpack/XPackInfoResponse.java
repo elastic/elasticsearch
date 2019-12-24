@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.protocol.xpack;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -42,7 +43,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     @Nullable private LicenseInfo licenseInfo;
     @Nullable private FeatureSetsInfo featureSetsInfo;
 
-    public XPackInfoResponse() {}
+    public XPackInfoResponse(StreamInput in) throws IOException {
+        super(in);
+        this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
+        this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
+        this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
+    }
 
     public XPackInfoResponse(@Nullable BuildInfo buildInfo, @Nullable LicenseInfo licenseInfo, @Nullable FeatureSetsInfo featureSetsInfo) {
         this.buildInfo = buildInfo;
@@ -74,17 +80,9 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalWriteable(buildInfo);
         out.writeOptionalWriteable(licenseInfo);
         out.writeOptionalWriteable(featureSetsInfo);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
-        this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
-        this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
     }
 
     @Override
@@ -331,40 +329,46 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         public static class FeatureSet implements ToXContentObject, Writeable {
             private final String name;
-            @Nullable private final String description;
             private final boolean available;
             private final boolean enabled;
-            @Nullable private final Map<String, Object> nativeCodeInfo;
 
-            public FeatureSet(String name, @Nullable String description, boolean available, boolean enabled,
-                              @Nullable Map<String, Object> nativeCodeInfo) {
+            public FeatureSet(String name, boolean available, boolean enabled) {
                 this.name = name;
-                this.description = description;
                 this.available = available;
                 this.enabled = enabled;
-                this.nativeCodeInfo = nativeCodeInfo;
             }
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(), in.readMap());
+                this(in.readString(), readAvailable(in), in.readBoolean());
+                if (in.getVersion().before(Version.V_8_0_0)) {
+                    in.readMap(); // backcompat reading native code info, but no longer used here
+                }
+            }
+
+            // this is separated out so that the removed description can be read from the stream on construction
+            // TODO: remove this for 8.0
+            private static boolean readAvailable(StreamInput in) throws IOException {
+                if (in.getVersion().before(Version.V_7_3_0)) {
+                    in.readOptionalString();
+                }
+                return in.readBoolean();
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
-                out.writeOptionalString(description);
+                if (out.getVersion().before(Version.V_7_3_0)) {
+                    out.writeOptionalString(null);
+                }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
-                out.writeMap(nativeCodeInfo);
+                if (out.getVersion().before(Version.V_8_0_0)) {
+                    out.writeMap(Collections.emptyMap());
+                }
             }
 
             public String name() {
                 return name;
-            }
-
-            @Nullable
-            public String description() {
-                return description;
             }
 
             public boolean available() {
@@ -375,39 +379,26 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 return enabled;
             }
 
-            @Nullable
-            public Map<String, Object> nativeCodeInfo() {
-                return nativeCodeInfo;
-            }
-
             @Override
             public boolean equals(Object other) {
                 if (other == null || other.getClass() != getClass()) return false;
                 if (this == other) return true;
                 FeatureSet rhs = (FeatureSet) other;
                 return Objects.equals(name, rhs.name)
-                        && Objects.equals(description, rhs.description)
                         && available == rhs.available
-                        && enabled == rhs.enabled
-                        && Objects.equals(nativeCodeInfo, rhs.nativeCodeInfo);
+                        && enabled == rhs.enabled;
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(name, description, available, enabled, nativeCodeInfo);
+                return Objects.hash(name, available, enabled);
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                if (description != null) {
-                    builder.field("description", description);
-                }
                 builder.field("available", available);
                 builder.field("enabled", enabled);
-                if (nativeCodeInfo != null) {
-                    builder.field("native_code_info", nativeCodeInfo);
-                }
                 return builder.endObject();
             }
         }

@@ -4,8 +4,12 @@ import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.BuildTask;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -15,6 +19,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
+
+    @Rule
+    public TemporaryFolder testkitTmpDir = new TemporaryFolder();
 
     protected File getProjectDir(String name) {
         File root = new File("src/testKit/");
@@ -26,9 +33,16 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
     }
 
     protected GradleRunner getGradleRunner(String sampleProject) {
+        File testkit;
+        try {
+            testkit = testkitTmpDir.newFolder();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         return GradleRunner.create()
             .withProjectDir(getProjectDir(sampleProject))
-            .withPluginClasspath();
+            .withPluginClasspath()
+            .withTestKitDir(testkit);
     }
 
     protected File getBuildDir(String name) {
@@ -141,10 +155,6 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "\n\nOutput is:\n" + result.getOutput(),
             Files.exists(absPath)
         );
-    }
-
-    protected String getLocalTestRepoPath() {
-        return getLocalTestPath("test.local-test-repo-path");
     }
 
     protected String getLocalTestDownloadsPath() {

@@ -10,9 +10,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -58,7 +60,7 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
         });
 
         assertBusy(() -> {
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
                 ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
                     singletonMap("name", template), emptyList(), emptyMap());
                 assertThat(templateExistsResponse.getStatusCode(), is(200));
@@ -90,6 +92,6 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 }

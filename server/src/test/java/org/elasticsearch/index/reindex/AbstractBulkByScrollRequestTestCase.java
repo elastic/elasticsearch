@@ -21,7 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -29,9 +31,12 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 /**
  * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.
  */
-public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulkByScrollRequest<R>> extends ESTestCase {
+public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulkByScrollRequest<R> & ToXContent>
+    extends AbstractXContentTestCase<R> {
+
     public void testForSlice() {
         R original = newRequest();
+        extraRandomizationForSlice(original);
         original.setAbortOnVersionConflict(randomBoolean());
         original.setRefresh(randomBoolean());
         original.setTimeout(parseTimeValue(randomPositiveTimeValue(), "timeout"));
@@ -42,7 +47,7 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         original.setRequestsPerSecond(
                 randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat));
         if (randomBoolean()) {
-            original.setSize(between(0, Integer.MAX_VALUE));
+            original.setMaxDocs(between(0, Integer.MAX_VALUE));
         }
 
         // it's not important how many slices there are, we just need a number for forSlice
@@ -64,8 +69,10 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         assertEquals("slice requests always have a single worker", 1, forSliced.getSlices());
         assertEquals("requests_per_second is split between all workers", original.getRequestsPerSecond() / actualSlices,
                 forSliced.getRequestsPerSecond(), Float.MIN_NORMAL);
-        assertEquals("size is split evenly between all workers", original.getSize() == AbstractBulkByScrollRequest.SIZE_ALL_MATCHES
-                ? AbstractBulkByScrollRequest.SIZE_ALL_MATCHES : original.getSize() / actualSlices, forSliced.getSize());
+        assertEquals("max_docs is split evenly between all workers",
+            original.getMaxDocs() == AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
+                ? AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES : original.getMaxDocs() / actualSlices,
+            forSliced.getMaxDocs());
         assertEquals(slicingTask, forSliced.getParentTask());
 
         extraForSliceAssertions(original, forSliced);

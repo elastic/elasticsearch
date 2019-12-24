@@ -19,8 +19,8 @@
 package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.util.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -226,7 +226,7 @@ public class ModelSnapshot implements ToXContentObject {
         private String jobId;
 
         // Stored snapshot documents created prior to 6.3.0 will have no value for min_version.
-        private Version minVersion = Version.V_6_3_0;
+        private Version minVersion = Version.fromString("6.3.0");
 
         private Date timestamp;
         private String description;

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -38,17 +37,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Meta data about restore processes that are currently executing
  */
 public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom, Iterable<RestoreInProgress.Entry> {
-
-    /**
-     * Fallback UUID used for restore operations that were started before v6.6 and don't have a uuid in the cluster state.
-     */
-    public static final String BWC_UUID = new UUID(0, 0).toString();
 
     public static final String TYPE = "restore";
 
@@ -82,7 +75,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public String toString() {
-        return new StringBuilder("RestoreInProgress[").append(entries).append("]").toString();
+        StringBuilder builder = new StringBuilder("RestoreInProgress[");
+        entries.forEach(entry -> builder.append("{").append(entry.key).append("}{").append(entry.value.snapshot).append("},"));
+        builder.setCharAt(builder.length() - 1, ']');
+        return builder.toString();
     }
 
     public Entry get(String restoreUUID) {
@@ -436,11 +432,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         final ImmutableOpenMap.Builder<String, Entry> entriesBuilder = ImmutableOpenMap.builder(count);
         for (int i = 0; i < count; i++) {
             final String uuid;
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                uuid = in.readString();
-            } else {
-                uuid = BWC_UUID;
-            }
+            uuid = in.readString();
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
@@ -451,7 +443,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> builder = ImmutableOpenMap.builder();
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
-                ShardId shardId = ShardId.readShardId(in);
+                ShardId shardId = new ShardId(in);
                 ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
                 builder.put(shardId, shardState);
             }
@@ -460,17 +452,12 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         this.entries = entriesBuilder.build();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(entries.size());
         for (ObjectCursor<Entry> v : entries.values()) {
             Entry entry = v.value;
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeString(entry.uuid);
-            }
+            out.writeString(entry.uuid);
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());
@@ -485,14 +472,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray("snapshots");
         for (ObjectCursor<Entry> entry : entries.values()) {
-            toXContent(entry.value, builder, params);
+            toXContent(entry.value, builder);
         }
         builder.endArray();
         return builder;
@@ -503,9 +487,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      *
      * @param entry   restore operation metadata
      * @param builder XContent builder
-     * @param params  serialization parameters
      */
-    public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public void toXContent(Entry entry, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
         builder.field("repository", entry.snapshot().getRepository());

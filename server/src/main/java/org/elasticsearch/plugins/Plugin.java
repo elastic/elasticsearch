@@ -21,13 +21,10 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -49,7 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -70,32 +67,6 @@ import java.util.function.UnaryOperator;
  * </ul>
  */
 public abstract class Plugin implements Closeable {
-
-    /**
-     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link MetaData.Custom}; see
-     * also {@link ClusterState.FeatureAware}.
-     *
-     * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
-     * customs
-     */
-    protected Optional<String> getFeature() {
-        return Optional.empty();
-    }
-
-    /**
-     * Node level guice modules.
-     */
-    public Collection<Module> createGuiceModules() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Node level services that will be automatically started/stopped/closed. This classes must be constructed
-     * by injection with guice.
-     */
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        return Collections.emptyList();
-    }
 
     /**
      * Returns components added by this plugin.
@@ -171,22 +142,6 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Provides a function to modify global custom meta data on startup.
-     * <p>
-     * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
-     * <p>
-     * The order of custom meta data upgraders calls is undefined and can change between runs so, it is expected that
-     * plugins will modify only data owned by them to avoid conflicts.
-     * <p>
-     * @return Never {@code null}. The same or upgraded {@code MetaData.Custom} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code MetaData.Custom}
-     *                               is unsupported
-     */
-    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    /**
      * Provides a function to modify index template meta data on startup.
      * <p>
      * Plugins should return the input template map via {@link UnaryOperator#identity()} if no upgrade is required.
@@ -199,21 +154,6 @@ public abstract class Plugin implements Closeable {
      *                               cannot be upgraded
      */
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    /**
-     * Provides a function to modify index meta data when an index is introduced into the cluster state for the first time.
-     * <p>
-     * Plugins should return the input index metadata via {@link UnaryOperator#identity()} if no upgrade is required.
-     * <p>
-     * The order of the index upgrader calls for the same index is undefined and can change between runs so, it is expected that
-     * plugins will modify only indices owned by them to avoid conflicts.
-     * <p>
-     * @return Never {@code null}. The same or upgraded {@code IndexMetaData}.
-     * @throws IllegalStateException if the node should not start because the index is unsupported
-     */
-    public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
         return UnaryOperator.identity();
     }
 
@@ -235,6 +175,10 @@ public abstract class Plugin implements Closeable {
      * configurations like OS settings or 3rd party resources.
      */
     public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
+
+    public Set<DiscoveryNodeRole> getRoles() {
+        return Set.of();
+    }
 
     /**
      * Close the resources opened by this plugin.

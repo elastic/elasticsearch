@@ -246,11 +246,14 @@ public class RemovePluginCommandTests extends ESTestCase {
                 return false;
             }
         }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal);
-        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
+             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))
+        ) {
             assertEquals("-> removing [fake]...", reader.readLine());
             assertEquals("ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
-                    reader.readLine());
+                    errorReader.readLine());
             assertNull(reader.readLine());
+            assertNull(errorReader.readLine());
         }
     }
 

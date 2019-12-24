@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -36,9 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
-    public RestPutStoredScriptAction(Settings settings, RestController controller) {
-        super(settings);
-
+    public RestPutStoredScriptAction(RestController controller) {
         controller.registerHandler(POST, "/_scripts/{id}", this);
         controller.registerHandler(PUT, "/_scripts/{id}", this);
         controller.registerHandler(POST, "/_scripts/{id}/{context}", this);

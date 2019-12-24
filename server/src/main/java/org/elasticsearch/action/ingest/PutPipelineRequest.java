@@ -46,6 +46,13 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         this.xContentType = Objects.requireNonNull(xContentType);
     }
 
+    public PutPipelineRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        source = in.readBytesReference();
+        xContentType = in.readEnum(XContentType.class);
+    }
+
     PutPipelineRequest() {
     }
 
@@ -64,14 +71,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     public XContentType getXContentType() {
         return xContentType;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        source = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
     }
 
     @Override

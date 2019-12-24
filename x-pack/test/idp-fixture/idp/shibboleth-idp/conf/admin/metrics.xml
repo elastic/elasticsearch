@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:util="http://www.springframework.org/schema/util" xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:c="http://www.springframework.org/schema/c" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+
+    default-init-method="initialize"
+    default-destroy-method="destroy">
+    
+    <!-- Metrics enablement / activation. -->
+
+    <!--
+    Register one or more of the built-in system metric sets available.
+    -->
+
+    <bean parent="shibboleth.metrics.RegisterMetricSets">
+        <property name="arguments">
+            <list>
+                <ref bean="shibboleth.metrics.CoreGaugeSet" />
+                <ref bean="shibboleth.metrics.IdPGaugeSet" />
+                <ref bean="shibboleth.metrics.LoggingGaugeSet" />
+                <ref bean="shibboleth.metrics.AccessControlGaugeSet" />
+                <ref bean="shibboleth.metrics.MetadataGaugeSet" />
+                <ref bean="shibboleth.metrics.NameIdentifierGaugeSet" />
+                <ref bean="shibboleth.metrics.RelyingPartyGaugeSet" />
+                <ref bean="shibboleth.metrics.AttributeResolverGaugeSet" />
+                <ref bean="shibboleth.metrics.AttributeFilterGaugeSet" />
+
+                <!--
+                <bean class="com.codahale.metrics.jvm.CachedThreadStatesGaugeSet"
+                    c:_0="1" c:_1="#{T(java.util.concurrent.TimeUnit).MINUTES}" />
+                <bean class="com.codahale.metrics.jvm.ClassLoadingGaugeSet" />
+                <bean class="com.codahale.metrics.jvm.GarbageCollectorMetricSet" />
+                <bean class="com.codahale.metrics.jvm.MemoryUsageGaugeSet" />
+                -->
+            </list>
+        </property>
+    </bean>
+
+    <!-- Metrics REST API Configuration -->
+
+    <!--
+    The global metric set is available by default at /idp/profile/admin/metrics
+    
+    Any pathinfo after that is assumed to identify specific named metrics. You can
+    create mappings here between a logical "group" name and an implementation of the
+    com.codahale.metrics.MetricFilter interface to specify which metrics to include.
+    -->
+    <util:map id="shibboleth.metrics.MetricGroups">
+        <entry key="core" value-ref="shibboleth.metrics.CoreGaugeSet" />
+        <entry key="idp" value-ref="shibboleth.metrics.IdPGaugeSet" />
+        <entry key="logging" value-ref="shibboleth.metrics.LoggingGaugeSet" />
+        <entry key="access" value-ref="shibboleth.metrics.AccessControlGaugeSet" />
+        <entry key="metadata" value-ref="shibboleth.metrics.MetadataGaugeSet" />
+        <entry key="nameid" value-ref="shibboleth.metrics.NameIdentifierGaugeSet" />
+        <entry key="relyingparty" value-ref="shibboleth.metrics.RelyingPartyGaugeSet" />
+        <entry key="resolver" value-ref="shibboleth.metrics.AttributeResolverGaugeSet" />
+        <entry key="filter" value-ref="shibboleth.metrics.AttributeFilterGaugeSet" />
+    </util:map>
+        
+    <!-- If you don't specify an alternate access policy, this named policy will be enforced. -->
+    <bean id="shibboleth.metrics.DefaultAccessPolicy" class="java.lang.String" c:_0="AccessByIPAddress" />
+    
+    <!--
+    To override the default access policy, map a metric name or
+    mapped group above to an alternative policy name.
+    -->
+    <util:map id="shibboleth.metrics.AccessPolicyMap">
+    
+    </util:map>
+        
+    <!--
+    In addition to the "pull" REST API for accessing metrics, a "push" reporter is also
+    available to upload a JSON feed to a URL. The example shown relies on standard JVM
+    trust configuration for TLS server verification.
+    
+    The "start" method triggers the timer thread; the example pushes every 30 minutes.
+    -->
+    <!--
+    <bean id="PushReporter" parent="shibboleth.metrics.HTTPReporter" c:name="MyCollector"
+        p:collectorURL="https://log.example.org/cgi-bin/collector.cgi" />
+                
+    <bean class="org.springframework.beans.factory.config.MethodInvokingBean"
+            p:targetObject-ref="PushReporter"
+            p:targetMethod="start">
+        <property name="arguments">
+            <list>
+                <value>30</value>
+                <util:constant static-field="java.util.concurrent.TimeUnit.MINUTES" />
+            </list>
+        </property>
+    </bean>
+    -->
+
+    <!-- IdP Metrics Configuration -->
+    
+    <!--
+    A bean named shibboleth.metrics.MetricStrategy of type Function<ProfileRequestContext,Boolean>
+    can be defined to add timers and counters to a large range of objects in the system. Each timer is
+    defined by a triple (timer name, start object, stop object). Counters are just object/counter pairs.
+    
+    The most common example is to start a timer when a particular flow action bean starts and
+    stop it when the same or different action bean stops, to measure how long the execution takes.
+    
+    If you want to leave a timer in place but disabled to prevent overhead, you can turn off a
+    logging category named "metrics.<timername>" in your logging configuration.
+    -->
+    <!--
+    <bean id="shibboleth.metrics.MetricStrategy" parent="shibboleth.ContextFunctions.Scripted"
+            factory-method="inlineScript">
+        <constructor-arg>
+            <value>
+            <![CDATA[
+                metricCtx = input.getSubcontext("org.opensaml.profile.context.MetricContext");
+                metricCtx.addTimer("idp.attribute.resolution",
+                    "ResolveAttributes",
+                    "FilterAttributes"
+                    );                                
+                true; // Signals success.
+            ]]>
+            </value>
+        </constructor-arg>
+    </bean>
+    -->
+    
+</beans>

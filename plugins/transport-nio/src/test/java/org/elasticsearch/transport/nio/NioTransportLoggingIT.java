@@ -30,7 +30,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportLogger;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
-@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace")
+@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
 public class NioTransportLoggingIT extends NioIntegTestCase {
 
     private MockLogAppender appender;
@@ -57,7 +57,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
                         ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
                         " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
         final String readPattern =
@@ -69,7 +69,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
                         " READ: \\d+B";
 
         final MockLogAppender.LoggingExpectation readExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
 
         appender.addExpectation(writeExpectation);
@@ -77,4 +77,5 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
         client().admin().cluster().nodesHotThreads(new NodesHotThreadsRequest()).actionGet();
         appender.assertAllExpectationsMatched();
     }
+
 }

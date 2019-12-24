@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.watcher.execution;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
@@ -18,18 +18,15 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Map;
 
-public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
+public class WatchExecutionSnapshot implements Writeable, ToXContentObject {
 
-    private String watchId;
-    private String watchRecordId;
-    private ZonedDateTime triggeredTime;
-    private ZonedDateTime executionTime;
-    private ExecutionPhase phase;
+    private final String watchId;
+    private final String watchRecordId;
+    private final ZonedDateTime triggeredTime;
+    private final ZonedDateTime executionTime;
+    private final ExecutionPhase phase;
+    private final StackTraceElement[] executionStackTrace;
     private String[] executedActions;
-    private StackTraceElement[] executionStackTrace;
-
-    public WatchExecutionSnapshot() {
-    }
 
     public WatchExecutionSnapshot(WatchExecutionContext context, StackTraceElement[] executionStackTrace) {
         watchId = context.id().watchId();
@@ -46,6 +43,23 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
             }
         }
         this.executionStackTrace = executionStackTrace;
+    }
+
+    public WatchExecutionSnapshot(StreamInput in) throws IOException {
+        watchId = in.readString();
+        watchRecordId = in.readString();
+        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        phase = ExecutionPhase.resolve(in.readString());
+        int size = in.readVInt();
+        executionStackTrace = new StackTraceElement[size];
+        for (int i = 0; i < size; i++) {
+            String declaringClass = in.readString();
+            String methodName = in.readString();
+            String fileName = in.readOptionalString();
+            int lineNumber = in.readInt();
+            executionStackTrace[i] = new StackTraceElement(declaringClass, methodName, fileName, lineNumber);
+        }
     }
 
     public String watchId() {
@@ -70,24 +84,6 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
 
     public StackTraceElement[] executionStackTrace() {
         return executionStackTrace;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        watchId = in.readString();
-        watchRecordId = in.readString();
-        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
-        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
-        phase = ExecutionPhase.resolve(in.readString());
-        int size = in.readVInt();
-        executionStackTrace = new StackTraceElement[size];
-        for (int i = 0; i < size; i++) {
-            String declaringClass = in.readString();
-            String methodName = in.readString();
-            String fileName = in.readOptionalString();
-            int lineNumber = in.readInt();
-            executionStackTrace[i] = new StackTraceElement(declaringClass, methodName, fileName, lineNumber);
-        }
     }
 
     @Override

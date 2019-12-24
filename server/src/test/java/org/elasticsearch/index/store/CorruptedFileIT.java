@@ -53,6 +53,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -148,7 +149,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
+            // no checkindex - we corrupt shards on purpose
+            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
             // no translog based flush - it might change the .liv / segments.N files
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
         ));
@@ -156,11 +158,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // double flush to create safe commit in case of async durability
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
@@ -260,11 +264,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // double flush to create safe commit in case of async durability
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
@@ -277,17 +283,20 @@ public class CorruptedFileIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
 
-        boolean didClusterTurnRed = awaitBusy(() -> {
+        boolean didClusterTurnRed = waitUntil(() -> {
             ClusterHealthStatus test = client().admin().cluster()
                 .health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
+
         final ClusterHealthResponse response = client().admin().cluster()
             .health(Requests.clusterHealthRequest("test")).get();
+
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
             logger.info("cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get());
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -409,7 +418,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -495,7 +504,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -555,7 +564,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -599,7 +608,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
         ));
 
-        ensureGreen();
+        ensureGreen(TimeValue.timeValueSeconds(60));
     }
 
     private int numShards(String... index) {

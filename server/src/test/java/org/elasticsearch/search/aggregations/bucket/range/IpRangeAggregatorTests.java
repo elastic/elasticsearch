@@ -152,4 +152,45 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testMissingUnmapped() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < 7; i++) {
+                Document doc = new Document();
+                w.addDocument(doc);
+            }
+
+            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg")
+                .field("field")
+                .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
+                .missing("192.168.100.42"); // Apparently we expect a string here
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalBinaryRange range = search(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
+                assertEquals(1, range.getBuckets().size());
+            }
+        }
+    }
+
+    public void testMissingUnmappedBadType() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < 7; i++) {
+                Document doc = new Document();
+                w.addDocument(doc);
+            }
+
+            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg")
+                .field("field")
+                .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
+                .missing(1234);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                expectThrows(IllegalArgumentException.class, () -> {
+                    search(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
+                });
+            }
+        }
+    }
 }

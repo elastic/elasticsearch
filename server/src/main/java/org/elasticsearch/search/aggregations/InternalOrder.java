@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -423,34 +420,11 @@ public class InternalOrder extends BucketOrder {
          * ONLY FOR HISTOGRAM ORDER: Backwards compatibility logic to read a {@link BucketOrder} from a {@link StreamInput}.
          *
          * @param in           stream with order data to read.
-         * @param bwcOrderFlag {@code true} to check {@code in.readBoolean()} in the backwards compat logic before reading
-         *                     the order. {@code false} to skip this flag (order always present).
          * @return order read from the stream
          * @throws IOException on error reading from the stream.
          */
-        public static BucketOrder readHistogramOrder(StreamInput in, boolean bwcOrderFlag) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
-                return Streams.readOrder(in);
-            } else { // backwards compat logic
-                if (bwcOrderFlag == false || in.readBoolean()) {
-                    // translate the old histogram order IDs to the new order objects
-                    byte id = in.readByte();
-                    switch (id) {
-                        case 1: return KEY_ASC;
-                        case 2: return KEY_DESC;
-                        case 3: return COUNT_ASC;
-                        case 4: return COUNT_DESC;
-                        case 0: // aggregation order stream logic is backwards compatible
-                            boolean asc = in.readBoolean();
-                            String key = in.readString();
-                            return new Aggregation(key, asc);
-                        default: // not expecting compound order ID
-                            throw new RuntimeException("unknown histogram order id [" + id + "]");
-                    }
-                } else { // default to _key asc if no order specified
-                    return KEY_ASC;
-                }
-            }
+        public static BucketOrder readHistogramOrder(StreamInput in) throws IOException {
+            return Streams.readOrder(in);
         }
 
         /**
@@ -480,45 +454,10 @@ public class InternalOrder extends BucketOrder {
          *
          * @param order        order to write to the stream.
          * @param out          stream to write the order to.
-         * @param bwcOrderFlag {@code true} to always {@code out.writeBoolean(true)} for the backwards compat logic before
-         *                     writing the order. {@code false} to skip this flag.
          * @throws IOException on error writing to the stream.
          */
-        public static void writeHistogramOrder(BucketOrder order, StreamOutput out, boolean bwcOrderFlag) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
-                order.writeTo(out);
-            } else { // backwards compat logic
-                if(bwcOrderFlag) { // need to add flag that determines if order exists
-                    out.writeBoolean(true); // order always exists
-                }
-                if (order instanceof CompoundOrder) {
-                    // older versions do not support histogram compound order; the best we can do here is use the first order.
-                    order = ((CompoundOrder) order).orderElements.get(0);
-                }
-                if (order instanceof Aggregation) {
-                    // aggregation order stream logic is backwards compatible
-                    order.writeTo(out);
-                } else {
-                    // convert the new order IDs to the old histogram order IDs.
-                    byte id;
-                    switch (order.id()) {
-                        case COUNT_DESC_ID:
-                            id = 4;
-                            break;
-                        case COUNT_ASC_ID:
-                            id = 3;
-                            break;
-                        case KEY_DESC_ID:
-                            id = 2;
-                            break;
-                        case KEY_ASC_ID:
-                            id = 1;
-                            break;
-                        default: throw new RuntimeException("unknown order id [" + order.id() + "]");
-                    }
-                    out.writeByte(id);
-                }
-            }
+        public static void writeHistogramOrder(BucketOrder order, StreamOutput out) throws IOException {
+            order.writeTo(out);
         }
     }
 
@@ -526,9 +465,6 @@ public class InternalOrder extends BucketOrder {
      * Contains logic for parsing a {@link BucketOrder} from a {@link XContentParser}.
      */
     public static class Parser {
-
-        private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(Parser.class));
 
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.
@@ -563,13 +499,7 @@ public class InternalOrder extends BucketOrder {
                 throw new ParsingException(parser.getTokenLocation(),
                     "Must specify at least one field for [order]");
             }
-            // _term and _time order deprecated in 6.0; replaced by _key
-            if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                deprecationLogger.deprecated("Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
-            }
             switch (orderKey) {
-                case "_term":
-                case "_time":
                 case "_key":
                     return orderAsc ? KEY_ASC : KEY_DESC;
                 case "_count":

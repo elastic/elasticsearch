@@ -31,7 +31,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.PROCESSORS_SETTING;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.elasticsearch.index.MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING;
 import static org.elasticsearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING;
@@ -139,7 +139,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             builder.put(MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
         }
         if (numProc != -1) {
-            builder.put(PROCESSORS_SETTING.getKey(), numProc);
+            builder.put(NODE_PROCESSORS_SETTING.getKey(), numProc);
         }
         return newIndexMeta("index", builder.build());
     }

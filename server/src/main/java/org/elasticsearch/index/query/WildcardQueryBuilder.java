@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -177,7 +178,20 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
-    }
+    }    
+    
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if ("_index".equals(fieldName)) {
+            // Special-case optimisation for canMatch phase:  
+            // We can skip querying this shard if the index name doesn't match the value of this query on the "_index" field.
+            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+            if (shardContext != null && shardContext.indexMatches(BytesRefs.toString(value)) == false) {
+                return new MatchNoneQueryBuilder();
+            }            
+        }
+        return super.doRewrite(queryRewriteContext);
+    }    
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {

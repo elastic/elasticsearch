@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -20,44 +21,38 @@ import java.util.Objects;
 public class CompositeKeyExtractor implements BucketExtractor {
 
     /**
-     * Key or Komposite extractor.
+     * Key or Composite extractor.
      */
     static final String NAME = "k";
 
     private final String key;
     private final Property property;
     private final ZoneId zoneId;
+    private final boolean isDateTimeBased;
 
     /**
      * Constructs a new <code>CompositeKeyExtractor</code> instance.
-     * The time-zone parameter is used to indicate a date key.
      */
-    public CompositeKeyExtractor(String key, Property property, ZoneId zoneId) {
+    public CompositeKeyExtractor(String key, Property property, ZoneId zoneId, boolean isDateTimeBased) {
         this.key = key;
         this.property = property;
         this.zoneId = zoneId;
+        this.isDateTimeBased = isDateTimeBased;
     }
 
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        if (in.readBoolean()) {
-            zoneId = ZoneId.of(in.readString());
-        } else {
-            zoneId = null;
-        }
+        isDateTimeBased = in.readBoolean();
+
+        zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        if (zoneId == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(zoneId.getId());
-        }
+        out.writeBoolean(isDateTimeBased);
     }
 
     String key() {
@@ -70,6 +65,10 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
     ZoneId zoneId() {
         return zoneId;
+    }
+
+    public boolean isDateTimeBased() {
+        return isDateTimeBased;
     }
 
     @Override
@@ -91,7 +90,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
         Object object = ((Map<?, ?>) m).get(key);
 
-        if (zoneId != null) {
+        if (isDateTimeBased) {
             if (object == null) {
                 return object;
             } else if (object instanceof Long) {
@@ -106,7 +105,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, property, zoneId);
+        return Objects.hash(key, property, zoneId, isDateTimeBased);
     }
 
     @Override
@@ -122,7 +121,8 @@ public class CompositeKeyExtractor implements BucketExtractor {
         CompositeKeyExtractor other = (CompositeKeyExtractor) obj;
         return Objects.equals(key, other.key)
                 && Objects.equals(property, other.property)
-                && Objects.equals(zoneId, other.zoneId);
+                && Objects.equals(zoneId, other.zoneId)
+                && Objects.equals(isDateTimeBased, other.isDateTimeBased);
     }
 
     @Override

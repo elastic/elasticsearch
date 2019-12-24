@@ -20,13 +20,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
@@ -35,9 +36,9 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.PivotExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.TopHitsAggExtractor;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.HitExtractorInput;
@@ -49,12 +50,15 @@ import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
+import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
@@ -68,11 +72,15 @@ import java.util.BitSet;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
 // TODO: add retry/back-off
 public class Querier {
 
@@ -96,7 +104,7 @@ public class Querier {
         this.size = cfg.pageSize();
     }
 
-    public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<SchemaRowSet> listener) {
+    public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
         // set query timeout
@@ -108,37 +116,39 @@ public class Querier {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
 
-        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, Strings.commaDelimitedListToStringArray(index));
+        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, query.shouldIncludeFrozen(),
+                Strings.commaDelimitedListToStringArray(index));
 
         @SuppressWarnings("rawtypes")
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
         listener = sortingColumns.isEmpty() ? listener : new LocalAggregationSorterListener(listener, sortingColumns, query.limit());
 
         ActionListener<SearchResponse> l = null;
-
         if (query.isAggsOnly()) {
             if (query.aggs().useImplicitGroupBy()) {
-                l = new ImplicitGroupActionListener(listener, client, timeout, output, query, search);
+                l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
             } else {
-                l = new CompositeActionListener(listener, client, timeout, output, query, search);
+                l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
         } else {
             search.scroll(keepAlive);
-            l = new ScrollActionListener(listener, client, timeout, output, query);
+            l = new ScrollActionListener(listener, client, cfg, output, query);
         }
 
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, String... indices) {
-        SearchRequest search = client.prepareSearch(indices)
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
+            String... indices) {
+        return client.prepareSearch(indices)
                 // always track total hits accurately
                 .setTrackTotalHits(true)
                 .setAllowPartialSearchResults(false)
                 .setSource(source)
                 .setTimeout(timeout)
+                .setIndicesOptions(
+                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
-            return search;
     }
 
     /**
@@ -148,19 +158,19 @@ public class Querier {
      * results back to the client.
      */
     @SuppressWarnings("rawtypes")
-    class LocalAggregationSorterListener implements ActionListener<SchemaRowSet> {
+    class LocalAggregationSorterListener implements ActionListener<Page> {
 
-        private final ActionListener<SchemaRowSet> listener;
+        private final ActionListener<Page> listener;
 
         // keep the top N entries.
-        private final PriorityQueue<Tuple<List<?>, Integer>> data;
+        private final AggSortingQueue data;
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
-        private static final int MAXIMUM_SIZE = 512;
+        private static final int MAXIMUM_SIZE = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
         private final boolean noLimit;
 
-        LocalAggregationSorterListener(ActionListener<SchemaRowSet> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {
+        LocalAggregationSorterListener(ActionListener<Page> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {
             this.listener = listener;
 
             int size = MAXIMUM_SIZE;
@@ -169,71 +179,36 @@ public class Querier {
             } else {
                 noLimit = false;
                 if (limit > MAXIMUM_SIZE) {
-                    throw new PlanningException("The maximum LIMIT for aggregate sorting is [{}], received [{}]", limit, MAXIMUM_SIZE);
+                    throw new PlanningException("The maximum LIMIT for aggregate sorting is [{}], received [{}]", MAXIMUM_SIZE, limit);
                 } else {
                     size = limit;
                 }
             }
 
-            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(size) {
-
-                // compare row based on the received attribute sort
-                // if a sort item is not in the list, it is assumed the sorting happened in ES
-                // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-                //
-                // Take for example ORDER BY a, x, b, y
-                // a, b - are sorted in ES
-                // x, y - need to be sorted client-side
-                // sorting on x kicks in, only if the values for a are equal.
-
-                // thanks to @jpountz for the row ordering idea as a way to preserve ordering
-                @SuppressWarnings("unchecked")
-                @Override
-                protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
-                    for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                        int i = tuple.v1().intValue();
-                        Comparator comparator = tuple.v2();
-
-                        Object vl = l.v1().get(i);
-                        Object vr = r.v1().get(i);
-                        if (comparator != null) {
-                            int result = comparator.compare(vl, vr);
-                            // if things are equals, move to the next comparator
-                            if (result != 0) {
-                                return result < 0;
-                            }
-                        }
-                        // no comparator means the existing order needs to be preserved
-                        else {
-                            // check the values - if they are equal move to the next comparator
-                            // otherwise return the row order
-                            if (Objects.equals(vl, vr) == false) {
-                                return l.v2().compareTo(r.v2()) < 0;
-                            }
-                        }
-                    }
-                    // everything is equal, fall-back to the row order
-                    return l.v2().compareTo(r.v2()) < 0;
-                }
-            };
+            this.data = new AggSortingQueue(size, sortingColumns);
         }
 
         @Override
-        public void onResponse(SchemaRowSet schemaRowSet) {
-            schema = schemaRowSet.schema();
-            doResponse(schemaRowSet);
-        }
-
-        private void doResponse(RowSet rowSet) {
-            // 1. consume all pages received
-            if (consumeRowSet(rowSet) == false) {
-                return;
+        public void onResponse(Page page) {
+            // schema is set on the first page (as the rest don't hold the schema anymore)
+            if (schema == null) {
+                RowSet rowSet = page.rowSet();
+                if (rowSet instanceof SchemaRowSet) {
+                    schema = ((SchemaRowSet) rowSet).schema();
+                } else {
+                    onFailure(new SqlIllegalArgumentException("No schema found inside {}", rowSet.getClass()));
+                    return;
+                }
             }
-            Cursor cursor = rowSet.nextPageCursor();
+
+            // 1. consume all pages received
+            consumeRowSet(page.rowSet());
+
+            Cursor cursor = page.next();
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
-                planExecutor.nextPage(cfg, cursor, ActionListener.wrap(this::doResponse, this::onFailure));
+                planExecutor.nextPage(cfg, cursor, this);
                 // make sure to bail out afterwards as we'll get called by a different thread
                 return;
             }
@@ -243,31 +218,21 @@ public class Querier {
             sendResponse();
         }
 
-        private boolean consumeRowSet(RowSet rowSet) {
-            // use a synchronized block for visibility purposes (there's no concurrency)
+        private void consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
-            synchronized (data) {
-                for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
-                    List<Object> row = new ArrayList<>(rrs.columnCount());
-                    rrs.forEachResultColumn(row::add);
-                    // if the queue overflows and no limit was specified, bail out
-                    if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
-                        onFailure(new SqlIllegalArgumentException(
-                                "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT"));
-                        return false;
-                    }
+            for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
+                List<Object> row = new ArrayList<>(rrs.columnCount());
+                rrs.forEachResultColumn(row::add);
+                // if the queue overflows and no limit was specified, throw an error
+                if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
+                    onFailure(new SqlIllegalArgumentException(
+                        "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
                 }
             }
-            return true;
         }
 
         private void sendResponse() {
-            List<List<?>> list = new ArrayList<>(data.size());
-            Tuple<List<?>, Integer> pop = null;
-            while ((pop = data.pop()) != null) {
-                list.add(pop.v1());
-            }
-            listener.onResponse(new PagingListRowSet(schema, list, schema.size(), cfg.pageSize()));
+            listener.onResponse(ListCursor.of(schema, data.asList(), cfg.pageSize()));
         }
 
         @Override
@@ -309,13 +274,13 @@ public class Querier {
             }
         });
 
-        ImplicitGroupActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, List<Attribute> output,
+        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, output, query, request);
+            super(listener, client, cfg, output, query, request);
         }
 
         @Override
-        protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
+        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
@@ -342,10 +307,10 @@ public class Querier {
                 for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) {
                     values[index++] = extractors.get(i).extract(implicitGroup);
                 }
-                listener.onResponse(Rows.singleton(schema, values));
+                listener.onResponse(Page.last(Rows.singleton(schema, values)));
 
             } else if (buckets.isEmpty()) {
-                listener.onResponse(Rows.empty(schema));
+                listener.onResponse(Page.last(Rows.empty(schema)));
 
             } else {
                 throw new SqlIllegalArgumentException("Too many groups returned by the implicit group; expected 1, received {}",
@@ -360,42 +325,39 @@ public class Querier {
      */
     static class CompositeActionListener extends BaseAggActionListener {
 
-        CompositeActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
+        private final boolean isPivot;
+
+        CompositeActionListener(ActionListener<Page> listener, Client client, Configuration cfg,
                 List<Attribute> output, QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, output, query, request);
+            super(listener, client, cfg, output, query, request);
+
+            isPivot = query.fields().stream().anyMatch(t -> t.v1() instanceof PivotColumnRef);
         }
 
-
         @Override
-        protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
-            // there are some results
-            if (response.getAggregations().asList().size() > 0) {
-
-                // retry
-                if (CompositeAggregationCursor.shouldRetryDueToEmptyPage(response)) {
-                    CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
-                    client.search(request, this);
-                    return;
-                }
-
-                CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
-                byte[] nextSearch = null;
-                try {
-                    nextSearch = CompositeAggregationCursor.serializeQuery(request.source());
-                } catch (Exception ex) {
-                    listener.onFailure(ex);
-                    return;
-                }
-
-                listener.onResponse(
-                        new SchemaCompositeAggsRowSet(schema, initBucketExtractors(response), mask, response, query.limit(),
-                                nextSearch,
-                                request.indices()));
-            }
-            // no results
-            else {
-                listener.onResponse(Rows.empty(schema));
-            }
+        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            
+            Supplier<CompositeAggRowSet> makeRowSet = isPivot ?
+                    () -> new PivotRowSet(schema, initBucketExtractors(response), mask, response,
+                            query.sortingColumns().isEmpty() ? query.limit() : -1, null) :
+                    () -> new SchemaCompositeAggRowSet(schema, initBucketExtractors(response), mask, response,
+                            query.sortingColumns().isEmpty() ? query.limit() : -1);
+                    
+            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ?
+                    (q, r) -> {
+                        Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
+                        return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), query.shouldIncludeFrozen(),
+                                request.indices());
+                    } :
+                    (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
+                            request.indices());
+                    
+            CompositeAggCursor.handle(response, request.source(),
+                    makeRowSet,
+                    makeCursor,
+                    () -> client.search(request, this),
+                    listener,
+                    schema);
         }
     }
 
@@ -404,9 +366,9 @@ public class Querier {
         final SearchRequest request;
         final BitSet mask;
 
-        BaseAggActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, List<Attribute> output,
+        BaseAggActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, output);
+            super(listener, client, cfg, output);
 
             this.query = query;
             this.request = request;
@@ -415,11 +377,11 @@ public class Querier {
 
         protected List<BucketExtractor> initBucketExtractors(SearchResponse response) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
+            List<Tuple<FieldExtraction, String>> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
-            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+            for (Tuple<FieldExtraction, String> ref : refs) {
                 exts.add(createExtractor(ref.v1(), totalCount));
             }
             return exts;
@@ -428,17 +390,22 @@ public class Querier {
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef) {
                 GroupByRef r = (GroupByRef) ref;
-                return new CompositeKeyExtractor(r.key(), r.property(), r.zoneId());
+                return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.isDateTimeBased());
             }
 
             if (ref instanceof MetricAggRef) {
                 MetricAggRef r = (MetricAggRef) ref;
-                return new MetricAggExtractor(r.name(), r.property(), r.innerKey());
+                return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.isDateTimeBased());
             }
 
             if (ref instanceof TopHitsAggRef) {
                 TopHitsAggRef r = (TopHitsAggRef) ref;
-                return new TopHitsAggExtractor(r.name(), r.fieldDataType());
+                return new TopHitsAggExtractor(r.name(), r.fieldDataType(), cfg.zoneId());
+            }
+
+            if (ref instanceof PivotColumnRef) {
+                PivotColumnRef r = (PivotColumnRef) ref;
+                return new PivotExtractor(createExtractor(r.pivot(), totalCount), createExtractor(r.agg(), totalCount), r.value());
             }
 
             if (ref == GlobalCountRef.INSTANCE) {
@@ -467,61 +434,42 @@ public class Querier {
     static class ScrollActionListener extends BaseActionListener {
         private final QueryContainer query;
         private final BitSet mask;
+        private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
+        ScrollActionListener(ActionListener<Page> listener, Client client, Configuration cfg,
                 List<Attribute> output, QueryContainer query) {
-            super(listener, client, keepAlive, output);
+            super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
+            this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
         }
 
         @Override
-        protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
-            SearchHit[] hits = response.getHits().getHits();
-
+        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, ExpressionId>> refs = query.fields();
+            List<Tuple<FieldExtraction, String>> refs = query.fields();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-            for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
+            for (Tuple<FieldExtraction, String> ref : refs) {
                 exts.add(createExtractor(ref.v1()));
             }
 
-            // there are some results
-            if (hits.length > 0) {
-                String scrollId = response.getScrollId();
-                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, mask, hits, query.limit(), scrollId);
-                
-                // if there's an id, try to setup next scroll
-                if (scrollId != null &&
-                        // is all the content already retrieved?
-                        (Boolean.TRUE.equals(response.isTerminatedEarly())
-                                || response.getHits().getTotalHits().value == hits.length
-                                || hitRowSet.isLimitReached())) {
-                    // if so, clear the scroll
-                    clear(response.getScrollId(), ActionListener.wrap(
-                            succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, mask, hits, query.limit(), null)),
-                            listener::onFailure));
-                } else {
-                    listener.onResponse(hitRowSet);
-                }
-            }
-            // no hits
-            else {
-                clear(response.getScrollId(), ActionListener.wrap(succeeded -> listener.onResponse(Rows.empty(schema)),
-                        listener::onFailure));
-            }
+            ScrollCursor.handle(response, () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
+                    p -> listener.onResponse(p),
+                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
+                    schema);
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName());
+                return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(),
+                    f.useDocValue(), f.hitName(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), null, true);
+                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true, multiValueFieldLeniency);
             }
 
             if (ref instanceof ComputedRef) {
@@ -555,17 +503,19 @@ public class Querier {
      */
     abstract static class BaseActionListener implements ActionListener<SearchResponse> {
 
-        final ActionListener<SchemaRowSet> listener;
+        final ActionListener<Page> listener;
 
         final Client client;
+        final Configuration cfg;
         final TimeValue keepAlive;
         final Schema schema;
 
-        BaseActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, List<Attribute> output) {
+        BaseActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output) {
             this.listener = listener;
 
             this.client = client;
-            this.keepAlive = keepAlive;
+            this.cfg = cfg;
+            this.keepAlive = cfg.requestTimeout();
             this.schema = Rows.schema(output);
         }
 
@@ -584,7 +534,7 @@ public class Querier {
             }
         }
 
-        protected abstract void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener);
+        protected abstract void handleResponse(SearchResponse response, ActionListener<Page> listener);
 
         // clean-up the scroll in case of exception
         protected final void cleanup(SearchResponse response, Exception ex) {
@@ -614,6 +564,65 @@ public class Querier {
         @Override
         public final void onFailure(Exception ex) {
             listener.onFailure(ex);
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    static class AggSortingQueue extends PriorityQueue<Tuple<List<?>, Integer>> {
+
+        private List<Tuple<Integer, Comparator>> sortingColumns;
+
+        AggSortingQueue(int maxSize, List<Tuple<Integer, Comparator>> sortingColumns) {
+            super(maxSize);
+            this.sortingColumns = sortingColumns;
+        }
+
+        // compare row based on the received attribute sort
+        // if a sort item is not in the list, it is assumed the sorting happened in ES
+        // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
+        //
+        // Take for example ORDER BY a, x, b, y
+        // a, b - are sorted in ES
+        // x, y - need to be sorted client-side
+        // sorting on x kicks in, only if the values for a are equal.
+
+        // thanks to @jpountz for the row ordering idea as a way to preserve ordering
+        @SuppressWarnings("unchecked")
+        @Override
+        protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
+            for (Tuple<Integer, Comparator> tuple : sortingColumns) {
+                int i = tuple.v1().intValue();
+                Comparator comparator = tuple.v2();
+
+                Object vl = l.v1().get(i);
+                Object vr = r.v1().get(i);
+                if (comparator != null) {
+                    int result = comparator.compare(vl, vr);
+                    // if things are equals, move to the next comparator
+                    if (result != 0) {
+                        return result > 0;
+                    }
+                }
+                // no comparator means the existing order needs to be preserved
+                else {
+                    // check the values - if they are equal move to the next comparator
+                    // otherwise return the row order
+                    if (Objects.equals(vl, vr) == false) {
+                        return l.v2().compareTo(r.v2()) > 0;
+                    }
+                }
+            }
+            // everything is equal, fall-back to the row order
+            return l.v2().compareTo(r.v2()) > 0;
+        }
+
+        List<List<?>> asList() {
+            List<List<?>> list = new ArrayList<>(super.size());
+            Tuple<List<?>, Integer> pop;
+            while ((pop = pop()) != null) {
+                list.add(0, pop.v1());
+            }
+            return list;
         }
     }
 }

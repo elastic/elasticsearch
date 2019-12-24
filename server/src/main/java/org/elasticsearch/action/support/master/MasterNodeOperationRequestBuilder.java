@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -32,7 +32,7 @@ public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNo
         RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected MasterNodeOperationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
+    protected MasterNodeOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

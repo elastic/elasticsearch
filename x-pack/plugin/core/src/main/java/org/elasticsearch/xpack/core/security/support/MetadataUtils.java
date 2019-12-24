@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
-import java.util.Collections;
 import java.util.Map;
 
 public class MetadataUtils {
 
     public static final String RESERVED_PREFIX = "_";
     public static final String RESERVED_METADATA_KEY = RESERVED_PREFIX + "reserved";
-    public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Collections.singletonMap(RESERVED_METADATA_KEY, true);
+    public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Map.of(RESERVED_METADATA_KEY, true);
 
     private MetadataUtils() {
     }

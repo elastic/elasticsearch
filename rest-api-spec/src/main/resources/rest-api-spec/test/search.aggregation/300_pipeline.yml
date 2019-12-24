@@ -1,0 +1,100 @@
+setup:
+  - skip:
+      version: " - 7.99.99" #TODO change this after backport
+      reason:  These new error messages were added in 7.1
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                int_field:
+                   type : integer
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    1
+           - int_field: 1
+           - index:
+               _index: test_1
+               _id:    2
+           - int_field: 2
+           - index:
+               _index: test_1
+               _id:    3
+           - int_field: 3
+           - index:
+               _index: test_1
+               _id:    4
+           - int_field: 4
+
+---
+"Max pipeline through terms agg":
+
+  - do:
+      catch: /\[Object\[\]\] at aggregation \[the_terms_2\]/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_terms:
+              terms:
+                field: "int_field"
+              aggs:
+                the_terms_2:
+                  terms:
+                    field: "int_field"
+                  aggs:
+                    the_max:
+                      max:
+                        field: "int_field"
+            the_bad_max:
+              max_bucket:
+                buckets_path: "the_terms>the_terms_2>the_max"
+
+---
+"Max pipeline on terms agg":
+
+  - do:
+      catch: /\[LongTerms\] at aggregation \[the_terms_2\]/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_terms:
+              terms:
+                field: "int_field"
+              aggs:
+                the_terms_2:
+                  terms:
+                    field: "int_field"
+            the_bad_max:
+              max_bucket:
+                buckets_path: "the_terms>the_terms_2"
+
+---
+"Max pipeline on percentiles agg without specifying percent":
+
+  - do:
+      catch: /buckets_path must reference either a number value or a single value numeric metric aggregation, but \[the_percentiles\] contains multiple values. Please specify which to use\./
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_terms:
+              terms:
+                field: "int_field"
+              aggs:
+                the_percentiles:
+                  percentiles:
+                    field: "int_field"
+            the_bad_max:
+              max_bucket:
+                buckets_path: "the_terms>the_percentiles"

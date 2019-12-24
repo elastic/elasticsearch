@@ -3,15 +3,15 @@
 :request: GetModelSnapshotsRequest
 :response: GetModelSnapshotsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Model Snapshots API
+=== Get model snapshots API
 
-The Get Model Snapshots API retrieves one or more model snapshot results.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Retrieves one or more model snapshot results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Model Snapshots Request
+==== Get model snapshots request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -19,16 +19,16 @@ A +{request}+ object gets created with an existing non-null `jobId`.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request referencing an existing `jobId`
+<1> Constructing a new request referencing an existing `jobId`.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-snapshot-id]
 --------------------------------------------------
-<1> The id of the snapshot to get. Otherwise it will return all snapshots.
+<1> The ID of the snapshot to get. Otherwise, it will return all snapshots.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -58,13 +58,14 @@ include-tagged::{doc-tests-file}[{api}-start]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-page]
 --------------------------------------------------
-<1> The page parameters `from` and `size`. `from` specifies the number of snapshots to skip.
-`size` specifies the maximum number of snapshots to retrieve. Defaults to `0` and `100` respectively.
+<1> The page parameters `from` and `size`. `from` specifies the number of
+snapshots to skip. `size` specifies the maximum number of snapshots to retrieve.
+Defaults to `0` and `100` respectively.
 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get Model Snapshots Response
+==== Get model snapshots response
 
 The returned +{response}+ contains the requested snapshots:
 
@@ -72,5 +73,5 @@ The returned +{response}+ contains the requested snapshots:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of snapshots that were matched
-<2> The snapshots retrieved
+<1> The count of snapshots that were matched.
+<2> The snapshots retrieved.

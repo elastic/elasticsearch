@@ -51,7 +51,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -100,10 +101,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             ).get();
     }
 
-    private static void stopNode() throws IOException {
+    private static void stopNode() throws IOException, InterruptedException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
+        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+            throw new AssertionError("Node couldn't close within 10 seconds.");
+        }
     }
 
     @Override
@@ -145,7 +149,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void tearDownClass() throws IOException {
+    public static void tearDownClass() throws Exception {
         stopNode();
     }
 
@@ -193,8 +197,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
-            .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
+            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             // default the watermarks low values to prevent tests from failing on nodes without enough disk space
@@ -312,8 +317,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService);
+        return new TestSearchContext(bigArrays, indexService);
     }
 
     /**

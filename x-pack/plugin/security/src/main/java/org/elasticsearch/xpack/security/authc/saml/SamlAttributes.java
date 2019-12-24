@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -40,23 +39,23 @@ public class SamlAttributes {
      * @return A list of all matching attribute values (may be empty).
      */
     List<String> getAttributeValues(String attributeId) {
-        if (attributeId.equals(NAMEID_SYNTHENTIC_ATTRIBUTE)) {
-            return name == null ? Collections.emptyList() : Collections.singletonList(name.value);
-        }
-        if (name != null && NameIDType.PERSISTENT.equals(name.format) && attributeId.equals(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE)) {
-            return Collections.singletonList(name.value);
-        }
         if (Strings.isNullOrEmpty(attributeId)) {
-            return Collections.emptyList();
+            return List.of();
+        }
+        if (attributeId.equals(NAMEID_SYNTHENTIC_ATTRIBUTE)) {
+            return name == null ? List.of() : List.of(name.value);
+        }
+        if (attributeId.equals(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE) && name != null && NameIDType.PERSISTENT.equals(name.format)) {
+            return List.of(name.value);
         }
         return attributes.stream()
                 .filter(attr -> attributeId.equals(attr.name) || attributeId.equals(attr.friendlyName))
                 .flatMap(attr -> attr.values.stream())
-                .collect(Collectors.toList());
+                .collect(Collectors.toUnmodifiableList());
     }
 
     List<SamlAttribute> attributes() {
-        return Collections.unmodifiableList(attributes);
+        return attributes;
     }
 
     SamlNameId name() {
@@ -79,13 +78,16 @@ public class SamlAttributes {
 
         SamlAttribute(Attribute attribute) {
             this(attribute.getName(), attribute.getFriendlyName(),
-                    attribute.getAttributeValues().stream().map(x -> x.getDOM().getTextContent()).collect(Collectors.toList()));
+                    attribute.getAttributeValues().stream()
+                        .map(x -> x.getDOM().getTextContent())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toUnmodifiableList()));
         }
 
         SamlAttribute(String name, @Nullable String friendlyName, List<String> values) {
             this.name = Objects.requireNonNull(name, "Attribute name cannot be null");
             this.friendlyName = friendlyName;
-            this.values = Collections.unmodifiableList(values);
+            this.values = values;
         }
 
         @Override
@@ -97,6 +99,5 @@ public class SamlAttributes {
             }
         }
     }
-
 
 }

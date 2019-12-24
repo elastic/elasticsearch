@@ -40,14 +40,6 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     }
 
     /**
-     * Sets the type of the document to delete.
-     */
-    public DeleteRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
-    }
-
-    /**
      * Sets the id of the document to delete.
      */
     public DeleteRequestBuilder setId(String id) {

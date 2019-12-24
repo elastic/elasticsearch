@@ -90,7 +90,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
             docCounts.fill(0, newNumBuckets, 0);
             for (int i = 0; i < oldDocCounts.size(); i++) {
                 int docCount = oldDocCounts.get(i);
-                if (docCount != 0) {
+
+                // Skip any in the map which have been "removed", signified with -1
+                if (docCount != 0 && mergeMap[i] != -1) {
                     docCounts.increment(mergeMap[i], docCount);
                 }
             }

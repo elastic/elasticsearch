@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -56,8 +55,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    public RestGetAliasesAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetAliasesAction(final RestController controller) {
         controller.registerHandler(GET, "/_alias", this);
         controller.registerHandler(GET, "/_aliases", this);
         controller.registerHandler(GET, "/_alias/{name}", this);

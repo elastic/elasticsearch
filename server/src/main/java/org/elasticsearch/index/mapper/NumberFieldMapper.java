@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -814,7 +816,7 @@ public class NumberFieldMapper extends FieldMapper {
             return name;
         }
         /** Get the associated numeric type */
-        final NumericType numericType() {
+        public final NumericType numericType() {
             return numericType;
         }
         public abstract Query termQuery(String field, Object value);
@@ -905,6 +907,10 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return type.name;
+        }
+
+        public NumericType numericType() {
+            return type.numericType();
         }
 
         @Override
@@ -1042,8 +1048,8 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             try {
                 numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed.value()) {
+            } catch (IllegalArgumentException | JsonParseException e) {
+                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(fieldType.name());
                     return;
                 } else {

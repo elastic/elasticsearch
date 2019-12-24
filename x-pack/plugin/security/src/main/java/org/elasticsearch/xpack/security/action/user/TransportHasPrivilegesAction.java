@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
@@ -36,15 +39,20 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
+    private final SecurityContext securityContext;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportHasPrivilegesAction(ThreadPool threadPool, TransportService transportService,
                                         ActionFilters actionFilters, AuthorizationService authorizationService,
-                                        NativePrivilegeStore privilegeStore) {
+                                        NativePrivilegeStore privilegeStore, SecurityContext context,
+                                        NamedXContentRegistry xContentRegistry) {
         super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
+        this.xContentRegistry = xContentRegistry;
+        this.securityContext = context;
     }
 
     @Override
@@ -56,6 +64,18 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         if (user.principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
+        }
+
+        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = request.indexPrivileges();
+        if (indicesPrivileges != null) {
+            for (int i = 0; i < indicesPrivileges.length; i++) {
+                BytesReference query = indicesPrivileges[i].getQuery();
+                if (query != null) {
+                    listener.onFailure(
+                        new IllegalArgumentException("users may only check the index privileges without any DLS role query"));
+                    return;
+                }
+            }
         }
 
         resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors ->

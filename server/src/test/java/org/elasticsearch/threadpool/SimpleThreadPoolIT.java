@@ -25,7 +25,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.lang.management.ManagementFactory;
@@ -60,7 +59,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(2, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                     .field("str_value", "s" + i)
                     .array("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
@@ -93,7 +92,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                     || threadName.contains("Keep-Alive-Timer")) {
                 continue;
             }
-            String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
+            String nodePrefix = "(" +
                     Pattern.quote(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) + "|" +
                     Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX) +")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));

@@ -1,0 +1,161 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-transform-stats]]
+=== Get {transform} statistics API
+
+[subs="attributes"]
+++++
+<titleabbrev>Get {transform} statistics</titleabbrev>
+++++
+
+Retrieves usage information for {transforms}.
+
+beta[]
+
+
+[[get-transform-stats-request]]
+==== {api-request-title}
+
+`GET _transform/<transform_id>/_stats`
+
+`GET _transform/<transform_id>,<transform_id>/_stats` +
+
+`GET _transform/_stats` +
+
+`GET _transform/_all/_stats` +
+
+`GET _transform/*/_stats` +
+
+
+[[get-transform-stats-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_transform` 
+cluster privileges to use this API. The built-in `transform_user` role has these 
+privileges. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
+
+
+[[get-transform-stats-desc]]
+==== {api-description-title}
+
+You can get statistics for multiple {transforms} in a single API
+request by using a comma-separated list of identifiers or a wildcard expression.
+You can get statistics for all {transforms} by using `_all`, by
+specifying `*` as the `<transform_id>`, or by omitting the
+`<transform_id>`.
+
+
+[[get-transform-stats-path-parms]]
+==== {api-path-parms-title}
+
+`<transform_id>`::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+  
+
+[[get-transform-stats-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, boolean)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+
+`from`::
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+
+`size`::
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+
+[[get-transform-stats-response]]
+==== {api-response-body-title}
+
+`transforms`::
+  (array) An array of statistics objects for {transforms}, which are
+  sorted by the `id` value in ascending order.
+  
+[[get-transform-stats-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request. 
+
+[[get-transform-stats-example]]
+==== Examples
+
+The following example skips for the first five {transforms} and
+gets usage information for a maximum of ten results: 
+
+[source,console]
+--------------------------------------------------
+GET _transform/_stats?from=5&size=10
+--------------------------------------------------
+// TEST[skip:todo]
+
+The following example gets usage information for the `ecommerce_transform`
+{transform}:
+
+[source,console]
+--------------------------------------------------
+GET _transform/ecommerce_transform/_stats
+--------------------------------------------------
+// TEST[skip:todo]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count" : 1,
+  "transforms" : [
+    {
+      "id" : "ecommerce_transform",
+      "state" : "indexing",
+      "stats" : {
+        "pages_processed" : 2,
+        "documents_processed" : 1220,
+        "documents_indexed" : 13,
+        "trigger_count" : 1,
+        "index_time_in_ms" : 19,
+        "index_total" : 1,
+        "index_failures" : 0,
+        "search_time_in_ms" : 52,
+        "search_total" : 2,
+        "search_failures" : 0,
+        "exponential_avg_checkpoint_duration_ms" : 77,
+        "exponential_avg_documents_indexed" : 2,
+        "exponential_avg_documents_processed" : 12
+      },
+      "checkpointing" : {
+        "last" : {
+          "checkpoint" : 100,
+          "timestamp_millis" : 1561740252497,
+          "time_upper_bound_millis" : 1561740192497
+        },
+        "next" : {
+          "checkpoint" : 101,
+          "position" : {
+            "indexer_position" : {
+              "hashtag" : "abcd1234"
+            },
+            "buckets_position" : {
+              "hashtag" : "abcd5678"
+            }
+          },
+          "checkpoint_progress" : {
+            "documents_processed": 100,
+            "documents_indexed": 1
+          },
+          "changes_last_detected_at": 1561740629170,
+          "timestamp_millis" : 1561740629172,
+          "time_upper_bound_millis" : 1561740569172
+        },
+        "operations_behind": 27000
+      }
+    }
+  ]
+}
+----

@@ -22,12 +22,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.Randomness;
@@ -35,11 +37,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +55,6 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -76,7 +75,6 @@ import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class NodeJoinTests extends ESTestCase {
 
     private static ThreadPool threadPool;
@@ -134,7 +132,8 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void setupRealMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        MasterService masterService = new MasterService("test_node", Settings.EMPTY, threadPool);
+        MasterService masterService = new MasterService(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             clusterStateRef.set(event.state());
@@ -176,7 +175,7 @@ public class NodeJoinTests extends ESTestCase {
             () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
-            random);
+            random, (s, p, r) -> {}, ElectionStrategy.DEFAULT_INSTANCE);
         transportService.start();
         transportService.acceptIncomingRequests();
         transport = capturingTransport;
@@ -189,9 +188,11 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     protected DiscoveryNode newNode(int i, boolean master) {
-        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        final Set<DiscoveryNodeRole> roles;
         if (master) {
-            roles.add(DiscoveryNode.Role.MASTER);
+            roles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
+        } else {
+            roles = Set.of();
         }
         final String prefix = master ? "master_" : "data_";
         return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
@@ -472,12 +473,16 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     public void testConcurrentJoining() {
-        List<DiscoveryNode> nodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
+        List<DiscoveryNode> masterNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true)).collect(Collectors.toList());
+        List<DiscoveryNode> otherNodes = IntStream.rangeClosed(masterNodes.size() + 1, masterNodes.size() + 1 + randomIntBetween(0, 5))
+            .mapToObj(nodeId -> newNode(nodeId, false)).collect(Collectors.toList());
+        List<DiscoveryNode> allNodes = Stream.concat(masterNodes.stream(), otherNodes.stream()).collect(Collectors.toList());
 
-        DiscoveryNode localNode = nodes.get(0);
+        DiscoveryNode localNode = masterNodes.get(0);
         VotingConfiguration votingConfiguration = new VotingConfiguration(randomValueOtherThan(singletonList(localNode),
-            () -> randomSubsetOf(randomIntBetween(1, nodes.size()), nodes)).stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
+            () -> randomSubsetOf(randomIntBetween(1, masterNodes.size()), masterNodes)).stream()
+            .map(DiscoveryNode::getId).collect(Collectors.toSet()));
 
         logger.info("Voting configuration: {}", votingConfiguration);
 
@@ -489,7 +494,7 @@ public class NodeJoinTests extends ESTestCase {
         // we need at least a quorum of voting nodes with a correct term and worse state
         List<DiscoveryNode> successfulNodes;
         do {
-            successfulNodes = randomSubsetOf(nodes);
+            successfulNodes = randomSubsetOf(allNodes);
         } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()))
             == false);
 
@@ -499,7 +504,7 @@ public class NodeJoinTests extends ESTestCase {
             node -> new JoinRequest(node, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))))
             .collect(Collectors.toList());
 
-        List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(nodes);
+        List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(allNodes);
         possiblyUnsuccessfulNodes.removeAll(successfulNodes);
 
         logger.info("Possibly unsuccessful voting nodes: {}", possiblyUnsuccessfulNodes);
@@ -572,8 +577,8 @@ public class NodeJoinTests extends ESTestCase {
 
         assertTrue(MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster());
         for (DiscoveryNode successfulNode : successfulNodes) {
-            assertTrue(successfulNode.toString(), clusterStateHasNode(successfulNode));
-            assertTrue(successfulNode.toString(), coordinator.hasJoinVoteFrom(successfulNode));
+            assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
+            assertFalse(successfulNode + " voted for master", coordinator.missingJoinVoteFrom(successfulNode));
         }
     }
 

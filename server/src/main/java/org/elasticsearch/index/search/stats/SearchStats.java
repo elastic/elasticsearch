@@ -117,6 +117,22 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCurrent += stats.suggestCurrent;
         }
 
+        public void addForClosingShard(Stats stats) {
+            queryCount += stats.queryCount;
+            queryTimeInMillis += stats.queryTimeInMillis;
+
+            fetchCount += stats.fetchCount;
+            fetchTimeInMillis += stats.fetchTimeInMillis;
+
+            scrollCount += stats.scrollCount;
+            scrollTimeInMillis += stats.scrollTimeInMillis;
+            // need consider the count of the shard's current scroll
+            scrollCount += stats.scrollCurrent;
+
+            suggestCount += stats.suggestCount;
+            suggestTimeInMillis += stats.suggestTimeInMillis;
+        }
+
         public long getQueryCount() {
             return queryCount;
         }
@@ -272,6 +288,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return;
         }
         totalStats.add(searchStats.totalStats);
+    }
+
+    public void addTotalsForClosingShard(SearchStats searchStats) {
+        if (searchStats == null) {
+            return;
+        }
+        totalStats.addForClosingShard(searchStats.totalStats);
     }
 
     public Stats getTotal() {

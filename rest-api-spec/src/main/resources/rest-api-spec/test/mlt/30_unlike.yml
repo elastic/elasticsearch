@@ -40,11 +40,9 @@
               more_like_this:
                 like:
                     _index: test_1
-                    _type: _doc
                     _id: 1
                 unlike:
                     _index: test_1
-                    _type: _doc
                     _id: 3
                 include: true
                 min_doc_freq: 0

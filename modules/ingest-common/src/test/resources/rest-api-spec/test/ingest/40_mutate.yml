@@ -76,6 +76,11 @@ teardown:
                   "pattern" : "-",
                   "replacement" : "."
                 }
+              },
+              {
+                "html_strip" : {
+                  "field" : "field_to_html_strip"
+                }
               }
             ]
           }
@@ -96,7 +101,8 @@ teardown:
             "field_to_split": "127-0-0-1",
             "field_to_join": ["127","0","0","1"],
             "field_to_convert": ["127","0","0","1"],
-            "field_to_gsub": "127-0-0-1"
+            "field_to_gsub": "127-0-0-1",
+            "field_to_html_strip": "<p>this <title>is</title> a <b>test</b>"
           }
 
   - do:
@@ -114,6 +120,7 @@ teardown:
   - match: { _source.field_to_join: "127-0-0-1" }
   - match: { _source.field_to_convert: [127,0,0,1] }
   - match: { _source.field_to_gsub: "127.0.0.1" }
+  - match: { _source.field_to_html_strip: "\nthis \nis\n a test" }
 
 ---
 "Test metadata":

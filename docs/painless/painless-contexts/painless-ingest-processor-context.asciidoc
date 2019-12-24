@@ -38,7 +38,8 @@ void::
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-ingest, Specialized Ingest API>> are available.
 
 *Example*
 
@@ -178,7 +179,7 @@ ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <15>
 
 Submit the following request:
 
-[source,js]
+[source,console]
 ----
 PUT /_ingest/pipeline/seats
 {
@@ -192,4 +193,3 @@ PUT /_ingest/pipeline/seats
     ]
 }
 ----
-// CONSOLE

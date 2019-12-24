@@ -21,7 +21,6 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -47,17 +46,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-    public RestSearchTemplateAction(Settings settings, RestController controller) {
-        super(settings);
-
+    public RestSearchTemplateAction(RestController controller) {
         controller.registerHandler(GET, "/_search/template", this);
         controller.registerHandler(POST, "/_search/template", this);
         controller.registerHandler(GET, "/{index}/_search/template", this);
         controller.registerHandler(POST, "/{index}/_search/template", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override

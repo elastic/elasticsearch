@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -49,8 +48,7 @@ public class RestListTasksAction extends BaseRestHandler {
 
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestListTasksAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
-        super(settings);
+    public RestListTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
         controller.registerHandler(GET, "/_tasks", this);
     }

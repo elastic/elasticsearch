@@ -103,7 +103,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(10000).subAggregation(
-                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_id", SortOrder.ASC))
+                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);
@@ -117,7 +117,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits().value);
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {} {}", searchHit.getSortValues()[0], searchHit.getType(), searchHit.getId());
+                logger.info("hit= {} {}", searchHit.getSortValues()[0], searchHit.getId());
             }
         }
 
@@ -192,7 +192,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
              * the updates cause that.
              */
             UpdateResponse updateResponse;
-            updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
+            updateResponse = client().prepareUpdate(indexName, idToUpdate)
                     .setRouting("1")
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                     .setDetectNoop(false)

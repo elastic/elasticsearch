@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -44,7 +46,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
@@ -55,9 +56,17 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
+    public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
+        "gateway.auto_import_dangling_indices",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
+    private final boolean isAutoImportDanglingIndicesEnabled;
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
@@ -67,7 +76,18 @@ public class DanglingIndicesState implements ClusterStateListener {
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
-        clusterService.addListener(this);
+
+        this.isAutoImportDanglingIndicesEnabled = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
+
+        if (this.isAutoImportDanglingIndicesEnabled) {
+            clusterService.addListener(this);
+        } else {
+            logger.warn(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey() + " is disabled, dangling indices will not be detected or imported");
+        }
+    }
+
+    boolean isAutoImportDanglingIndicesEnabled() {
+        return this.isAutoImportDanglingIndicesEnabled;
     }
 
     /**
@@ -88,7 +108,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      */
     Map<Index, IndexMetaData> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
-        return unmodifiableMap(new HashMap<>(danglingIndices));
+        return Map.copyOf(danglingIndices);
     }
 
     /**
@@ -143,7 +163,7 @@ public class DanglingIndicesState implements ClusterStateListener {
                 } else {
                     logger.info("[{}] dangling index exists on local file system, but not in cluster metadata, " +
                                 "auto import to cluster state", indexMetaData.getIndex());
-                    newIndices.put(indexMetaData.getIndex(), indexMetaData);
+                    newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));
                 }
             }
             return newIndices;
@@ -154,23 +174,37 @@ public class DanglingIndicesState implements ClusterStateListener {
     }
 
     /**
+     * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
+     * previously had only one index with any is_write_index indication.
+     */
+    private IndexMetaData stripAliases(IndexMetaData indexMetaData) {
+        if (indexMetaData.getAliases().isEmpty()) {
+            return indexMetaData;
+        } else {
+            logger.info("[{}] stripping aliases: {} from index before importing",
+                indexMetaData.getIndex(), indexMetaData.getAliases().keys());
+            return IndexMetaData.builder(indexMetaData).removeAllAliases().build();
+        }
+    }
+
+    /**
      * Allocates the provided list of the dangled indices by sending them to the master node
      * for allocation.
      */
-    private void allocateDanglingIndices() {
+    void allocateDanglingIndices() {
         if (danglingIndices.isEmpty()) {
             return;
         }
         try {
             allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
-                new LocalAllocateDangledIndices.Listener() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
                         logger.trace("allocated dangled");
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.info("failed to send allocated dangled", e);
                     }
                 }

@@ -43,10 +43,10 @@ public interface TransportConnectionListener {
     /**
      * Called once a node connection is opened and registered.
      */
-    default void onNodeConnected(DiscoveryNode node) {}
+    default void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {}
 
     /**
      * Called once a node connection is closed and unregistered.
      */
-    default void onNodeDisconnected(DiscoveryNode node) {}
+    default void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {}
 }

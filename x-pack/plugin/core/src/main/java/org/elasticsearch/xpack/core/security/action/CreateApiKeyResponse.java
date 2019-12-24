@@ -119,7 +119,6 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(name);
         out.writeString(id);
         byte[] bytes = null;
@@ -132,11 +131,6 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             }
         }
         out.writeOptionalInstant(expiration);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public static CreateApiKeyResponse fromXContent(XContentParser parser) throws IOException {

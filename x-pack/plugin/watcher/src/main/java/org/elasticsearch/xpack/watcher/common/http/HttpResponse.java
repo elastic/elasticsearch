@@ -11,7 +11,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -61,11 +61,9 @@ public class HttpResponse implements ToXContentObject {
     public HttpResponse(int status, @Nullable BytesReference body, Map<String, String[]> headers) {
         this.status = status;
         this.body = body;
-        MapBuilder<String, String[]> mapBuilder = MapBuilder.newMapBuilder();
-        for (Map.Entry<String, String[]> entry : headers.entrySet()) {
-            mapBuilder.put(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue());
-        }
-        this.headers = mapBuilder.immutableMap();
+        this.headers = headers.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), Map.Entry::getValue));
     }
 
     public int status() {
@@ -85,11 +83,9 @@ public class HttpResponse implements ToXContentObject {
      * in the payload
      */
     public Map<String, List<String>> headers() {
-        MapBuilder<String, List<String>> builder = MapBuilder.newMapBuilder();
-        for (Map.Entry<String, String[]> entry : headers.entrySet()) {
-            builder.put(entry.getKey().toLowerCase(Locale.ROOT), Arrays.asList(entry.getValue()));
-        }
-        return builder.immutableMap();
+        return headers.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), e -> Arrays.asList(e.getValue())));
     }
 
     public String[] header(String header) {

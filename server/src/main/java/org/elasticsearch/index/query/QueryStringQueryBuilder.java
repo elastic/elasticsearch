@@ -23,7 +23,6 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -195,10 +194,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalZoneId();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            autoGenerateSynonymsPhraseQuery = in.readBoolean();
-            fuzzyTranspositions = in.readBoolean();
-        }
+        autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        fuzzyTranspositions = in.readBoolean();
     }
 
     @Override
@@ -230,10 +227,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalZoneId(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-            out.writeBoolean(fuzzyTranspositions);
-        }
+        out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        out.writeBoolean(fuzzyTranspositions);
     }
 
     public String queryString() {
@@ -852,11 +847,14 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             }
         } else if (fieldsAndWeights.size() > 0) {
             final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
-            queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+            if (QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet())) {
+                queryParser = new QueryStringQueryParser(context, resolvedFields, lenient == null ? true : lenient);
+            } else {
+                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+            }
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
+            if (QueryParserHelper.hasAllFieldsWildcard(defaultFields)) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
                 final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context,

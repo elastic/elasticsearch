@@ -137,10 +137,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
+    public abstract static class Filter {}
+
     // The includeValue and excludeValue ByteRefs which are the result of the parsing
     // process are converted into a LongFilter when used on numeric fields
     // in the index.
-    public abstract static class LongFilter {
+    public abstract static class LongFilter extends Filter {
         public abstract boolean accept(long value);
 
     }
@@ -183,7 +185,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     // Only used for the 'map' execution mode (ie. scripts)
-    public abstract static class StringFilter {
+    public abstract static class StringFilter extends Filter {
         public abstract boolean accept(BytesRef value);
     }
 
@@ -231,7 +233,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    public abstract static class OrdinalsFilter {
+    public abstract static class OrdinalsFilter extends Filter {
         public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException;
 
     }

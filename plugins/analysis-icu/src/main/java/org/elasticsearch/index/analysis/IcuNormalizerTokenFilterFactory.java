@@ -22,11 +22,7 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.text.FilteredNormalizer2;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
-
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -38,9 +34,6 @@ import org.elasticsearch.index.IndexSettings;
  * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
-
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(IcuNormalizerTokenFilterFactory.class));
 
     private final Normalizer2 normalizer;
 
@@ -59,14 +52,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings,
                                                 final Normalizer2 normalizer,
                                                 final Settings settings) {
-        String unicodeSetFilter = settings.get("unicodeSetFilter");
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-            if (unicodeSetFilter != null) {
-                deprecationLogger.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
-            } else {
-                unicodeSetFilter = settings.get("unicode_set_filter");
-            }
-        }
+        String unicodeSetFilter = settings.get("unicode_set_filter");
         if (unicodeSetFilter != null) {
             UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);
 

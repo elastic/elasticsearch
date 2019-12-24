@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -27,13 +26,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-
 import java.util.Objects;
 
 /**
  * A response containing the reverted model snapshot
  */
-public class RevertModelSnapshotResponse extends ActionResponse implements ToXContentObject {
+public class RevertModelSnapshotResponse implements ToXContentObject {
 
     private static final ParseField MODEL = new ParseField("model");
 

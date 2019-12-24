@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.utils.persistence.BatchedDocumentsIterator;
 
 import java.io.IOException;
 import java.io.InputStream;

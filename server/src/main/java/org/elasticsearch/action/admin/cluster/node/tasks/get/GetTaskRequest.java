@@ -41,6 +41,15 @@ public class GetTaskRequest extends ActionRequest {
     /**
      * Get the TaskId to look up.
      */
+    public GetTaskRequest() {}
+
+    public GetTaskRequest(StreamInput in) throws IOException {
+        super(in);
+        taskId = TaskId.readFromStream(in);
+        timeout = in.readOptionalTimeValue();
+        waitForCompletion = in.readBoolean();
+    }
+
     public TaskId getTaskId() {
         return taskId;
     }
@@ -99,14 +108,6 @@ public class GetTaskRequest extends ActionRequest {
             validationException = addValidationError("task id is required", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        taskId = TaskId.readFromStream(in);
-        timeout = in.readOptionalTimeValue();
-        waitForCompletion = in.readBoolean();
     }
 
     @Override

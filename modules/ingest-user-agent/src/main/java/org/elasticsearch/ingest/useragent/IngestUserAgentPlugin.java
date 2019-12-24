@@ -32,6 +32,7 @@ import java.nio.file.PathMatcher;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -86,4 +87,8 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
         return Collections.unmodifiableMap(userAgentParsers);
     }
 
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(CACHE_SIZE_SETTING);
+    }
 }

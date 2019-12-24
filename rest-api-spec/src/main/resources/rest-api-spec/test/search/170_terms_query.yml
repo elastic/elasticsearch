@@ -1,8 +1,5 @@
 ---
 "Terms Query with No.of terms exceeding index.max_terms_count should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.max_terms_count setting has been added in 7.0.0
   - do:
       indices.create:
           index: test_index

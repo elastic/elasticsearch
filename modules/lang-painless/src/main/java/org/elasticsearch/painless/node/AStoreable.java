@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -91,17 +92,17 @@ abstract class AStoreable extends AExpression {
      * Called before a storeable node is loaded or stored.  Used to load prefixes and
      * push load/store constants onto the stack if necessary.
      */
-    abstract void setup(MethodWriter writer, Globals globals);
+    abstract void setup(ClassWriter classWriter, MethodWriter writer, Globals globals);
 
     /**
      * Called to load a storable used for compound assignments.
      */
-    abstract void load(MethodWriter writer, Globals globals);
+    abstract void load(ClassWriter classWriter, MethodWriter writer, Globals globals);
 
     /**
      * Called to store a storabable to local memory.
      */
-    abstract void store(MethodWriter writer, Globals globals);
+    abstract void store(ClassWriter classWriter, MethodWriter writer, Globals globals);
 
     /**
      * Writes the opcodes to flip a negative array index (meaning slots from the end of the array) into a 0-based one (meaning slots from

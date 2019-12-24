@@ -30,21 +30,20 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
@@ -52,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
@@ -83,12 +83,12 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(),
-            request.request().index());
+        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state, request.request().index());
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }
 
@@ -108,22 +108,15 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
-        String[] types;
-        if (MapperService.SINGLE_MAPPING_NAME.equals(request.type())) { // typeless explain call
-            types = Strings.EMPTY_ARRAY;
-        } else {
-            types = new String[] { request.type() };
-        }
-        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(shardId,
-                types, request.nowInMillis, request.filteringAlias());
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, request.nowInMillis, request.filteringAlias());
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
             // No need to check the type, IndexShard#get does it for us
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
-            result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
+            result = context.indexShard().get(new Engine.Get(false, false, request.id(), uidTerm));
             if (!result.exists()) {
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
@@ -137,11 +130,11 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.type(), request.storedFields(),
+                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.storedFields(),
                     request.fetchSourceContext());
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation, getResult);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation, getResult);
             } else {
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation);
             }
         } catch (IOException e) {
             throw new ElasticsearchException("Could not explain", e);
@@ -151,8 +144,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected ExplainResponse newResponse() {
-        return new ExplainResponse();
+    protected Writeable.Reader<ExplainResponse> getResponseReader() {
+        return ExplainResponse::new;
     }
 
     @Override

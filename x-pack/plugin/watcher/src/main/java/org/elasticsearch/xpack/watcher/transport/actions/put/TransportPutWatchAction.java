@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 
@@ -66,10 +67,10 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
     @Inject
     public TransportPutWatchAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
+                                   ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser, Client client) {
         super(PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
         this.threadPool = threadPool;
-        this.clock = clock;
+        this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
     }
@@ -94,7 +95,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                 watch.toXContent(builder, DEFAULT_PARAMS);
 
                 if (isUpdate) {
-                    UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getId());
                     if (request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         updateRequest.setIfSeqNo(request.getIfSeqNo());
                         updateRequest.setIfPrimaryTerm(request.getIfPrimaryTerm());
@@ -112,7 +113,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                             }, listener::onFailure),
                             client::update);
                 } else {
-                    IndexRequest indexRequest = new IndexRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    IndexRequest indexRequest = new IndexRequest(Watch.INDEX).id(request.getId());
                     indexRequest.source(builder);
                     indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, indexRequest,

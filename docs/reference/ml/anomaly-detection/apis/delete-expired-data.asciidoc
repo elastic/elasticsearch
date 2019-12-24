@@ -1,0 +1,48 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-expired-data]]
+=== Delete expired data API
+++++
+<titleabbrev>Delete expired data</titleabbrev>
+++++
+
+Deletes expired and unused machine learning data.
+
+[[ml-delete-expired-data-request]]
+==== {api-request-title}
+
+`DELETE _ml/_delete_expired_data`
+
+[[ml-delete-expired-data-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-delete-expired-data-desc]]
+==== {api-description-title}
+
+Deletes all job results, model snapshots and forecast data that have exceeded
+their `retention days` period. Machine learning state documents that are not
+associated with any job are also deleted.
+
+[[ml-delete-expired-data-example]]
+==== {api-examples-title}
+
+The endpoint takes no arguments:
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/_delete_expired_data
+--------------------------------------------------
+// TEST
+
+When the expired data is deleted, you receive the following response:
+
+[source,console-result]
+----
+{
+  "deleted": true
+}
+----

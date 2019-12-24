@@ -22,7 +22,7 @@ package org.elasticsearch.index.cache.query;
 import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -30,15 +30,23 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class QueryCacheStats implements Streamable, ToXContentFragment {
+public class QueryCacheStats implements Writeable, ToXContentFragment {
 
-    long ramBytesUsed;
-    long hitCount;
-    long missCount;
-    long cacheCount;
-    long cacheSize;
+    private long ramBytesUsed;
+    private long hitCount;
+    private long missCount;
+    private long cacheCount;
+    private long cacheSize;
 
     public QueryCacheStats() {
+    }
+
+    public QueryCacheStats(StreamInput in) throws IOException {
+        ramBytesUsed = in.readLong();
+        hitCount = in.readLong();
+        missCount = in.readLong();
+        cacheCount = in.readLong();
+        cacheSize = in.readLong();
     }
 
     public QueryCacheStats(long ramBytesUsed, long hitCount, long missCount, long cacheCount, long cacheSize) {
@@ -105,15 +113,6 @@ public class QueryCacheStats implements Streamable, ToXContentFragment {
      */
     public long getEvictions() {
         return cacheCount - cacheSize;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        ramBytesUsed = in.readLong();
-        hitCount = in.readLong();
-        missCount = in.readLong();
-        cacheCount = in.readLong();
-        cacheSize = in.readLong();
     }
 
     @Override

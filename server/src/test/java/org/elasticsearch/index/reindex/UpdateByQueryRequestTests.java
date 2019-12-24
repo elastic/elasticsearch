@@ -20,6 +20,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
@@ -76,5 +79,29 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     protected void extraForSliceAssertions(UpdateByQueryRequest original, UpdateByQueryRequest forSliced) {
         assertEquals(original.getScript(), forSliced.getScript());
         assertEquals(original.getPipeline(), forSliced.getPipeline());
+    }
+
+    // TODO: Implement standard to/from x-content parsing tests
+
+    @Override
+    protected UpdateByQueryRequest createTestInstance() {
+        return newRequest();
+    }
+
+    @Override
+    protected UpdateByQueryRequest doParseInstance(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != null) {
+        }
+        return newRequest();
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(UpdateByQueryRequest expectedInstance, UpdateByQueryRequest newInstance) {
     }
 }

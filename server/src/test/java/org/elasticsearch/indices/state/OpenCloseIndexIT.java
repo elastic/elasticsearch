@@ -22,7 +22,9 @@ package org.elasticsearch.indices.state;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -33,7 +35,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -54,6 +58,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testSimpleCloseOpen() {
@@ -276,7 +281,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
         for (int i = 0; i < docs ; i++) {
-            builder[i] = client().prepareIndex("test", "type", "" + i).setSource("test", "init");
+            builder[i] = client().prepareIndex("test").setId("" + i).setSource("test", "init");
         }
         indexRandom(true, builder);
         if (randomBoolean()) {
@@ -287,7 +292,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         // check the index still contains the records that we indexed
         client().admin().indices().prepareOpen("test").execute().get();
         ensureGreen();
-        SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, docs);
     }
@@ -298,7 +303,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs ; i++) {
-            client().prepareIndex("test", "type", "" + i).setSource("test", "init").execute().actionGet();
+            client().prepareIndex("test").setId("" + i).setSource("test", "init").execute().actionGet();
         }
 
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
@@ -345,5 +350,47 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
                 disableIndexBlock("test", blockSetting);
             }
         }
+    }
+
+    public void testTranslogStats() throws Exception {
+        final String indexName = "test";
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+        boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(
+            client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName));
+
+        final int nbDocs = randomIntBetween(0, 50);
+        int uncommittedOps = 0;
+        for (long i = 0; i < nbDocs; i++) {
+            final IndexResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            assertThat(indexResponse.status(), is(RestStatus.CREATED));
+
+            if (rarely()) {
+                client().admin().indices().prepareFlush(indexName).get();
+                uncommittedOps = 0;
+            } else {
+                uncommittedOps += 1;
+            }
+        }
+
+        final int uncommittedTranslogOps = uncommittedOps;
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
+            assertThat(stats.getIndex(indexName), notNullValue());
+            assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(
+                softDeletesEnabled ? uncommittedTranslogOps : nbDocs));
+            assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedTranslogOps));
+        });
+
+        assertAcked(client().admin().indices().prepareClose("test"));
+
+        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions)
+            .clear().setTranslog(true).get();
+        assertThat(stats.getIndex(indexName), notNullValue());
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
+            equalTo(softDeletesEnabled ? 0 : nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
     }
 }

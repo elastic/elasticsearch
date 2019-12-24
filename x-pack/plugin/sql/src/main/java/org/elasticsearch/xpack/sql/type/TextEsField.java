@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * SQL-related information about an index field with text type
@@ -15,30 +17,50 @@ import java.util.Map;
 public class TextEsField extends EsField {
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        super(name, DataType.TEXT, properties, hasDocValues);
+        this(name, properties, hasDocValues, false);
+    }
+    
+    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
+        super(name, DataType.TEXT, properties, hasDocValues, isAlias);
     }
 
     @Override
     public EsField getExactField() {
+        Tuple<EsField, String> findExact = findExact();
+        if (findExact.v1() == null) {
+            throw new SqlIllegalArgumentException(findExact.v2());
+        }
+        return findExact.v1();
+    }
+
+    @Override
+    public Exact getExactInfo() {
+        return PROCESS_EXACT_FIELD.apply(findExact());
+    }
+
+    private Tuple<EsField, String> findExact() {
         EsField field = null;
         for (EsField property : getProperties().values()) {
-            if (property.getDataType() == DataType.KEYWORD && property.isExact()) {
+            if (property.getDataType() == DataType.KEYWORD && property.getExactInfo().hasExact()) {
                 if (field != null) {
-                    throw new MappingException("Multiple exact keyword candidates available for [" + getName() +
-                            "]; specify which one to use");
+                    return new Tuple<>(null, "Multiple exact keyword candidates available for [" + getName() +
+                        "]; specify which one to use");
                 }
                 field = property;
             }
         }
         if (field == null) {
-            throw new MappingException("No keyword/multi-field defined exact matches for [" + getName() +
-                    "]; define one or use MATCH/QUERY instead");
+            return new Tuple<>(null, "No keyword/multi-field defined exact matches for [" + getName() +
+                "]; define one or use MATCH/QUERY instead");
         }
-        return field;
+        return new Tuple<>(field, null);
     }
 
-    @Override
-    public boolean isExact() {
-        return false;
-    }
+    private Function<Tuple<EsField, String>, Exact> PROCESS_EXACT_FIELD = tuple -> {
+        if (tuple.v1() == null) {
+            return new Exact(false, tuple.v2());
+        } else {
+            return new Exact(true, null);
+        }
+    };
 }

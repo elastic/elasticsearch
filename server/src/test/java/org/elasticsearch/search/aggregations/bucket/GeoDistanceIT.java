@@ -64,7 +64,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         return false;
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+    private Version version = VersionUtils.randomIndexCompatibleVersion(random());
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
@@ -74,7 +74,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
         source.endArray();
         source = source.endObject();
-        return client().prepareIndex(idx, "type").setSource(source);
+        return client().prepareIndex(idx).setSource(source);
     }
 
     @Override
@@ -127,7 +127,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .addMapping("type", "value", "type=integer", "location", "type=geo_point").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i * 2)
                     .field("location", "52.0945, 5.116")

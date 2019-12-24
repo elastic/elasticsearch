@@ -103,9 +103,6 @@ setup:
 
 ---
 "Sliced scroll with invalid arguments":
-  - skip:
-      version: " - 6.99.99"
-      reason: Prior versions return 500 rather than 404
 
   - do:
         catch: bad_request

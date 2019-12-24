@@ -19,42 +19,18 @@
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-archivesBaseName = 'elasticsearch-nio'
-
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
-
 dependencies {
-  compile "org.elasticsearch:elasticsearch-core:${version}"
+  compile project(':libs:elasticsearch-core')
 
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-  if (isEclipse == false || project.path == ":libs:nio-tests") {
-      testCompile("org.elasticsearch.test:framework:${version}") {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
-      }
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
   }
 }
 
-if (isEclipse) {
-  // in eclipse the project is under a fake root, we need to change around the source sets
-  sourceSets {
-    if (project.path == ":libs:nio") {
-      main.java.srcDirs = ['java']
-      main.resources.srcDirs = ['resources']
-    } else {
-      test.java.srcDirs = ['java']
-      test.resources.srcDirs = ['resources']
-    }
-  }
-}
 
 forbiddenApisMain {
   // nio does not depend on core, so only jdk signatures should be checked

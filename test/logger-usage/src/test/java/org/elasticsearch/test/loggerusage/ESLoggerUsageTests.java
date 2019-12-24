@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 import org.hamcrest.Matchers;
@@ -115,6 +116,35 @@ public class ESLoggerUsageTests extends ESTestCase {
         }
 
         assertEquals(5, ParameterizedMessage.class.getConstructors().length);
+    }
+
+    public void checkArgumentsProvidedInConstructor() {
+        logger.debug(new ESLogMessage("message {}", "some-arg")
+            .field("x-opaque-id", "some-value"));
+    }
+
+    public void checkWithUsage() {
+        logger.debug(new ESLogMessage("message {}")
+            .argAndField("x-opaque-id", "some-value")
+            .field("field", "value")
+            .with("field2", "value2"));
+    }
+
+    public void checkFailArraySizeForSubclasses(Object... arr) {
+        logger.debug(new ESLogMessage("message {}", arr));
+    }
+
+    public void checkFailForTooManyArgumentsInConstr() {
+        logger.debug(new ESLogMessage("message {}", "arg1", "arg2"));
+    }
+
+    public void checkFailForTooManyArgumentsWithChain() {
+        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value")
+                                                   .argAndField("too-many-arg", "xxx"));
+    }
+
+    public void checkFailArraySize(String... arr) {
+        logger.debug(new ParameterizedMessage("text {}", (Object[])arr));
     }
 
     public void checkNumberOfArguments1() {

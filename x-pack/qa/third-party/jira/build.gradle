@@ -3,31 +3,27 @@ import groovy.json.JsonSlurper
 import javax.net.ssl.HttpsURLConnection
 import java.nio.charset.StandardCharsets
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  testCompile project(':x-pack:plugin:core')
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 
-ext {
-  jiraUrl      = System.getenv('jira_url')
-  jiraUser     = System.getenv('jira_user')
-  jiraPassword = System.getenv('jira_password')
-  jiraProject  = System.getenv('jira_project')
-}
 
-integTestCluster {
+String jiraUrl = System.getenv('jira_url')
+String jiraUser = System.getenv('jira_user')
+String jiraPassword = System.getenv('jira_password')
+String jiraProject = System.getenv('jira_project')
+
+testClusters.integTest {
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-  keystoreSetting 'xpack.notification.jira.account.test.secure_url', jiraUrl
-  keystoreSetting 'xpack.notification.jira.account.test.secure_user', jiraUser
-  keystoreSetting 'xpack.notification.jira.account.test.secure_password', jiraPassword
-  setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
   setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
   setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
 }
@@ -46,10 +42,16 @@ task cleanJira(type: DefaultTask) {
 
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
-    integTest.enabled = false
-    testingConventions.enabled = false
+  integTest.enabled = false
+  testingConventions.enabled = false
 } else {
-    integTestRunner.finalizedBy cleanJira
+  testClusters.integTest {
+    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
+    keystore 'xpack.notification.jira.account.test.secure_url', jiraUrl
+    keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
+    keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
+  }
+  integTest.runner.finalizedBy cleanJira
 }
 
 /** List all issues associated to a given Jira project **/
@@ -57,7 +59,7 @@ def jiraIssues(projectKey) {
   // See https://docs.atlassian.com/jira/REST/cloud/#api/2/search-search
   def response = jiraHttpRequest("search?maxResults=100&fields=id,self,key&jql=project%3D${projectKey}", "GET", 200)
   assert response.issues instanceof List
-  return response.issues.findAll {it.key.startsWith(projectKey)}.collect {it.key}
+  return response.issues.findAll { it.key.startsWith(projectKey) }.collect { it.key }
 }
 
 /** Execute an HTTP request against the Jira server instance **/

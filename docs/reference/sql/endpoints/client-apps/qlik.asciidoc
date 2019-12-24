@@ -10,6 +10,8 @@ to use Qlik Sense and create personalized, interactive data visualizations, repo
 drag-and-drop ease.
 ____
 
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
 ==== Prerequisites
 
 * Qlik Sense Desktop November 2018 or higher

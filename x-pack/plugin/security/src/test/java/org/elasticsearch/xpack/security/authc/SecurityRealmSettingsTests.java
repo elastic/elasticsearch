@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealmTestCase;
+import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectTestCase;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTestHelper;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -48,8 +50,15 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
             final Path kerbKeyTab = createTempFile("es", "keytab");
             KerberosRealmTestCase.writeKeyTab(kerbKeyTab, null);
 
+            final Path jwkSet = createTempFile("jwkset", "json");
+            OpenIdConnectTestCase.writeJwkSetToFile(jwkSet);
+
+            final Settings existingSettings = super.nodeSettings(nodeOrdinal);
+            MockSecureSettings mockSecureSettings =
+                (MockSecureSettings) Settings.builder().put(existingSettings).getSecureSettings();
+            mockSecureSettings.setString("xpack.security.authc.realms.oidc.oidc1.rp.client_secret", randomAlphaOfLength(12));
             settings = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal).filter(s -> s.startsWith("xpack.security.authc.realms.") == false))
+                .put(existingSettings.filter(s -> s.startsWith("xpack.security.authc.realms.") == false), false)
                 .put("xpack.security.authc.token.enabled", true)
                 .put("xpack.security.authc.realms.file.file1.order", 1)
                 .put("xpack.security.authc.realms.native.native1.order", 2)
@@ -67,6 +76,16 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.saml.saml1.attributes.principal", "uid")
                 .put("xpack.security.authc.realms.kerberos.kerb1.order", 7)
                 .put("xpack.security.authc.realms.kerberos.kerb1.keytab.path", kerbKeyTab.toAbsolutePath())
+                .put("xpack.security.authc.realms.oidc.oidc1.order", 8)
+                .put("xpack.security.authc.realms.oidc.oidc1.op.issuer", "https://the.issuer.com:8090")
+                .put("xpack.security.authc.realms.oidc.oidc1.op.jwkset_path", jwkSet.toAbsolutePath())
+                .put("xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint", "https://the.issuer.com:8090/login")
+                .put("xpack.security.authc.realms.oidc.oidc1.op.token_endpoint", "https://the.issuer.com:8090/token")
+                .put("xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri", "https://localhost/cb")
+                .put("xpack.security.authc.realms.oidc.oidc1.rp.client_id", "my_client")
+                .put("xpack.security.authc.realms.oidc.oidc1.rp.response_type", "code")
+                .put("xpack.security.authc.realms.oidc.oidc1.claims.principal", "sub")
+                .setSecureSettings(mockSecureSettings)
                 .build();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -84,7 +103,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
     }
 
     /**
-     * Some realms (currently only SAML, but maybe more in the future) hold on to resources that may need to be explicitly closed.
+     * Some realms (SAML and OIDC at the moment) hold on to resources that may need to be explicitly closed.
      */
     @AfterClass
     public static void closeRealms() throws IOException {

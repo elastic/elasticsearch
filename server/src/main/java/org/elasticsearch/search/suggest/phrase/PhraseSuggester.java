@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.phrase;
 
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,11 +95,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood,
                     separator);
             Result checkerResult;
-            try (TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
+            try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare,
+                    suggestion.getField())) {
                 checkerResult = checker.getCorrections(stream,
                         new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
                         suggestion.maxErrors(), suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
-                }
+            }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
             response.addTerm(resultEntry);
@@ -144,8 +147,22 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
+    private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
+        spare.copyUTF8Bytes(query);
+        return analyzer.tokenStream(field, new CharArrayReader(spare.chars(), 0, spare.length()));
+    }
+
     private static PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
+    }
+
+    @Override
+    protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(String name, PhraseSuggestionContext suggestion,
+            CharsRefBuilder spare) throws IOException {
+        PhraseSuggestion phraseSuggestion = new PhraseSuggestion(name, suggestion.getSize());
+        spare.copyUTF8Bytes(suggestion.getText());
+        phraseSuggestion.addTerm(new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length()));
+        return phraseSuggestion;
     }
 }

@@ -50,8 +50,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.elasticsearch.geometry.utils.Geohash.addNeighbors;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 
 /**
  * A {@link ContextMapping} that uses a geo location/area as a

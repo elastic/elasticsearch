@@ -19,20 +19,16 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class PutPipelineAction extends Action<AcknowledgedResponse> {
+public class PutPipelineAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/put";
 
     public PutPipelineAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
-    }
 }

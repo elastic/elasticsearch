@@ -76,7 +76,26 @@ public class NodeInfo extends BaseNodeResponse {
     @Nullable
     private ByteSizeValue totalIndexingBuffer;
 
-    public NodeInfo() {
+    public NodeInfo(StreamInput in) throws IOException {
+        super(in);
+        version = Version.readVersion(in);
+        build = Build.readBuild(in);
+        if (in.readBoolean()) {
+            totalIndexingBuffer = new ByteSizeValue(in.readLong());
+        } else {
+            totalIndexingBuffer = null;
+        }
+        if (in.readBoolean()) {
+            settings = Settings.readSettingsFromStream(in);
+        }
+        os = in.readOptionalWriteable(OsInfo::new);
+        process = in.readOptionalWriteable(ProcessInfo::new);
+        jvm = in.readOptionalWriteable(JvmInfo::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolInfo::new);
+        transport = in.readOptionalWriteable(TransportInfo::new);
+        http = in.readOptionalWriteable(HttpInfo::new);
+        plugins = in.readOptionalWriteable(PluginsAndModules::new);
+        ingest = in.readOptionalWriteable(IngestInfo::new);
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
@@ -180,35 +199,6 @@ public class NodeInfo extends BaseNodeResponse {
     @Nullable
     public ByteSizeValue getTotalIndexingBuffer() {
         return totalIndexingBuffer;
-    }
-
-    public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
-        NodeInfo nodeInfo = new NodeInfo();
-        nodeInfo.readFrom(in);
-        return nodeInfo;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        version = Version.readVersion(in);
-        build = Build.readBuild(in);
-        if (in.readBoolean()) {
-            totalIndexingBuffer = new ByteSizeValue(in.readLong());
-        } else {
-            totalIndexingBuffer = null;
-        }
-        if (in.readBoolean()) {
-            settings = Settings.readSettingsFromStream(in);
-        }
-        os = in.readOptionalWriteable(OsInfo::new);
-        process = in.readOptionalWriteable(ProcessInfo::new);
-        jvm = in.readOptionalWriteable(JvmInfo::new);
-        threadPool = in.readOptionalWriteable(ThreadPoolInfo::new);
-        transport = in.readOptionalWriteable(TransportInfo::new);
-        http = in.readOptionalWriteable(HttpInfo::new);
-        plugins = in.readOptionalWriteable(PluginsAndModules::new);
-        ingest = in.readOptionalWriteable(IngestInfo::new);
     }
 
     @Override

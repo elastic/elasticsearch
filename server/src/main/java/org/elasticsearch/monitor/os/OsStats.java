@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.os;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -229,13 +228,17 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final long free;
 
         public Mem(long total, long free) {
+            assert total >= 0 : "expected total memory to be positive, got: " + total;
+            assert free >= 0 : "expected free memory to be positive, got: " + total;
             this.total = total;
             this.free = free;
         }
 
         public Mem(StreamInput in) throws IOException {
             this.total = in.readLong();
+            assert total >= 0 : "expected total memory to be positive, got: " + total;
             this.free = in.readLong();
+            assert free >= 0 : "expected free memory to be positive, got: " + total;
         }
 
         @Override
@@ -413,15 +416,9 @@ public class OsStats implements Writeable, ToXContentFragment {
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
             cpuStat = new CpuStat(in);
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                memoryControlGroup = in.readOptionalString();
-                memoryLimitInBytes = in.readOptionalString();
-                memoryUsageInBytes = in.readOptionalString();
-            } else {
-                memoryControlGroup = null;
-                memoryLimitInBytes = null;
-                memoryUsageInBytes = null;
-            }
+            memoryControlGroup = in.readOptionalString();
+            memoryLimitInBytes = in.readOptionalString();
+            memoryUsageInBytes = in.readOptionalString();
         }
 
         @Override
@@ -432,11 +429,9 @@ public class OsStats implements Writeable, ToXContentFragment {
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeOptionalString(memoryControlGroup);
-                out.writeOptionalString(memoryLimitInBytes);
-                out.writeOptionalString(memoryUsageInBytes);
-            }
+            out.writeOptionalString(memoryControlGroup);
+            out.writeOptionalString(memoryLimitInBytes);
+            out.writeOptionalString(memoryUsageInBytes);
         }
 
         @Override

@@ -49,7 +49,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -70,11 +69,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         SearchHits searchHits = ((TopHits) result).getHits();
         assertEquals(3L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
-        assertEquals("type", searchHits.getAt(0).getType());
         assertEquals("2", searchHits.getAt(1).getId());
-        assertEquals("type", searchHits.getAt(1).getType());
         assertEquals("1", searchHits.getAt(2).getId());
-        assertEquals("type", searchHits.getAt(2).getType());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
     }
 
@@ -206,5 +202,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();
+    }
+
+    public void testSortByScore() throws Exception {
+        // just check that it does not fail with exceptions
+        testCase(new MatchAllDocsQuery(), topHits("_name").sort("_score", SortOrder.DESC));
+        testCase(new MatchAllDocsQuery(), topHits("_name").sort("_score"));
     }
 }

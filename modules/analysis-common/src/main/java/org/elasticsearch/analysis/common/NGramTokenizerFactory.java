@@ -21,7 +21,6 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -29,10 +28,14 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -68,7 +71,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         MATCHERS = unmodifiableMap(matchers);
     }
 
-    static CharMatcher parseTokenChars(List<String> characterClasses) {
+    static CharMatcher parseTokenChars(Settings settings) {
+        List<String> characterClasses = settings.getAsList("token_chars");
         if (characterClasses == null || characterClasses.isEmpty()) {
             return null;
         }
@@ -77,7 +81,23 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             characterClass = characterClass.toLowerCase(Locale.ROOT).trim();
             CharMatcher matcher = MATCHERS.get(characterClass);
             if (matcher == null) {
-                throw new IllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + MATCHERS.keySet());
+                if (characterClass.equals("custom") == false) {
+                    throw new IllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + Stream
+                            .of(MATCHERS.keySet(), Collections.singleton("custom")).flatMap(x -> x.stream()).collect(Collectors.toSet()));
+                }
+                String customCharacters = settings.get("custom_token_chars");
+                if (customCharacters == null) {
+                    throw new IllegalArgumentException("Token type: 'custom' requires setting `custom_token_chars`");
+                }
+                final Set<Integer> customCharSet = customCharacters.chars().boxed().collect(Collectors.toSet());
+                matcher = new CharMatcher() {
+
+                    @Override
+                    public boolean isTokenChar(int c) {
+                        return customCharSet.contains(c);
+                    }
+
+                };
             }
             builder.or(matcher);
         }
@@ -85,23 +105,18 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings);
+        super(indexSettings, settings, name);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
-                        + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
-                        + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
-            } else {
-                deprecationLogger.deprecated("Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
-                    + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
-            }
+            throw new IllegalArgumentException(
+                "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                    + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
         }
-        this.matcher = parseTokenChars(settings.getAsList("token_chars"));
+        this.matcher = parseTokenChars(settings);
     }
 
     @Override

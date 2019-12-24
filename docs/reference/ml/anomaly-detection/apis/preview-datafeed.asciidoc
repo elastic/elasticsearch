@@ -1,0 +1,86 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-preview-datafeed]]
+=== Preview {dfeeds} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Preview {dfeeds}</titleabbrev>
+++++
+
+Previews a {dfeed}.
+
+[[ml-preview-datafeed-request]]
+==== {api-request-title}
+
+`GET _ml/datafeeds/<datafeed_id>/_preview`
+
+[[ml-preview-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
+`manage_ml`, or `manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-preview-datafeed-desc]]
+==== {api-description-title}
+
+The preview {dfeeds} API returns the first "page" of results from the `search`
+that is created by using the current {dfeed} settings. This preview shows the
+structure of the data that will be passed to the anomaly detection engine.
+
+IMPORTANT: When {es} {security-features} are enabled, the {dfeed} query is
+previewed using the credentials of the user calling the preview {dfeed} API.
+When the {dfeed} is started it runs the query using the roles of the last user
+to create or update it.  If the two sets of roles differ then the preview may
+not accurately reflect what the {dfeed} will return when started. To avoid
+such problems, the same user that creates/updates the {dfeed} should preview
+it to ensure it is returning the expected data.
+
+[[ml-preview-datafeed-path-parms]]
+==== {api-path-parms-title}
+
+`<datafeed_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+[[ml-preview-datafeed-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/datafeeds/datafeed-high_sum_total_sales/_preview
+--------------------------------------------------
+// TEST[skip:set up Kibana sample data]
+
+The data that is returned for this example is as follows:
+
+[source,console-result]
+----
+[
+  {
+    "order_date" : 1574294659000,
+    "category.keyword" : "Men's Clothing",
+    "customer_full_name.keyword" : "Sultan Al Benson",
+    "taxful_total_price" : 35.96875
+  },
+  {
+    "order_date" : 1574294918000,
+    "category.keyword" : [
+      "Women's Accessories",
+      "Women's Clothing"
+    ],
+    "customer_full_name.keyword" : "Pia Webb",
+    "taxful_total_price" : 83.0
+  },
+  {
+    "order_date" : 1574295782000,
+    "category.keyword" : [
+      "Women's Accessories",
+      "Women's Shoes"
+    ],
+    "customer_full_name.keyword" : "Brigitte Graham",
+    "taxful_total_price" : 72.0
+  }
+]
+----

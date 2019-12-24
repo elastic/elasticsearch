@@ -34,18 +34,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -59,9 +62,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
@@ -79,13 +82,11 @@ public class NativePrivilegeStore {
 
     private final Settings settings;
     private final Client client;
-    private final SecurityClient securityClient;
     private final SecurityIndexManager securityIndexManager;
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
         this.settings = settings;
         this.client = client;
-        this.securityClient = new SecurityClient(client);
         this.securityIndexManager = securityIndexManager;
     }
 
@@ -96,7 +97,7 @@ public class NativePrivilegeStore {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
-        } else if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
+        } else if (isSinglePrivilegeMatch(applications, names)) {
             getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
                 ActionListener.wrap(privilege ->
                         listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
@@ -109,20 +110,23 @@ public class NativePrivilegeStore {
                 if (isEmpty(applications) && isEmpty(names)) {
                     query = typeQuery;
                 } else if (isEmpty(names)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(
-                        QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.APPLICATION.getPreferredName(), applications));
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(getApplicationNameQuery(applications));
                 } else if (isEmpty(applications)) {
                     query = QueryBuilders.boolQuery().filter(typeQuery)
-                        .filter(QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.NAME.getPreferredName(), names));
+                        .filter(getPrivilegeNameQuery(names));
+                } else if (hasWildcard(applications)) {
+                    query = QueryBuilders.boolQuery().filter(typeQuery)
+                        .filter(getApplicationNameQuery(applications))
+                        .filter(getPrivilegeNameQuery(names));
                 } else {
                     final String[] docIds = applications.stream()
                         .flatMap(a -> names.stream().map(n -> toDocId(a, n)))
                         .toArray(String[]::new);
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery("doc").addIds(docIds));
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery().addIds(docIds));
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                         .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                         .setQuery(query)
                         .setSize(1000)
@@ -138,6 +142,50 @@ public class NativePrivilegeStore {
         }
     }
 
+    private boolean isSinglePrivilegeMatch(Collection<String> applications, Collection<String> names) {
+        return applications != null && applications.size() == 1 && hasWildcard(applications) == false && names != null && names.size() == 1;
+    }
+
+    private boolean hasWildcard(Collection<String> applications) {
+        return applications.stream().anyMatch(n -> n.endsWith("*"));
+    }
+
+    private QueryBuilder getPrivilegeNameQuery(Collection<String> names) {
+        return QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.NAME.getPreferredName(), names);
+    }
+
+    private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+        if (applications.contains("*")) {
+            return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
+        }
+        final List<String> rawNames = new ArrayList<>(applications.size());
+        final List<String> wildcardNames = new ArrayList<>(applications.size());
+        for (String name : applications) {
+            if (name.endsWith("*")) {
+                wildcardNames.add(name);
+            } else {
+                rawNames.add(name);
+            }
+        }
+
+        assert rawNames.isEmpty() == false || wildcardNames.isEmpty() == false;
+
+        TermsQueryBuilder termsQuery = rawNames.isEmpty() ? null : QueryBuilders.termsQuery(APPLICATION.getPreferredName(), rawNames);
+        if (wildcardNames.isEmpty()) {
+            return termsQuery;
+        }
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+        if (termsQuery != null) {
+            boolQuery.should(termsQuery);
+        }
+        for (String wildcard : wildcardNames) {
+            final String prefix = wildcard.substring(0, wildcard.length() - 1);
+            boolQuery.should(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
+        }
+        boolQuery.minimumShouldMatch(1);
+        return boolQuery;
+    }
+
     private static boolean isEmpty(Collection<String> collection) {
         return collection == null || collection.isEmpty();
     }
@@ -151,7 +199,8 @@ public class NativePrivilegeStore {
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
+                    client.prepareGet(SECURITY_MAIN_ALIAS, toDocId(application, name))
+                            .request(),
                     new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
@@ -189,7 +238,7 @@ public class NativePrivilegeStore {
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
                     clearRolesCache(listener, createdNames);
-                }, listener::onFailure), privileges.size(), Collections.emptyList());
+                }, listener::onFailure), privileges.size());
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
             }
@@ -202,7 +251,7 @@ public class NativePrivilegeStore {
             final String name = privilege.getName();
             final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_INDEX_NAME, "doc", toDocId(privilege.getApplication(), name))
+                client.prepareIndex(SECURITY_MAIN_ALIAS).setId(toDocId(privilege.getApplication(), name))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(refreshPolicy)
                     .request(), listener, client::index);
@@ -230,10 +279,10 @@ public class NativePrivilegeStore {
                             .map(NativePrivilegeStore::nameFromDocId)
                             .collect(TUPLES_TO_MAP);
                         clearRolesCache(listener, deletedNames);
-                    }, listener::onFailure), names.size(), Collections.emptyList());
+                    }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete(SECURITY_INDEX_NAME, "doc", toDocId(application, name))
+                        client.prepareDelete(SECURITY_MAIN_ALIAS, toDocId(application, name))
                             .setRefreshPolicy(refreshPolicy)
                             .request(), groupListener, client::delete);
                 }
@@ -244,8 +293,8 @@ public class NativePrivilegeStore {
     private <T> void clearRolesCache(ActionListener<T> listener, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
         ClearRolesCacheRequest request = new ClearRolesCacheRequest();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-            new ActionListener<ClearRolesCacheResponse>() {
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(ClearRolesCacheResponse nodes) {
                     listener.onResponse(value);
@@ -257,7 +306,7 @@ public class NativePrivilegeStore {
                     listener.onFailure(
                         new ElasticsearchException("clearing the role cache failed. please clear the role cache manually", e));
                 }
-            }, securityClient::clearRolesCache);
+            });
     }
 
     private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {

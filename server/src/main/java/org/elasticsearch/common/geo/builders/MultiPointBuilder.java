@@ -24,7 +24,7 @@ import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.geo.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPoint;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Point;
 
@@ -87,7 +87,7 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
         if (coordinates.isEmpty()) {
             return MultiPoint.EMPTY;
         }
-        return new MultiPoint(coordinates.stream().map(coord -> new org.elasticsearch.geo.geometry.Point(coord.y, coord.x))
+        return new MultiPoint(coordinates.stream().map(coord -> new org.elasticsearch.geometry.Point(coord.x, coord.y))
             .collect(Collectors.toList()));
     }
 

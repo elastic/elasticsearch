@@ -19,8 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -247,6 +246,14 @@ public interface Scheduler {
                 }
             }
         }
+
+        @Override
+        public String toString() {
+            return "ReschedulingRunnable{" +
+                "runnable=" + runnable +
+                ", interval=" + interval +
+                '}';
+        }
     }
 
     /**
@@ -254,7 +261,6 @@ public interface Scheduler {
      * tasks to the uncaught exception handler
      */
     class SafeScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
-        private static final Logger logger = LogManager.getLogger(SafeScheduledThreadPoolExecutor.class);
 
         @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
         public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
@@ -276,7 +282,11 @@ public interface Scheduler {
             if (t != null) return;
             // Scheduler only allows Runnable's so we expect no checked exceptions here. If anyone uses submit directly on `this`, we
             // accept the wrapped exception in the output.
-            ExceptionsHelper.reThrowIfNotNull(EsExecutors.rethrowErrors(r));
+            if (r instanceof RunnableFuture && ((RunnableFuture<?>) r).isDone()) {
+                // only check this if task is done, which it always is except for periodic tasks. Periodic tasks will hang on
+                // RunnableFuture.get()
+                ExceptionsHelper.reThrowIfNotNull(EsExecutors.rethrowErrors(r));
+            }
         }
     }
 }

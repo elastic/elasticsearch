@@ -18,7 +18,9 @@ A `stats_bucket` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[stats-bucket-params]]
 .`stats_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to calculate stats for (see <<buckets-path-syntax>> for more
@@ -30,7 +32,7 @@ A `stats_bucket` aggregation looks like this in isolation:
 
 The following snippet calculates the stats for monthly `sales`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -39,7 +41,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {
@@ -57,7 +59,6 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `bucket_paths` instructs this `stats_bucket` aggregation that we want the calculate stats for the `sales` aggregation in the
@@ -65,7 +66,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

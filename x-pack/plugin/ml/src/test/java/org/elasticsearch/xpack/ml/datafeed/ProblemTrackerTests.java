@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -16,13 +16,13 @@ import static org.mockito.Mockito.verify;
 
 public class ProblemTrackerTests extends ESTestCase {
 
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
 
     private ProblemTracker problemTracker;
 
     @Before
     public void setUpTests() {
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         problemTracker = new ProblemTracker(auditor, "foo");
     }
 
@@ -85,7 +85,7 @@ public class ProblemTrackerTests extends ESTestCase {
         for (int i = 0; i < 9; i++) {
             problemTracker.reportEmptyDataCount();
         }
-        problemTracker.reportNoneEmptyCount();
+        problemTracker.reportNonEmptyDataCount();
 
         Mockito.verifyNoMoreInteractions(auditor);
     }
@@ -94,7 +94,7 @@ public class ProblemTrackerTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             problemTracker.reportEmptyDataCount();
         }
-        problemTracker.reportNoneEmptyCount();
+        problemTracker.reportNonEmptyDataCount();
 
         verify(auditor).warning("foo", "Datafeed has been retrieving no data for a while");
         verify(auditor).info("foo", "Datafeed has started retrieving data again");

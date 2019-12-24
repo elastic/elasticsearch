@@ -235,13 +235,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public NamedAnalyzer normalizer() {
+        private NamedAnalyzer normalizer() {
             return normalizer;
         }
 
         public void setNormalizer(NamedAnalyzer normalizer) {
             checkIfFrozen();
             this.normalizer = normalizer;
+            setIndexAnalyzer(normalizer);
         }
 
         public boolean splitQueriesOnWhitespace() {

@@ -129,16 +129,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             listener.onResponse((cluster, node) -> nodes.get(node));
         } else {
             RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
-            remoteClusterService.collectNodes(clusters, ActionListener.wrap(nodeFunction -> {
-                final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = (clusterAlias, node) -> {
-                    if (clusterAlias == null) {
-                        return nodes.get(node);
-                    } else {
-                        return nodeFunction.apply(clusterAlias, node);
-                    }
-                };
-                listener.onResponse(clusterNodeLookup);
-            }, listener::onFailure));
+            remoteClusterService.collectNodes(clusters, ActionListener.map(listener,
+                nodeFunction -> (clusterAlias, node) -> clusterAlias == null ? nodes.get(node) : nodeFunction.apply(clusterAlias, node)));
         }
     }
 

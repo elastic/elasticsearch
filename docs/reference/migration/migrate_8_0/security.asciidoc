@@ -1,0 +1,113 @@
+[float]
+[[breaking_80_security_changes]]
+=== Security changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+[[accept-default-password-removed]]
+==== The `accept_default_password` setting has been removed
+
+The `xpack.security.authc.accept_default_password` setting has not had any affect
+since the 6.0 release of {es}. It has been removed and cannot be used.
+
+[float]
+[[roles-index-cache-removed]]
+==== The `roles.index.cache.*` settings have been removed
+
+The `xpack.security.authz.store.roles.index.cache.max_size` and
+`xpack.security.authz.store.roles.index.cache.ttl` settings have
+been removed. These settings have been redundant and deprecated
+since the 5.2 release of {es}.
+
+[float]
+[[migrate-tool-removed]]
+==== The `elasticsearch-migrate` tool has been removed
+
+The `elasticsearch-migrate` tool provided a way to convert file
+realm users and roles into the native realm. It has been deprecated
+since 7.2.0. Users and roles should now be created in the native
+realm directly.
+
+[float]
+[[separating-node-and-client-traffic]]
+==== The `transport.profiles.*.xpack.security.type` setting has been removed
+
+The `transport.profiles.*.xpack.security.type` setting has been removed since
+the Transport Client has been removed and therefore all client traffic now uses
+the HTTP transport. Transport profiles using this setting should be removed.
+
+[float]
+[[ssl-validation-changes]]
+==== SSL/TLS configuration validation
+
+[float]
+===== The `xpack.security.transport.ssl.enabled` setting may be required
+
+It is now an error to configure any SSL settings for
+`xpack.security.transport.ssl` without also configuring
+`xpack.security.transport.ssl.enabled`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true <1>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+<1> or `false`.
+
+[float]
+===== The `xpack.security.http.ssl.enabled` setting may be required
+
+It is now an error to configure any SSL settings for
+`xpack.security.http.ssl` without also configuring
+`xpack.security.http.ssl.enabled`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.certificate: elasticsearch.crt 
+xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+
+And must be configured as either:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true <1>
+xpack.security.http.ssl.certificate: elasticsearch.crt 
+xpack.security.http.ssl.key: elasticsearch.key 
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+<1> or `false`.
+
+[float]
+===== The `xpack.security.transport.ssl` Certificate and Key may be required
+
+It is now an error to enable SSL for the transport interface without also configuring
+a certificate and key through use of the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings.
+
+[float]
+===== The `xpack.security.http.ssl` Certificate and Key may be required
+
+It is now an error to enable SSL for the HTTP (Rest) server without also configuring
+a certificate and key through use of the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings.
+
+

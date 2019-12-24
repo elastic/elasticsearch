@@ -19,61 +19,111 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.io.StringReader;
+import java.util.Map;
 
 public class CommonAnalysisPluginTests extends ESTestCase {
 
     /**
-     * Check that the deprecated analyzer name "standard_html_strip" throws exception for indices created since 7.0.0
+     * Check that the deprecated "nGram" filter throws exception for indices created since 7.0.0 and
+     * logs a warning for earlier indices when the filter is used as a custom filter
      */
-    public void testStandardHtmlStripAnalyzerDeprecationError() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+    public void testNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
-            .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
-            .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
+                VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT))
+            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
+            .put("index.analysis.filter.my_ngram.type", "nGram")
             .build();
 
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin));
-        assertEquals("[standard_html_strip] analyzer is not supported for new indices, " +
-            "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter", ex.getMessage());
+        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
+            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings),
+                    settings, commonAnalysisPlugin).tokenFilter;
+            TokenFilterFactory tokenFilterFactory = tokenFilters.get("nGram");
+            Tokenizer tokenizer = new MockTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> tokenFilterFactory.create(tokenizer));
+            assertEquals("The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                    + "Please change the filter name to [ngram] instead.", ex.getMessage());
+        }
+
+        final Settings settingsPre7 = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0))
+                .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+                .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+                .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram").put("index.analysis.filter.my_ngram.type", "nGram")
+                .build();
+        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
+            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7),
+                    settingsPre7, commonAnalysisPlugin).tokenFilter;
+            TokenFilterFactory tokenFilterFactory = tokenFilters.get("nGram");
+            Tokenizer tokenizer = new MockTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+            assertNotNull(tokenFilterFactory.create(tokenizer));
+            assertWarnings("The [nGram] token filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [ngram] instead.");
+        }
     }
 
     /**
-     * Check that the deprecated analyzer name "standard_html_strip" issues a deprecation warning for indices created since 6.5.0 until 7
+     * Check that the deprecated "edgeNGram" filter throws exception for indices created since 7.0.0 and
+     * logs a warning for earlier indices when the filter is used as a custom filter
      */
-    public void testStandardHtmlStripAnalyzerDeprecationWarning() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+    public void testEdgeNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                    VersionUtils.getPreviousVersion(Version.V_7_0_0)))
-            .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
-            .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
+                VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT))
+            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
+            .put("index.analysis.filter.my_ngram.type", "edgeNGram")
             .build();
 
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            IndexAnalyzers analyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
-            Analyzer analyzer = analyzers.get("custom_analyzer");
-            assertNotNull(((NamedAnalyzer) analyzer).analyzer());
-            assertWarnings(
-                "Deprecated analyzer [standard_html_strip] used, " +
-                    "replace it with a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
+            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings),
+                    settings, commonAnalysisPlugin).tokenFilter;
+            TokenFilterFactory tokenFilterFactory = tokenFilters.get("edgeNGram");
+            Tokenizer tokenizer = new MockTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> tokenFilterFactory.create(tokenizer));
+            assertEquals("The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                    + "Please change the filter name to [edge_ngram] instead.", ex.getMessage());
+        }
+
+        final Settings settingsPre7 = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(IndexMetaData.SETTING_VERSION_CREATED,
+                    VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0))
+                .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+                .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+                .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
+                .put("index.analysis.filter.my_ngram.type", "edgeNGram")
+                .build();
+
+        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
+            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7),
+                    settingsPre7, commonAnalysisPlugin).tokenFilter;
+            TokenFilterFactory tokenFilterFactory = tokenFilters.get("edgeNGram");
+            Tokenizer tokenizer = new MockTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+            assertNotNull(tokenFilterFactory.create(tokenizer));
+            assertWarnings("The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [edge_ngram] instead.");
         }
     }
 }

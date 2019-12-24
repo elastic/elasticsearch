@@ -45,7 +45,6 @@ public class PublishWithJoinResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         publishResponse.writeTo(out);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }

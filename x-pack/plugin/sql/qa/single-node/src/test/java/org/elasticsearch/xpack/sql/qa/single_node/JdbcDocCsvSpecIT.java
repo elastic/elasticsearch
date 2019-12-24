@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
@@ -53,7 +52,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecTestCase.PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return readScriptSpec("/docs.csv-spec", parser);
+        return readScriptSpec("/docs/docs.csv-spec", parser);
     }
 
     public JdbcDocCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
@@ -69,7 +68,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
         // uncomment this to printout the result set and create new CSV tests
         //
         //JdbcTestUtils.logLikeCLI(elastic, log);
-        JdbcAssert.assertResultSets(expected, elastic, log, true, false);
+        JdbcAssert.assertResultSets(expected, elastic, log, true, true);
     }
 
     @Override

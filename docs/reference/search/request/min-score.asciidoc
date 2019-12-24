@@ -1,10 +1,10 @@
-[[search-request-min-score]]
-=== min_score
+[[request-body-search-min-score]]
+==== min_score
 
 Exclude documents which have a `_score` less than the minimum specified
 in `min_score`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -14,7 +14,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Note, most times, this does not make much sense, but is provided for
 advanced use cases.

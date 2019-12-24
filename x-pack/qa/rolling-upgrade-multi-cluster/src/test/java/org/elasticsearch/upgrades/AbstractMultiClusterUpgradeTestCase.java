@@ -106,6 +106,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         } else {
             throw new AssertionError("unknown cluster name: " + clusterName);
         }
+        logger.info("Leader host: {}, follower host: {}", leaderHost, followerHost);
 
         configureLeaderRemoteClusters();
         configureFollowerRemoteClusters();

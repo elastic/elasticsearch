@@ -70,9 +70,9 @@ public class RemoteFailureTests extends ESTestCase {
     public void testBogusError() {
         IOException e = expectThrows(IOException.class, () -> parse("bogus_error.json"));
         assertEquals(
-            "Can't parse error from Elasticsearch [Expected [error] to be an object but was [VALUE_STRING][bogus]] "
+            "Can't parse error from Elasticsearch [Expected [error] to be an object or string but was [START_ARRAY][[]] "
                 + "at [line 1 col 12]. Response:\n"
-                + "{ \"error\": \"bogus\" }",
+                + "{ \"error\": [\"bogus\"] }",
             e.getMessage());
     }
 

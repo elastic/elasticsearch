@@ -35,7 +35,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 public class SecurityTestUtils {
 
@@ -83,7 +83,7 @@ public class SecurityTestUtils {
      * Adds the index alias {@code .security} to the underlying concrete index.
      */
     public static MetaData addAliasToMetaData(MetaData metaData, String indexName) {
-        AliasMetaData aliasMetaData = AliasMetaData.newAliasMetaDataBuilder(SECURITY_INDEX_NAME).build();
+        AliasMetaData aliasMetaData = AliasMetaData.newAliasMetaDataBuilder(SECURITY_MAIN_ALIAS).build();
         MetaData.Builder metaDataBuilder = new MetaData.Builder(metaData);
         IndexMetaData indexMetaData = metaData.index(indexName);
         metaDataBuilder.put(IndexMetaData.builder(indexMetaData).putAlias(aliasMetaData));

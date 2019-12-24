@@ -1,0 +1,74 @@
+[role="xpack"]
+[testenv="basic"]
+[[start-transform]]
+=== Start {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Start {transform}</titleabbrev>
+++++
+
+Starts one or more {transforms}.
+
+beta[]
+
+[[start-transform-request]]
+==== {api-request-title}
+
+`POST _transform/<transform_id>/_start`
+
+[[start-transform-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_transform` 
+cluster privileges to use this API. You must also have `view_index_metadata` 
+privileges on the source index for the {transform}. For more information, see 
+<<security-privileges>> and <<built-in-roles>>.
+
+[[start-transform-desc]]
+==== {api-description-title}
+
+When you start a {transform}, it creates the destination index if it
+does not already exist. The `number_of_shards` is set to `1` and the
+`auto_expand_replicas` is set to `0-1`.
+
+The {transform} deduces the mapping definitions from the source indices. For
+scripted fields, it uses <<dynamic-mapping,dynamic mappings>>. If a field in the
+destination index is created by `scripted_metric` or `bucket_script`
+aggregations, the {transform} uses dynamic mappings unless a template exists or
+the destination index already exists. Mapping definitions in the destination
+index take precedence over dynamic mappings and templates.
+
+When the {transform} starts, a series of validations occur to ensure
+its success. If you deferred validation when you created the
+{transform}, they occur when you start the {transform}--with the
+exception of privilege checks. When {es} {security-features} are enabled, the
+{transform} remembers which roles the user that created it had at the
+time of creation and uses those same roles. If those roles do not have the
+required privileges on the source and destination indices, the
+{transform} fails when it attempts unauthorized operations.
+
+[[start-transform-path-parms]]
+==== {api-path-parms-title}
+
+`<transform_id>`::
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+[[start-transform-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _transform/ecommerce_transform/_start
+--------------------------------------------------
+// TEST[skip:set up kibana samples]
+
+When the {transform} starts, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----

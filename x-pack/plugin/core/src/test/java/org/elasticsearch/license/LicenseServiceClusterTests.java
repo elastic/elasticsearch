@@ -25,7 +25,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
+@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
 public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
@@ -48,11 +48,6 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class, Netty4Plugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     public void testClusterRestartWithLicense() throws Exception {
@@ -174,16 +169,15 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertLicenseActive(true);
     }
 
-    private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {
-        boolean success = awaitBusy(() -> {
+    private void assertOperationMode(License.OperationMode operationMode) throws Exception {
+        assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {
                 if (licenseState.getOperationMode() == operationMode) {
-                    return true;
+                    return;
                 }
             }
-            return false;
+            fail("No data nodes found with operation mode [" + operationMode + "]");
         });
-        assertTrue(success);
     }
 
     private void writeCloudInternalMode(String mode) throws Exception {

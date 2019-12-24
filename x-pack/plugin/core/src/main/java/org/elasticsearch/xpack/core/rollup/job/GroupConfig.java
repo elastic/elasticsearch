@@ -76,7 +76,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     }
 
     public GroupConfig(final StreamInput in) throws IOException {
-        dateHistogram = new DateHistogramGroupConfig(in);
+        dateHistogram = DateHistogramGroupConfig.fromUnknownTimeUnit(in);
         histogram = in.readOptionalWriteable(HistogramGroupConfig::new);
         terms = in.readOptionalWriteable(TermsGroupConfig::new);
     }

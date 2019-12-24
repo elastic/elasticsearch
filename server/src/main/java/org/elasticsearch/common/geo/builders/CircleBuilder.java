@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geo.geometry.Circle, CircleBuilder> {
+public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geometry.Circle, CircleBuilder> {
 
     public static final ParseField FIELD_RADIUS = new ParseField("radius");
     public static final GeoShapeType TYPE = GeoShapeType.CIRCLE;
@@ -164,8 +164,8 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geo.ge
     }
 
     @Override
-    public org.elasticsearch.geo.geometry.Circle buildGeometry() {
-        throw new UnsupportedOperationException("CIRCLE geometry is not supported");
+    public org.elasticsearch.geometry.Circle buildGeometry() {
+       return new org.elasticsearch.geometry.Circle(center.x, center.y, unit.toMeters(radius));
     }
 
     @Override

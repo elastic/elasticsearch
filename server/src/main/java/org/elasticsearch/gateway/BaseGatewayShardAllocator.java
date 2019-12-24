@@ -93,7 +93,7 @@ public abstract class BaseGatewayShardAllocator {
      * Builds decisions for all nodes in the cluster, so that the explain API can provide information on
      * allocation decisions for each node, while still waiting to allocate the shard (e.g. due to fetching shard data).
      */
-    protected List<NodeAllocationResult> buildDecisionsForAllNodes(ShardRouting shard, RoutingAllocation allocation) {
+    protected static List<NodeAllocationResult> buildDecisionsForAllNodes(ShardRouting shard, RoutingAllocation allocation) {
         List<NodeAllocationResult> results = new ArrayList<>();
         for (RoutingNode node : allocation.routingNodes()) {
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);

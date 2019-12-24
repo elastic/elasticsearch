@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
- * Action for invalidating one or more tokens
+ * ActionType for invalidating one or more tokens
  */
-public final class InvalidateTokenAction extends Action<InvalidateTokenResponse> {
+public final class InvalidateTokenAction extends ActionType<InvalidateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/invalidate";
     public static final InvalidateTokenAction INSTANCE = new InvalidateTokenAction();
 
     private InvalidateTokenAction() {
-        super(NAME);
-    }
-
-    @Override
-    public InvalidateTokenResponse newResponse() {
-        return new InvalidateTokenResponse();
+        super(NAME, InvalidateTokenResponse::new);
     }
 }

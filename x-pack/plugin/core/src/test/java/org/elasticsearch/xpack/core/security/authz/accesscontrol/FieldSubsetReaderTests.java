@@ -23,6 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -35,12 +36,12 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -768,6 +770,18 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertTrue(termsEnum.seekExact(new BytesRef("fieldA")));
         assertFalse(termsEnum.seekExact(new BytesRef("fieldB")));
 
+        // seekExact with TermState
+        // first, collect TermState from underlying reader
+        LeafReader unwrappedReader = FilterDirectoryReader.unwrap(ir).leaves().get(0).reader();
+        Terms unwrappedTerms = unwrappedReader.terms(FieldNamesFieldMapper.NAME);
+        TermsEnum unwrappedTE = unwrappedTerms.iterator();
+        assertTrue(unwrappedTE.seekExact(new BytesRef("fieldB")));
+        TermState termState = unwrappedTE.termState();
+
+        // now try and seekExact with it
+        TermsEnum badEnum = terms.iterator();
+        expectThrows(IllegalStateException.class, () -> badEnum.seekExact(new BytesRef("fieldB"), termState));
+
         // seekCeil
         termsEnum = terms.iterator();
         assertEquals(SeekStatus.FOUND, termsEnum.seekCeil(new BytesRef("fieldA")));
@@ -1005,15 +1019,15 @@ public class FieldSubsetReaderTests extends ESTestCase {
                 .put(IndexMetaData.builder("index")
                         .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("doc", MAPPING_TEST_ITEM)).build();
+                        .putMapping(MAPPING_TEST_ITEM)).build();
 
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"*inner1"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
-            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
-            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(new String[]{"index"},
+                    index -> fieldPermissions::grantsAccessTo);
+            MappingMetaData index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
             assertEquals(2, properties.size());
@@ -1047,10 +1061,10 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object*"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
-            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
-            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(new String[]{"index"},
+                    index -> fieldPermissions::grantsAccessTo);
+            MappingMetaData index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
             assertEquals(1, properties.size());
@@ -1083,10 +1097,10 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
-            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
-            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(new String[]{"index"},
+                    index -> fieldPermissions::grantsAccessTo);
+            MappingMetaData index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
             assertEquals(1, properties.size());
@@ -1109,10 +1123,10 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"nested.inner2"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
-            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
-            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            ImmutableOpenMap<String, MappingMetaData> mappings = metaData.findMappings(new String[]{"index"},
+                    index -> fieldPermissions::grantsAccessTo);
+            MappingMetaData index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
             assertEquals(1, properties.size());
@@ -1156,7 +1170,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             "}";
 
     private static final String MAPPING_TEST_ITEM = "{\n" +
-            "  \"doc\": {\n" +
+            "  \"_doc\": {\n" +
             "    \"properties\" : {\n" +
             "      \"field_text\" : {\n" +
             "        \"type\":\"text\"\n" +

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -71,9 +70,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-                in.readOptionalBoolean();
-            }
         }
 
         @Override
@@ -84,9 +80,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-                out.writeOptionalBoolean(null);
-            }
         }
 
         public String getPath() {
@@ -456,13 +449,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             paths[i] = new Path(in);
         }
         this.total = total();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            this.leastDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
-            this.mostDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
-        } else {
-            this.leastDiskEstimate = null;
-            this.mostDiskEstimate = null;
-        }
+        this.leastDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
+        this.mostDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
     }
 
     @Override
@@ -473,10 +461,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         for (Path path : paths) {
             path.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeOptionalWriteable(this.leastDiskEstimate);
-            out.writeOptionalWriteable(this.mostDiskEstimate);
-        }
+        out.writeOptionalWriteable(this.leastDiskEstimate);
+        out.writeOptionalWriteable(this.mostDiskEstimate);
     }
 
     public Path getTotal() {

@@ -8,7 +8,7 @@
     }
   },
   "mappings" : {
-    "doc" : {
+    "_doc" : {
       "_meta": {
         "logstash-version": "${logstash.template.version}"
       },

@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -22,6 +22,12 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
 
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+
+    public DeleteRoleMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
 
     public DeleteRoleMappingRequest() {
     }
@@ -52,13 +58,6 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
 
     public String getName() {
         return name;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

@@ -243,9 +243,4 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new ClusterAllocationExplainRequest(), null);
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

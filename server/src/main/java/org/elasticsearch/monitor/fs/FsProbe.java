@@ -148,7 +148,7 @@ public class FsProbe {
 
     public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
         FsInfo.Path fsPath = new FsInfo.Path();
-        fsPath.path = nodePath.path.toAbsolutePath().toString();
+        fsPath.path = nodePath.path.toString();
 
         // NOTE: we use already cached (on node startup) FileStore and spins
         // since recomputing these once per second (default) could be costly,

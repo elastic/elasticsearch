@@ -21,8 +21,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,8 +28,9 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -116,6 +115,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            try {
+                // Prefer parsing as a long to avoid losing precision
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                // retry as a double
+            }
             double d = Double.parseDouble(value);
             if (roundUp) {
                 d = Math.ceil(d);
@@ -189,13 +194,8 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatter = DateFormatter.forPattern(in.readString());
             this.parser = formatter.toDateMathParser();
             String zoneId = in.readString();
-            if (in.getVersion().before(Version.V_7_0_0)) {
-                this.timeZone = DateUtils.of(zoneId);
-                this.resolution = DateFieldMapper.Resolution.MILLISECONDS;
-            } else {
-                this.timeZone = ZoneId.of(zoneId);
-                this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            }
+            this.timeZone = ZoneId.of(zoneId);
+            this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
         }
 
         @Override
@@ -206,12 +206,8 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            if (out.getVersion().before(Version.V_7_0_0)) {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            } else {
-                out.writeString(timeZone.getId());
-                out.writeVInt(resolution.ordinal());
-            }
+            out.writeString(timeZone.getId());
+            out.writeVInt(resolution.ordinal());
         }
 
         @Override
@@ -248,7 +244,29 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
-            return GeoHashUtils.stringEncode(value);
+            return Geohash.stringEncode(value);
+        }
+
+        @Override
+        public String format(double value) {
+            return format((long) value);
+        }
+    };
+
+    DocValueFormat GEOTILE = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "geo_tile";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String format(long value) {
+            return GeoTileUtils.stringEncode(value);
         }
 
         @Override

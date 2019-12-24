@@ -28,8 +28,6 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioExceptio
 
 public class HistoryStore {
 
-    public static final String DOC_TYPE = "doc";
-
     private static final Logger logger = LogManager.getLogger(HistoryStore.class);
 
     private final BulkProcessor bulkProcessor;
@@ -47,7 +45,7 @@ public class HistoryStore {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value()).source(builder);
+            IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
             request.opType(IndexRequest.OpType.CREATE);
             bulkProcessor.add(request);
         } catch (IOException ioe) {
@@ -64,7 +62,7 @@ public class HistoryStore {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-                IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value()).source(builder);
+                IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
                 bulkProcessor.add(request);
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;

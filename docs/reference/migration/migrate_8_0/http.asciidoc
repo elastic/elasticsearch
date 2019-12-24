@@ -1,0 +1,23 @@
+[float]
+[[breaking_80_http_changes]]
+=== HTTP changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+==== Removal of old HTTP settings
+
+The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. It has been replaced by
+`http.tcp.no_delay`.
+
+[float]
+==== Changes to Encoding Plus Signs in URLs
+
+Starting in version 7.4, a `+` in a URL will be encoded as `%2B` by all REST API functionality. Prior versions handled a `+` as a single space.
+If your application requires handling `+` as a single space you can return to the old behaviour by setting the system property
+`es.rest.url_plus_as_space` to `true`. Note that this behaviour is deprecated and setting this system property to `true` will cease
+to be supported in version 8.

@@ -1,0 +1,107 @@
+[role="xpack"]
+[testenv="basic"]
+[[inference-processor]]
+=== {infer-cap} Processor
+
+Uses a pre-trained {dfanalytics} model to infer against the data that is being 
+ingested in the pipeline.
+
+
+[[inference-options]]
+.{infer-cap} Options
+[options="header"]
+|======
+| Name               | Required  | Default                        | Description
+| `model_id`      | yes       | -                              | (String) The ID of the model to load and infer against.
+| `target_field`     | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
+| `field_mappings`   | yes       | -                              | (Object) Maps the document field names to the known field names of the model.
+| `inference_config` | yes       | -                              | (Object) Contains the inference type and its options. There are two types: <<inference-processor-regression-opt,`regression`>> and <<inference-processor-classification-opt,`classification`>>.
+include::common-options.asciidoc[]
+|======
+
+
+[source,js]
+--------------------------------------------------
+{
+  	"inference": {
+      	"model_id": "flight_delay_regression-1571767128603",
+      	"target_field": "FlightDelayMin_prediction_infer",
+      	"field_mappings": {},
+      	"inference_config": {"regression": {}},
+      	"model_info_field": "ml"
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+
+[discrete]
+[[inference-processor-regression-opt]]
+==== {regression-cap} configuration options
+
+`results_field`::
+(Optional, string)
+Specifies the field to which the inference prediction is written. Defaults to 
+`predicted_value`.
+
+
+[discrete]
+[[inference-processor-classification-opt]]
+==== {classification-cap} configuration options
+
+`results_field`::
+(Optional, string)
+The field that is added to incoming documents to contain the inference prediction. Defaults to 
+`predicted_value`.
+
+`num_top_classes`::
+(Optional, integer) 
+Specifies the number of top class predictions to return. Defaults to 0.
+
+`top_classes_results_field`::
+(Optional, string) 
+Specifies the field to which the top classes are written. Defaults to 
+`top_classes`.
+
+
+[discrete]
+[[inference-processor-config-example]]
+==== `inference_config` examples
+
+[source,js]
+--------------------------------------------------
+{
+  "inference_config": {
+    “regression”: {
+    “results_field”: “my_regression”
+    }
+  },
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+This configuration specifies a `regression` inference and the results are 
+written to the `my_regression` field contained in the `target_field` results 
+object.
+
+
+[source,js]
+--------------------------------------------------
+{
+  "inference_config": {
+    “classification”: {
+      “num_top_classes”: 2, 
+      “results_field”: “prediction”, 
+      “top_classes_results_field”: “probabilities”
+      }
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+This configuration specifies a `classification` inference. The number of 
+categories for which the predicted probabilities are reported is 2 
+(`num_top_classes`). The result is written to the `prediction` field and the top 
+classes to the `probabilities` field. Both fields are contained in the 
+`target_field` results object.

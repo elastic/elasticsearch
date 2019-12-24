@@ -42,8 +42,8 @@ public class FailedShard {
 
     @Override
     public String toString() {
-        return "failed shard, shard " + routingEntry + ", message [" + message + "], failure [" +
-                   ExceptionsHelper.detailedMessage(failure) + "], markAsStale [" + markAsStale + "]";
+        return "failed shard, shard " + routingEntry + ", message [" + message + "], markAsStale [" + markAsStale + "], failure ["
+            + ExceptionsHelper.stackTrace(failure) + "]";
     }
 
     /**

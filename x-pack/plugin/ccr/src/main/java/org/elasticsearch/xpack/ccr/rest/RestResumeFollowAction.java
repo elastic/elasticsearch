@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request
 
 public class RestResumeFollowAction extends BaseRestHandler {
 
-    public RestResumeFollowAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestResumeFollowAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/resume_follow", this);
     }
 

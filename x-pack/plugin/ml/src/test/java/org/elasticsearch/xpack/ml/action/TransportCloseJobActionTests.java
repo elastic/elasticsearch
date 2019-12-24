@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
@@ -255,14 +255,15 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("closingjob1", null, JobState.CLOSING, tasksBuilder);
 
         TransportCloseJobAction.WaitForCloseRequest waitForCloseRequest =
-                TransportCloseJobAction.buildWaitForCloseRequest(openJobIds, closingJobIds, tasksBuilder.build(), mock(Auditor.class));
+            TransportCloseJobAction.buildWaitForCloseRequest(
+                openJobIds, closingJobIds, tasksBuilder.build(), mock(AnomalyDetectionAuditor.class));
         assertEquals(waitForCloseRequest.jobsToFinalize, Arrays.asList("openjob1", "openjob2"));
         assertEquals(waitForCloseRequest.persistentTaskIds,
                 Arrays.asList("job-openjob1", "job-openjob2", "job-closingjob1"));
         assertTrue(waitForCloseRequest.hasJobsToWaitFor());
 
         waitForCloseRequest = TransportCloseJobAction.buildWaitForCloseRequest(Collections.emptyList(), Collections.emptyList(),
-                tasksBuilder.build(), mock(Auditor.class));
+                tasksBuilder.build(), mock(AnomalyDetectionAuditor.class));
         assertFalse(waitForCloseRequest.hasJobsToWaitFor());
     }
 
@@ -275,10 +276,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
     private TransportCloseJobAction createAction() {
         return new TransportCloseJobAction(mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
-                clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class),
+                clusterService, mock(Client.class), mock(AnomalyDetectionAuditor.class), mock(PersistentTasksService.class),
                 jobConfigProvider, datafeedConfigProvider);
     }
 
+    @SuppressWarnings("unchecked")
     private void mockDatafeedConfigFindDatafeeds(Set<String> datafeedIds) {
         doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -288,6 +290,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedsForJobIds(any(), any(ActionListener.class));
     }
 
+    @SuppressWarnings("unchecked")
     private void mockJobConfigProviderExpandIds(Set<String> expandedIds) {
         doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[3];

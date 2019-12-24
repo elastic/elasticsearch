@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -50,7 +52,6 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
@@ -251,7 +252,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FunctionScoreQuery.class)));
     }
 
@@ -676,7 +677,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
      */
     public void testSingleScriptFunction() throws IOException {
         QueryBuilder queryBuilder = RandomQueryBuilder.createQuery(random());
-        ScoreFunctionBuilder functionBuilder = new ScriptScoreFunctionBuilder(
+        ScoreFunctionBuilder<ScriptScoreFunctionBuilder> functionBuilder = new ScriptScoreFunctionBuilder(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
 
         FunctionScoreQueryBuilder builder = functionScoreQuery(queryBuilder, functionBuilder);
@@ -796,8 +797,38 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
+    /**
+     * Check that this query is generally cacheable except for builders using {@link ScriptScoreFunctionBuilder} or
+     * {@link RandomScoreFunctionBuilder} without a seed
+     */
     @Override
-    protected boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {
+    public void testCacheability() throws IOException {
+        FunctionScoreQueryBuilder queryBuilder = createTestQueryBuilder();
+        boolean isCacheable = isCacheable(queryBuilder);
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
+                context.isCacheable());
+
+        // check the two non-cacheable cases explicitly
+        ScoreFunctionBuilder<?> scriptScoreFunction = new ScriptScoreFunctionBuilder(
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
+        RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
+
+        for (ScoreFunctionBuilder<?> scoreFunction : List.of(scriptScoreFunction, randomScoreFunctionBuilder)) {
+            FilterFunctionBuilder[] functions = new FilterFunctionBuilder[] {
+                    new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), scoreFunction) };
+            queryBuilder = new FunctionScoreQueryBuilder(functions);
+
+            context = createShardContext();
+            rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+            assertNotNull(rewriteQuery.toQuery(context));
+            assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        }
+    }
+
+    private boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {
         FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
         for (FilterFunctionBuilder builder : filterFunctionBuilders) {
             if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {

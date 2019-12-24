@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -35,8 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestForceMergeAction extends BaseRestHandler {
 
-    public RestForceMergeAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestForceMergeAction(final RestController controller) {
         controller.registerHandler(POST, "/_forcemerge", this);
         controller.registerHandler(POST, "/{index}/_forcemerge", this);
     }

@@ -94,4 +94,16 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         }
 
     }
+
+    @Override
+    protected TermSuggestion emptySuggestion(String name, TermSuggestionContext suggestion, CharsRefBuilder spare) throws IOException {
+        TermSuggestion termSuggestion = new TermSuggestion(name, suggestion.getSize(), suggestion.getDirectSpellCheckerSettings().sort());
+        List<Token> tokens = queryTerms(suggestion, spare);
+        for (Token token : tokens) {
+            Text key = new Text(new BytesArray(token.term.bytes()));
+            TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
+            termSuggestion.addTerm(resultEntry);
+        }
+        return termSuggestion;
+    }
 }

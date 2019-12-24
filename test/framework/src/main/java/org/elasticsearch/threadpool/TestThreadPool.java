@@ -24,12 +24,12 @@ import org.elasticsearch.node.Node;
 
 public class TestThreadPool extends ThreadPool {
 
-    public TestThreadPool(String name) {
-        this(name, Settings.EMPTY);
+    public TestThreadPool(String name, ExecutorBuilder<?>... customBuilders) {
+        this(name, Settings.EMPTY, customBuilders);
     }
 
-    public TestThreadPool(String name, Settings settings) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build());
+    public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
+        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), customBuilders);
     }
 
 }

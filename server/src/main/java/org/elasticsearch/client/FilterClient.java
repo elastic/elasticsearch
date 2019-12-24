@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -61,7 +61,7 @@ public abstract class FilterClient extends AbstractClient {
 
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         in().execute(action, request, listener);
     }
 

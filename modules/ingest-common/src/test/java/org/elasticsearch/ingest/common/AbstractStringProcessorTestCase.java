@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
 
-    protected abstract AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField);
+    protected abstract AbstractStringProcessor<T> newProcessor(String field, boolean ignoreMissing, String targetField);
 
     protected String modifyInput(String input) {
         return input;
@@ -41,8 +41,8 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
 
     protected abstract T expectedResult(String input);
 
-    protected Class<T> expectedResultType(){
-        return (Class<T>) String.class;  // most results types are Strings
+    protected Class<?> expectedResultType(){
+        return String.class;  // most results types are Strings
     }
 
     public void testProcessor() throws Exception {

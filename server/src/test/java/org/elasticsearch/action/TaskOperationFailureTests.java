@@ -46,9 +46,6 @@ public class TaskOperationFailureTests extends AbstractXContentTestCase<TaskOper
         assertThat(newInstance.getStatus(), equalTo(expectedInstance.getStatus()));
         // XContent loses the original exception and wraps it as a message in Elasticsearch exception
         assertThat(newInstance.getCause().getMessage(), equalTo("Elasticsearch exception [type=illegal_state_exception, reason=message]"));
-        // getReason returns Exception class and the message
-        assertThat(newInstance.getReason(),
-            equalTo("ElasticsearchException[Elasticsearch exception [type=illegal_state_exception, reason=message]]"));
     }
 
     @Override

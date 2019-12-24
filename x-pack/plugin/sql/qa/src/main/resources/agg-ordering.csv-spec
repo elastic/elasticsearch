@@ -1,0 +1,26 @@
+aggSumWithColumnRepeatedWithOrderAsc
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender ORDER BY SUM(salary);
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithAliasWithColumnRepeatedWithOrderDesc
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g ORDER BY s5 DESC;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+M    |M          |2671054|2671054        |2671054
+F    |F          |1666196|1666196        |1666196
+null |null       |487605 |487605         |487605
+;
+
+aggSumWithNumericRefWithColumnRepeatedWithOrderDesc
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2 ORDER BY 3 DESC;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+M    |M          |2671054|2671054        |2671054
+F    |F          |1666196|1666196        |1666196
+null |null       |487605 |487605         |487605
+;

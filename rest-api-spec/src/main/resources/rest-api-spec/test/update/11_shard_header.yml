@@ -1,9 +1,7 @@
 ---
 "Update check shard header":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       indices.create:
@@ -32,7 +30,6 @@
                    foo: baz
 
  - match:   { _index:   foobar }
- - match:   { _type: _doc }
  - match:   { _id:      "1"}
  - match:   { _version: 2}
  - match:   { _shards.total: 1}

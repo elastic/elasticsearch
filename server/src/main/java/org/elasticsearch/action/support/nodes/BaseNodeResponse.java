@@ -33,7 +33,9 @@ public abstract class BaseNodeResponse extends TransportResponse {
 
     private DiscoveryNode node;
 
-    protected BaseNodeResponse() {
+    protected BaseNodeResponse(StreamInput in) throws IOException {
+        super(in);
+        node = new DiscoveryNode(in);
     }
 
     protected BaseNodeResponse(DiscoveryNode node) {
@@ -49,14 +51,7 @@ public abstract class BaseNodeResponse extends TransportResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        node = new DiscoveryNode(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         node.writeTo(out);
     }
 }

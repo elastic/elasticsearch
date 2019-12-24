@@ -41,7 +41,6 @@ import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -397,7 +396,7 @@ final class PemUtils {
      * defined in RFC 1423. RFC 1423 only defines DES-CBS and triple DES (EDE) in CBC mode. AES in CBC mode is also widely used though ( 3
      * different variants of 128, 192, 256 bit keys )
      *
-     * @param dekHeaderValue The value of the the DEK-Info PEM header
+     * @param dekHeaderValue The value of the DEK-Info PEM header
      * @param password       The password with which the key is encrypted
      * @return a cipher of the appropriate algorithm and parameters to be used for decryption
      * @throws GeneralSecurityException if the algorithm is not available in the used security provider, or if the key is inappropriate
@@ -452,7 +451,7 @@ final class PemUtils {
      */
     private static byte[] generateOpenSslKey(char[] password, byte[] salt, int keyLength) {
         byte[] passwordBytes = CharArrays.toUtf8Bytes(password);
-        MessageDigest md5 = messageDigest("md5");
+        MessageDigest md5 = SslUtil.messageDigest("md5");
         byte[] key = new byte[keyLength];
         int copied = 0;
         int remaining;
@@ -603,11 +602,4 @@ final class PemUtils {
         return certificates;
     }
 
-    private static MessageDigest messageDigest(String digestAlgorithm) {
-        try {
-            return MessageDigest.getInstance(digestAlgorithm);
-        } catch (NoSuchAlgorithmException e) {
-            throw new SslConfigException("unexpected exception creating MessageDigest instance for [" + digestAlgorithm + "]", e);
-        }
-    }
 }

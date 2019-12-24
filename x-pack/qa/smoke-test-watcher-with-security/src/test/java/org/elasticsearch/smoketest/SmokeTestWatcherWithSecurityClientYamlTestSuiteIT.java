@@ -14,16 +14,17 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
 public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -76,7 +77,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
         });
 
         assertBusy(() -> {
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
                 ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
                         singletonMap("name", template), emptyList(), emptyMap());
                 assertThat(templateExistsResponse.getStatusCode(), is(200));
@@ -108,7 +109,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override

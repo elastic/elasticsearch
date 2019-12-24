@@ -31,18 +31,18 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -220,7 +220,7 @@ public final class IpRangeAggregationBuilder
     private List<Range> ranges = new ArrayList<>();
 
     public IpRangeAggregationBuilder(String name) {
-        super(name, ValuesSourceType.BYTES, ValueType.IP);
+        super(name, CoreValuesSourceType.BYTES, ValueType.IP);
     }
 
     protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -337,7 +337,7 @@ public final class IpRangeAggregationBuilder
     }
 
     public IpRangeAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.BYTES, ValueType.IP);
+        super(in, CoreValuesSourceType.BYTES, ValueType.IP);
         final int numRanges = in.readVInt();
         for (int i = 0; i < numRanges; ++i) {
             addRange(new Range(in));
@@ -364,9 +364,9 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.Bytes, ?> innerBuild(
-            SearchContext context, ValuesSourceConfig<ValuesSource.Bytes> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected ValuesSourceAggregatorFactory<ValuesSource.Bytes> innerBuild(
+        QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.Bytes> config,
+        AggregatorFactory parent, Builder subFactoriesBuilder)
                     throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
@@ -376,7 +376,7 @@ public final class IpRangeAggregationBuilder
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
         return new BinaryRangeAggregatorFactory(name, config, ranges,
-                keyed, context, parent, subFactoriesBuilder, metaData);
+                keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -387,14 +387,17 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(keyed, ranges);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), keyed, ranges);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
         return keyed == that.keyed
-                && ranges.equals(that.ranges);
+            && ranges.equals(that.ranges);
     }
 }

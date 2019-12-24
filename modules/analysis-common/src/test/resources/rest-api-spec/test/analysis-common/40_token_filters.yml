@@ -274,6 +274,34 @@
     - match:  { tokens.3.position: 2 }
 
 ---
+"synonym_without_index":
+  - do:
+      indices.analyze:
+        body:
+          text: wibble
+          tokenizer: standard
+          filter: [ { type: synonym, synonyms: [ "wibble, quack" ]}]
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: wibble }
+  - match:  { tokens.0.position: 0 }
+  - match:  { tokens.1.token: quack }
+  - match:  { tokens.1.position: 0 }
+
+---
+"synonym_graph_without_index":
+  - do:
+      indices.analyze:
+        body:
+          text: wibble
+          tokenizer: standard
+          filter: [ { type: synonym_graph, synonyms: [ "wibble, quack" ]}]
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: quack }
+  - match:  { tokens.0.position: 0 }
+  - match:  { tokens.1.token: wibble }
+  - match:  { tokens.1.position: 0 }
+
+---
 "synonym_graph":
     - do:
         indices.create:
@@ -558,6 +586,20 @@
             filter:    [my_elision]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: avion }
+
+    - do:
+        catch: bad_request
+        indices.create:
+          index: test2
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_elision:
+                    type: elision
+    - match: { status: 400 }
+    - match: { error.type: illegal_argument_exception }
+    - match: { error.reason: "elision filter requires [articles] or [articles_path] setting" }
 
 ---
 "stemmer":
@@ -1106,34 +1148,6 @@
     - match:  { tokens.8.token: に落 }
     - match:  { tokens.9.token: 落ち }
     - match:  { tokens.10.token: ちた }
-
----
-"delimited_payload_filter_error":
-    - skip:
-        version: " - 6.99.99"
-        reason:  using delimited_payload_filter throws error from 7.0 on
-
-    - do:
-        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
-        indices.create:
-          index: test
-          body:
-            settings:
-              analysis:
-                filter:
-                  my_delimited_payload_filter:
-                    type: delimited_payload_filter
-                    delimiter: ^
-                    encoding: identity
-
-    # Test pre-configured token filter too:
-    - do:
-        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
-        indices.analyze:
-          body:
-            text:      foo|5
-            tokenizer: keyword
-            filter:    [delimited_payload_filter]
 
 ---
 "delimited_payload":

@@ -56,11 +56,11 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
         return cmp;
     }
 
-    private int priority(Settings settings) {
+    private static int priority(Settings settings) {
         return IndexMetaData.INDEX_PRIORITY_SETTING.get(settings);
     }
 
-    private long timeCreated(Settings settings) {
+    private static long timeCreated(Settings settings) {
         return settings.getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1L);
     }
 

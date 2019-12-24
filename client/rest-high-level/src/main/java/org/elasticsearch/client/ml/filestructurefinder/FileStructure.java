@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -148,22 +147,20 @@ public class FileStructure implements ToXContentObject {
         this.format = Objects.requireNonNull(format);
         this.multilineStartPattern = multilineStartPattern;
         this.excludeLinesPattern = excludeLinesPattern;
-        this.columnNames = (columnNames == null) ? null : Collections.unmodifiableList(new ArrayList<>(columnNames));
+        this.columnNames = (columnNames == null) ? null : List.copyOf(columnNames);
         this.hasHeaderRow = hasHeaderRow;
         this.delimiter = delimiter;
         this.quote = quote;
         this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
         this.timestampField = timestampField;
-        this.jodaTimestampFormats =
-            (jodaTimestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(jodaTimestampFormats));
-        this.javaTimestampFormats =
-            (javaTimestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(javaTimestampFormats));
+        this.jodaTimestampFormats = (jodaTimestampFormats == null) ? null : List.copyOf(jodaTimestampFormats);
+        this.javaTimestampFormats = (javaTimestampFormats == null) ? null : List.copyOf(javaTimestampFormats);
         this.needClientTimezone = needClientTimezone;
         this.mappings = Collections.unmodifiableSortedMap(new TreeMap<>(mappings));
         this.ingestPipeline = (ingestPipeline == null) ? null : Collections.unmodifiableMap(new LinkedHashMap<>(ingestPipeline));
         this.fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(fieldStats));
-        this.explanation = (explanation == null) ? null : Collections.unmodifiableList(new ArrayList<>(explanation));
+        this.explanation = (explanation == null) ? null : List.copyOf(explanation);
     }
 
     public int getNumLinesAnalyzed() {

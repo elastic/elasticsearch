@@ -148,7 +148,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     }
 
     /**
-     * Reads a single opertation from the given location.
+     * Reads a single operation from the given location.
      */
     Translog.Operation read(Translog.Location location) throws IOException {
         assert location.generation == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation;

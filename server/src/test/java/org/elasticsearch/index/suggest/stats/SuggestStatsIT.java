@@ -76,7 +76,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < randomIntBetween(20, 100); i++) {
-            index("test" + ((i % 2) + 1), "type", "" + i, "f", "test" + i);
+            indexDoc("test" + ((i % 2) + 1), "" + i, "f", "test" + i);
         }
         refresh();
 

@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -68,7 +66,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
 
         if (expectedFieldName.equals(STRING_FIELD_NAME)) {
@@ -135,23 +133,25 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 
-    public void testIndexWildcard() throws IOException {
-        QueryShardContext context = createShardContext();
-        String index = context.getFullyQualifiedIndex().getName();
-
-        Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
-        assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-
-        query = new WildcardQueryBuilder("_index", index + "*").doToQuery(context);
-        assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-
-        query = new WildcardQueryBuilder("_index", "index_" + index + "*").doToQuery(context);
-        assertThat(query instanceof MatchNoDocsQuery, equalTo(true));
-    }
-
     public void testTypeField() throws IOException {
         WildcardQueryBuilder builder = QueryBuilders.wildcardQuery("_type", "doc*");
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
+    
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }   
+    
+    public void testRewriteIndexQueryNotMatchNone() throws IOException {
+        String fullIndexName = getIndex().getName();
+        String firstHalfOfIndexName = fullIndexName.substring(0,fullIndexName.length()/2);
+        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", firstHalfOfIndexName +"*");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(WildcardQueryBuilder.class));
+    }      
 }

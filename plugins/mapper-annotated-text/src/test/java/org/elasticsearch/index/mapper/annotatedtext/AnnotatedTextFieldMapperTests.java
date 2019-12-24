@@ -116,7 +116,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         // Use example of typed and untyped annotations
         String annotatedText = "He paid [Stormy Daniels](Stephanie+Clifford&Payee) hush money";
-        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", annotatedText)
@@ -171,7 +171,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         String annotatedText = "foo [bar](MissingEndBracket baz";
-        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", annotatedText)
@@ -221,12 +221,12 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         int max = between(3, 10);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
-            bulk.add(client().prepareIndex("test", "type", Integer.toString(i))
+            bulk.add(client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("tvfield", "the quick [brown](Color) fox jumped over the lazy dog"));
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "type", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -260,7 +260,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -292,7 +292,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -316,7 +316,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -347,7 +347,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         for (String option : supportedOptions.keySet()) {
             jsonDoc.field(option, "1234");
         }
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(jsonDoc.endObject()),
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(jsonDoc.endObject()),
                 XContentType.JSON));
 
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
@@ -369,7 +369,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[] {"a", "b"})
@@ -411,7 +411,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[]{"a", "b"})
@@ -570,7 +570,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "1234")
@@ -671,7 +671,5 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
-
-
 
 }

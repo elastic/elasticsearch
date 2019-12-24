@@ -20,14 +20,18 @@ package org.elasticsearch.client;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.client.ml.job.config.Job;
 
 import java.io.IOException;
@@ -48,6 +52,7 @@ public class MlTestStateCleaner {
     public void clearMlMetadata() throws IOException {
         deleteAllDatafeeds();
         deleteAllJobs();
+        deleteAllDataFrameAnalytics();
     }
 
     private void deleteAllDatafeeds() throws IOException {
@@ -97,6 +102,14 @@ public class MlTestStateCleaner {
                 logger.warn("Force-closing all jobs failed", e2);
             }
             throw new RuntimeException("Had to resort to force-closing jobs, something went wrong?", e1);
+        }
+    }
+
+    private void deleteAllDataFrameAnalytics() throws IOException {
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse =
+            mlClient.getDataFrameAnalytics(GetDataFrameAnalyticsRequest.getAllDataFrameAnalyticsRequest(), RequestOptions.DEFAULT);
+        for (DataFrameAnalyticsConfig config : getDataFrameAnalyticsResponse.getAnalytics()) {
+            mlClient.deleteDataFrameAnalytics(new DeleteDataFrameAnalyticsRequest(config.getId()), RequestOptions.DEFAULT);
         }
     }
 }

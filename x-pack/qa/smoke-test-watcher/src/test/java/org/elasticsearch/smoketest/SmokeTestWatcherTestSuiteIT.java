@@ -15,17 +15,18 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -64,7 +65,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         });
 
         assertBusy(() -> {
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
                 Response templateExistsResponse = adminClient().performRequest(new Request("HEAD", "/_template/" + template));
                 assertThat(templateExistsResponse.getStatusLine().getStatusCode(), is(200));
             }
@@ -93,7 +94,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override
@@ -108,6 +109,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32299")
     public void testMonitorClusterHealth() throws Exception {
         String watchId = "cluster_health_watch";
 
@@ -215,8 +217,8 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 assertThat("watch_id for hit 0 in watcher history", foundWatchId, is(watchId));
                 objectPathReference.set(objectPath);
             } catch (ResponseException e) {
-                final String err = "Failed to perform search of watcher history - " + e;
-                logger.info(err);
+                final String err = "Failed to perform search of watcher history";
+                logger.info(err, e);
                 fail(err);
             }
         });

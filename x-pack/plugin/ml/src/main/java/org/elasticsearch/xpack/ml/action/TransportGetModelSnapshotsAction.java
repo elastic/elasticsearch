@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -12,7 +14,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -21,6 +23,8 @@ import java.util.stream.Collectors;
 
 public class TransportGetModelSnapshotsAction extends HandledTransportAction<GetModelSnapshotsAction.Request,
         GetModelSnapshotsAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetModelSnapshotsAction.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;

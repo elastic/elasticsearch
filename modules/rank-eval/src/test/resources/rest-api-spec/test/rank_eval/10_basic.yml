@@ -40,14 +40,10 @@ setup:
 
 ---
 "Response format":
-
-  - skip:
-      version: " - 6.2.99"
-      reason: response format was updated in 6.3
-
   - do:
       rank_eval:
         index: foo,
+        search_type: query_then_fetch
         body: {
           "requests" : [
             {
@@ -120,11 +116,6 @@ setup:
 
 ---
 "Mean Reciprocal Rank":
-
-  - skip:
-      version: " - 6.2.99"
-      reason: response format was updated in 6.3
-
   - do:
       rank_eval:
         body: {
@@ -159,11 +150,6 @@ setup:
 
 ---
 "Expected Reciprocal Rank":
-
-  - skip:
-      version: " - 6.3.99"
-      reason: ERR was introduced in 6.4
-
   - do:
       rank_eval:
         body: {

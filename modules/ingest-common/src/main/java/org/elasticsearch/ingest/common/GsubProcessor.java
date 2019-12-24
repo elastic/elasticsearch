@@ -29,7 +29,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
  * Processor that allows to search for patterns in field content and replace them with corresponding string replacement.
  * Support fields of string type only, throws exception if a field is of a different type.
  */
-public final class GsubProcessor extends AbstractStringProcessor {
+public final class GsubProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "gsub";
 
@@ -67,8 +67,8 @@ public final class GsubProcessor extends AbstractStringProcessor {
         }
 
         @Override
-        protected AbstractStringProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
-                                                       boolean ignoreMissing, String targetField) {
+        protected GsubProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
+                                             boolean ignoreMissing, String targetField) {
             String pattern = readStringProperty(TYPE, processorTag, config, "pattern");
             String replacement = readStringProperty(TYPE, processorTag, config, "replacement");
             Pattern searchPattern;

@@ -1,0 +1,31 @@
+{
+  "transform.delete_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html"
+    },
+    "stability":"beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/_transform/{transform_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id of the transform to delete"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"When `true`, the transform is deleted regardless of its current state. The default value is `false`, meaning that the transform must be `stopped` before it can be deleted."
+      }
+    }
+  }
+}

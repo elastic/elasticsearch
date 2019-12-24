@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -59,12 +60,12 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testUsersValidatePassword() throws Exception {
-        String passwd = randomAlphaOfLength(randomIntBetween(0, 20));
+        SecureString passwd = new SecureString(randomAlphaOfLength(randomIntBetween(0, 20)).toCharArray());
         logger.info("{}[{}]", passwd, passwd.length());
         if (passwd.length() >= 6) {
-            assertThat(Users.validatePassword(passwd.toCharArray()), nullValue());
+            assertThat(Users.validatePassword(passwd), nullValue());
         } else {
-            assertThat(Users.validatePassword(passwd.toCharArray()), notNullValue());
+            assertThat(Users.validatePassword(passwd), notNullValue());
         }
     }
 

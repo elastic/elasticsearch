@@ -3,7 +3,7 @@
 :request: InvalidateTokenRequest
 :response: InvalidateTokenResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Invalidate Token API
 

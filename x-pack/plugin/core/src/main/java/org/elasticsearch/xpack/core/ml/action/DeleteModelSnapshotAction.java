@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,18 +19,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteModelSnapshotAction extends Action<AcknowledgedResponse> {
+public class DeleteModelSnapshotAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteModelSnapshotAction INSTANCE = new DeleteModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/delete";
 
     private DeleteModelSnapshotAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends ActionRequest {
@@ -39,6 +34,12 @@ public class DeleteModelSnapshotAction extends Action<AcknowledgedResponse> {
         private String snapshotId;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            snapshotId = in.readString();
         }
 
         public Request(String jobId, String snapshotId) {
@@ -57,13 +58,6 @@ public class DeleteModelSnapshotAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            snapshotId = in.readString();
         }
 
         @Override

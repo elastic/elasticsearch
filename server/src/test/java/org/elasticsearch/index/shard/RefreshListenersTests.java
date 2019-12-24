@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -89,6 +90,7 @@ public class RefreshListenersTests extends ESTestCase {
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
+    private MeanMetric refreshMetric;
 
     @Before
     public void setupListeners() throws Exception {
@@ -96,13 +98,15 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(1, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
                 // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
                 Runnable::run,
                 logger,
-                threadPool.getThreadContext());
+                threadPool.getThreadContext(),
+                refreshMetric);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
@@ -148,7 +152,6 @@ public class RefreshListenersTests extends ESTestCase {
                 () -> primaryTerm,
                 EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
-        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
@@ -341,7 +344,7 @@ public class RefreshListenersTests extends ESTestCase {
                         }
                         listener.assertNoError();
 
-                        Engine.Get get = new Engine.Get(false, false, "test", threadId, new Term(IdFieldMapper.NAME, threadId));
+                        Engine.Get get = new Engine.Get(false, false, threadId, new Term(IdFieldMapper.NAME, threadId));
                         try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
@@ -413,7 +416,7 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, "test", null, Arrays.asList(document), source, XContentType.JSON,
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON,
             null);
         Engine.Index index = new Engine.Index(new Term("_id", doc.id()), engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);

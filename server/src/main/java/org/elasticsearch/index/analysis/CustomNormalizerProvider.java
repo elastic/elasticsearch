@@ -43,7 +43,7 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         this.analyzerSettings = settings;
     }
 
-    public void build(final String tokenizerName, final TokenizerFactory tokenizerFactory, final Map<String, CharFilterFactory> charFilters,
+    public void build(final TokenizerFactory tokenizerFactory, final Map<String, CharFilterFactory> charFilters,
             final Map<String, TokenFilterFactory> tokenFilters) {
         if (analyzerSettings.get("tokenizer") != null) {
             throw new IllegalArgumentException("Custom normalizer [" + name() + "] cannot configure a tokenizer");
@@ -79,7 +79,6 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         }
 
         this.customAnalyzer = new CustomAnalyzer(
-                tokenizerName,
                 tokenizerFactory,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])

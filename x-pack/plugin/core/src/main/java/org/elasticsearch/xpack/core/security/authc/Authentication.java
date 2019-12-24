@@ -60,13 +60,8 @@ public class Authentication implements ToXContentObject {
             this.lookedUpBy = null;
         }
         this.version = in.getVersion();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            type = AuthenticationType.values()[in.readVInt()];
-            metadata = in.readMap();
-        } else {
-            type = AuthenticationType.REALM;
-            metadata = Collections.emptyMap();
-        }
+        type = AuthenticationType.values()[in.readVInt()];
+        metadata = in.readMap();
     }
 
     public User getUser() {
@@ -165,10 +160,8 @@ public class Authentication implements ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeVInt(type.ordinal());
-            out.writeMap(metadata);
-        }
+        out.writeVInt(type.ordinal());
+        out.writeMap(metadata);
     }
 
     @Override
@@ -212,6 +205,19 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         return builder.endObject();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("Authentication[")
+            .append(user)
+            .append(",type=").append(type)
+            .append(",by=").append(authenticatedBy);
+        if (lookedUpBy != null) {
+            builder.append(",lookup=").append(lookedUpBy);
+        }
+        builder.append("]");
+        return builder.toString();
     }
 
     public static class RealmRef {
@@ -268,6 +274,11 @@ public class Authentication implements ToXContentObject {
             result = 31 * result + name.hashCode();
             result = 31 * result + type.hashCode();
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
         }
     }
 

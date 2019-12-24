@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -51,6 +53,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static RestHighLevelClient restHighLevelClient;
+    private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
 
     @Before
     public void initHighLevelClient() throws IOException {
@@ -77,20 +80,20 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
                                        AsyncMethod<Req, Resp> asyncMethod) throws IOException {
         return execute(request, syncMethod, asyncMethod, RequestOptions.DEFAULT);
     }
-    
+
     /**
      * Executes the provided request using either the sync method or its async variant, both provided as functions
      */
     protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
                                        AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
-        if (randomBoolean()) {
+        if (async == false) {
             return syncMethod.execute(request, options);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
             asyncMethod.execute(request, options, future);
             return future.actionGet();
         }
-    }    
+    }
 
     /**
      * Executes the provided request using either the sync method or its async
@@ -99,7 +102,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
             RequestOptions requestOptions) throws IOException {
-        if (randomBoolean()) {
+        if (async == false) {
             return syncMethodNoRequest.execute(requestOptions);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
@@ -130,7 +133,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
-            super(restClient, (client) -> {}, Collections.emptyList());
+            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         }
     }
 

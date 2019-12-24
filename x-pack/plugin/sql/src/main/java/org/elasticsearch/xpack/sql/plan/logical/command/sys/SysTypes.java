@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
-import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -72,7 +71,7 @@ public class SysTypes extends Command {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public final void execute(SqlSession session, ActionListener<Page> listener) {
         Stream<DataType> values = Stream.of(DataType.values());
         if (type.intValue() != 0) {
             values = values.filter(t -> type.equals(t.sqlType.getVendorTypeNumber()));
@@ -82,8 +81,7 @@ public class SysTypes extends Command {
                 .sorted(Comparator.comparing((DataType t) -> t.sqlType.getVendorTypeNumber()).thenComparing(DataType::sqlName))
                 .map(t -> asList(t.toString(),
                         t.sqlType.getVendorTypeNumber(),
-                        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-2017
-                        t.defaultPrecision,
+                        DataTypes.precision(t),
                         "'",
                         "'",
                         null,
@@ -111,7 +109,7 @@ public class SysTypes extends Command {
                         ))
                 .collect(toList());
         
-        listener.onResponse(Rows.of(output(), rows));
+        listener.onResponse(of(session, rows));
     }
 
     @Override

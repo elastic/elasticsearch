@@ -22,11 +22,10 @@ package org.elasticsearch.painless;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.node.SSource;
+import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Printer;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -35,16 +34,17 @@ import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
-import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 
 /**
  * The Compiler is the entry point for generating a Painless script.  The compiler will receive a Painless
  * tree based on the type of input passed in (currently only ANTLR).  Two passes will then be run over the tree,
- * one for analysis and another to generate the actual byte code using ASM using the root of the tree {@link SSource}.
+ * one for analysis and another to generate the actual byte code using ASM using the root of the tree {@link SClass}.
  */
 final class Compiler {
 
@@ -204,13 +204,14 @@ final class Compiler {
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
+     * @return The ScriptRoot used to compile
      */
-    Constructor<?> compile(Loader loader, MainMethodReserved reserved, String name, String source, CompilerSettings settings) {
+    ScriptRoot compile(Loader loader, Set<String> extractedVariables, String name, String source,
+            CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
-                null);
-        root.analyze(painlessLookup);
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
+        root.extractVariables(extractedVariables);
+        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         Map<String, Object> statics = root.write();
 
         try {
@@ -224,8 +225,9 @@ final class Compiler {
                 clazz.getField(statik.getKey()).set(null, statik.getValue());
             }
 
-            return clazz.getConstructors()[0];
-        } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+            return scriptRoot;
+        } catch (Exception exception) {
+            // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
     }
@@ -238,9 +240,10 @@ final class Compiler {
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
                 debugStream);
-        root.analyze(painlessLookup);
+        root.extractVariables(new HashSet<>());
+        root.analyze(painlessLookup, settings);
         root.write();
 
         return root.getBytes();

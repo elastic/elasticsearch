@@ -27,7 +27,7 @@ public class VerificationException extends AnalysisException {
     public String getMessage() {
         return failures.stream()
                 .map(f -> {
-                    Location l = f.source().source().source();
+                    Location l = f.node().source().source();
                     return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
                 })
                 .collect(Collectors.joining(StringUtils.NEW_LINE, "Found " + failures.size() + " problem(s)\n", StringUtils.EMPTY));

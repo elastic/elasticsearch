@@ -11,8 +11,6 @@ import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,12 +30,12 @@ public class ScheduledEventsWriterTests extends ESTestCase {
     public void testWrite() throws IOException {
         List<ScheduledEvent> events = new ArrayList<>();
         events.add(new ScheduledEvent.Builder().description("Black Friday")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(1511395200000L))
+                .endTime(Instant.ofEpochMilli(1515369600000L))
                 .calendarId("calendar_id").build());
         events.add(new ScheduledEvent.Builder().description("Blue Monday")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(1519603200000L))
+                .endTime(Instant.ofEpochMilli(1519862400000L))
                 .calendarId("calendar_id").build());
 
         StringBuilder buffer = new StringBuilder();

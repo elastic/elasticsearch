@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import com.carrotsearch.hppc.DoubleArrayList;
-
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -57,19 +55,13 @@ public class PercentilesBucketPipelineAggregationBuilder
             throws IOException {
         super(in, NAME);
         percents = in.readDoubleArray();
-
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            keyed = in.readBoolean();
-        }
+        keyed = in.readBoolean();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
-
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(keyed);
-        }
+        out.writeBoolean(keyed);
     }
 
     /**
@@ -112,12 +104,12 @@ public class PercentilesBucketPipelineAggregationBuilder
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new PercentilesBucketPipelineAggregator(name, percents, keyed, bucketsPaths, gapPolicy(), formatter(), metaData);
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         super.doValidate(parent, aggFactories, pipelineAggregatorFactories);
 
@@ -180,14 +172,18 @@ public class PercentilesBucketPipelineAggregationBuilder
     };
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(Arrays.hashCode(percents), keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed);
     }
 
     @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         PercentilesBucketPipelineAggregationBuilder other = (PercentilesBucketPipelineAggregationBuilder) obj;
-        return Objects.deepEquals(percents, other.percents) && Objects.equals(keyed, other.keyed);
+        return Objects.deepEquals(percents, other.percents)
+            && Objects.equals(keyed, other.keyed);
     }
 
     @Override

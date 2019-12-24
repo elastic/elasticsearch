@@ -16,17 +16,15 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -73,12 +71,7 @@ public class TemplateUtils {
      * Loads a resource from the classpath and returns it as a {@link BytesReference}
      */
     public static BytesReference load(String name) throws IOException {
-        try (InputStream is = TemplateUtils.class.getResourceAsStream(name)) {
-            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                Streams.copy(is, out);
-                return new BytesArray(out.toByteArray());
-            }
-        }
+        return Streams.readFully(TemplateUtils.class.getResourceAsStream(name));
     }
 
     /**

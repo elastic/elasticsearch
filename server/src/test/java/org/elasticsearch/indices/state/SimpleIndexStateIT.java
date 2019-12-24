@@ -36,7 +36,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SimpleIndexStateIT extends ESIntegTestCase {
@@ -58,18 +58,18 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             , numShards.totalNumShards);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
         assertAcked(client().admin().indices().prepareClose("test"));
 
         stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+            client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -90,7 +90,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             numShards.totalNumShards);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
     public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
@@ -102,7 +102,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        assertAcked(client().admin().indices().prepareClose("test"));
+        assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE));
 
         logger.info("--> updating test index settings to allow allocation");
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
@@ -122,7 +122,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             numShards.totalNumShards);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
     public void testConsistencyAfterIndexCreationFailure() {

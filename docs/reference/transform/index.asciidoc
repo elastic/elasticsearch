@@ -1,0 +1,28 @@
+[role="xpack"]
+[[transforms]]
+== Transforming data
+
+// tag::transform-intro[]
+{transforms-cap} enable you to convert existing {es} indices into summarized
+indices, which provide opportunities for new insights and analytics.
+// end::transform-intro[]
+For example, you can use {transforms} to pivot your data into entity-centric
+indices that summarize the behavior of users or sessions or other entities in
+your data.
+
+* <<transform-overview>>
+* <<transform-usage>>
+* <<transform-api-quickref>>
+* <<ecommerce-transforms>>
+* <<transform-examples>>
+* <<transform-troubleshooting>>
+* <<transform-limitations>>
+
+include::overview.asciidoc[]
+include::usage.asciidoc[]
+include::checkpoints.asciidoc[]
+include::api-quickref.asciidoc[]
+include::ecommerce-tutorial.asciidoc[]
+include::examples.asciidoc[]
+include::troubleshooting.asciidoc[]
+include::limitations.asciidoc[]

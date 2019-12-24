@@ -23,10 +23,8 @@ import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.client.utils.URIUtils;
-import org.apache.http.client.utils.URLEncodedUtils;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
@@ -65,10 +63,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,8 +111,7 @@ public class HttpClient implements Closeable {
 
         // ssl setup
         SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
-        boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
-        HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+        HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         clientBuilder.setSSLSocketFactory(factory);
 
@@ -300,7 +300,7 @@ public class HttpClient implements Closeable {
                 Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;
         int proxyPort = HttpSettings.PROXY_PORT.get(settings);
         if (proxyPort != 0 && Strings.hasText(proxyHost)) {
-            logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
+            logger.info("Using default proxy for http input and slack/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
         } else if (proxyPort != 0 ^ Strings.hasText(proxyHost)) {
             throw new IllegalArgumentException("HTTP proxy requires both settings: [" + HttpSettings.PROXY_HOST.getKey() + "] and [" +
                     HttpSettings.PROXY_PORT.getKey() + "]");
@@ -313,34 +313,45 @@ public class HttpClient implements Closeable {
         return HttpProxy.NO_PROXY;
     }
 
-    private Tuple<HttpHost, URI> createURI(HttpRequest request) {
-        // this could be really simple, as the apache http client has a UriBuilder class, however this class is always doing
-        // url path escaping, and we have done this already, so this would result in double escaping
+    // for testing
+    static Tuple<HttpHost, URI> createURI(HttpRequest request) {
         try {
             List<NameValuePair> qparams = new ArrayList<>(request.params.size());
             request.params.forEach((k, v) -> qparams.add(new BasicNameValuePair(k, v)));
-            String format = URLEncodedUtils.format(qparams, "UTF-8");
-            URI uri = URIUtils.createURI(request.scheme.scheme(), request.host, request.port, request.path,
-                    Strings.isNullOrEmpty(format) ? null : format, null);
-
-            if (uri.isAbsolute() == false) {
-                throw new IllegalStateException("URI [" + uri.toASCIIString() + "] must be absolute");
-            }
-            final HttpHost httpHost = URIUtils.extractHost(uri);
-            // what a mess that we need to do this to workaround https://issues.apache.org/jira/browse/HTTPCLIENT-1968
-            // in some cases the HttpClient will re-write the URI which drops the escaping for
-            // slashes within a path. This rewriting is done to obtain a relative URI when
-            // a proxy is not being used. To avoid this we can handle making it relative ourselves
-            if (request.path != null && request.path.contains("%2F")) {
-                final boolean isUsingProxy = (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) ||
-                    HttpProxy.NO_PROXY.equals(settingsProxy) == false;
-                if (isUsingProxy == false) {
-                    // we need a relative uri
-                    uri = URIUtils.createURI(null, null, -1, request.path, Strings.isNullOrEmpty(format) ? null : format, null);
+            // this could be really simple, as the apache http client has a UriBuilder class, however this class is always doing
+            // url path escaping, and we have done this already, so this would result in double escaping
+            final List<String> unescapedPathParts;
+            if (Strings.isEmpty(request.path)) {
+                unescapedPathParts = Collections.emptyList();
+            } else {
+                final String[] pathParts = request.path.split("/");
+                final boolean isPathEndsWithSlash = request.path.endsWith("/");
+                unescapedPathParts = new ArrayList<>(pathParts.length);
+                for (int i = 0; i < pathParts.length; i++) {
+                    String part = pathParts[i];
+                    boolean isLast = i == pathParts.length - 1;
+                    if (Strings.isEmpty(part) == false) {
+                        unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
+                        // if the passed URL ends with a slash, adding an empty string to the
+                        // unescaped paths will ensure the slash will be added back
+                        boolean appendSlash = isPathEndsWithSlash && isLast;
+                        if (appendSlash) {
+                            unescapedPathParts.add("");
+                        }
+                    }
                 }
             }
+
+            final URI uri =  new URIBuilder()
+                .setScheme(request.scheme().scheme())
+                .setHost(request.host)
+                .setPort(request.port)
+                .setPathSegments(unescapedPathParts)
+                .setParameters(qparams)
+                .build();
+            final HttpHost httpHost = URIUtils.extractHost(uri);
             return new Tuple<>(httpHost, uri);
-        } catch (URISyntaxException e) {
+        } catch (URISyntaxException | UnsupportedEncodingException e) {
             throw new IllegalArgumentException(e);
         }
     }

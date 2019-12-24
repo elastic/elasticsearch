@@ -38,42 +38,15 @@ if [[ "$1" != "eswrapper" ]]; then
   fi
 fi
 
-# Parse Docker env vars to customize Elasticsearch
+# Allow environment variables to be set by creating a file with the
+# contents, and setting an environment variable with the suffix _FILE to
+# point to it. This can be used to provide secrets to a container, without
+# the values being specified explicitly when running the container.
 #
-# e.g. Setting the env var cluster.name=testcluster
-#
-# will cause Elasticsearch to be invoked with -Ecluster.name=testcluster
-#
-# see https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#_setting_default_settings
-
-declare -a es_opts
-
-while IFS='=' read -r envvar_key envvar_value
-do
-  # Elasticsearch settings need to have at least two dot separated lowercase
-  # words, e.g. `cluster.name`, except for `processors` which we handle
-  # specially
-  if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ || "$envvar_key" == "processors" ]]; then
-    if [[ ! -z $envvar_value ]]; then
-      es_opt="-E${envvar_key}=${envvar_value}"
-      es_opts+=("${es_opt}")
-    fi
-  fi
-done < <(env)
-
-# The virtual file /proc/self/cgroup should list the current cgroup
-# membership. For each hierarchy, you can follow the cgroup path from
-# this file to the cgroup filesystem (usually /sys/fs/cgroup/) and
-# introspect the statistics for the cgroup for the given
-# hierarchy. Alas, Docker breaks this by mounting the container
-# statistics at the root while leaving the cgroup paths as the actual
-# paths. Therefore, Elasticsearch provides a mechanism to override
-# reading the cgroup path from /proc/self/cgroup and instead uses the
-# cgroup path defined the JVM system property
-# es.cgroups.hierarchy.override. Therefore, we set this value here so
-# that cgroup statistics are available for the container this process
-# will run in.
-export ES_JAVA_OPTS="-Des.cgroups.hierarchy.override=/ $ES_JAVA_OPTS"
+# This is also sourced in elasticsearch-env, and is only needed here
+# as well because we use ELASTIC_PASSWORD below. Sourcing this script
+# is idempotent.
+source /usr/share/elasticsearch/bin/elasticsearch-env-from-file
 
 if [[ -f bin/elasticsearch-users ]]; then
   # Check for the ELASTIC_PASSWORD environment variable to set the
@@ -97,4 +70,4 @@ if [[ "$(id -u)" == "0" ]]; then
   fi
 fi
 
-run_as_other_user_if_needed /usr/share/elasticsearch/bin/elasticsearch "${es_opts[@]}"
+run_as_other_user_if_needed /usr/share/elasticsearch/bin/elasticsearch

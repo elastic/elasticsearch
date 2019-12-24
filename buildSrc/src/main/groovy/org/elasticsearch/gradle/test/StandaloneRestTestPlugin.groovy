@@ -20,56 +20,85 @@
 
 package org.elasticsearch.gradle.test
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
+import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.tasks.SourceSet
+import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.testing.Test
+import org.gradle.plugins.ide.eclipse.model.EclipseModel
+import org.gradle.plugins.ide.idea.model.IdeaModel
 /**
  * Configures the build to compile tests against Elasticsearch's test framework
  * and run REST tests. Use BuildPlugin if you want to build main code as well
  * as tests.
  */
-public class StandaloneRestTestPlugin implements Plugin<Project> {
+@CompileStatic
+class StandaloneRestTestPlugin implements Plugin<Project> {
 
     @Override
-    public void apply(Project project) {
+    void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.build')) {
             throw new InvalidUserDataException('elasticsearch.standalone-test '
                 + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
+        project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
         project.pluginManager.apply(JavaBasePlugin)
-        project.pluginManager.apply(RandomizedTestingPlugin)
+        project.pluginManager.apply(TestClustersPlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
-        BuildPlugin.globalBuildInfo(project)
         BuildPlugin.configureRepositories(project)
-        BuildPlugin.applyCommonTestConfig(project)
+        BuildPlugin.configureTestTasks(project)
+        BuildPlugin.configureInputNormalization(project)
+        BuildPlugin.configureFips140(project)
+
+        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
+        project.extensions.getByType(JavaPluginExtension).targetCompatibility = BuildParams.minimumRuntimeVersion
 
         // only setup tests to build
-        project.sourceSets.create('test')
+        SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)
+        SourceSet testSourceSet = sourceSets.create('test')
+
+        project.tasks.withType(Test) { Test test ->
+            test.testClassesDirs = testSourceSet.output.classesDirs
+            test.classpath = testSourceSet.runtimeClasspath
+        }
+
         // create a compileOnly configuration as others might expect it
         project.configurations.create("compileOnly")
-        project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
+        project.dependencies.add('testCompile', project.project(':test:framework'))
 
-        project.eclipse.classpath.sourceSets = [project.sourceSets.test]
-        project.eclipse.classpath.plusConfigurations = [project.configurations.testRuntime]
-        project.idea.module.testSourceDirs += project.sourceSets.test.java.srcDirs
-        project.idea.module.scopes['TEST'] = [plus: [project.configurations.testRuntime]]
+        EclipseModel eclipse = project.extensions.getByType(EclipseModel)
+        eclipse.classpath.sourceSets = [testSourceSet]
+        eclipse.classpath.plusConfigurations = [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]
+
+        IdeaModel idea = project.extensions.getByType(IdeaModel)
+        idea.module.testSourceDirs += testSourceSet.java.srcDirs
+        idea.module.scopes.put('TEST', [plus: [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]] as Map<String, Collection<Configuration>>)
 
         PrecommitTasks.create(project, false)
-        project.check.dependsOn(project.precommit)
+        project.tasks.getByName('check').dependsOn(project.tasks.getByName('precommit'))
 
-        project.tasks.withType(JavaCompile) {
+        project.tasks.withType(JavaCompile) { JavaCompile task ->
             // This will be the default in Gradle 5.0
-            if (options.compilerArgs.contains("-processor") == false) {
-                options.compilerArgs << '-proc:none'
+            if (task.options.compilerArgs.contains("-processor") == false) {
+                task.options.compilerArgs << '-proc:none'
             }
         }
     }

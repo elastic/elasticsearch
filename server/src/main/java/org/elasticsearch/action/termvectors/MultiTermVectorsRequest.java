@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,13 +46,25 @@ public class MultiTermVectorsRequest extends ActionRequest
 
     final Set<String> ids = new HashSet<>();
 
+    public MultiTermVectorsRequest(StreamInput in) throws IOException {
+        super(in);
+        preference = in.readOptionalString();
+        int size = in.readVInt();
+        requests = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            requests.add(new TermVectorsRequest(in));
+        }
+    }
+
+    public MultiTermVectorsRequest() {}
+
     public MultiTermVectorsRequest add(TermVectorsRequest termVectorsRequest) {
         requests.add(termVectorsRequest);
         return this;
     }
 
-    public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
-        requests.add(new TermVectorsRequest(index, type, id));
+    public MultiTermVectorsRequest add(String index, String id) {
+        requests.add(new TermVectorsRequest(index, id));
         return this;
     }
 
@@ -102,9 +113,6 @@ public class MultiTermVectorsRequest extends ActionRequest
                                 throw new IllegalArgumentException("docs array element should include an object");
                             }
                             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                            if (termVectorsRequest.type() == null) {
-                                termVectorsRequest.type(MapperService.SINGLE_MAPPING_NAME);
-                            }
                             TermVectorsRequest.parseRequest(termVectorsRequest, parser);
                             add(termVectorsRequest);
                         }
@@ -137,17 +145,6 @@ public class MultiTermVectorsRequest extends ActionRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        preference = in.readOptionalString();
-        int size = in.readVInt();
-        requests = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            requests.add(TermVectorsRequest.readTermVectorsRequest(in));
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(preference);
@@ -168,6 +165,7 @@ public class MultiTermVectorsRequest extends ActionRequest
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public MultiTermVectorsRequest realtime(boolean realtime) {
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);

@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
+import org.elasticsearch.xpack.sql.analysis.analyzer.TableInfo;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 
 import java.util.List;
 import java.util.function.Function;
@@ -128,7 +130,8 @@ public class SqlSession {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (preAnalysis.indices.size() == 1) {
-            TableIdentifier table = preAnalysis.indices.get(0);
+            TableInfo tableInfo = preAnalysis.indices.get(0);
+            TableIdentifier table = tableInfo.id();
 
             String cluster = table.cluster();
 
@@ -136,7 +139,8 @@ public class SqlSession {
                 listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
             }
 
-            indexResolver.resolveAsMergedMapping(table.index(), null,
+            boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
+            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {
@@ -156,7 +160,7 @@ public class SqlSession {
         optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o, verify)), listener::onFailure));
     }
 
-    public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
+    public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
         sqlExecutable(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
     }
 

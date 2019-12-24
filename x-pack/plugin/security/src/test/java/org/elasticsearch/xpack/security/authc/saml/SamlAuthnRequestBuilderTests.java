@@ -51,6 +51,26 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
         idpDescriptor.getRoleDescriptors().add(idpRole);
     }
 
+    public void testBuildRequestWithDefaultSettingsHasNoNameIdPolicy() {
+        SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, Collections.emptyList());
+        final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(
+            sp, SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            Clock.systemUTC());
+
+        final AuthnRequest request = buildAndValidateAuthnRequest(builder);
+
+        assertThat(request.getIssuer().getValue(), equalTo(SP_ENTITY_ID));
+        assertThat(request.getProtocolBinding(), equalTo(SAMLConstants.SAML2_POST_BINDING_URI));
+
+        assertThat(request.getAssertionConsumerServiceURL(), equalTo(ACS_URL));
+
+        assertThat(request.getNameIDPolicy(), notNullValue());
+        assertThat(request.getNameIDPolicy().getFormat(), nullValue());
+        assertThat(request.getNameIDPolicy().getSPNameQualifier(), nullValue());
+        assertThat(request.getNameIDPolicy().getAllowCreate(), equalTo(Boolean.FALSE));
+    }
+
     public void testBuildRequestWithPersistentNameAndNoForceAuth() throws Exception {
         SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, Collections.emptyList());
         final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(

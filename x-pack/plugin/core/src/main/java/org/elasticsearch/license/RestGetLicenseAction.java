@@ -7,18 +7,17 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,16 +27,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestGetLicenseAction extends XPackRestHandler {
+public class RestGetLicenseAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetLicenseAction.class));
 
-    RestGetLicenseAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, "/_license", this,
-                GET,  URI_BASE + "/license", deprecationLogger);
+    RestGetLicenseAction(RestController controller) {
+        controller.registerHandler(GET, "/_license", this);
     }
 
     @Override
@@ -52,15 +47,27 @@ public class RestGetLicenseAction extends XPackRestHandler {
      * The licenses are sorted by latest issue_date
      */
     @Override
-    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final Map<String, String> overrideParams = new HashMap<>(2);
         overrideParams.put(License.REST_VIEW_MODE, "true");
         overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
+
+        // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true
+        // TODO Remove this from 9.0
+        if (request.hasParam("accept_enterprise")) {
+            deprecationLogger.deprecatedAndMaybeLog("get_license_accept_enterprise",
+                "Including [accept_enterprise] in get license requests is deprecated." +
+                    " The parameter will be removed in the next major version");
+            if (request.paramAsBoolean("accept_enterprise", true) == false) {
+                throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
+            }
+        }
+
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
-        return channel -> client.es().admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest,
-                new RestBuilderListener<GetLicenseResponse>(channel) {
+        return channel -> client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest,
+                new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
                         // Default to pretty printing, but allow ?pretty=false to disable

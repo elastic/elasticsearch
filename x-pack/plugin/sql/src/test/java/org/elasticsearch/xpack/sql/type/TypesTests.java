@@ -81,7 +81,7 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
-        assertThat(field.getPrecision(), is(24));
+        assertThat(field.getPrecision(), is(3));
     }
 
     public void testDateNoFormat() {
@@ -170,8 +170,11 @@ public class TypesTests extends ESTestCase {
 
     public void testGeoField() {
         Map<String, EsField> mapping = loadMapping("mapping-geo.json");
-        EsField dt = mapping.get("location");
-        assertThat(dt.getDataType().typeName, is("unsupported"));
+        assertThat(mapping.size(), is(2));
+        EsField gp = mapping.get("location");
+        assertThat(gp.getDataType().typeName, is("geo_point"));
+        EsField gs = mapping.get("site");
+        assertThat(gs.getDataType().typeName, is("geo_shape"));
     }
 
     public void testIpField() {

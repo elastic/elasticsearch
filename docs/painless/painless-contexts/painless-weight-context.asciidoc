@@ -11,9 +11,6 @@ Queries that contain multiple terms calculate a separate weight for each term.
 
 *Variables*
 
-`params` (`Map`, read-only)::
-        User-defined parameters passed in as part of the query.
-
 `query.boost` (`float`, read-only)::
         The boost value if provided by the query.  If this is not provided the
         value is `1.0f`.
@@ -42,4 +39,4 @@ Queries that contain multiple terms calculate a separate weight for each term.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.

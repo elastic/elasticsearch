@@ -16,11 +16,15 @@ import java.util.List;
 
 public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest> {
 
-    private String historyUUID;
-    private List<Translog.Operation> operations;
-    private long maxSeqNoOfUpdatesOrDeletes;
+    private final String historyUUID;
+    private final List<Translog.Operation> operations;
+    private final long maxSeqNoOfUpdatesOrDeletes;
 
-    public BulkShardOperationsRequest() {
+    public BulkShardOperationsRequest(StreamInput in) throws IOException {
+        super(in);
+        historyUUID = in.readString();
+        maxSeqNoOfUpdatesOrDeletes = in.readZLong();
+        operations = in.readList(Translog.Operation::readOperation);
     }
 
     public BulkShardOperationsRequest(final ShardId shardId,
@@ -44,14 +48,6 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
 
     public long getMaxSeqNoOfUpdatesOrDeletes() {
         return maxSeqNoOfUpdatesOrDeletes;
-    }
-
-    @Override
-    public void readFrom(final StreamInput in) throws IOException {
-        super.readFrom(in);
-        historyUUID = in.readString();
-        maxSeqNoOfUpdatesOrDeletes = in.readZLong();
-        operations = in.readList(Translog.Operation::readOperation);
     }
 
     @Override

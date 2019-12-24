@@ -80,7 +80,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test", "type", Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
@@ -272,7 +272,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
-                    awaitBusy(() -> shouldBlock.get() == false);
+                    assertBusy(() -> assertFalse(shouldBlock.get()));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

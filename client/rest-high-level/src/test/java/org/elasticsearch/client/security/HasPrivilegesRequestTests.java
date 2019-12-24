@@ -31,7 +31,9 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -87,12 +89,13 @@ public class HasPrivilegesRequestTests extends ESTestCase {
                 .privileges(generateRandomStringArray(3, 8, false, false))
                 .allowRestrictedIndices(randomBoolean())
                 .build()));
+        final String[] privileges = generateRandomStringArray(3, 8, false, false);
+        final String[] resources = generateRandomStringArray(2, 6, false, false);
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(randomArray(1, 5, ApplicationResourcePrivileges[]::new,
-            () -> new ApplicationResourcePrivileges(
-                randomAlphaOfLengthBetween(5, 12),
-                Sets.newHashSet(generateRandomStringArray(3, 8, false, false)),
-                Sets.newHashSet(generateRandomStringArray(2, 6, false, false))
-            )));
+                () -> new ApplicationResourcePrivileges(
+                        randomAlphaOfLengthBetween(5, 12),
+                        privileges == null ? Collections.emptyList() : List.of(privileges),
+                        resources == null ? Collections.emptyList() : List.of(resources))));
         final HasPrivilegesRequest request = new HasPrivilegesRequest(cluster, indices, application);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(request, this::copy, this::mutate);
     }

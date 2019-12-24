@@ -9,6 +9,8 @@ https://products.office.com/en/excel[Microsoft Excel] is a software program [...
 with formulas using a spreadsheet system.
 ____
 
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
 ==== Prerequisites
 
 * Microsoft Office 2016 or higher

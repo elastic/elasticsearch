@@ -1,9 +1,5 @@
 ---
 "Split index ignores target template mapping":
-  - skip:
-      version: " - 6.9.99"
-      reason: pre-7.0.0 will send warnings
-      features: "warnings"
 
   # create index
   - do:

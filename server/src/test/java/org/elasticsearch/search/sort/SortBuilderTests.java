@@ -49,7 +49,7 @@ public class SortBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -143,16 +143,6 @@ public class SortBuilderTests extends ESTestCase {
                 xContentBuilder.field("sort");
             }
             for (SortBuilder<?> builder : testBuilders) {
-                if (builder instanceof GeoDistanceSortBuilder) {
-                    GeoDistanceSortBuilder gdsb = (GeoDistanceSortBuilder) builder;
-                    if (gdsb.getNestedFilter() != null) {
-                        expectedWarningHeaders.add("[nested_filter] has been deprecated in favour of the [nested] parameter");
-                    }
-                    if (gdsb.getNestedPath() != null) {
-                        expectedWarningHeaders.add("[nested_path] has been deprecated in favour of the [nested] parameter");
-                    }
-                }
-
                 if (builder instanceof ScoreSortBuilder || builder instanceof FieldSortBuilder) {
                     switch (randomIntBetween(0, 2)) {
                     case 0:

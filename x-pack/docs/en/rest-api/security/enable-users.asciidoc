@@ -8,38 +8,40 @@
 Enables users in the native realm. 
 
 
-==== Request
+[[security-api-enable-user-request]]
+==== {api-request-title}
 
 `PUT /_security/user/<username>/_enable` 
 
 
-==== Description
+[[security-api-enable-user-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-enable-user-desc]]
+==== {api-description-title}
 
 By default, when you create users, they are enabled. You can use this enable 
 users API and the <<security-api-disable-user,disable users API>> to change that attribute. 
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
-==== Path Parameters
+[[security-api-enable-user-path-params]]
+==== {api-path-parms-title}
 
-`username` (required)::
-  (string) An identifier for the user.
-
-//==== Request Body
-
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster privilege.
+`username`::
+  (Required, string) An identifier for the user.
 
 
-==== Examples
+[[security-api-enable-user-example]]
+==== {api-examples-title}
 
 The following example enables the user `jacknich`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/user/jacknich/_enable
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:jacknich_user]

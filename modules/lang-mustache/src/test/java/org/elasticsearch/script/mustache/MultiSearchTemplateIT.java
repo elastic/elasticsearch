@@ -48,17 +48,12 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         return Collections.singleton(MustachePlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
     public void testBasic() throws Exception {
         createIndex("msearch");
         final int numDocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("msearch", "test", String.valueOf(i))
+            indexRequestBuilders[i] = client().prepareIndex("msearch").setId(String.valueOf(i))
                     .setSource("odd", (i % 2 == 0), "group", (i % 3));
         }
         indexRandom(true, indexRequestBuilders);

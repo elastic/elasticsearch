@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -128,7 +129,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         return null;
     }
 
-    public void testMisconfiguredRepository() throws Exception {
+    public void testMisconfiguredRepository() {
         Client client = client();
 
         logger.info("--> trying creating repository with incorrect settings");
@@ -136,7 +137,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             client.admin().cluster().preparePutRepository("test-repo").setType("fs").get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("missing location"));
+            assertThat(ex.getCause().getMessage(), equalTo("[test-repo] missing location"));
         }
 
         logger.info("--> trying creating fs repository with location that is not registered in path.repo setting");
@@ -148,12 +149,13 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified " +
-                "by path.repo"));
+            assertThat(
+                ex.getCause().getMessage(),
+                containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
         }
     }
 
-    public void testRepositoryAckTimeout() throws Exception {
+    public void testRepositoryAckTimeout() {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(Settings.builder()
@@ -183,7 +185,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
-    public void testRepositoryVerification() throws Exception {
+    public void testRepositoryVerification() {
+        disableRepoConsistencyCheck("This test does not create any data in the repository.");
+
         Client client = client();
 
         Settings settings = Settings.builder()
@@ -227,7 +231,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     ).get();
             fail("RepositoryVerificationException wasn't generated");
         } catch (RepositoryVerificationException ex) {
-            assertThat(ex.getMessage(), containsString("is not shared"));
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("is not shared"));
         }
     }
 }

@@ -23,13 +23,14 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -50,8 +51,6 @@ import static java.util.Collections.emptyMap;
 public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
     private final MapperService mapperService;
-    public Mapping mappingUpdate = null;
-    private final Map<String, Mapping> recoveredTypes = new HashMap<>();
 
     private final AtomicLong appliedOperations = new AtomicLong();
 
@@ -60,30 +59,25 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     }
 
     public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
-        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
-        IndexAnalyzers indexAnalyzers =
-                new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, emptyMap(), emptyMap(), emptyMap());
+        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+        analyzers.put(AnalysisRegistry.DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()));
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, emptyMap(), emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                () -> null);
+                () -> null, () -> false);
     }
 
     private DocumentMapperForType docMapper(String type) {
         RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
         DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
+        return new DocumentMapperForType(b.build(mapperService), null);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
             case INDEX:
-                Engine.Index engineIndex = (Engine.Index) operation;
-                Mapping update = engineIndex.parsedDoc().dynamicMappingsUpdate();
-                if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                    recoveredTypes.compute(engineIndex.type(), (k, mapping) -> mapping == null ? update : mapping.merge(update));
-                }
-                engine.index(engineIndex);
+                engine.index((Engine.Index) operation);
                 break;
             case DELETE:
                 engine.delete((Engine.Delete) operation);
@@ -96,13 +90,6 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         }
     }
 
-    /**
-     * Returns the recovered types modifying the mapping during the recovery
-     */
-    public Map<String, Mapping> getRecoveredTypes() {
-        return recoveredTypes;
-    }
-
     @Override
     public int run(Engine engine, Translog.Snapshot snapshot) throws IOException {
         int opsRecovered = 0;
@@ -112,24 +99,28 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
+        engine.syncTranslog();
         return opsRecovered;
     }
 
-    private Engine.Operation convertToEngineOp(Translog.Operation operation, Engine.Operation.Origin origin) {
+    public Engine.Operation convertToEngineOp(Translog.Operation operation, Engine.Operation.Origin origin) {
+        // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
+        final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
         switch (operation.opType()) {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
                 final String indexName = mapperService.index().getName();
-                final Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()),
-                        mapperService.getIndexSettings().getIndexVersionCreated(),
-                        new SourceToParse(indexName, index.type(), index.id(), index.source(), XContentHelper.xContentType(index.source()),
-                            index.routing()), index.seqNo(), index.primaryTerm(),
-                        index.version(), null, origin, index.getAutoGeneratedIdTimestamp(), true, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                final Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(MapperService.SINGLE_MAPPING_NAME),
+                    new SourceToParse(indexName, index.id(), index.source(), XContentHelper.xContentType(index.source()),
+                        index.routing()), index.seqNo(), index.primaryTerm(),
+                        index.version(), versionType, origin, index.getAutoGeneratedIdTimestamp(), true,
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
                 return engineIndex;
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
-                final Engine.Delete engineDelete = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(),
-                        delete.primaryTerm(), delete.version(), null, origin, System.nanoTime(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                final Engine.Delete engineDelete = new Engine.Delete(delete.id(), delete.uid(), delete.seqNo(),
+                    delete.primaryTerm(), delete.version(), versionType, origin, System.nanoTime(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
                 return engineDelete;
             case NO_OP:
                 final Translog.NoOp noOp = (Translog.NoOp) operation;

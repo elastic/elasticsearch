@@ -1,0 +1,46 @@
+[role="xpack"]
+[[ilm-settings]]
+=== {ilm-cap} settings
+
+These are the settings available for configuring Index Lifecycle Management
+
+==== Cluster level settings
+
+`xpack.ilm.enabled`::
+Whether ILM is enabled or disabled, setting this to `false` disables any
+ILM REST API endpoints and functionality. Defaults to `true`.
+
+`indices.lifecycle.poll_interval`::
+(<<time-units, time units>>) How often {ilm} checks for indices that meet policy
+criteria. Defaults to `10m`.
+
+`index.lifecycle.history_index_enabled`::
+Whether ILM's history index is enabled. If enabled, ILM will record the
+history of actions taken as part of ILM policies to the `ilm-history-*`
+indices. Defaults to `true`.
+
+==== Index level settings
+These index-level {ilm-init} settings are typically configured through index
+templates. For more information, see <<ilm-gs-create-policy>>.
+
+`index.lifecycle.name`::
+The name of the policy to use to manage the index.
+
+`index.lifecycle.rollover_alias`::
+The index alias to update when the index rolls over. Specify when using a
+policy that contains a rollover action. When the index rolls over, the alias is
+updated to reflect that the index is no longer the write index. For more
+information about rollover, see <<using-policies-rollover>>.
+
+`index.lifecycle.parse_origination_date`::
+When configured to `true` the origination date will be parsed from the index
+name. The index format must match the pattern `^.*-{date_format}-\\d+`, where
+the `date_format` is `yyyy.MM.dd` and the trailing digits are optional (an
+index that was rolled over would normally match the full format eg.
+`logs-2016.10.31-000002`). If the index name doesn't match the pattern
+the index creation will fail.
+
+`index.lifecycle.origination_date`::
+The timestamp that will be used to calculate the index age for its phase
+transitions. This allows the users to create an index containing old data and
+use the original creation date of the old data to calculate the index age.

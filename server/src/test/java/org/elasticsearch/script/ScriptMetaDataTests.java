@@ -32,6 +32,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 
 public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaData> {
 
@@ -166,6 +167,42 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
                 BytesReference.bytes(builder).streamInput());
         ScriptMetaData.fromXContent(parser);
         assertWarnings("empty templates should no longer be used");
+    }
+
+    public void testOldStyleDropped() throws IOException {
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+
+        builder.startObject();
+        {
+            builder.startObject("painless#test");
+            {
+                builder.field("lang", "painless");
+                builder.field("source", "code");
+            }
+            builder.endObject();
+            builder.startObject("lang#test");
+            {
+                builder.field("lang", "test");
+                builder.field("source", "code");
+            }
+            builder.endObject();
+            builder.startObject("test");
+            {
+                builder.field("lang", "painless");
+                builder.field("source", "code");
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        BytesReference.bytes(builder).streamInput());
+        ScriptMetaData smd = ScriptMetaData.fromXContent(parser);
+        assertNull(smd.getStoredScript("painless#test"));
+        assertNull(smd.getStoredScript("lang#test"));
+        assertEquals(new StoredScriptSource("painless", "code", Collections.emptyMap()), smd.getStoredScript("test"));
+        assertEquals(1, smd.getStoredScripts().size());
     }
 
     @Override

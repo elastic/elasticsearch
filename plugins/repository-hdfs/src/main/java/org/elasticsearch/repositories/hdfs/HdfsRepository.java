@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -58,7 +59,6 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     private final Environment environment;
     private final ByteSizeValue chunkSize;
-    private final BlobPath basePath = BlobPath.cleanPath();
     private final URI uri;
     private final String pathSetting;
 
@@ -67,8 +67,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     public HdfsRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), metadata.settings().getAsBoolean("compress", false), namedXContentRegistry);
+                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
+        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
@@ -230,11 +230,6 @@ public final class HdfsRepository extends BlobStoreRepository {
             AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
                 () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
         return blobStore;
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
     }
 
     @Override

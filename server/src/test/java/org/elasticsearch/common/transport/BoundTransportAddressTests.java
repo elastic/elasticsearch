@@ -52,13 +52,7 @@ public class BoundTransportAddressTests extends ESTestCase {
         transportAddress.writeTo(streamOutput);
         StreamInput in = streamOutput.bytes().streamInput();
 
-        BoundTransportAddress serializedAddress;
-        if (randomBoolean()) {
-            serializedAddress = BoundTransportAddress.readBoundTransportAddress(in);
-        } else {
-            serializedAddress = new BoundTransportAddress();
-            serializedAddress.readFrom(in);
-        }
+        BoundTransportAddress serializedAddress = new BoundTransportAddress(in);
 
         assertThat(serializedAddress, not(sameInstance(transportAddress)));
         assertThat(serializedAddress.boundAddresses().length, equalTo(transportAddress.boundAddresses().length));

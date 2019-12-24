@@ -40,18 +40,20 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
-import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
+import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.AnnotatedPassageFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URLEncoder;
 import java.text.BreakIterator;
+import java.util.ArrayList;
 import java.util.Locale;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -63,13 +65,24 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             Query query, Locale locale, BreakIterator breakIterator,
             int noMatchSize, String[] expectedPassages) throws Exception {
         
+        
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
         Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
-        hiliteAnalyzer.init(markedUpInputs);
-        PassageFormatter passageFormatter = new AnnotatedPassageFormatter(hiliteAnalyzer,new DefaultEncoder());
-        String []plainTextForHighlighter = hiliteAnalyzer.getPlainTextValuesForHighlighter();
+        HitContext mockHitContext = new HitContext();
+        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer, mockHitContext);
+        
+        AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];
+        for (int i = 0; i < markedUpInputs.length; i++) {
+            annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
+        }
+        mockHitContext.cache().put(AnnotatedText.class.getName(), annotations);
 
+        AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(annotations,new DefaultEncoder());
+        
+        ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
+        for (int i = 0; i < annotations.length; i++) {
+            plainTextForHighlighter.add(annotations[i].textMinusMarkup);
+        }        
         
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(wrapperAnalyzer);
@@ -94,7 +107,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         iw.close();
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
         assertThat(topDocs.totalHits.value, equalTo(1L));
-        String rawValue = Strings.arrayToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
+        String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
         
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, hiliteAnalyzer, null,
                 passageFormatter, locale,

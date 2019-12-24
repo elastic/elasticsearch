@@ -1,10 +1,5 @@
 # Integration tests for ScriptScoreQuery using Painless
 
-setup:
-- skip:
-    version: " - 6.99.99"
-    reason: "script score query was introduced in 7.0.0"
-
 ---
 "Math functions":
     - do:
@@ -71,61 +66,6 @@ setup:
     - match: { hits.hits.0._id: d3 }
     - match: { hits.hits.1._id: d2 }
     - match: { hits.hits.2._id: d1 }
-
----
-"Random functions":
-    - do:
-        indices.create:
-            index: test
-            body:
-                settings:
-                    number_of_shards: 2
-                mappings:
-                    properties:
-                        f1:
-                            type: keyword
-    - do:
-        index:
-            index: test
-            id: 1
-            body: {"f1": "v1"}
-    - do:
-        index:
-            index: test
-            id: 2
-            body: {"f1": "v2"}
-    - do:
-        index:
-            index: test
-            id: 3
-            body: {"f1": "v3"}
-
-    - do:
-        indices.refresh: {}
-
-    - do:
-        search:
-            rest_total_hits_as_int: true
-            index: test
-            body:
-                query:
-                    script_score:
-                        query: {match_all: {} }
-                        script:
-                            source: "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
-    - match: { hits.total: 3 }
-
-    - do:
-        search:
-            rest_total_hits_as_int: true
-            index: test
-            body:
-                query:
-                    script_score:
-                        query: {match_all: {} }
-                        script:
-                            source: "randomNotReproducible()"
-    - match: { hits.total: 3 }
 
 ---
 "Decay geo functions":
@@ -556,3 +496,53 @@ setup:
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
     - match: { hits.hits.1._id : "1" }
+
+
+---
+"Script Score With Highlight":
+  - skip:
+      version: " - 7.4.0"
+      reason: "highlight for script_score was introduced in 7.4.1"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            "properties":
+              "company":
+                "type": "text"
+              "reputation":
+                "type": "integer"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id" : "1"}}'
+          - '{"company": "ABC company", "reputation": 300}'
+          - '{"index": {"_index": "test_index", "_id" : "2"}}'
+          - '{"company": "ABC ABCD company", "reputation": 200}'
+          - '{"index": {"_index": "test_index", "_id" : "3"}}'
+          - '{"company": "ABCD company", "reputation": 100}'
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              script:
+                source: "doc['reputation'].value"
+              query:
+                bool:
+                  should:
+                    - match:
+                        company: ABC
+                    - match:
+                        company: ABCD
+          highlight:
+            fields:
+              company: {}
+
+  - match: {hits.hits.0.highlight.company.0: "<em>ABC</em> company"}
+  - match: {hits.hits.1.highlight.company.0: "<em>ABC</em> <em>ABCD</em> company"}
+  - match: {hits.hits.2.highlight.company.0: "<em>ABCD</em> company"}

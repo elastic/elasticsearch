@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -634,7 +634,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            TemplateScript.Factory scriptFactory = context.getScriptService().compile(this.collateQuery, TemplateScript.CONTEXT);
+            TemplateScript.Factory scriptFactory = context.compile(this.collateQuery, TemplateScript.CONTEXT);
             suggestionContext.setCollateQueryScript(scriptFactory);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);
@@ -675,9 +675,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         if (analyzer instanceof NamedAnalyzer) {
             analyzer = ((NamedAnalyzer)analyzer).analyzer();
         }
-        if (analyzer instanceof CustomAnalyzer) {
-            final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            final TokenFilterFactory[] tokenFilters = a.tokenFilters();
+        if (analyzer instanceof AnalyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
                     return ((ShingleTokenFilterFactory)tokenFilterFactory).getInnerFactory();

@@ -31,14 +31,19 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -47,11 +52,13 @@ import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -61,20 +68,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 
 /**
  * Tests various cluster operations (e.g., indexing) during disruptions.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     private enum ConflictMode {
@@ -95,10 +105,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
+    @TestIssueLogging(value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
-        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -108,6 +119,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
+                .put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
             ));
@@ -126,6 +138,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
         final ConflictMode conflictMode = ConflictMode.randomMode();
+        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).collect(Collectors.toList());
 
         logger.info("starting indexers using conflict mode " + conflictMode);
         try {
@@ -147,8 +160,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 id = Integer.toString(idGenerator.incrementAndGet());
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test", "type", id)
-                                    .setSource("{}", XContentType.JSON)
+                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test").setId(id)
+                                    .setSource(Map.of(randomFrom(fieldNames), randomNonNegativeLong()), XContentType.JSON)
                                     .setTimeout(timeout);
 
                                 if (conflictMode == ConflictMode.external) {
@@ -226,7 +239,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
                             for (String id : ackedDocs.keySet()) {
                                 assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                                    client(node).prepareGet("test", id).setPreference("_local").get().isExists());
                             }
                         } catch (AssertionError | NoShardAvailableActionException e) {
                             throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
@@ -280,12 +293,12 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
 
 
-        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test", "type").setSource("field", "value")
+        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value")
             .get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
-        GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", "type", indexResponse.getId())
+        GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", indexResponse.getId())
             .setPreference("_local")
             .get();
         assertThat(getResponse.isExists(), is(true));
@@ -299,7 +312,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         for (String node : nodes) {
             logger.info("Verifying if document exists after isolating node[{}] via node[{}]", isolatedNode, node);
-            getResponse = internalCluster().client(node).prepareGet("test", "type", indexResponse.getId())
+            getResponse = internalCluster().client(node).prepareGet("test", indexResponse.getId())
                 .setPreference("_local")
                 .get();
             assertThat(getResponse.isExists(), is(true));
@@ -390,7 +403,18 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return Settings.builder().put(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeName).build();
+                return Settings.builder()
+                    .put(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
+                    /*
+                     * the data node might join while the master is still not fully established as master just yet and bypasses the join
+                     * validation that is done before adding the node to the cluster. Only the join validation when handling the publish
+                     * request takes place, but at this point the cluster state has been successfully committed, and will subsequently be
+                     * exposed to the applier. The health check below therefore sees the cluster state with the 2 nodes and thinks all is
+                     * good, even though the data node never accepted this state. What's worse is that it takes 90 seconds for the data
+                     * node to be kicked out of the cluster (lag detection). We speed this up here.
+                     */
+                    .put(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(), "10s")
+                    .build();
             }
 
             @Override
@@ -399,9 +423,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             }
         });
 
-        assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
-        assertTrue(internalCluster().client(masterNode).admin().cluster().prepareHealth().setWaitForNodes("2").setTimeout("2s").get()
-            .isTimedOut());
+        assertBusy(() -> {
+            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+            assertTrue(internalCluster().client(masterNode).admin().cluster().prepareHealth().setWaitForNodes("2").setTimeout("2s").get()
+                .isTimedOut());
+        }, 30, TimeUnit.SECONDS);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
     }
 
@@ -433,7 +459,53 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
         ensureYellow();
-        assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
+        assertFalse(indexExists(idxName));
+    }
+
+    public void testRestartNodeWhileIndexing() throws Exception {
+        startCluster(3);
+        String index = "restart_while_indexing";
+        assertAcked(client().admin().indices().prepareCreate(index).setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(1, 2))));
+        AtomicBoolean stopped = new AtomicBoolean();
+        Thread[] threads = new Thread[between(1, 4)];
+        AtomicInteger docID = new AtomicInteger();
+        Set<String> ackedDocs = ConcurrentCollections.newConcurrentSet();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                while (stopped.get() == false && docID.get() < 5000) {
+                    String id = Integer.toString(docID.incrementAndGet());
+                    try {
+                        IndexResponse response = client().prepareIndex(index).setId(id)
+                            .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
+                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
+                        ackedDocs.add(response.getId());
+                    } catch (ElasticsearchException ignore) {
+                        logger.info("--> fail to index id={}", id);
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        ensureGreen(index);
+        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(100)));
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback());
+        ensureGreen(index);
+        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(200)));
+        stopped.set(true);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        ClusterState clusterState = internalCluster().clusterService().state();
+        for (ShardRouting shardRouting : clusterState.routingTable().allShards(index)) {
+            String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+            IndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
+            Set<String> docs = IndexShardTestCase.getShardDocUIDs(shard);
+            assertThat("shard [" + shard.routingEntry() + "] docIds [" + docs + "] vs " + " acked docIds [" + ackedDocs + "]",
+                ackedDocs, everyItem(isIn(docs)));
+        }
     }
 
 }

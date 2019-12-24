@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,7 +30,7 @@ import java.util.Objects;
 /**
  * Response object when posting data to a Machine Learning Job
  */
-public class PostDataResponse extends ActionResponse implements ToXContentObject {
+public class PostDataResponse implements ToXContentObject {
 
     private DataCounts dataCounts;
 

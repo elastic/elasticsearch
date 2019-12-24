@@ -2,17 +2,28 @@
 [testenv="basic"]
 [[ilm-stop]]
 === Stop {ilm} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {ilm}</titleabbrev>
 ++++
 
 Stop the {ilm} ({ilm-init}) plugin.
 
-==== Request
+[[ilm-stop-request]]
+==== {api-request-title}
 
 `POST /_ilm/stop`
 
-==== Description
+[[ilm-stop-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
+
+[[ilm-stop-desc]]
+==== {api-description-title}
 
 Halts all lifecycle management operations and stops the {ilm-init} plugin. This
 is useful when you are performing maintenance on the cluster and need to prevent
@@ -23,22 +34,19 @@ plugin might continue to run until in-progress operations complete and the plugi
 can be safely stopped. Use the  <<ilm-get-status, Get ILM Status>> API to see
 if {ilm-init} is running.
 
-==== Request Parameters
+[[ilm-stop-query-params]]
+==== {api-query-parms-title}
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
-
-You must have the `manage_ilm` cluster privilege to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
-
-==== Examples
+[[ilm-stop-example]]
+==== {api-examples-title}
 
 The following example stops the ILM plugin.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -64,36 +72,31 @@ PUT _ilm/policy/my_policy
 
 PUT my_index
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/stop
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 If the request does not encounter errors, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/start
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////

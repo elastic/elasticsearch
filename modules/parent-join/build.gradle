@@ -20,5 +20,4 @@
 esplugin {
   description 'This module adds the support parent-child queries and aggregations'
   classname 'org.elasticsearch.join.ParentJoinPlugin'
-  hasClientJar = true
 }

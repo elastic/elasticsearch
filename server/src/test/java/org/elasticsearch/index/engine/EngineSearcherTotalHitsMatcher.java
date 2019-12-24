@@ -42,7 +42,7 @@ public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine
     @Override
     public boolean matchesSafely(Engine.Searcher searcher) {
         try {
-            this.count = (int) searcher.searcher().count(query);
+            this.count = searcher.count(query);
             return count == totalHits;
         } catch (IOException e) {
             return false;

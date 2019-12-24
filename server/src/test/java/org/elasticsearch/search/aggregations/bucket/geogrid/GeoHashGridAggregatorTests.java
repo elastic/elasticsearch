@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 
 public class GeoHashGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoHashGridBucket> {
 

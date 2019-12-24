@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,7 +51,7 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Transport client that collects snapshot shard statuses from data nodes
+ * Transport action that collects snapshot shard statuses from data nodes
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesAction<TransportNodesSnapshotsStatus.Request,
                                                                         TransportNodesSnapshotsStatus.NodesSnapshotStatus,
@@ -57,6 +59,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                                                                         TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
     public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
+    public static final ActionType<NodesSnapshotStatus> TYPE = new ActionType<>(ACTION_NAME, NodesSnapshotStatus::new);
 
     private final SnapshotShardsService snapshotShardsService;
 
@@ -70,13 +73,13 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
-    protected NodeSnapshotStatus newNodeResponse() {
-        return new NodeSnapshotStatus();
+    protected NodeSnapshotStatus newNodeResponse(StreamInput in) throws IOException {
+        return new NodeSnapshotStatus(in);
     }
 
     @Override
@@ -85,7 +88,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     @Override
-    protected NodeSnapshotStatus nodeOperation(NodeRequest request) {
+    protected NodeSnapshotStatus nodeOperation(NodeRequest request, Task task) {
         Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>();
         try {
             final String nodeId = clusterService.localNode().getId();
@@ -120,7 +123,10 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
         private Snapshot[] snapshots;
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            // This operation is never executed remotely
+            throw new UnsupportedOperationException("shouldn't be here");
         }
 
         public Request(String[] nodesIds) {
@@ -133,12 +139,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            // This operation is never executed remotely
-            throw new UnsupportedOperationException("shouldn't be here");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             // This operation is never executed remotely
             throw new UnsupportedOperationException("shouldn't be here");
@@ -147,18 +147,22 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
 
+        public NodesSnapshotStatus(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public NodesSnapshotStatus(ClusterName clusterName, List<NodeSnapshotStatus> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
         protected List<NodeSnapshotStatus> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeSnapshotStatus::new);
+            return in.readList(NodeSnapshotStatus::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeSnapshotStatus> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
     }
 
@@ -167,18 +171,13 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
         private List<Snapshot> snapshots;
 
-        public NodeRequest() {
-        }
-
-        NodeRequest(String nodeId, TransportNodesSnapshotsStatus.Request request) {
-            super(nodeId);
-            snapshots = Arrays.asList(request.snapshots);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
             snapshots = in.readList(Snapshot::new);
+        }
+
+        NodeRequest(TransportNodesSnapshotsStatus.Request request) {
+            snapshots = Arrays.asList(request.snapshots);
         }
 
         @Override
@@ -192,7 +191,22 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
         private Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status;
 
-        NodeSnapshotStatus() {
+        public NodeSnapshotStatus(StreamInput in) throws IOException {
+            super(in);
+            int numberOfSnapshots = in.readVInt();
+            Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>(numberOfSnapshots);
+            for (int i = 0; i < numberOfSnapshots; i++) {
+                Snapshot snapshot = new Snapshot(in);
+                int numberOfShards = in.readVInt();
+                Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>(numberOfShards);
+                for (int j = 0; j < numberOfShards; j++) {
+                    ShardId shardId =  new ShardId(in);
+                    SnapshotIndexShardStatus status = new SnapshotIndexShardStatus(in);
+                    shardMapBuilder.put(shardId, status);
+                }
+                snapshotMapBuilder.put(snapshot, unmodifiableMap(shardMapBuilder));
+            }
+            status = unmodifiableMap(snapshotMapBuilder);
         }
 
         public NodeSnapshotStatus(DiscoveryNode node, Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status) {
@@ -202,25 +216,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
         public Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status() {
             return status;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            int numberOfSnapshots = in.readVInt();
-            Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>(numberOfSnapshots);
-            for (int i = 0; i < numberOfSnapshots; i++) {
-                Snapshot snapshot = new Snapshot(in);
-                int numberOfShards = in.readVInt();
-                Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>(numberOfShards);
-                for (int j = 0; j < numberOfShards; j++) {
-                    ShardId shardId =  ShardId.readShardId(in);
-                    SnapshotIndexShardStatus status = SnapshotIndexShardStatus.readShardSnapshotStatus(in);
-                    shardMapBuilder.put(shardId, status);
-                }
-                snapshotMapBuilder.put(snapshot, unmodifiableMap(shardMapBuilder));
-            }
-            status = unmodifiableMap(snapshotMapBuilder);
         }
 
         @Override

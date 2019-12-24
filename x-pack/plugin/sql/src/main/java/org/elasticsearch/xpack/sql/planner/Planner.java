@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
 import org.elasticsearch.xpack.sql.tree.Node;
+
+import java.util.List;
+import java.util.Map;
 
 import static java.util.stream.Collectors.toMap;
 

@@ -369,7 +369,7 @@ public final class EngineConfig {
         /**
          * Creates a tombstone document for a delete operation.
          */
-        ParsedDocument newDeleteTombstoneDoc(String type, String id);
+        ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
          * Creates a tombstone document for a noop operation.

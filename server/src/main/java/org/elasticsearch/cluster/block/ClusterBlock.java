@@ -19,11 +19,9 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +33,7 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ClusterBlock implements Streamable, Writeable, ToXContentFragment {
+public class ClusterBlock implements Writeable, ToXContentFragment {
 
     private int id;
     private @Nullable String uuid;
@@ -48,11 +46,7 @@ public class ClusterBlock implements Streamable, Writeable, ToXContentFragment {
 
     public ClusterBlock(StreamInput in) throws IOException {
         id = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            uuid = in.readOptionalString();
-        } else {
-            uuid = null;
-        }
+        uuid = in.readOptionalString();
         description = in.readString();
         final int len = in.readVInt();
         ArrayList<ClusterBlockLevel> levels = new ArrayList<>(len);
@@ -148,16 +142,9 @@ public class ClusterBlock implements Streamable, Writeable, ToXContentFragment {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeOptionalString(uuid);
-        }
+        out.writeOptionalString(uuid);
         out.writeString(description);
         out.writeVInt(levels.size());
         for (ClusterBlockLevel level : levels) {

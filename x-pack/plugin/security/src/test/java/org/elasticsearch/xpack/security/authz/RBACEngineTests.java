@@ -21,6 +21,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
@@ -46,11 +48,12 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -63,6 +66,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -232,6 +236,53 @@ public class RBACEngineTests extends ESTestCase {
         verifyNoMoreInteractions(authentication, lookedUpBy, authenticatedBy);
     }
 
+    public void testSameUserPermissionAllowsSelfApiKeyInfoRetrievalWhenAuthenticatedByApiKey() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, apiKeyId));
+
+        assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+    }
+
+    public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenAuthenticatedByADifferentApiKey() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+
+        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+    }
+
+    public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenLookedupByIsPresent() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        final Authentication.RealmRef lookedupBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
+        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+
+        final AssertionError assertionError = expectThrows(AssertionError.class, () -> engine.checkSameUserPermissions(GetApiKeyAction.NAME,
+            request, authentication));
+        assertNotNull(assertionError);
+        assertThat(assertionError.getLocalizedMessage(), is("runAs not supported for api key authentication"));
+    }
+
     /**
      * This tests that action names in the request are considered "matched" by the relevant named privilege
      * (in this case that {@link DeleteAction} and {@link IndexAction} are satisfied by {@link IndexPrivilege#WRITE}).
@@ -283,7 +334,7 @@ public class RBACEngineTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder("test2")
-            .cluster(ClusterPrivilege.MONITOR)
+            .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.INDEX, "academy")
             .add(IndexPrivilege.WRITE, "initiative")
             .build();
@@ -342,7 +393,7 @@ public class RBACEngineTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder("test3")
-            .cluster(ClusterPrivilege.MONITOR)
+            .cluster(Set.of("monitor"), Set.of())
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
@@ -493,6 +544,130 @@ public class RBACEngineTests extends ESTestCase {
         ));
     }
 
+    public void testCheckExplicitRestrictedIndexPermissions() throws Exception {
+        User user = new User(randomAlphaOfLengthBetween(4, 12));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
+        final boolean restrictedIndexPermission = randomBoolean();
+        final boolean restrictedMonitorPermission = randomBoolean();
+        Role role = Role.builder("role")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, restrictedIndexPermission, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, restrictedMonitorPermission, ".security*")
+            .build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        String explicitRestrictedIndex = randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES);
+        HasPrivilegesResponse response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(new String[] {".secret-non-restricted", explicitRestrictedIndex})
+                .privileges("index", "monitor")
+                .allowRestrictedIndices(false) // explicit false for test
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
+                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("index", true).put("monitor", false).map()).build(),
+                ResourcePrivileges.builder(explicitRestrictedIndex) // matches both ".sec*" and ".security*"
+                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("index", restrictedIndexPermission).put("monitor", restrictedMonitorPermission).map()).build()));
+
+        explicitRestrictedIndex = randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES);
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(new String[] {".secret-non-restricted", explicitRestrictedIndex})
+                .privileges("index", "monitor")
+                .allowRestrictedIndices(true) // explicit true for test
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
+                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("index", true).put("monitor", false).map()).build(),
+                ResourcePrivileges.builder(explicitRestrictedIndex) // matches both ".sec*" and ".security*"
+                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("index", restrictedIndexPermission).put("monitor", restrictedMonitorPermission).map()).build()));
+    }
+
+    public void testCheckRestrictedIndexWildcardPermissions() throws Exception {
+        User user = new User(randomAlphaOfLengthBetween(4, 12));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
+        Role role = Role.builder("role")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, true, ".security*")
+            .build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        HasPrivilegesResponse response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+            .indices(".sec*", ".security*")
+            .privileges("index", "monitor")
+            .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+            ResourcePrivileges.builder(".sec*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", true).put("monitor", false).map()).build(),
+            ResourcePrivileges.builder(".security*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", true).put("monitor", true).map()).build()
+        ));
+
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".sec*", ".security*")
+                .privileges("index", "monitor")
+                .allowRestrictedIndices(true)
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+            ResourcePrivileges.builder(".sec*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", false).put("monitor", false).map()).build(),
+            ResourcePrivileges.builder(".security*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", false).put("monitor", true).map()).build()
+        ));
+
+        role = Role.builder("role")
+                .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, ".sec*")
+                .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, false, ".security*")
+                .build();
+        authzInfo = new RBACAuthorizationInfo(role, null);
+
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".sec*", ".security*")
+                .privileges("index", "monitor")
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+            ResourcePrivileges.builder(".sec*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", true).put("monitor", false).map()).build(),
+            ResourcePrivileges.builder(".security*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", true).put("monitor", true).map()).build()
+        ));
+
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".sec*", ".security*")
+                .privileges("index", "monitor")
+                .allowRestrictedIndices(true)
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+            ResourcePrivileges.builder(".sec*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", true).put("monitor", false).map()).build(),
+            ResourcePrivileges.builder(".security*")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", true).put("monitor", false).map()).build()
+        ));
+    }
+
     public void testCheckingApplicationPrivilegesOnDifferentApplicationsAndResources() throws Exception {
         List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
         final ApplicationPrivilege app1Read = defineApplicationPrivilege(privs, "app1", "read", "data:read/*");
@@ -604,7 +779,7 @@ public class RBACEngineTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder("test-write")
-            .cluster(ClusterPrivilege.MONITOR)
+            .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.READ, "read-*")
             .add(IndexPrivilege.ALL, "all-*")
             .addApplicationPrivilege(kibanaRead, Collections.singleton("*"))

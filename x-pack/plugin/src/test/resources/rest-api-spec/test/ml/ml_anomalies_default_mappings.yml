@@ -25,7 +25,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "new_doc"
         body: >
           {

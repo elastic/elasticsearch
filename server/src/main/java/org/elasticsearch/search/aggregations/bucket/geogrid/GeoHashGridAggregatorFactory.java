@@ -19,7 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,27 +38,29 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoHashGridAggregatorFactory> {
+public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
 
     GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-            int shardSize, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+                                 int shardSize, QueryShardContext queryShardContext, AggregatorFactory parent,
+                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
                 Collections.emptyList(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
+        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -66,13 +69,17 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(final GeoPoint valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoHashUtils::longEncode);
-        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, Geohash::longEncode);
+        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, searchContext, parent,
                 pipelineAggregators, metaData);
     }
 }

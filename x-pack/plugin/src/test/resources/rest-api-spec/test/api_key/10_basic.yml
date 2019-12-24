@@ -8,12 +8,33 @@ setup:
           wait_for_status: yellow
 
   - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+            {
+              "cluster": ["manage_api_key"],
+              "indices": [
+                {
+                  "names": "*",
+                  "privileges": ["all"]
+                }
+              ],
+              "applications": [
+                {
+                  "application": "myapp",
+                  "privileges": ["*"],
+                  "resources": ["*"]
+                }
+              ]
+            }
+
+  - do:
       security.put_user:
         username: "api_key_user"
         body:  >
           {
             "password" : "x-pack-test-password",
-            "roles" : [ "superuser" ],
+            "roles" : [ "admin_role" ],
             "full_name" : "API key user"
           }
 
@@ -39,6 +60,11 @@ setup:
 ---
 teardown:
   - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
       security.delete_user:
         username: "api_key_user"
         ignore: 404
@@ -54,7 +80,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.create_api_key:
         body:  >
             {
@@ -105,7 +131,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.create_api_key:
         body:  >
             {
@@ -141,11 +167,21 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.get_api_key:
         id: "$api_key_id"
   - match: { "api_keys.0.id": "$api_key_id" }
   - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.username": "api_key_user" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        owner: true
+  - length: { "api_keys" : 1 }
   - match: { "api_keys.0.username": "api_key_user" }
   - match: { "api_keys.0.invalidated": false }
   - is_true: "api_keys.0.creation"
@@ -157,7 +193,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.create_api_key:
         body:  >
             {
@@ -175,7 +211,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: Apikey ${login_creds}
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.invalidate_api_key:
         body:  >
             {
@@ -193,7 +229,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.create_api_key:
         body:  >
             {

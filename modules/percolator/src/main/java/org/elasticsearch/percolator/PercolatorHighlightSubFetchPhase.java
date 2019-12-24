@@ -31,8 +31,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,15 +98,19 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                     for (Object matchedSlot : field.getValues()) {
                         int slot = (int) matchedSlot;
                         BytesReference document = percolateQuery.getDocuments().get(slot);
-                        SubSearchContext subSearchContext =
-                            createSubSearchContext(context, percolatorLeafReaderContext, document, slot);
-                        subSearchContext.parsedQuery(new ParsedQuery(query));
+                        SearchContextHighlight highlight = new SearchContextHighlight(context.highlight().fields());
+                        // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
+                        highlight.globalForceSource(true);
+                        QueryShardContext shardContext = new QueryShardContext(context.getQueryShardContext());
+                        shardContext.freezeContext();
+                        shardContext.lookup().source().setSegmentAndDocument(percolatorLeafReaderContext, slot);
+                        shardContext.lookup().source().setSource(document);
                         hitContext.reset(
-                            new SearchHit(slot, "unknown", new Text(hit.getType()), Collections.emptyMap()),
+                            new SearchHit(slot, "unknown", Collections.emptyMap()),
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
                         );
                         hitContext.cache().clear();
-                        highlightPhase.hitExecute(subSearchContext, hitContext);
+                        highlightPhase.hitExecute(context.shardTarget(), shardContext, query, highlight, hitContext);
                         for (Map.Entry<String, HighlightField> entry : hitContext.hit().getHighlightFields().entrySet()) {
                             if (percolateQuery.getDocuments().size() == 1) {
                                 String hlFieldName;
@@ -165,16 +167,5 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             return locatePercolatorQuery(((FunctionScoreQuery) query).getSubQuery());
         }
         return Collections.emptyList();
-    }
-
-    private SubSearchContext createSubSearchContext(SearchContext context, LeafReaderContext leafReaderContext,
-                                                    BytesReference source, int docId) {
-        SubSearchContext subSearchContext = new SubSearchContext(context);
-        subSearchContext.highlight(new SearchContextHighlight(context.highlight().fields()));
-        // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
-        subSearchContext.highlight().globalForceSource(true);
-        subSearchContext.lookup().source().setSegmentAndDocument(leafReaderContext, docId);
-        subSearchContext.lookup().source().setSource(source);
-        return subSearchContext;
     }
 }

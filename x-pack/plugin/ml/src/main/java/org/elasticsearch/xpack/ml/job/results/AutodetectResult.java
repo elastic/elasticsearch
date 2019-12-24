@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -133,19 +132,14 @@ public class AutodetectResult implements ToXContentObject, Writeable {
             this.flushAcknowledgement = null;
         }
 
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            if (in.readBoolean()) {
-                this.forecast = new Forecast(in);
-            } else {
-                this.forecast = null;
-            }
-            if (in.readBoolean()) {
-                this.forecastRequestStats = new ForecastRequestStats(in);
-            } else {
-                this.forecastRequestStats = null;
-            }
+        if (in.readBoolean()) {
+            this.forecast = new Forecast(in);
         } else {
             this.forecast = null;
+        }
+        if (in.readBoolean()) {
+            this.forecastRequestStats = new ForecastRequestStats(in);
+        } else {
             this.forecastRequestStats = null;
         }
     }
@@ -161,11 +155,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         writeNullable(modelPlot, out);
         writeNullable(categoryDefinition, out);
         writeNullable(flushAcknowledgement, out);
-
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            writeNullable(forecast, out);
-            writeNullable(forecastRequestStats, out);
-        }
+        writeNullable(forecast, out);
+        writeNullable(forecastRequestStats, out);
     }
 
     private static void writeNullable(Writeable writeable, StreamOutput out) throws IOException {

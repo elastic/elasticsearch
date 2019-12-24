@@ -65,7 +65,7 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -88,7 +88,7 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
             .prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap")
             .get()
-            .getSnapshots()
+            .getSnapshots("test-repo")
             .get(0)
             .state();
         assertThat(state, equalTo(SnapshotState.SUCCESS));
@@ -116,8 +116,8 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
 
         logger.info("--> list available shapshots");
         GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
-        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
-        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
+        assertThat(getSnapshotsResponse.getSnapshots("url-repo"), notNullValue());
+        assertThat(getSnapshotsResponse.getSnapshots("url-repo").size(), equalTo(1));
 
         logger.info("--> delete snapshot");
         AcknowledgedResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
@@ -125,7 +125,7 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
 
         logger.info("--> list available shapshot again, no snapshots should be returned");
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
-        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
-        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
+        assertThat(getSnapshotsResponse.getSnapshots("url-repo"), notNullValue());
+        assertThat(getSnapshotsResponse.getSnapshots("url-repo").size(), equalTo(0));
     }
 }

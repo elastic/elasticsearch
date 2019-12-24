@@ -83,7 +83,7 @@ public class IndexSortIT extends ESIntegTestCase {
             .addMapping("test", TEST_MAPPING)
             .get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i))
+            client().prepareIndex("test").setId(Integer.toString(i))
                 .setSource("numeric_dv", randomInt(), "keyword_dv", randomAlphaOfLengthBetween(10, 20))
                 .get();
         }

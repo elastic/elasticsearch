@@ -45,7 +45,7 @@ public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestC
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 

@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
@@ -41,14 +43,16 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.mockito.internal.util.collections.Sets;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
@@ -58,14 +62,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.settings(settings, XContentType.JSON);
         request.type(type);
         return execute(request, highLevelClient().snapshot()::createRepository,
-            highLevelClient().snapshot()::createRepositoryAsync);
+                highLevelClient().snapshot()::createRepositoryAsync);
     }
 
     private CreateSnapshotResponse createTestSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         // assumes the repository already exists
 
         return execute(createSnapshotRequest, highLevelClient().snapshot()::create,
-            highLevelClient().snapshot()::createAsync);
+                highLevelClient().snapshot()::createAsync);
     }
 
     public void testCreateRepository() throws IOException {
@@ -81,7 +85,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         GetRepositoriesRequest request = new GetRepositoriesRequest();
         request.repositories(new String[]{testRepository});
         GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
-            highLevelClient().snapshot()::getRepositoryAsync);
+                highLevelClient().snapshot()::getRepositoryAsync);
         assertThat(1, equalTo(response.repositories().size()));
     }
 
@@ -90,7 +94,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
         GetRepositoriesResponse response = execute(new GetRepositoriesRequest(), highLevelClient().snapshot()::getRepository,
-            highLevelClient().snapshot()::getRepositoryAsync);
+                highLevelClient().snapshot()::getRepositoryAsync);
         assertThat(2, equalTo(response.repositories().size()));
     }
 
@@ -98,11 +102,11 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String repository = "doesnotexist";
         GetRepositoriesRequest request = new GetRepositoriesRequest(new String[]{repository});
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(request,
-            highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync));
+                highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync));
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo(
-            "Elasticsearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
+                "Elasticsearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
     }
 
     public void testSnapshotDeleteRepository() throws IOException {
@@ -111,12 +115,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
         GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
-            highLevelClient().snapshot()::getRepositoryAsync);
+                highLevelClient().snapshot()::getRepositoryAsync);
         assertThat(1, equalTo(response.repositories().size()));
 
         DeleteRepositoryRequest deleteRequest = new DeleteRepositoryRequest(repository);
         AcknowledgedResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
-            highLevelClient().snapshot()::deleteRepositoryAsync);
+                highLevelClient().snapshot()::deleteRepositoryAsync);
 
         assertTrue(deleteResponse.isAcknowledged());
     }
@@ -127,8 +131,19 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
         VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
-            highLevelClient().snapshot()::verifyRepositoryAsync);
+                highLevelClient().snapshot()::verifyRepositoryAsync);
         assertThat(response.getNodes().size(), equalTo(1));
+    }
+
+    public void testCleanupRepository() throws IOException {
+        AcknowledgedResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        CleanupRepositoryRequest request = new CleanupRepositoryRequest("test");
+        CleanupRepositoryResponse response = execute(request, highLevelClient().snapshot()::cleanupRepository,
+            highLevelClient().snapshot()::cleanupRepositoryAsync);
+        assertThat(response.result().bytes(), equalTo(0L));
+        assertThat(response.result().blobs(), equalTo(0L));
     }
 
     public void testCreateSnapshot() throws IOException {
@@ -139,6 +154,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshot);
         boolean waitForCompletion = randomBoolean();
         request.waitForCompletion(waitForCompletion);
+        if (randomBoolean()) {
+            request.userMetadata(randomUserMetadata());
+        }
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
 
@@ -147,46 +165,58 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         if (waitForCompletion == false) {
             // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
             AcknowledgedResponse deleteResponse = execute(
-                new DeleteSnapshotRequest(repository, snapshot),
-                highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+                    new DeleteSnapshotRequest(repository, snapshot),
+                    highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
             );
             assertTrue(deleteResponse.isAcknowledged());
         }
     }
 
     public void testGetSnapshots() throws IOException {
-        String repository = "test_repository";
+        String repository1 = "test_repository1";
+        String repository2 = "test_repository2";
         String snapshot1 = "test_snapshot1";
         String snapshot2 = "test_snapshot2";
 
-        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse =
+                createTestRepository(repository1, FsRepository.TYPE, "{\"location\": \"loc1\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
-        CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository, snapshot1);
+        AcknowledgedResponse putRepositoryResponse2 =
+                createTestRepository(repository2, FsRepository.TYPE, "{\"location\": \"loc2\"}");
+        assertTrue(putRepositoryResponse2.isAcknowledged());
+
+        CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository1, snapshot1);
         createSnapshotRequest1.waitForCompletion(true);
         CreateSnapshotResponse putSnapshotResponse1 = createTestSnapshot(createSnapshotRequest1);
-        CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository, snapshot2);
+        CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository2, snapshot2);
         createSnapshotRequest2.waitForCompletion(true);
+        Map<String, Object> originalMetadata = randomUserMetadata();
+        createSnapshotRequest2.userMetadata(originalMetadata);
         CreateSnapshotResponse putSnapshotResponse2 = createTestSnapshot(createSnapshotRequest2);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, putSnapshotResponse1.status());
         assertEquals(RestStatus.OK, putSnapshotResponse2.status());
 
-        GetSnapshotsRequest request;
-        if (randomBoolean()) {
-            request = new GetSnapshotsRequest(repository);
-        } else if (randomBoolean()) {
-            request = new GetSnapshotsRequest(repository, new String[] {"_all"});
+        GetSnapshotsRequest request = new GetSnapshotsRequest(
+                randomFrom(new String[]{"_all"}, new String[]{"*"}, new String[]{repository1, repository2}),
+                randomFrom(new String[]{"_all"}, new String[]{"*"}, new String[]{snapshot1, snapshot2})
+        );
+        request.ignoreUnavailable(true);
 
-        } else {
-            request = new GetSnapshotsRequest(repository, new String[] {snapshot1, snapshot2});
-        }
         GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
 
-        assertEquals(2, response.getSnapshots().size());
-        assertThat(response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
-            contains("test_snapshot1", "test_snapshot2"));
+        assertThat(response.isFailed(), is(false));
+        assertThat(response.getRepositories(), equalTo(Sets.newSet(repository1, repository2)));
+
+        assertThat(response.getSnapshots(repository1), hasSize(1));
+        assertThat(response.getSnapshots(repository1).get(0).snapshotId().getName(), equalTo(snapshot1));
+
+        assertThat(response.getSnapshots(repository2), hasSize(1));
+        assertThat(response.getSnapshots(repository2).get(0).snapshotId().getName(), equalTo(snapshot2));
+        assertThat(response.getSnapshots(repository2).get(0).userMetadata(), equalTo(originalMetadata));
     }
+
 
     public void testSnapshotsStatus() throws IOException {
         String testRepository = "test";
@@ -209,7 +239,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.repository(testRepository);
         request.snapshots(new String[]{testSnapshot});
         SnapshotsStatusResponse response = execute(request, highLevelClient().snapshot()::status,
-            highLevelClient().snapshot()::statusAsync);
+                highLevelClient().snapshot()::statusAsync);
         assertThat(response.getSnapshots().size(), equalTo(1));
         assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo(testRepository));
         assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo(testSnapshot));
@@ -231,6 +261,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
         createSnapshotRequest.indices(testIndex);
         createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            createSnapshotRequest.userMetadata(randomUserMetadata());
+        }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
@@ -243,7 +276,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.renameReplacement(restoredIndex);
 
         RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
-            highLevelClient().snapshot()::restoreAsync);
+                highLevelClient().snapshot()::restoreAsync);
 
         RestoreInfo restoreInfo = response.getRestoreInfo();
         assertThat(restoreInfo.name(), equalTo(testSnapshot));
@@ -261,6 +294,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
         createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            createSnapshotRequest.userMetadata(randomUserMetadata());
+        }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
@@ -269,5 +305,29 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
 
         assertTrue(response.isAcknowledged());
+    }
+
+    private static Map<String, Object> randomUserMetadata() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        Map<String, Object> metadata = new HashMap<>();
+        long fields = randomLongBetween(0, 4);
+        for (int i = 0; i < fields; i++) {
+            if (randomBoolean()) {
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
+                        randomAlphaOfLengthBetween(5, 5));
+            } else {
+                Map<String, Object> nested = new HashMap<>();
+                long nestedFields = randomLongBetween(0, 4);
+                for (int j = 0; j < nestedFields; j++) {
+                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
+                            randomAlphaOfLengthBetween(5, 5));
+                }
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)), nested);
+            }
+        }
+        return metadata;
     }
 }

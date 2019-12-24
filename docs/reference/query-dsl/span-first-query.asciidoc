@@ -1,10 +1,13 @@
 [[query-dsl-span-first-query]]
-=== Span First Query
+=== Span first query
+++++
+<titleabbrev>Span first</titleabbrev>
+++++
 
 Matches spans near the beginning of a field. The span first query maps
 to Lucene `SpanFirstQuery`. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -18,7 +21,6 @@ GET /_search
     }
 }    
 --------------------------------------------------
-// CONSOLE
 
 The `match` clause can be any other span type query. The `end` controls
 the maximum end position permitted in a match.

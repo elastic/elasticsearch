@@ -20,19 +20,19 @@
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchContextException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
-public class FetchPhaseExecutionException extends SearchContextException {
+public class FetchPhaseExecutionException extends SearchException {
 
-    public FetchPhaseExecutionException(SearchContext context, String msg, Throwable t) {
-        super(context, "Fetch Failed [" + msg + "]", t);
+    public FetchPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable t) {
+        super(shardTarget, "Fetch Failed [" + msg + "]", t);
     }
 
-    public FetchPhaseExecutionException(SearchContext context, String msg) {
-        super(context, "Fetch Failed [" + msg + "]");
+    public FetchPhaseExecutionException(SearchShardTarget shardTarget, String msg) {
+        super(shardTarget, "Fetch Failed [" + msg + "]");
     }
 
     public FetchPhaseExecutionException(StreamInput in) throws IOException {

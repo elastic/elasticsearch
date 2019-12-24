@@ -1,10 +1,9 @@
 [[search-template]]
-== Search Template
+=== Search Template
 
-The `/_search/template` endpoint allows to use the mustache language to pre render search requests,
-before they are executed and fill existing templates with template parameters.
+Allows you to use the mustache language to pre render search requests.
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -19,25 +18,277 @@ GET _search/template
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
+
+[[search-template-api-request]]
+==== {api-request-title}
+
+`GET _search/template`
+
+
+[[search-template-api-desc]]
+==== {api-description-title}
+
+The `/_search/template` endpoint allows you to use the mustache language to pre- 
+render search requests, before they are executed and fill existing templates 
+with template parameters.
 
 For more information on how Mustache templating and what kind of templating you
 can do with it check out the http://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
-NOTE: The mustache language is implemented in Elasticsearch as a sandboxed
-scripting language, hence it obeys settings that may be used to enable or
-disable scripts per type and context as described in the
-<<allowed-script-types-setting, scripting docs>>
+NOTE: The mustache language is implemented in {es} as a sandboxed scripting 
+language, hence it obeys settings that may be used to enable or disable scripts 
+per type and context as described in the 
+<<allowed-script-types-setting, scripting docs>>.
 
-[float]
-==== More template examples
 
-[float]
-===== Filling in a query string with a single value
+[[search-template-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+
+
+[[search-template-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+`ccs_minimize_roundtrips`::
+  (Optional, boolean) If `true`, network round-trips are minimized for 
+ cross-cluster search requests. Defaults to `true`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+
+`explain`::
+  (Optional, boolean) If `true`, the response includes additional details about 
+  score computation as part of a hit. Defaults to `false`.
+
+`ignore_throttled`::
+  (Optional, boolean) If `true`, specified concrete, expanded or aliased indices 
+  are not included in the response when throttled. Defaults to `false`. 
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+
+`profile`::
+  (Optional, boolean) If `true`, the query execution is profiled. Defaults 
+  to `false`.
+
+`rest_total_hits_as_int`::
+  (Optional, boolean) If `true`, `hits.total` are rendered as an integer in 
+  the response. Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+
+`typed_keys`::
+  (Optional, boolean) If `true`, aggregation and suggester names are 
+  prefixed by their respective types in the response. Defaults to `false`.
+  
+
+[[search-template-api-request-body]]
+==== {api-request-body-title}
+
+The API request body must contain the search definition template and its parameters.
+
+
+[[search-template-api-example]]
+==== {api-response-codes-title}
+
+
+[[pre-registered-templates]]
+===== Store a search template
+
+You can store a search template using the stored scripts API.
+
+[source,console]
+------------------------------------------
+POST _scripts/<templateid>
+{
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "match": {
+                    "title": "{{query_string}}"
+                }
+            }
+        }
+    }
+}
+------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+The API returns the following result if the template has been successfully 
+created:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "acknowledged" : true
+}
+--------------------------------------------------
+
+//////////////////////////
+
+
+The template can be retrieved by calling
+
+[source,console]
+------------------------------------------
+GET _scripts/<templateid>
+------------------------------------------
+// TEST[continued]
+
+The API returns the following result:
+
+[source,console-result]
+------------------------------------------
+{
+    "script" : {
+        "lang" : "mustache",
+        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+        "options": {
+          "content_type" : "application/json; charset=UTF-8"
+        }
+    },
+    "_id": "<templateid>",
+    "found": true
+}
+------------------------------------------
+
+
+This template can be deleted by calling
+
+[source,console]
+------------------------------------------
+DELETE _scripts/<templateid>
+------------------------------------------
+// TEST[continued]
+
+
+[[use-registered-templates]]
+===== Using a stored search template
+
+To use a stored template at search time send the following request:
+
+[source,console]
+------------------------------------------
+GET _search/template
+{
+    "id": "<templateid>", <1>
+    "params": {
+        "query_string": "search for these words"
+    }
+}
+------------------------------------------
+// TEST[catch:missing]
+<1> Name of the stored template script.
+
+
+[[_validating_templates]]
+==== Validating a search template
+
+A template can be rendered in a response with given parameters by using the 
+following request:
+
+[source,console]
+------------------------------------------
+GET _render/template
+{
+  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
+  "params": {
+    "statuses" : {
+        "status": [ "pending", "published" ]
+    }
+  }
+}
+------------------------------------------
+
+
+The API returns the rendered template:
+
+[source,console-result]
+------------------------------------------
+{
+  "template_output": {
+    "query": {
+      "terms": {
+        "status": [ <1>
+          "pending",
+          "published"
+        ]
+      }
+    }
+  }
+}
+------------------------------------------
+
+<1> `status` array has been populated with values from the `params` object.
+
+
+Stored templates can also be rendered by calling the following request:
 
 [source,js]
+------------------------------------------
+GET _render/template/<template_name>
+{
+  "params": {
+    "..."
+  }
+}
+------------------------------------------
+// NOTCONSOLE
+
+[[search-template-explain-parameter]]
+===== Using the explain parameter
+
+You can use the `explain` parameter when running a template:
+
+[source,console]
+------------------------------------------
+GET _search/template
+{
+  "id": "my_template",
+  "params": {
+    "status": [ "pending", "published" ]
+  },
+  "explain": true
+}
+------------------------------------------
+// TEST[catch:missing]
+
+
+[[search-template-profile-parameter]]
+===== Profiling
+
+You can use the `profile` parameter when running a template:
+
+[source,console]
+------------------------------------------
+GET _search/template
+{
+  "id": "my_template",
+  "params": {
+    "status": [ "pending", "published" ]
+  },
+  "profile": true
+}
+------------------------------------------
+// TEST[catch:missing]
+
+
+[[search-template-query-string-single]]
+===== Filling in a query string with a single value
+
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -53,16 +304,15 @@ GET _search/template
     }
 }
 ------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
-[float]
+[[search-template-converting-to-json]]
 ===== Converting parameters to JSON
 
 The `{{#toJson}}parameter{{/toJson}}` function can be used to convert parameters
 like maps and array to their JSON representation:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -74,7 +324,6 @@ GET _search/template
   }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -95,7 +344,7 @@ which is rendered as:
 
 A more complex example substitutes an array of JSON objects:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -108,7 +357,6 @@ GET _search/template
    }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -135,13 +383,13 @@ which is rendered as:
 ------------------------------------------
 // NOTCONSOLE
 
-[float]
+[[search-template-concatenate-array]]
 ===== Concatenating array of values
 
 The `{{#join}}array{{/join}}` function can be used to concatenate the
 values of an array as a comma delimited string:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -157,7 +405,6 @@ GET _search/template
   }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -175,7 +422,7 @@ which is rendered as:
 
 The function also accepts a custom delimiter:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _search/template
 {
@@ -199,7 +446,6 @@ GET _search/template
   }
 }
 ------------------------------------------
-// CONSOLE
 
 which is rendered as:
 
@@ -220,7 +466,7 @@ which is rendered as:
 ------------------------------------------
 // NOTCONSOLE
 
-[float]
+[[search-template-default-values]]
 ===== Default values
 
 A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
@@ -274,7 +520,7 @@ for `end`:
 ------------------------------------------
 // NOTCONSOLE
 
-[float]
+[[search-template-conditional-clauses]]
 ===== Conditional clauses
 
 Conditional clauses cannot be expressed using the JSON form of the template.
@@ -283,22 +529,24 @@ we wanted to run a `match` query on the `line` field, and optionally wanted
 to filter by line numbers, where `start` and `end` are optional.
 
 The `params` would look like:
+
 [source,js]
 ------------------------------------------
 {
     "params": {
         "text":      "words to search for",
         "line_no": { <1>
-            "start": 10, <1>
-            "end":   20  <1>
+            "start": 10,
+            "end":   20
         }
     }
 }
 ------------------------------------------
 // NOTCONSOLE
-<1> All three of these elements are optional.
+<1> The `line_no`, `start`, and `end` parameters are optional.
 
-We could write the query as:
+When written as a query, the template would include invalid JSON, such as
+section markers like `{{#line_no}}`:
 
 [source,js]
 ------------------------------------------
@@ -317,13 +565,13 @@ We could write the query as:
               {{#start}} <3>
                 "gte": "{{start}}" <4>
                 {{#end}},{{/end}} <5>
-              {{/start}} <3>
+              {{/start}}
               {{#end}} <6>
                 "lte": "{{end}}" <7>
-              {{/end}} <6>
+              {{/end}}
             }
           }
-        {{/line_no}} <2>
+        {{/line_no}}
       }
     }
   }
@@ -339,30 +587,26 @@ We could write the query as:
 <6> Include the `lte` clause only if `line_no.end` is specified
 <7> Fill in the value of param `line_no.end`
 
-[NOTE]
-==================================
-As written above, this template is not valid JSON because it includes the
-_section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in a file (see <<pre-registered-templates>>) or, when used
-via the REST API, should be written as a string:
+Because search templates cannot include invalid JSON, you can pass the same
+query as a string instead:
 
 [source,js]
 --------------------
 "source": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 // NOTCONSOLE
-==================================
 
 
-[float]
+[[search-template-encode-urls]]
 ===== Encoding URLs
 
 The `{{#url}}value{{/url}}` function can be used to encode a string value
-in a HTML encoding form as defined in by the http://www.w3.org/TR/html4/[HTML specification].
+in a HTML encoding form as defined in by the 
+http://www.w3.org/TR/html4/[HTML specification].
 
 As an example, it is useful to encode a URL:
 
-[source,js]
+[source,console]
 ------------------------------------------
 GET _render/template
 {
@@ -379,11 +623,11 @@ GET _render/template
     }
 }
 ------------------------------------------
-// CONSOLE
+
 
 The previous query will be rendered as:
 
-[source,js]
+[source,console-result]
 ------------------------------------------
 {
     "template_output" : {
@@ -395,211 +639,24 @@ The previous query will be rendered as:
     }
 }
 ------------------------------------------
-// TESTRESPONSE
 
-
-[float]
-[[pre-registered-templates]]
-===== Pre-registered template
-
-You can register search templates by using the stored scripts api.
-
-[source,js]
-------------------------------------------
-POST _scripts/<templatename>
-{
-    "script": {
-        "lang": "mustache",
-        "source": {
-            "query": {
-                "match": {
-                    "title": "{{query_string}}"
-                }
-            }
-        }
-    }
-}
-------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-We want to be sure that the template has been created,
-because we'll use it later.
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged" : true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-//////////////////////////
-
-This template can be retrieved by
-
-[source,js]
-------------------------------------------
-GET _scripts/<templatename>
-------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-which is rendered as:
-
-[source,js]
-------------------------------------------
-{
-    "script" : {
-        "lang" : "mustache",
-        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
-        "options": {
-          "content_type" : "application/json; charset=UTF-8"
-        }
-    },
-    "_id": "<templatename>",
-    "found": true
-}
-------------------------------------------
-// TESTRESPONSE
-
-This template can be deleted by
-
-[source,js]
-------------------------------------------
-DELETE _scripts/<templatename>
-------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-We want to be sure that the template has been created,
-because we'll use it later.
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged" : true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-//////////////////////////
-
-To use a stored template at search time use:
-
-[source,js]
-------------------------------------------
-GET _search/template
-{
-    "id": "<templateName>", <1>
-    "params": {
-        "query_string": "search for these words"
-    }
-}
-------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
-<1> Name of the stored template script.
-
-[float]
-==== Validating templates
-
-A template can be rendered in a response with given parameters using
-
-[source,js]
-------------------------------------------
-GET _render/template
-{
-  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
-  "params": {
-    "statuses" : {
-        "status": [ "pending", "published" ]
-    }
-  }
-}
-------------------------------------------
-// CONSOLE
-
-This call will return the rendered template:
-
-[source,js]
-------------------------------------------
-{
-  "template_output": {
-    "query": {
-      "terms": {
-        "status": [ <1>
-          "pending",
-          "published"
-        ]
-      }
-    }
-  }
-}
-------------------------------------------
-// TESTRESPONSE
-<1> `status` array has been populated with values from the `params` object.
-
-Pre-registered templates can also be rendered using
-
-[source,js]
-------------------------------------------
-GET _render/template/<template_name>
-{
-  "params": {
-    "..."
-  }
-}
-------------------------------------------
-// NOTCONSOLE
-
-[float]
-===== Explain
-
-You can use `explain` parameter when running a template:
-
-[source,js]
-------------------------------------------
-GET _search/template
-{
-  "id": "my_template",
-  "params": {
-    "status": [ "pending", "published" ]
-  },
-  "explain": true
-}
-------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
-
-[float]
-===== Profiling
-
-You can use `profile` parameter when running a template:
-
-[source,js]
-------------------------------------------
-GET _search/template
-{
-  "id": "my_template",
-  "params": {
-    "status": [ "pending", "published" ]
-  },
-  "profile": true
-}
-------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
 
 [[multi-search-template]]
-== Multi Search Template
+=== Multi Search Template
 
-The multi search template API allows to execute several search template
-requests within the same API using the `_msearch/template` endpoint.
+Allows to execute several search template requests.
+
+[[multi-search-template-api-request]]
+==== {api-request-title}
+
+`GET _msearch/template`
+
+
+[[multi-search-template-api-desc]]
+==== {api-description-title}
+
+Allows to execute several search template requests within the same API using the 
+`_msearch/template` endpoint.
 
 The format of the request is similar to the <<search-multi-search, Multi
 Search API>> format:
@@ -613,11 +670,15 @@ body\n
 --------------------------------------------------
 // NOTCONSOLE
 
-The header part supports the same `index`, `search_type`,
-`preference`, and `routing` options as the usual Multi Search API.
+The header part supports the same `index`, `search_type`, `preference`, and 
+`routing` options as the Multi Search API.
 
-The body includes a search template body request and supports inline,
-stored and file templates. Here is an example:
+The body includes a search template body request and supports inline, stored and 
+file templates.
+
+
+[[multi-search-template-api-example]]
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------
@@ -639,5 +700,5 @@ $ curl -H "Content-Type: application/x-ndjson" -XGET localhost:9200/_msearch/tem
 The response returns a `responses` array, which includes the search template
 response for each search template request matching its order in the original
 multi search template request. If there was a complete failure for that specific
-search template request, an object with `error` message will be returned in place
-of the actual search response.
+search template request, an object with `error` message will be returned in 
+place of the actual search response.

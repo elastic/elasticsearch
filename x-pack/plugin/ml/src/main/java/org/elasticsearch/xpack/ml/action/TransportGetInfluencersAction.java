@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-import java.util.function.Supplier;
-
 public class TransportGetInfluencersAction extends HandledTransportAction<GetInfluencersAction.Request, GetInfluencersAction.Response> {
 
     private final JobResultsProvider jobResultsProvider;
@@ -28,8 +26,7 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
     @Inject
     public TransportGetInfluencersAction(TransportService transportService, ActionFilters actionFilters,
                                          JobResultsProvider jobResultsProvider, Client client, JobManager jobManager) {
-        super(GetInfluencersAction.NAME, transportService, actionFilters,
-            (Supplier<GetInfluencersAction.Request>) GetInfluencersAction.Request::new);
+        super(GetInfluencersAction.NAME, transportService, actionFilters, GetInfluencersAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
         this.jobManager = jobManager;

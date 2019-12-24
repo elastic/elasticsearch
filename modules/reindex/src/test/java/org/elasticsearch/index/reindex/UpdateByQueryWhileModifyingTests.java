@@ -42,7 +42,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
 
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
-        indexRandom(true, client().prepareIndex("test", "test", "test").setSource("test", value.get()));
+        indexRandom(true, client().prepareIndex("test").setId("test").setSource("test", value.get()));
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean keepUpdating = new AtomicBoolean(true);
@@ -61,10 +61,10 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
 
         try {
             for (int i = 0; i < MAX_MUTATIONS; i++) {
-                GetResponse get = client().prepareGet("test", "test", "test").get();
+                GetResponse get = client().prepareGet("test", "test").get();
                 assertEquals(value.get(), get.getSource().get("test"));
                 value.set(randomSimpleString(random()));
-                IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
+                IndexRequestBuilder index = client().prepareIndex("test").setId("test").setSource("test", value.get())
                         .setRefreshPolicy(IMMEDIATE);
                 /*
                  * Update by query changes the document so concurrent
@@ -84,7 +84,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                         }
                         logger.info("Caught expected version conflict trying to perform mutation number [{}] with version [{}] "
                                 + "on attempt [{}]. Retrying.", i, get.getVersion(), attempts);
-                        get = client().prepareGet("test", "test", "test").get();
+                        get = client().prepareGet("test", "test").get();
                     }
                 }
             }

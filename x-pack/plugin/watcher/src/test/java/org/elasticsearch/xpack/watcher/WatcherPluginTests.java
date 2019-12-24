@@ -67,8 +67,7 @@ public class WatcherPluginTests extends ESTestCase {
 
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
         assertThat(executorBuilders, hasSize(0));
-        assertThat(watcher.createGuiceModules(), hasSize(2));
-        assertThat(watcher.getActions(), hasSize(0));
+        assertThat(watcher.getActions(), hasSize(2));
         assertThat(watcher.getRestHandlers(settings, null, null, null, null, null, null), hasSize(0));
 
         // ensure index module is not called, even if watches index is tried
@@ -87,23 +86,19 @@ public class WatcherPluginTests extends ESTestCase {
 
     public void testThreadPoolSize() {
         // old calculation was 5 * number of processors
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 1).build()), is(5));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 2).build()), is(10));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 4).build()), is(20));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 8).build()), is(40));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 9).build()), is(45));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 10).build()), is(50));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 16).build()), is(50));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 24).build()), is(50));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 50).build()), is(50));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 51).build()), is(51));
-        assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 96).build()), is(96));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 1), is(5));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 2), is(10));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 4), is(20));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 8), is(40));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 9), is(45));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 10), is(50));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 16), is(50));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 24), is(50));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 50), is(50));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 51), is(51));
+        assertThat(Watcher.getWatcherThreadPoolSize(true, 96), is(96));
 
-        Settings noDataNodeSettings = Settings.builder()
-                .put("processors", scaledRandomIntBetween(1, 100))
-                .put("node.data", false)
-                .build();
-        assertThat(Watcher.getWatcherThreadPoolSize(noDataNodeSettings), is(1));
+        assertThat(Watcher.getWatcherThreadPoolSize(false, scaledRandomIntBetween(1, 100)), is(1));
     }
 
     public void testReload() {

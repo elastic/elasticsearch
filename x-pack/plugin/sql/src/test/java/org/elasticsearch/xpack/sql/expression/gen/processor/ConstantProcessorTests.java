@@ -7,9 +7,12 @@ package org.elasticsearch.xpack.sql.expression.gen.processor;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 public class ConstantProcessorTests extends AbstractWireSerializingTestCase<ConstantProcessor> {
     public static ConstantProcessor randomConstantProcessor() {
@@ -28,7 +31,10 @@ public class ConstantProcessorTests extends AbstractWireSerializingTestCase<Cons
 
     @Override
     protected ConstantProcessor mutateInstance(ConstantProcessor instance) throws IOException {
-        return new ConstantProcessor(randomValueOtherThan(instance.process(null), () -> randomAlphaOfLength(5)));
+        return new ConstantProcessor(randomValueOtherThan(instance.process(null),
+                () -> new IntervalDayTime(Duration.ofSeconds(
+                        randomLongBetween(TimeUnit.SECONDS.convert(3, TimeUnit.HOURS), TimeUnit.SECONDS.convert(23, TimeUnit.HOURS))),
+                        DataType.INTERVAL_DAY_TO_SECOND)));
     }
 
     public void testApply() {

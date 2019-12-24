@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -82,14 +81,14 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        this.fieldName = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            this.fieldName = in.readOptionalString();
+        } else {
+            this.fieldName = in.readString();
+        }
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
-        } else {
-            this.timeZone = in.readOptionalZoneId();
-        }
+        this.timeZone = in.readOptionalZoneId();
     }
 
     public Object getMissing() {
@@ -110,14 +109,14 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeOptionalString(fieldName);
+        } else {
+            out.writeString(fieldName);
+        }
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
-        } else {
-            out.writeOptionalZoneId(timeZone);
-        }
+        out.writeOptionalZoneId(timeZone);
     }
 
     @Override

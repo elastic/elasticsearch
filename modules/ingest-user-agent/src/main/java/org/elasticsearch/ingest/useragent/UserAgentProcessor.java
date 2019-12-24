@@ -25,7 +25,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
-import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -147,37 +146,6 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         ingestDocument.setFieldValue(targetField, uaDetails);
         return ingestDocument;
-    }
-
-    /** To maintain compatibility with logstash-filter-useragent */
-    private String buildFullOSName(VersionedName operatingSystem) {
-        if (operatingSystem == null || operatingSystem.name == null) {
-            return null;
-        }
-
-        StringBuilder sb = new StringBuilder(operatingSystem.name);
-
-        if (operatingSystem.major != null) {
-            sb.append(" ");
-            sb.append(operatingSystem.major);
-
-            if (operatingSystem.minor != null) {
-                sb.append(".");
-                sb.append(operatingSystem.minor);
-
-                if (operatingSystem.patch != null) {
-                    sb.append(".");
-                    sb.append(operatingSystem.patch);
-
-                    if (operatingSystem.build != null) {
-                        sb.append(".");
-                        sb.append(operatingSystem.build);
-                    }
-                }
-            }
-        }
-
-        return sb.toString();
     }
 
     @Override

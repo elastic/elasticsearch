@@ -1,0 +1,49 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-upgrading]]
+=== Upgrading clusters
+
+Clusters that are actively using {ccr} require a careful approach to upgrades.
+Otherwise index following may fail during a rolling upgrade, because of the
+following reasons:
+
+* If a new index setting or mapping type is replicated from an upgraded cluster
+  to a non-upgraded cluster then the non-upgraded cluster will reject that and
+  will fail index following.
+* Lucene is not forwards compatible and when index following is falling back to
+  file based recovery then a node in a non-upgraded cluster will reject index
+  files from a newer Lucene version compared to what it is using.
+
+Rolling upgrading clusters with {ccr} is different in case of uni-directional
+index following and bi-directional index following.
+
+
+==== Uni-directional index following
+
+In a uni-directional setup between two clusters, one cluster contains only
+leader indices, and the other cluster contains only follower indices following
+indices in the first cluster.
+
+In this setup, the cluster with follower indices should be upgraded
+first and the cluster with leader indices should be upgraded last.
+If clusters are upgraded in this order then index following can continue
+during the upgrade without downtime.
+
+Note that a chain index following setup can also be upgraded in this way.
+For example if there is a cluster A that contains all leader indices,
+cluster B that follows indices in cluster A and cluster C that follows
+indices in cluster B. In this case the cluster C should be upgraded first,
+then cluster B and finally cluster A.
+
+
+==== Bi-directional index following
+
+In a bi-directional setup between two clusters, each cluster contains both
+leader and follower indices.
+
+When upgrading clusters in this setup, all index following needs to be paused
+using the {ref}/ccr-post-pause-follow.html[pause follower API] and the
+ {ref}/ccr-pause-auto-follow-pattern.html[pause auto-follower API] prior to
+upgrading both clusters. After both clusters have been upgraded then index
+following can be resumed using the
+{ref}/ccr-post-resume-follow.html[resume follower API]].

@@ -18,19 +18,14 @@
  */
 package org.elasticsearch.plugin.noop.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
 
-public class NoopSearchAction extends Action<SearchResponse> {
+public class NoopSearchAction extends ActionType<SearchResponse> {
     public static final NoopSearchAction INSTANCE = new NoopSearchAction();
     public static final String NAME = "mock:data/read/search";
 
-    public NoopSearchAction() {
-        super(NAME);
-    }
-
-    @Override
-    public SearchResponse newResponse() {
-        return new SearchResponse();
+    private NoopSearchAction() {
+        super(NAME, SearchResponse::new);
     }
 }

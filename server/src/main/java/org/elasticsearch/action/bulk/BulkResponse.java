@@ -56,7 +56,16 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     private long tookInMillis;
     private long ingestTookInMillis;
 
-    BulkResponse() {
+    BulkResponse() {}
+
+    public BulkResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = new BulkItemResponse[in.readVInt()];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = new BulkItemResponse(in);
+        }
+        tookInMillis = in.readVLong();
+        ingestTookInMillis = in.readZLong();
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis) {
@@ -109,8 +118,8 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             BulkItemResponse response = responses[i];
             if (response.isFailed()) {
                 sb.append("\n[").append(i)
-                        .append("]: index [").append(response.getIndex()).append("], type [")
-                        .append(response.getType()).append("], id [").append(response.getId())
+                        .append("]: index [").append(response.getIndex())
+                        .append("], id [").append(response.getId())
                         .append("], message [").append(response.getFailureMessage()).append("]");
             }
         }
@@ -130,19 +139,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new BulkItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = BulkItemResponse.readBulkItem(in);
-        }
-        tookInMillis = in.readVLong();
-        ingestTookInMillis = in.readZLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(responses.length);
         for (BulkItemResponse response : responses) {
             response.writeTo(out);

@@ -42,7 +42,7 @@ public class ChangePasswordRequestBuilder
     }
 
     public static char[] validateAndHashPassword(SecureString password, Hasher hasher) {
-        Validation.Error error = Validation.Users.validatePassword(password.getChars());
+        Validation.Error error = Validation.Users.validatePassword(password);
         if (error != null) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationError(error.toString());

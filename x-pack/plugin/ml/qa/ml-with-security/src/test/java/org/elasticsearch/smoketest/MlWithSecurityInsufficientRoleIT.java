@@ -30,7 +30,7 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
         } catch (AssertionError ae) {
             // Some tests assert on searches of wildcarded ML indices rather than on ML endpoints.  For these we expect no hits.
             if (ae.getMessage().contains("hits.total didn't match expected value")) {
-                assertThat(ae.getMessage(), containsString("but was [0]"));
+                assertThat(ae.getMessage(), containsString("but was Integer [0]"));
             } else {
                 assertThat(ae.getMessage(),
                         either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));

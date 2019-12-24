@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -21,18 +21,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SetUpgradeModeAction extends Action<AcknowledgedResponse> {
+public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
 
     public static final SetUpgradeModeAction INSTANCE = new SetUpgradeModeAction();
     public static final String NAME = "cluster:admin/xpack/ml/upgrade_mode";
 
     private SetUpgradeModeAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -52,7 +47,8 @@ public class SetUpgradeModeAction extends Action<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            this.enabled = in.readBoolean();
         }
 
         public Request() {
@@ -65,12 +61,6 @@ public class SetUpgradeModeAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.enabled = in.readBoolean();
         }
 
         @Override

@@ -67,7 +67,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
             CreateIndexResponse response = client.admin().indices().prepareCreate(expression).get();
             assertThat(response.isAcknowledged(), is(true));
         }
-        IndexResponse response = client.prepareIndex(expression, "type").setSource("foo", "bar")
+        IndexResponse response = client.prepareIndex(expression).setSource("foo", "bar")
                 .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE).get();
 
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
@@ -86,7 +86,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
                 .get();
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
 
-        UpdateResponse updateResponse = client.prepareUpdate(expression, "type", response.getId())
+        UpdateResponse updateResponse = client.prepareUpdate(expression, response.getId())
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")
                 .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
                 .get();
@@ -95,7 +95,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         if (refeshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();
         }
-        GetResponse getResponse = client.prepareGet(expression, "type", response.getId()).setFetchSource(true).get();
+        GetResponse getResponse = client.prepareGet(expression, response.getId()).setFetchSource(true).get();
         assertThat(getResponse.isExists(), is(true));
         assertEquals(expectedIndexName, getResponse.getIndex());
         assertThat(getResponse.getSourceAsMap().get("foo").toString(), is("bar"));
@@ -103,7 +103,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
         // multi get doesn't support expressions - this is probably a bug
         MultiGetResponse multiGetResponse = client.prepareMultiGet()
-                .add(expression, "type", response.getId())
+                .add(expression, response.getId())
                 .get();
         assertFalse(multiGetResponse.getResponses()[0].isFailed());
         assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());

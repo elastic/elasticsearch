@@ -34,7 +34,7 @@ public class RollupJobStatusTests extends AbstractSerializingTestCase<RollupJobS
 
     @Override
     protected RollupJobStatus createTestInstance() {
-        return new RollupJobStatus(randomFrom(IndexerState.values()), randomPosition(), randomBoolean());
+        return new RollupJobStatus(randomFrom(IndexerState.values()), randomPosition());
     }
 
     @Override

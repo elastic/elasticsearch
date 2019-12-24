@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -41,18 +40,18 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
 
     @Inject
     public TransportPutFilterAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutFilterAction.NAME, transportService, actionFilters, (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
+        super(PutFilterAction.NAME, transportService, actionFilters, PutFilterAction.Request::new);
         this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
         MlFilter filter = request.getFilter();
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
@@ -68,7 +67,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
                     @Override
                     public void onFailure(Exception e) {
                         Exception reportedException;
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             reportedException = new ResourceAlreadyExistsException("A filter with id [" + filter.getId()
                                     + "] already exists");
                         } else {

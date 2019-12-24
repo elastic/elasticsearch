@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.support;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,17 +27,11 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
-
 /**
  * A TransportAction that self registers a handler into the transport service
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    protected HandledTransportAction(String actionName, TransportService transportService,
-                                     ActionFilters actionFilters, Supplier<Request> request) {
-        this(actionName, true, transportService, actionFilters, request);
-    }
 
     protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
@@ -48,13 +41,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader, String executor) {
         this(actionName, true, transportService, actionFilters, requestReader, executor);
-    }
-
-    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
-                                     TransportService transportService, ActionFilters actionFilters, Supplier<Request> request) {
-        super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
-            new TransportHandler());
     }
 
     protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
@@ -73,9 +59,8 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
 
     class TransportHandler implements TransportRequestHandler<Request> {
         @Override
-        public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
+        public final void messageReceived(final Request request, final TransportChannel channel, Task task) {
             // We already got the task created on the network layer - no need to create it again on the transport layer
-            Logger logger = HandledTransportAction.this.logger;
             execute(task, request, new ChannelActionListener<>(channel, actionName, request));
         }
     }

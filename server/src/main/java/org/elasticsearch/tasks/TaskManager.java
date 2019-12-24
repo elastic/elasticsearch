@@ -26,7 +26,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -50,6 +52,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -127,6 +130,33 @@ public class TaskManager implements ClusterStateApplier {
         return task;
     }
 
+    public <Request extends ActionRequest, Response extends ActionResponse>
+    Task registerAndExecute(String type, TransportAction<Request, Response> action, Request request,
+                            BiConsumer<Task, Response> onResponse, BiConsumer<Task, Exception> onFailure) {
+        Task task = register(type, action.actionName, request);
+        // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
+        action.execute(task, request, new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    unregister(task);
+                } finally {
+                    onResponse.accept(task, response);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    unregister(task);
+                } finally {
+                    onFailure.accept(task, e);
+                }
+            }
+        });
+        return task;
+    }
+
     private void registerCancellableTask(Task task) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
@@ -196,7 +226,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -208,7 +238,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), e);
                 listener.onFailure(e);
             }
         });

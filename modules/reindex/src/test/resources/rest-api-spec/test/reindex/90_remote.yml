@@ -218,7 +218,11 @@
   - match: {indices.source.total.search.open_contexts: 0}
 
 ---
-"Reindex from remote with size":
+"Reindex from remote with max_docs":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
   - do:
       index:
         index:   source
@@ -245,7 +249,7 @@
       reindex:
         refresh: true
         body:
-          size: 1
+          max_docs: 1
           source:
             remote:
               host: http://${host}

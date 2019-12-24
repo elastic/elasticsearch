@@ -5,40 +5,54 @@
 <titleabbrev>Deactivate watch</titleabbrev>
 ++++
 
-A watch can be either
-{stack-ov}/how-watcher-works.html#watch-active-state[active or inactive]. This
+A watch can be either <<watch-active-state,active or inactive>>. This
 API enables you to deactivate a currently active watch.
 
-[float]
-==== Request
+[[watcher-api-deactivate-watch-request]]
+==== {api-request-title}
 
 `PUT _watcher/watch/<watch_id>/_deactivate`
 
-[float]
-==== Path Parameters
+[[watcher-api-deactivate-watch-prereqs]]
+==== {api-prereq-title}
 
-`watch_id` (required)::
-  (string) Identifier for the watch.
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see <<security-privileges>>.
 
-[float]
-==== Authorization
-You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {xpack-ref}/security-privileges.html[Security Privileges].
+//[[watcher-api-deactivate-watch-desc]]
+//==== {api-description-title}
 
-[float]
-==== Examples
+[[watcher-api-deactivate-watch-path-params]]
+==== {api-path-parms-title}
+
+`<watch_id>`::
+  (Required, string) Identifier for the watch.
+
+//[[watcher-api-deactivate-watch-query-params]]
+//==== {api-query-parms-title}
+
+//[[watcher-api-deactivate-watch-request-body]]
+//==== {api-request-body-title}
+
+//[[watcher-api-deactivate-watch-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-deactivate-watch-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-deactivate-watch-example]]
+==== {api-examples-title}
 
 The status of an active watch is returned with the watch definition when you
-call the <<watcher-api-get-watch, Get Watch API>>:
+call the <<watcher-api-get-watch,get watch API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -64,16 +78,15 @@ GET _watcher/watch/my_watch
 
 You can deactivate the watch by executing the following API call:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/my_watch/_deactivate
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 The new state of the watch is returned as part of its overall status:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "status": {

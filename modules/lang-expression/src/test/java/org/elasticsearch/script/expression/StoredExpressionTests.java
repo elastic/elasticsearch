@@ -54,9 +54,9 @@ public class StoredExpressionTests extends ESIntegTestCase {
                 .setId("script1")
                 .setContent(new BytesArray("{\"script\": {\"lang\": \"expression\", \"source\": \"2\"} }"), XContentType.JSON)
                 .get();
-        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
-            client().prepareUpdate("test", "scriptTest", "1")
+            client().prepareUpdate("test", "1")
                     .setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
@@ -67,7 +67,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
             client().prepareSearch()
                     .setSource(new SearchSourceBuilder().scriptField("test1",
                             new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))
-                    .setIndices("test").setTypes("scriptTest").get();
+                    .setIndices("test").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [field] context"));

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -32,30 +31,24 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
     static final String NODE_DETACHED_MSG = "Node was successfully detached from the cluster";
     static final String CONFIRMATION_MSG =
-                    "-------------------------------------------------------------------------------\n" +
-                    "\n" +
-                    "You should run this tool only if you have permanently lost all\n" +
-                    "your master-eligible nodes, and you cannot restore the cluster\n" +
-                    "from a snapshot, or you have already run `elasticsearch-node unsafe-bootstrap`\n" +
-                    "on a master-eligible node that formed a cluster with this node.\n" +
-                    "This tool can cause arbitrary data loss and its use should be your last resort.\n" +
-                    "Do you want to proceed?\n";
+        DELIMITER +
+            "\n" +
+            "You should only run this tool if you have permanently lost all of the\n" +
+            "master-eligible nodes in this cluster and you cannot restore the cluster\n" +
+            "from a snapshot, or you have already unsafely bootstrapped a new cluster\n" +
+            "by running `elasticsearch-node unsafe-bootstrap` on a master-eligible\n" +
+            "node that belonged to the same cluster as this node. This tool can cause\n" +
+            "arbitrary data loss and its use should be your last resort.\n" +
+            "\n" +
+            "Do you want to proceed?\n";
 
     public DetachClusterCommand() {
         super("Detaches this node from its cluster, allowing it to unsafely join a new cluster");
     }
 
-    @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        super.execute(terminal, options, env);
-
-        processNodePathsWithLock(terminal, options, env);
-
-        terminal.println(NODE_DETACHED_MSG);
-    }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths);
         final Manifest manifest = manifestMetaDataTuple.v1();
         final MetaData metaData = manifestMetaDataTuple.v2();
@@ -63,6 +56,8 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
         confirm(terminal, CONFIRMATION_MSG);
 
         writeNewMetaData(terminal, manifest, updateCurrentTerm(), metaData, updateMetaData(metaData), dataPaths);
+
+        terminal.println(NODE_DETACHED_MSG);
     }
 
     // package-private for tests

@@ -59,17 +59,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
-    /**
      * The search type to execute, defaults to {@link org.elasticsearch.action.search.SearchType#DEFAULT}.
      */
     public SearchRequestBuilder setSearchType(SearchType searchType) {
@@ -378,7 +367,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
+     * Indicates if the total hit count for the query should be tracked. Requests will count total hit count accurately
+     * up to 10,000 by default, see {@link #setTrackTotalHitsUpTo(int)} to change this value or set to true/false to always/never
+     * count accurately.
      */
     public SearchRequestBuilder setTrackTotalHits(boolean trackTotalHits) {
         sourceBuilder().trackTotalHits(trackTotalHits);
@@ -386,7 +377,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
+     * Indicates the total hit count that should be tracked accurately or null if the value is unset. Defaults to 10,000.
      */
     public SearchRequestBuilder setTrackTotalHitsUpTo(int trackTotalHitsUpTo) {
         sourceBuilder().trackTotalHitsUpTo(trackTotalHitsUpTo);

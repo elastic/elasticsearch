@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -43,8 +44,8 @@ public class ClusterNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testNoWildCardNoMatch() {
-        List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent2");
-        assertTrue(clusters.isEmpty());
+        expectThrows(NoSuchRemoteClusterException.class,
+            () -> clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent2"));
     }
 
     public void testWildCardNoMatch() {

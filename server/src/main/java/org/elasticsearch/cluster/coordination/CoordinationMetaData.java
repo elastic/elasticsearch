@@ -94,7 +94,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
         this.lastAcceptedConfiguration = lastAcceptedConfiguration;
-        this.votingConfigExclusions = Collections.unmodifiableSet(new HashSet<>(votingConfigExclusions));
+        this.votingConfigExclusions = Set.copyOf(votingConfigExclusions);
     }
 
     public CoordinationMetaData(StreamInput in) throws IOException {
@@ -331,7 +331,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         private final Set<String> nodeIds;
 
         public VotingConfiguration(Set<String> nodeIds) {
-            this.nodeIds = Collections.unmodifiableSet(new HashSet<>(nodeIds));
+            this.nodeIds = Set.copyOf(nodeIds);
         }
 
         public VotingConfiguration(StreamInput in) throws IOException {
@@ -340,7 +340,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(nodeIds.toArray(new String[nodeIds.size()]));
+            out.writeStringArray(nodeIds.toArray(new String[0]));
         }
 
         public boolean hasQuorum(Collection<String> votes) {

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -64,6 +67,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 
 public class TransportDeleteForecastAction extends HandledTransportAction<DeleteForecastAction.Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteForecastAction.class);
 
     private final Client client;
     private static final int MAX_FORECAST_TO_SEARCH = 10_000;
@@ -197,8 +202,8 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
         DeleteByQueryRequest request = new DeleteByQueryRequest()
             .setAbortOnVersionConflict(false) //since these documents are not updated, a conflict just means it was deleted previously
-            .setSize(MAX_FORECAST_TO_SEARCH)
-            .setSlices(5);
+            .setMaxDocs(MAX_FORECAST_TO_SEARCH)
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery();

@@ -107,7 +107,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList()); // populates the registry through side effects
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList()); // populates the registry through side effects
         NamedWriteableRegistry registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         in = new NamedWriteableAwareStreamInput(in, registry);
         in.setVersion(version);
@@ -126,12 +126,12 @@ public class SignificanceHeuristicTests extends ESTestCase {
     InternalMappedSignificantTerms<?, ?> getRandomSignificantTerms(SignificanceHeuristic heuristic) {
         if (randomBoolean()) {
             SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY,
-                    DocValueFormat.RAW);
+                    DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
             return new SignificantLongTerms("some_name", 1, 1, emptyList(), null, DocValueFormat.RAW, 10, 20, heuristic,
                     singletonList(bucket));
         } else {
             SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(new BytesRef("someterm"), 1, 2, 3, 4,
-                    InternalAggregations.EMPTY, DocValueFormat.RAW);
+                    InternalAggregations.EMPTY, DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
             return new SignificantStringTerms("some_name", 1, 1, emptyList(), null, DocValueFormat.RAW, 10, 20, heuristic,
                     singletonList(bucket));
         }
@@ -149,7 +149,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     public void testReduce() {
         List<InternalAggregation> aggs = createInternalAggregations();
         InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
-        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, context);
+        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).reduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));
@@ -196,7 +196,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         @Override
         SignificantStringTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
             return new SignificantStringTerms.Bucket(new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)), subsetDF,
-                    subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY, DocValueFormat.RAW);
+                    subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY, DocValueFormat.RAW, 0);
         }
     }
     private class LongTestAggFactory extends TestAggFactory<SignificantLongTerms, SignificantLongTerms.Bucket> {
@@ -210,7 +210,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         @Override
         SignificantLongTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
             return new SignificantLongTerms.Bucket(subsetDF, subsetSize, supersetDF, supersetSize, label, InternalAggregations.EMPTY,
-                    DocValueFormat.RAW);
+                    DocValueFormat.RAW, 0);
         }
     }
 
@@ -218,7 +218,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     // 1. The output of the builders can actually be parsed
     // 2. The parser does not swallow parameters after a significance heuristic was defined
     public void testBuilderAndParser() throws Exception {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         ParseFieldRegistry<SignificanceHeuristicParser> heuristicParserMapper = searchModule.getSignificanceHeuristicParserRegistry();
 
         // test jlh with string

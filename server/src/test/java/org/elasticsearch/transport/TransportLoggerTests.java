@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +36,7 @@ import java.io.IOException;
 
 import static org.mockito.Mockito.mock;
 
-@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace")
+@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
 public class TransportLoggerTests extends ESTestCase {
 
     private MockLogAppender appender;
@@ -56,17 +55,16 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHandler() throws IOException {
-        TransportLogger transportLogger = new TransportLogger();
-
         final String writePattern =
             ".*\\[length: \\d+" +
                 ", request id: \\d+" +
                 ", type: request" +
                 ", version: .*" +
+                ", header size: \\d+B" +
                 ", action: cluster:monitor/stats]" +
                 " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation =
-            new MockLogAppender.PatternSeenEventExcpectation(
+            new MockLogAppender.PatternSeenEventExpectation(
                 "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
         final String readPattern =
@@ -74,44 +72,28 @@ public class TransportLoggerTests extends ESTestCase {
                 ", request id: \\d+" +
                 ", type: request" +
                 ", version: .*" +
+                ", header size: \\d+B" +
                 ", action: cluster:monitor/stats]" +
                 " READ: \\d+B";
 
         final MockLogAppender.LoggingExpectation readExpectation =
-            new MockLogAppender.PatternSeenEventExcpectation(
+            new MockLogAppender.PatternSeenEventExpectation(
                 "cluster monitor request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
 
         appender.addExpectation(writeExpectation);
         appender.addExpectation(readExpectation);
         BytesReference bytesReference = buildRequest();
-        transportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
-        transportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
+        TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
+        TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
         appender.assertAllExpectationsMatched();
     }
 
     private BytesReference buildRequest() throws IOException {
-        try (BytesStreamOutput messageOutput = new BytesStreamOutput()) {
-            messageOutput.setVersion(Version.CURRENT);
-            try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
-                context.writeTo(messageOutput);
-            }
-            messageOutput.writeStringArray(new String[0]);
-            messageOutput.writeString(ClusterStatsAction.NAME);
-            new ClusterStatsRequest().writeTo(messageOutput);
-            BytesReference messageBody = messageOutput.bytes();
-            final BytesReference header = buildHeader(randomInt(30), messageBody.length());
-            return new CompositeBytesReference(header, messageBody);
-        }
-    }
-
-    private BytesReference buildHeader(long requestId, int length) throws IOException {
-        try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
-            headerOutput.setVersion(Version.CURRENT);
-            TcpHeader.writeHeader(headerOutput, requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT, length);
-            final BytesReference bytes = headerOutput.bytes();
-            assert bytes.length() == TcpHeader.HEADER_SIZE : "header size mismatch expected: " + TcpHeader.HEADER_SIZE + " but was: "
-                + bytes.length();
-            return bytes;
+        boolean compress = randomBoolean();
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+            OutboundMessage.Request request = new OutboundMessage.Request(new ThreadContext(Settings.EMPTY), new ClusterStatsRequest(),
+                Version.CURRENT, ClusterStatsAction.NAME, randomInt(30), false, compress);
+            return request.serialize(bytesStreamOutput);
         }
     }
 }

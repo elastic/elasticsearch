@@ -1,0 +1,45 @@
+plugins {
+  id 'elasticsearch.jdk-download'
+}
+
+
+String fakeJdkVendor = Objects.requireNonNull(System.getProperty('tests.jdk_vendor'))
+String fakeJdkVersion = Objects.requireNonNull(System.getProperty('tests.jdk_version'))
+jdks {
+  linux {
+    vendor = fakeJdkVendor
+    version = fakeJdkVersion
+    platform = "linux"
+  }
+  darwin {
+    vendor = fakeJdkVendor
+    version = fakeJdkVersion
+    platform = "darwin"
+  }
+  windows {
+    vendor = fakeJdkVendor
+    version = fakeJdkVersion
+    platform = "windows"
+  }
+}
+
+task getLinuxJdk {
+  dependsOn jdks.linux
+  doLast {
+    println "JDK HOME: " + jdks.linux
+  }
+}
+
+task getDarwinJdk {
+  dependsOn jdks.darwin
+  doLast {
+    println "JDK HOME: " + jdks.darwin
+  }
+}
+
+task getWindowsJdk {
+  dependsOn jdks.windows
+  doLast {
+    println "JDK HOME: " + jdks.windows
+  }
+}

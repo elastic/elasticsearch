@@ -89,9 +89,7 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         logger.info("Start all the primary shards");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState,
-            routingNodes.node(nodeHoldingPrimary).shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingTable = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node(nodeHoldingPrimary)).routingTable();
         final String nodeHoldingReplica = routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId();
         assertThat(nodeHoldingPrimary, not(equalTo(nodeHoldingReplica)));
         assertThat(prevRoutingTable != routingTable, equalTo(true));

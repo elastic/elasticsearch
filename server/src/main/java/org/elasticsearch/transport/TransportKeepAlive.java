@@ -84,10 +84,7 @@ final class TransportKeepAlive implements Closeable {
 
         for (TcpChannel channel : nodeChannels) {
             scheduledPing.addChannel(channel);
-
-            channel.addCloseListener(ActionListener.wrap(() -> {
-                scheduledPing.removeChannel(channel);
-            }));
+            channel.addCloseListener(ActionListener.wrap(() -> scheduledPing.removeChannel(channel)));
         }
     }
 
@@ -136,8 +133,10 @@ final class TransportKeepAlive implements Closeable {
 
     @Override
     public void close() {
-        lifecycle.moveToStopped();
-        lifecycle.moveToClosed();
+        synchronized (lifecycle) {
+            lifecycle.moveToStopped();
+            lifecycle.moveToClosed();
+        }
     }
 
     private class ScheduledPing extends AbstractLifecycleRunnable {

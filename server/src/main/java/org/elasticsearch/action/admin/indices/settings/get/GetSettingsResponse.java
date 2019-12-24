@@ -50,7 +50,21 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         this.indexToDefaultSettings = indexToDefaultSettings;
     }
 
-    GetSettingsResponse() {
+    public GetSettingsResponse(StreamInput in) throws IOException {
+        super(in);
+
+        int settingsSize = in.readVInt();
+        ImmutableOpenMap.Builder<String, Settings> settingsBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < settingsSize; i++) {
+            settingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
+        }
+        ImmutableOpenMap.Builder<String, Settings> defaultSettingsBuilder = ImmutableOpenMap.builder();
+        int defaultSettingsSize = in.readVInt();
+        for (int i = 0; i < defaultSettingsSize; i++) {
+            defaultSettingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
+        }
+        indexToSettings = settingsBuilder.build();
+        indexToDefaultSettings = defaultSettingsBuilder.build();
     }
 
     /**
@@ -100,40 +114,16 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        int settingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, Settings> settingsBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < settingsSize; i++) {
-            settingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-        }
-        ImmutableOpenMap.Builder<String, Settings> defaultSettingsBuilder = ImmutableOpenMap.builder();
-
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
-            int defaultSettingsSize = in.readVInt();
-            for (int i = 0; i < defaultSettingsSize ; i++) {
-                defaultSettingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-            }
-        }
-        indexToSettings = settingsBuilder.build();
-        indexToDefaultSettings = defaultSettingsBuilder.build();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(indexToSettings.size());
         for (ObjectObjectCursor<String, Settings> cursor : indexToSettings) {
             out.writeString(cursor.key);
             Settings.writeSettingsToStream(cursor.value, out);
         }
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
-            out.writeVInt(indexToDefaultSettings.size());
-            for (ObjectObjectCursor<String, Settings> cursor : indexToDefaultSettings) {
-                out.writeString(cursor.key);
-                Settings.writeSettingsToStream(cursor.value, out);
-            }
+        out.writeVInt(indexToDefaultSettings.size());
+        for (ObjectObjectCursor<String, Settings> cursor : indexToDefaultSettings) {
+            out.writeString(cursor.key);
+            Settings.writeSettingsToStream(cursor.value, out);
         }
     }
 

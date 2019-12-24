@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -33,22 +34,28 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class AvgAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AvgAggregatorFactory> {
+class AvgAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
-    AvgAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, SearchContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    AvgAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, QueryShardContext queryShardContext,
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new AvgAggregator(name, null, config.format(), context, parent, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new AvgAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new AvgAggregator(name, valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(Numeric valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new AvgAggregator(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 }

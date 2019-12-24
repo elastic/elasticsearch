@@ -9,26 +9,35 @@ Adds and updates users in the native realm. These users are commonly referred
 to as _native users_.
 
 
-==== Request
+[[security-api-put-user-request]]
+==== {api-request-title}
 
 `POST /_security/user/<username>` +
 
 `PUT /_security/user/<username>` 
 
 
-==== Description
+[[security-api-put-user-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+[[security-api-put-user-desc]]
+==== {api-description-title}
 
 When updating a user, you can update everything but its `username` and `password`. 
 To change a user's password, use the 
 <<security-api-change-password, change password API>>.
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
-==== Path Parameters
+[[security-api-put-user-path-params]]
+==== {api-path-parms-title}
 
-`username` (required)::
-  (string) An identifier for the user.
+`username`::
+  (Required, string) An identifier for the user.
 +
 --
 [[username-validation]]
@@ -38,14 +47,16 @@ printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_bloc
 
 --
 
-==== Query Parameters
+[[security-api-put-user-query-params]]
+==== {api-query-parms-title}
 
 `refresh`::
     (string) One of `true`, `false`, or `wait_for`.
     These values have the same meaning as in the <<docs-refresh, Index API>>,
     but the default value for this API (Put User) is `true`.
 
-==== Request Body
+[[security-api-put-user-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a POST or PUT request:
 
@@ -61,7 +72,7 @@ The following parameters can be specified in the body of a POST or PUT request:
 `metadata`::
 (object) Arbitrary metadata that you want to associate with the user.
 
-`password` ::
+`password`::
 (string) The user's password. Passwords must be at least 6 characters long.
 +
 When adding a user, one of `password` or `password_hash` is required.
@@ -69,7 +80,7 @@ When updating an existing user, the password is optional, so that other
 fields on the user (such as their roles) may be updated without modifying
 the user's password.
 
-`password_hash` ::
+`password_hash`::
 (string) A _hash_ of the user's password. This must be produced using the
 same hashing algorithm as has been configured for password storage. For more
 details, see the explanation of the
@@ -82,21 +93,18 @@ performance and/or confidentiality reasons.
 The `password` parameter and the `password_hash` parameter cannot be
 used in the same request.
 
-`roles` (required)::
-(list) A set of roles the user has. The roles determine the user's access 
-permissions. To create a user without any roles, specify an empty list: `[]`.
+`roles`::
+(Required, list) A set of roles the user has. The roles determine the user's
+access  permissions. To create a user without any roles, specify an empty list:
+`[]`.
 
 
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster privilege.
-
-
-==== Examples
+[[security-api-put-user-example]]
+==== {api-examples-title}
 
 The following example creates a user `jacknich`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/user/jacknich
 {
@@ -109,18 +117,17 @@ POST /_security/user/jacknich
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure that shows whether the user has been
 created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "created": true <1>
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> When an existing user is updated, `created` is set to false.
 
 After you add a user, requests from that user can be authenticated. For example:

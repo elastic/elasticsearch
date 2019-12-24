@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -66,11 +67,8 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
 
         ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(initialRoutingTable).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        while (true) {
-            if (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty()) {
-                break;
-            }
-            clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+        while (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty() == false) {
+            clusterState = ESAllocationTestCase.startInitializingShardsAndReroute(strategy, clusterState);
         }
         Map<String, Integer> counts = new HashMap<>();
         for (IndexShardRoutingTable table : clusterState.routingTable().index(index)) {

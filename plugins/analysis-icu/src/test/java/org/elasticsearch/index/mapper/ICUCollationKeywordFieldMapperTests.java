@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import static org.hamcrest.Matchers.equalTo;
-
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
@@ -44,6 +42,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -72,7 +72,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -112,7 +112,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("field")
@@ -129,7 +129,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .endObject()),
@@ -138,7 +138,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
 
-        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("field")
@@ -164,7 +164,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -186,7 +186,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -209,7 +209,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -230,7 +230,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", Arrays.asList("1234", "5678"))
@@ -293,7 +293,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -326,7 +326,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -350,7 +350,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "I WİLL USE TURKİSH CASING")
@@ -403,4 +403,51 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("Can't merge because of conflicts: [Cannot update language setting for [" + FIELD_TYPE
             + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
     }
+
+
+    public void testIgnoreAbove() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
+            .field("ignore_above", 5).endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "elk")
+                .endObject()),
+            XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+
+        doc = mapper.parse(new SourceToParse("test", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "elasticsearch")
+                .endObject()),
+            XContentType.JSON));
+
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+    }
+
+    public void testUpdateIgnoreAbove() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
+            .endObject().endObject());
+
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
+            .field("ignore_above", 5).endObject().endObject()
+            .endObject().endObject());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+    }
+
 }

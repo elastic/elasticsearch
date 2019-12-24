@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -51,9 +49,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static final String TYPE = "reserved";
 
     private final ReservedUserInfo bootstrapUserInfo;
-    public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
-            SecurityField.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
-            Setting.Property.Deprecated);
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
             KeyStoreWrapper.SEED_SETTING);
 
@@ -203,10 +198,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
 
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
-        if (userIsDefinedForCurrentSecurityMapping(username) == false) {
-            logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
-            listener.onResponse(disabledDefaultUserInfo.deepClone());
-        } else if (securityIndex.indexExists() == false) {
+        if (securityIndex.indexExists() == false) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -231,26 +223,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private boolean userIsDefinedForCurrentSecurityMapping(String username) {
-        final Version requiredVersion = getDefinedVersion(username);
-        return securityIndex.checkMappingVersion(requiredVersion::onOrBefore);
-    }
-
-    private Version getDefinedVersion(String username) {
-        switch (username) {
-            case BeatsSystemUser.NAME:
-                return BeatsSystemUser.DEFINED_SINCE;
-            case APMSystemUser.NAME:
-                return APMSystemUser.DEFINED_SINCE;
-            case RemoteMonitoringUser.NAME:
-                return RemoteMonitoringUser.DEFINED_SINCE;
-            default:
-                return Version.V_6_0_0;
-        }
-    }
-
     public static void addSettings(List<Setting<?>> settingsList) {
-        settingsList.add(ACCEPT_DEFAULT_PASSWORD_SETTING);
         settingsList.add(BOOTSTRAP_ELASTIC_PASSWORD);
     }
 }

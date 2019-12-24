@@ -1,11 +1,8 @@
 [[cat]]
-= cat APIs
-
-[partintro]
---
+== cat APIs
 
 ["float",id="intro"]
-== Introduction
+=== Introduction
 
 JSON is great... for computers.  Even if it's pretty-printed, trying
 to find relationships in the data is tedious.  Human eyes, especially
@@ -18,20 +15,19 @@ the available commands.
 
 [float]
 [[common-parameters]]
-== Common parameters
+=== Common parameters
 
 [float]
 [[verbose]]
-=== Verbose
+==== Verbose
 
 Each of the commands accepts a query string parameter `v` to turn on
 verbose output. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/master?v
 --------------------------------------------------
-// CONSOLE
 
 Might respond with:
 
@@ -40,20 +36,19 @@ Might respond with:
 id                     host      ip        node
 u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
 --------------------------------------------------
-// TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ _cat]
+// TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ non_json]
 
 [float]
 [[help]]
-=== Help
+==== Help
 
 Each of the commands accepts a query string parameter `help` which will
 output its available columns. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/master?help
 --------------------------------------------------
-// CONSOLE
 
 Might respond with:
 
@@ -64,7 +59,7 @@ host | h | host name
 ip   |   | ip address
 node | n | node name
 --------------------------------------------------
-// TESTRESPONSE[s/[|]/[|]/ _cat]
+// TESTRESPONSE[s/[|]/[|]/ non_json]
 
 NOTE: `help` is not supported if any optional url parameter is used.
 For example `GET _cat/shards/twitter?help` or `GET _cat/indices/twi*?help`
@@ -73,16 +68,15 @@ instead.
 
 [float]
 [[headers]]
-=== Headers
+==== Headers
 
 Each of the commands accepts a query string parameter `h` which forces
 only those columns to appear. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodes?h=ip,port,heapPercent,name
 --------------------------------------------------
-// CONSOLE
 
 Responds with:
 
@@ -90,7 +84,7 @@ Responds with:
 --------------------------------------------------
 127.0.0.1 9300 27 sLBaIGK
 --------------------------------------------------
-// TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ _cat]
+// TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ non_json]
 
 You can also request multiple columns using simple wildcards like
 `/_cat/thread_pool?h=ip,queue*` to get all headers (or aliases) starting
@@ -98,7 +92,7 @@ with `queue`.
 
 [float]
 [[numeric-formats]]
-=== Numeric formats
+==== Numeric formats
 
 Many commands provide a few types of numeric output, either a byte, size
 or a time value.  By default, these types are human-formatted,
@@ -129,7 +123,7 @@ If you want to change the <<size-units,size units>>, use `size` parameter.
 If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
 
 [float]
-=== Response as text, json, smile, yaml or cbor
+==== Response as text, json, smile, yaml or cbor
 
 [source,sh]
 --------------------------------------------------
@@ -182,7 +176,7 @@ For example:
 
 [float]
 [[sort]]
-=== Sort
+==== Sort
 
 Each of the commands accepts a query string parameter `s` which sorts the table by
 the columns specified as the parameter value. Columns are specified either by name or by
@@ -210,8 +204,6 @@ sushi_california_roll [*avocado*]    1     1
 pizza_hawaiian        [*pineapples*] 1
 --------------------------------------------------
 
---
-
 include::cat/alias.asciidoc[]
 
 include::cat/allocation.asciidoc[]
@@ -237,6 +229,8 @@ include::cat/plugins.asciidoc[]
 include::cat/recovery.asciidoc[]
 
 include::cat/repositories.asciidoc[]
+
+include::cat/tasks.asciidoc[]
 
 include::cat/thread_pool.asciidoc[]
 

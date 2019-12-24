@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,9 +31,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.MetaData;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -57,24 +54,22 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             a -> {
                 HashMap<String, Object> sourceAndMetadata = new HashMap<>();
                 sourceAndMetadata.put(MetaData.INDEX.getFieldName(), a[0]);
-                sourceAndMetadata.put(MetaData.TYPE.getFieldName(), a[1]);
-                sourceAndMetadata.put(MetaData.ID.getFieldName(), a[2]);
+                sourceAndMetadata.put(MetaData.ID.getFieldName(), a[1]);
+                if (a[2] != null) {
+                    sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), a[2]);
+                }
                 if (a[3] != null) {
-                    sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), a[3]);
+                    sourceAndMetadata.put(MetaData.VERSION.getFieldName(), a[3]);
                 }
                 if (a[4] != null) {
-                    sourceAndMetadata.put(MetaData.VERSION.getFieldName(), a[4]);
+                    sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), a[4]);
                 }
-                if (a[5] != null) {
-                    sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), a[5]);
-                }
-                sourceAndMetadata.putAll((Map<String, Object>)a[6]);
-                return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>)a[7]));
+                sourceAndMetadata.putAll((Map<String, Object>)a[5]);
+                return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>)a[6]));
             }
         );
     static {
         INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(MetaData.INDEX.getFieldName()));
-        INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(MetaData.TYPE.getFieldName()));
         INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(MetaData.ID.getFieldName()));
         INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(MetaData.ROUTING.getFieldName()));
         INGEST_DOC_PARSER.declareLong(optionalConstructorArg(), new ParseField(MetaData.VERSION.getFieldName()));
@@ -112,12 +107,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            ingestMetadata.computeIfPresent("timestamp", (k, o) -> {
-                Date date = (Date) o;
-                return date.toInstant().atZone(ZoneId.systemDefault());
-            });
-        }
         this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 

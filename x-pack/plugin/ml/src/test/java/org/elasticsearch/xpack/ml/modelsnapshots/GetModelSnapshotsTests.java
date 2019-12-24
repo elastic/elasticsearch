@@ -9,8 +9,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 

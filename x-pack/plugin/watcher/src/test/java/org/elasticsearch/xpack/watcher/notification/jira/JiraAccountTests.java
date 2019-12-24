@@ -80,6 +80,16 @@ public class JiraAccountTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [secure_password] setting"));
     }
 
+    public void testInvalidSchemeUrl() throws Exception{
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(JiraAccount.SECURE_URL_SETTING.getKey(),"test"); //Setting test as invalid scheme url
+        secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), "foo");
+        secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), "password");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        SettingsException e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings, null));
+        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. invalid [secure_url] setting"));
+    }
+
     public void testUnsecureAccountUrl() throws Exception {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), "foo");

@@ -17,10 +17,6 @@ The allocation awareness settings can be configured in
 `elasticsearch.yml` and updated dynamically with the
 <<cluster-update-settings,cluster-update-settings>> API.
 
-{es} prefers using shards in the same location (with the same
-awareness attribute values) to process search or GET requests. Using local
-shards is usually faster than crossing rack or zone boundaries.
-
 NOTE: The number of attribute values determines how many shard copies are
 allocated in each location. If the number of nodes in each location is
 unbalanced and there are a lot of replicas, replica shards might be left
@@ -46,7 +42,7 @@ You can also set custom attributes when you start a node:
 +
 [source,sh]
 --------------------------------------------------------
-`./bin/elasticsearch -Enode.attr.rack_id=rack_one`
+./bin/elasticsearch -Enode.attr.rack_id=rack_one
 --------------------------------------------------------
 
 . Tell {es} to take one or more awareness attributes into account when

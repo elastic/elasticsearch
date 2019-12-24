@@ -19,20 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 
-public class SyncedFlushAction extends Action<SyncedFlushResponse> {
+public class SyncedFlushAction extends ActionType<SyncedFlushResponse> {
 
     public static final SyncedFlushAction INSTANCE = new SyncedFlushAction();
     public static final String NAME = "indices:admin/synced_flush";
 
     private SyncedFlushAction() {
-        super(NAME);
-    }
-
-    @Override
-    public SyncedFlushResponse newResponse() {
-        return new SyncedFlushResponse();
+        super(NAME, SyncedFlushResponse::new);
     }
 }

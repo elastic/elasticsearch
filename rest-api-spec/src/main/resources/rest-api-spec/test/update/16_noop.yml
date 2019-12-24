@@ -1,0 +1,40 @@
+---
+"Noop":
+  - skip:
+      version:  " - 7.3.99"
+      reason:   "Noop does not return seq_no and primary_term until 7.4"
+  - do:
+      index:
+        index: test_1
+        id:    1
+        body:  { foo: bar }
+
+  - match: { _seq_no:       0       }
+  - match: { _version:      1       }
+  - match: { _primary_term: 1       }
+  - match: { result:        created }
+
+  - do:
+      update:
+          index:            test_1
+          id:               1
+          body:
+            doc:            { foo: bar }
+
+  - match: { _seq_no:       0    }
+  - match: { _version:      1    }
+  - match: { _primary_term: 1    }
+  - match: { result:        noop }
+
+  - do:
+      update:
+          index:            test_1
+          id:               1
+          body:
+            doc:            { foo: bar }
+            detect_noop:    false
+
+  - match: { _seq_no:       1       }
+  - match: { _primary_term: 1       }
+  - match: { _version:      2       }
+  - match: { result:        updated }

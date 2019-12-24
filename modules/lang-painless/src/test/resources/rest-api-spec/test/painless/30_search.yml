@@ -452,10 +452,6 @@
 ---
 
 "Exception on negative score":
-    - skip:
-        version: " - 6.99.99"
-        reason: "check on negative scores was added from 7.0.0 on"
-
     - do:
         index:
             index: test

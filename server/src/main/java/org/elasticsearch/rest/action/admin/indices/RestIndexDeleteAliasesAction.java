@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -33,8 +32,8 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestIndexDeleteAliasesAction extends BaseRestHandler {
-    public RestIndexDeleteAliasesAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestIndexDeleteAliasesAction(RestController controller) {
         controller.registerHandler(DELETE, "/{index}/_alias/{name}", this);
         controller.registerHandler(DELETE, "/{index}/_aliases/{name}", this);
     }

@@ -23,19 +23,23 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class BulkItemRequest implements Streamable {
+public class BulkItemRequest implements Writeable {
 
     private int id;
     private DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
-    BulkItemRequest() {
-
+    BulkItemRequest(StreamInput in) throws IOException {
+        id = in.readVInt();
+        request = DocWriteRequest.readDocumentRequest(in);
+        if (in.readBoolean()) {
+            primaryResponse = new BulkItemResponse(in);
+        }
     }
 
     // NOTE: public for testing only
@@ -74,7 +78,7 @@ public class BulkItemRequest implements Streamable {
      */
     public void abort(String index, Exception cause) {
         if (primaryResponse == null) {
-            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
+            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.id(),
                     Objects.requireNonNull(cause), true);
             setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
         } else {
@@ -89,25 +93,10 @@ public class BulkItemRequest implements Streamable {
         }
     }
 
-    public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
-        BulkItemRequest item = new BulkItemRequest();
-        item.readFrom(in);
-        return item;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        id = in.readVInt();
-        request = DocWriteRequest.readDocumentRequest(in);
-        if (in.readBoolean()) {
-            primaryResponse = BulkItemResponse.readBulkItem(in);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequest(out, request);
-        out.writeOptionalStreamable(primaryResponse);
+        out.writeOptionalWriteable(primaryResponse);
     }
 }

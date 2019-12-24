@@ -191,6 +191,27 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        DisMaxQueryBuilder newBuilder = new DisMaxQueryBuilder();
+        boolean changed = false;
+        for (QueryBuilder query : queries) {
+            QueryBuilder result = query.rewrite(queryShardContext);
+            if (result != query) {
+                changed = true;
+            }
+            newBuilder.add(result);
+        }
+        if (changed) {
+            newBuilder.queryName(queryName);
+            newBuilder.boost(boost);
+            newBuilder.tieBreaker(tieBreaker);
+            return newBuilder;
+        } else {
+            return this;
+        }
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(queries, tieBreaker);
     }

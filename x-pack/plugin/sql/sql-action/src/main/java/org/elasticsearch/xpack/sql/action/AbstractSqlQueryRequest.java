@@ -57,7 +57,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     }
 
     public AbstractSqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
-                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -194,7 +194,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         super(in);
         query = in.readString();
         params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
-        zoneId = ZoneId.of(in.readString());
+        zoneId = in.readZoneId();
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
@@ -218,7 +218,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         for (SqlTypedParamValue param: params) {
             writeSqlTypedParamValue(out, param);
         }
-        out.writeString(zoneId.getId());
+        out.writeZoneId(zoneId);
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);

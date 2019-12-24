@@ -29,7 +29,7 @@ final class GraphRequestConverters {
     private GraphRequestConverters() {}
 
     static Request explore(GraphExploreRequest exploreRequest) throws IOException {
-        String endpoint = RequestConverters.endpoint(exploreRequest.indices(), exploreRequest.types(), "_graph/explore");
+        String endpoint = RequestConverters.endpoint(exploreRequest.indices(), "_graph/explore");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(RequestConverters.createEntity(exploreRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;

@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,19 +29,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Response> {
+public class PostCalendarEventsAction extends ActionType<PostCalendarEventsAction.Response> {
     public static final PostCalendarEventsAction INSTANCE = new PostCalendarEventsAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/post";
 
     public static final ParseField EVENTS = new ParseField("events");
 
     private PostCalendarEventsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -74,6 +68,12 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendarId = in.readString();
+            scheduledEvents = in.readList(ScheduledEvent::new);
+        }
+
         public Request(String calendarId, List<ScheduledEvent> scheduledEvents) {
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
             this.scheduledEvents = ExceptionsHelper.requireNonNull(scheduledEvents, EVENTS.getPreferredName());
@@ -94,13 +94,6 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendarId = in.readString();
-            scheduledEvents = in.readList(ScheduledEvent::new);
         }
 
         @Override
@@ -139,7 +132,9 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
 
         private List<ScheduledEvent> scheduledEvents;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            in.readList(ScheduledEvent::new);
         }
 
         public Response(List<ScheduledEvent> scheduledEvents) {
@@ -147,22 +142,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
-            in.readList(ScheduledEvent::new);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             out.writeList(scheduledEvents);
         }
 

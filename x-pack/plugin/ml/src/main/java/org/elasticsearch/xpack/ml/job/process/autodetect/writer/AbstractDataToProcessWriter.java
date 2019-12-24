@@ -122,10 +122,10 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     /**
      * Tokenize the field that has been configured for categorization, and store the resulting list of tokens in CSV
-     * format in the appropriate field of the record to be sent to the analytics.
+     * format in the appropriate field of the record to be sent to the process.
      * @param categorizationAnalyzer   The analyzer to use to convert the categorization field to a list of tokens
      * @param categorizationFieldValue The value of the categorization field to be tokenized
-     * @param record                   The record to be sent to the analytics
+     * @param record                   The record to be sent to the process
      */
     protected void tokenizeForCategorization(CategorizationAnalyzer categorizationAnalyzer, String categorizationFieldValue,
                                              String[] record) {

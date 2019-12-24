@@ -1,17 +1,30 @@
 {
-  "rollup.get_jobs": {
-    "documentation": "",
-    "methods": [ "GET" ],
-    "url": {
-      "path": "/_rollup/job/{id}",
-      "paths": [ "/_rollup/job/{id}", "/_rollup/job/" ],
-      "parts": {
-        "id": {
-          "type": "string",
-          "required": false,
-          "description": "The ID of the job(s) to fetch. Accepts glob patterns, or left blank for all jobs"
+  "rollup.get_jobs":{
+    "documentation":{
+      "url":""
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_rollup/job/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the job(s) to fetch. Accepts glob patterns, or left blank for all jobs"
+            }
+          }
+        },
+        {
+          "path":"/_rollup/job/",
+          "methods":[
+            "GET"
+          ]
         }
-      }
+      ]
     }
   }
 }

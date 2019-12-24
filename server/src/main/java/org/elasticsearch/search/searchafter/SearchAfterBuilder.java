@@ -91,7 +91,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] instanceof Double) continue;
             if (values[i] instanceof Float) continue;
             if (values[i] instanceof Boolean) continue;
-            if (values[i] instanceof Boolean) continue;
             throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + values[i].getClass() + "]");
         }
         sortValues = new Object[values.length];
@@ -185,7 +184,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     if (value instanceof Number) {
                         return ((Number) value).longValue();
                     }
-                    return Long.parseLong(value.toString());
+                    return format.parseLong(value.toString(), false,
+                        () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); });
 
                 case FLOAT:
                     if (value instanceof Number) {
@@ -244,7 +244,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                             break;
 
                         default:
-                            throw new AssertionError("Unknown number type []" + parser.numberType());
+                            throw new IllegalArgumentException("[search_after] does not accept numbers of type ["
+                                + parser.numberType() + "], got " + parser.text());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     values.add(parser.text());

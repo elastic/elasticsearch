@@ -23,9 +23,14 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -123,12 +128,12 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<CreateIndexRequest> requestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         doAnswer(invocation -> {
-            assertNotNull(requestCaptor.getValue().mappings().get("_doc"));
-            String mapping = requestCaptor.getValue().mappings().get("_doc");
+            assertNotNull(requestCaptor.getValue().mappings());
+            String mapping = requestCaptor.getValue().mappings();
 
             // Make sure the version is present, and we have our date template (the most important aspects)
-            assertThat(mapping, containsString("\"rollup-version\": \"" + Version.CURRENT.toString() + "\""));
-            assertThat(mapping, containsString("\"path_match\": \"*.date_histogram.timestamp\""));
+            assertThat(mapping, containsString("\"rollup-version\":\"" + Version.CURRENT.toString() + "\""));
+            assertThat(mapping, containsString("\"path_match\":\"*.date_histogram.timestamp\""));
 
             listenerCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
             latch.countDown();
@@ -192,11 +197,9 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME, Collections.emptyMap());
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.TYPE_NAME, meta);
 
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
@@ -230,11 +233,9 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.TYPE_NAME, meta);
 
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
@@ -267,11 +268,9 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.TYPE_NAME, meta);
 
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
@@ -299,16 +298,14 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             Map<String, Object> m = new HashMap<>(2);
-            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.V_6_4_0);
+            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META,
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.TYPE_NAME, meta);
 
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
@@ -340,16 +337,14 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             Map<String, Object> m = new HashMap<>(2);
-            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.V_6_4_0);
+            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META,
                 Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap("_meta", m));
-            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.TYPE_NAME, meta);
 
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(unrelatedJob.getRollupIndex(), builder.build());
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(unrelatedJob.getRollupIndex(), meta);
 
             when(response.getMappings()).thenReturn(builder2.build());
             requestCaptor.getValue().onResponse(response);
@@ -423,5 +418,23 @@ public class PutJobStateMachineTests extends ESTestCase {
         TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
         verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
         verify(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), any());
+    }
+
+    public void testDeprecatedTimeZone() {
+        GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "Japan"));
+        RollupJobConfig config = new RollupJobConfig("foo", randomAlphaOfLength(5), "rollup", ConfigTestHelpers.randomCron(),
+            100, groupConfig, Collections.emptyList(), null);
+        PutRollupJobAction.Request request = new PutRollupJobAction.Request(config);
+        TransportPutRollupJobAction.checkForDeprecatedTZ(request);
+        assertWarnings("Creating Rollup job [foo] with timezone [Japan], but [Japan] has been deprecated by the IANA.  " +
+            "Use [Asia/Tokyo] instead.");
+    }
+
+    public void testTimeZone() {
+        GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "EST"));
+        RollupJobConfig config = new RollupJobConfig("foo", randomAlphaOfLength(5), "rollup", ConfigTestHelpers.randomCron(),
+            100, groupConfig, Collections.emptyList(), null);
+        PutRollupJobAction.Request request = new PutRollupJobAction.Request(config);
+        TransportPutRollupJobAction.checkForDeprecatedTZ(request);
     }
 }

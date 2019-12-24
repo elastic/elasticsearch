@@ -35,24 +35,20 @@ import static java.util.Objects.requireNonNull;
  * Returns the list of tasks currently running on the nodes
  */
 public class GetTaskResponse extends ActionResponse implements ToXContentObject {
-    private TaskResult task;
 
-    public GetTaskResponse() {
-    }
+    private final TaskResult task;
 
     public GetTaskResponse(TaskResult task) {
         this.task = requireNonNull(task, "task is required");
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public GetTaskResponse(StreamInput in) throws IOException {
+        super(in);
         task = in.readOptionalWriteable(TaskResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalWriteable(task);
     }
 

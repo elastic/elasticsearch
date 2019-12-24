@@ -73,7 +73,7 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener).setConcurrentRequests(0).setBulkActions(1).build();
         historyStore = new HistoryStore(bulkProcessor);
     }
 
@@ -91,7 +91,7 @@ public class HistoryStoreTests extends ESTestCase {
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-            if (indexRequest.id().equals(wid.value()) && indexRequest.type().equals(HistoryStore.DOC_TYPE) &&
+            if (indexRequest.id().equals(wid.value()) &&
                 indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(index)) {
                 listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
             } else {

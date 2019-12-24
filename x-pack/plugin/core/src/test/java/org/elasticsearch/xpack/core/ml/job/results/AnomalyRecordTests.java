@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -58,7 +59,12 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
             anomalyRecord.setOverFieldName(randomAlphaOfLength(12));
             anomalyRecord.setOverFieldValue(randomAlphaOfLength(12));
         }
-        anomalyRecord.setFunction(randomAlphaOfLengthBetween(5, 20));
+        if (randomBoolean()) {
+            anomalyRecord.setFunction(DetectorFunction.LAT_LONG.getFullName());
+            anomalyRecord.setGeoResults(GeoResultsTests.createTestGeoResults());
+        } else {
+            anomalyRecord.setFunction(randomAlphaOfLengthBetween(5, 25));
+        }
         anomalyRecord.setFunctionDescription(randomAlphaOfLengthBetween(5, 20));
         if (randomBoolean()) {
             anomalyRecord.setCorrelatedByFieldValue(randomAlphaOfLength(16));

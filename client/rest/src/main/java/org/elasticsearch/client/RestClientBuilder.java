@@ -135,6 +135,11 @@ public final class RestClientBuilder {
      * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
      */
     public RestClientBuilder setPathPrefix(String pathPrefix) {
+        this.pathPrefix = cleanPathPrefix(pathPrefix);
+        return this;
+    }
+
+    public static String cleanPathPrefix(String pathPrefix) {
         Objects.requireNonNull(pathPrefix, "pathPrefix must not be null");
 
         if (pathPrefix.isEmpty()) {
@@ -154,10 +159,7 @@ public final class RestClientBuilder {
                 throw new IllegalArgumentException("pathPrefix is malformed. too many trailing slashes: [" + pathPrefix + "]");
             }
         }
-
-
-        this.pathPrefix = cleanPathPrefix;
-        return this;
+        return cleanPathPrefix;
     }
 
     /**
@@ -186,12 +188,8 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
-            @Override
-            public CloseableHttpAsyncClient run() {
-                return createHttpClient();
-            }
-        });
+        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
+            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
         RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
                 pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
         httpClient.start();
@@ -218,12 +216,7 @@ public final class RestClientBuilder {
             }
 
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
-            return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
-                @Override
-                public CloseableHttpAsyncClient run() {
-                    return finalBuilder.build();
-                }
-            });
+            return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
         }

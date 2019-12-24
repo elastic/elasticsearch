@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -41,11 +40,6 @@ public class Score extends Function {
     @Override
     public DataType dataType() {
         return DataType.FLOAT;
-    }
-
-    @Override
-    public Attribute toAttribute() {
-        return new ScoreAttribute(source());
     }
 
     @Override

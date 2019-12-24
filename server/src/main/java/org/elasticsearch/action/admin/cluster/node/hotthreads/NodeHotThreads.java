@@ -30,7 +30,9 @@ public class NodeHotThreads extends BaseNodeResponse {
 
     private String hotThreads;
 
-    NodeHotThreads() {
+    NodeHotThreads(StreamInput in) throws IOException {
+        super(in);
+        hotThreads = in.readString();
     }
 
     public NodeHotThreads(DiscoveryNode node, String hotThreads) {
@@ -40,18 +42,6 @@ public class NodeHotThreads extends BaseNodeResponse {
 
     public String getHotThreads() {
         return this.hotThreads;
-    }
-
-    public static NodeHotThreads readNodeHotThreads(StreamInput in) throws IOException {
-        NodeHotThreads node = new NodeHotThreads();
-        node.readFrom(in);
-        return node;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        hotThreads = in.readString();
     }
 
     @Override

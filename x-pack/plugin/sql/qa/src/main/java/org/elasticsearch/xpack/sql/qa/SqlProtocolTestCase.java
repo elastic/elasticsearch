@@ -28,10 +28,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
-import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
@@ -62,16 +62,28 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
     
     public void testTextualType() throws IOException {
-        assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 0);
+        assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 32766);
     }
     
     public void testDateTimes() throws IOException {
         assertQuery("SELECT CAST('2019-01-14T12:29:25.000Z' AS DATETIME)", "CAST('2019-01-14T12:29:25.000Z' AS DATETIME)",
-            "datetime", "2019-01-14T12:29:25.000Z", 24);
+            "datetime", "2019-01-14T12:29:25.000Z", 29);
         assertQuery("SELECT CAST(-26853765751000 AS DATETIME)", "CAST(-26853765751000 AS DATETIME)",
-            "datetime", "1119-01-15T12:37:29.000Z", 24);
+            "datetime", "1119-01-15T12:37:29.000Z", 29);
         assertQuery("SELECT CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)", "CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)",
-            "datetime", "1119-01-15T12:37:29.000Z", 24);
+            "datetime", "1119-01-15T12:37:29.000Z", 29);
+
+        assertQuery("SELECT CAST('2019-01-14' AS DATE)", "CAST('2019-01-14' AS DATE)",
+            "date", "2019-01-14T00:00:00.000Z", 29);
+        assertQuery("SELECT CAST(-26853765751000 AS DATE)", "CAST(-26853765751000 AS DATE)",
+            "date", "1119-01-15T00:00:00.000Z", 29);
+
+        assertQuery("SELECT CAST('12:29:25.123Z' AS TIME)", "CAST('12:29:25.123Z' AS TIME)",
+            "time", "12:29:25.123Z", 18);
+        assertQuery("SELECT CAST('12:29:25.123456789+05:00' AS TIME)", "CAST('12:29:25.123456789+05:00' AS TIME)",
+            "time", "12:29:25.123+05:00", 18);
+        assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)",
+            "time", "12:37:29.000Z", 18);
     }
     
     public void testIPs() throws IOException {
@@ -104,6 +116,60 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         assertQuery("SELECT INTERVAL '163:59.163' MINUTE TO SECOND", "INTERVAL '163:59.163' MINUTE TO SECOND", "interval_minute_to_second",
                 "PT2H43M59.163S", "+0 02:43:59.163", 23);
     }
+    
+    /**
+     * Method that tests that a binary response (CBOR) will return either Float or Double, depending on the SQL data type, for floating
+     * point numbers, while JSON will always return Double for floating point numbers.
+     */
+    public void testFloatingPointNumbersReturnTypes() throws IOException {
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        for (Mode mode : Mode.values()) {
+            assertFloatingPointNumbersReturnTypes(request, mode);
+        }
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private void assertFloatingPointNumbersReturnTypes(Request request, Mode mode) throws IOException {
+        String requestContent = "{\"query\":\"SELECT "
+                + "CAST(1234.34 AS REAL) AS float_positive,"
+                + "CAST(-1234.34 AS REAL) AS float_negative,"
+                + "1234567890123.34 AS double_positive,"
+                + "-1234567890123.34 AS double_negative\""
+                + mode(mode.toString()) + "}";
+        request.setEntity(new StringEntity(requestContent, ContentType.APPLICATION_JSON));
+        
+        Map<String, Object> map;
+        boolean isBinaryResponse = mode != Mode.PLAIN;
+        Response response = client().performRequest(request);
+        if (isBinaryResponse == true) {
+            map = XContentHelper.convertToMap(CborXContent.cborXContent, response.getEntity().getContent(), false);
+        } else {
+            map = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+        }
+
+        List<Object> columns = (ArrayList<Object>) map.get("columns");
+        assertEquals(4, columns.size());            
+        List<Object> rows = (ArrayList<Object>) map.get("rows");
+        assertEquals(1, rows.size());
+        List<Object> row = (ArrayList<Object>) rows.get(0);
+        assertEquals(4, row.size());
+        
+        if (isBinaryResponse == true) {
+            assertTrue(row.get(0) instanceof Float);
+            assertEquals(row.get(0), 1234.34f);
+            assertTrue(row.get(1) instanceof Float);
+            assertEquals(row.get(1), -1234.34f);
+        } else {
+            assertTrue(row.get(0) instanceof Double);
+            assertEquals(row.get(0), 1234.34d);
+            assertTrue(row.get(1) instanceof Double);
+            assertEquals(row.get(1), -1234.34d);
+        }
+        assertTrue(row.get(2) instanceof Double);
+        assertEquals(row.get(2), 1234567890123.34d);
+        assertTrue(row.get(3) instanceof Double);
+        assertEquals(row.get(3), -1234567890123.34d);
+    }
 
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize)
             throws IOException {
@@ -121,7 +187,8 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     @SuppressWarnings({ "unchecked" })
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
             throws IOException {
-        Map<String, Object> response = runSql(mode.toString(), sql);
+        boolean columnar = randomBoolean();
+        Map<String, Object> response = runSql(mode.toString(), sql, columnar);
         List<Object> columns = (ArrayList<Object>) response.get("columns");
         assertEquals(1, columns.size());
 
@@ -135,12 +202,12 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertEquals(2, column.size());
         }
         
-        List<Object> rows = (ArrayList<Object>) response.get("rows");
+        List<Object> rows = (ArrayList<Object>) response.get(columnar == true ? "values" : "rows");
         assertEquals(1, rows.size());
         List<Object> row = (ArrayList<Object>) rows.get(0);
         assertEquals(1, row.size());
 
-        // from xcontent we can get float or double, depending on the conversion 
+        // from xcontent we can get float or double, depending on the conversion
         // method of the specific xcontent format implementation
         if (columnValue instanceof Float && row.get(0) instanceof Double) {
             assertEquals(columnValue, (float)((Number) row.get(0)).doubleValue());
@@ -149,7 +216,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         }
     }
     
-    private Map<String, Object> runSql(String mode, String sql) throws IOException {
+    private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
@@ -177,6 +244,23 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/" + format));
             request.setOptions(options);
         }
+        if ((false == columnar && randomBoolean()) || columnar) {
+            // randomly set the "columnar" parameter, either "true" (non-default) or explicit "false" (the default anyway)
+            requestContent = new StringBuilder(requestContent)
+                    .insert(requestContent.length() - 1, ",\"columnar\":" + columnar).toString();
+        }
+
+        // randomize binary response enforcement for drivers (ODBC/JDBC) and CLI
+        boolean binaryCommunication = randomBoolean();
+        Mode m = Mode.fromString(mode);
+        if (randomBoolean()) {
+            // set it explicitly or leave the default (null) as is
+            requestContent = new StringBuilder(requestContent)
+                    .insert(requestContent.length() - 1, ",\"binary_format\":" + binaryCommunication).toString();
+            binaryCommunication = ((Mode.isDriver(m) || m == Mode.CLI) && binaryCommunication == true);
+        } else {
+            binaryCommunication = Mode.isDriver(m) || m == Mode.CLI;
+        }
         
         // send the query either as body or as request parameter
         if (randomBoolean()) {
@@ -192,6 +276,9 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
+            if (binaryCommunication == true) {
+                return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
+            }
             switch(format) {
                 case "cbor": {
                     return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
@@ -203,7 +290,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
                     return XContentHelper.convertToMap(SmileXContent.smileXContent, content, false);
                 }
                 default:
-                   return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false); 
+                   return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
             }
         }
     }

@@ -43,6 +43,17 @@ public class XPackInfoRequest extends ActionRequest {
 
     public XPackInfoRequest() {}
 
+    public XPackInfoRequest(StreamInput in) throws IOException {
+        // NOTE: this does *not* call super, THIS IS A BUG
+        this.verbose = in.readBoolean();
+        EnumSet<Category> categories = EnumSet.noneOf(Category.class);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            categories.add(Category.valueOf(in.readString()));
+        }
+        this.categories = categories;
+    }
+
     public void setVerbose(boolean verbose) {
         this.verbose = verbose;
     }
@@ -62,17 +73,6 @@ public class XPackInfoRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.verbose = in.readBoolean();
-        EnumSet<Category> categories = EnumSet.noneOf(Category.class);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            categories.add(Category.valueOf(in.readString()));
-        }
-        this.categories = categories;
     }
 
     @Override

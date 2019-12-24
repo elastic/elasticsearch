@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -35,23 +35,13 @@ import java.util.Objects;
  * task ensures the current datafeed task can complete inconsequentially while
  * the datafeed persistent task may be stopped or reassigned on another node.
  */
-public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response> {
+public class IsolateDatafeedAction extends ActionType<IsolateDatafeedAction.Response> {
 
     public static final IsolateDatafeedAction INSTANCE = new IsolateDatafeedAction();
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/isolate";
 
     private IsolateDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, IsolateDatafeedAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

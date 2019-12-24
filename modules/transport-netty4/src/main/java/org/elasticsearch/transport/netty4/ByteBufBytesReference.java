@@ -20,6 +20,7 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -27,7 +28,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-final class ByteBufBytesReference extends BytesReference {
+final class ByteBufBytesReference extends AbstractBytesReference {
 
     private final ByteBuf buffer;
     private final int length;
@@ -43,6 +44,17 @@ final class ByteBufBytesReference extends BytesReference {
     @Override
     public byte get(int index) {
         return buffer.getByte(offset + index);
+    }
+
+    @Override
+    public int getInt(int index) {
+        return buffer.getInt(offset + index);
+    }
+
+    @Override
+    public int indexOf(byte marker, int from) {
+        final int start = offset + from;
+        return buffer.forEachByte(start, length - start, value -> value != marker);
     }
 
     @Override

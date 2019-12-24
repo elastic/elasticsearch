@@ -37,6 +37,7 @@ public interface FileStructureFinderFactory {
      * @param sample A sample from the file to be ingested.
      * @param charsetName The name of the character set in which the sample was provided.
      * @param hasByteOrderMarker Did the sample have a byte order marker?  <code>null</code> means "not relevant".
+     * @param lineMergeSizeLimit Maximum number of characters permitted when lines are merged to create messages.
      * @param overrides Stores structure decisions that have been made by the end user, and should
      *                  take precedence over anything the {@link FileStructureFinder} may decide.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
@@ -44,5 +45,6 @@ public interface FileStructureFinderFactory {
      * @throws Exception if something goes wrong during creation.
      */
     FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                         FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws Exception;
+                                         int lineMergeSizeLimit, FileStructureOverrides overrides,
+                                         TimeoutChecker timeoutChecker) throws Exception;
 }

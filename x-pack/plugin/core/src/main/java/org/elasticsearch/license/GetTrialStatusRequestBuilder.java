@@ -10,7 +10,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 class GetTrialStatusRequestBuilder extends ActionRequestBuilder<GetTrialStatusRequest, GetTrialStatusResponse> {
 
-    GetTrialStatusRequestBuilder(ElasticsearchClient client, GetTrialStatusAction action) {
-        super(client, action, new GetTrialStatusRequest());
+    GetTrialStatusRequestBuilder(ElasticsearchClient client) {
+        super(client, GetTrialStatusAction.INSTANCE, new GetTrialStatusRequest());
     }
 }

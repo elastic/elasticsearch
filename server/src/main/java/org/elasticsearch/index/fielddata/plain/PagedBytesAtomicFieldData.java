@@ -26,9 +26,7 @@ import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
@@ -60,11 +58,10 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
     @Override
     public Collection<Accountable> getChildResources() {
-        List<Accountable> resources = new ArrayList<>();
-        resources.add(Accountables.namedAccountable("ordinals", ordinals));
-        resources.add(Accountables.namedAccountable("term bytes", bytes));
-        resources.add(Accountables.namedAccountable("term offsets", termOrdToBytesOffset));
-        return Collections.unmodifiableList(resources);
+        return List.of(
+                Accountables.namedAccountable("ordinals", ordinals),
+                Accountables.namedAccountable("term bytes", bytes),
+                Accountables.namedAccountable("term offsets", termOrdToBytesOffset));
     }
 
     @Override

@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,7 +39,7 @@ import java.util.Objects;
 /**
  * Request to post data to a Machine Learning job
  */
-public class PostDataRequest extends ActionRequest implements ToXContentObject {
+public class PostDataRequest implements Validatable, ToXContentObject {
 
     public static final ParseField RESET_START = new ParseField("reset_start");
     public static final ParseField RESET_END = new ParseField("reset_end");
@@ -157,11 +156,6 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
             Objects.equals(resetStart, other.resetStart) &&
             Objects.equals(resetEnd, other.resetEnd) &&
             Objects.equals(xContentType, other.xContentType);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

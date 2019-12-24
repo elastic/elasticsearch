@@ -51,10 +51,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -70,10 +68,8 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Set<Class<? extends Plugin>> mocks = new HashSet<>(super.getMockPlugins());
-        mocks.remove(MockEngineFactoryPlugin.class);
-        return mocks;
+    protected boolean addMockInternalEngine() {
+        return false;
     }
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -145,7 +141,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         }
         for (int i = 0; i < numDocs; i++) {
             try {
-                client().prepareIndex("test", "type", "" + i)
+                client().prepareIndex("test").setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i)
                     .get();

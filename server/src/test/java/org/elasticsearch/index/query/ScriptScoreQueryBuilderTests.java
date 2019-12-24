@@ -21,12 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -41,10 +39,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     protected ScriptScoreQueryBuilder doCreateTestQueryBuilder() {
         String scriptStr = "1";
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptStr, Collections.emptyMap());
-        ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(
-            RandomQueryBuilder.createQuery(random()),
-            new ScriptScoreFunctionBuilder(script)
-        );
+        ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), script);
         if (randomBoolean()) {
             queryBuilder.setMinScore(randomFloat());
         }
@@ -52,7 +47,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     @Override
-    protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(ScriptScoreQuery.class));
     }
 
@@ -75,7 +70,6 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     public void testIllegalArguments() {
         String scriptStr = "1";
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptStr, Collections.emptyMap());
-        ScriptScoreFunctionBuilder functionBuilder = new ScriptScoreFunctionBuilder(script);
 
         expectThrows(
             IllegalArgumentException.class,
@@ -84,12 +78,19 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ScriptScoreQueryBuilder(null, functionBuilder)
+            () -> new ScriptScoreQueryBuilder(null, script)
         );
     }
 
+    /**
+     * Check that this query is generally not cacheable
+     */
     @Override
-    protected boolean isCacheable(ScriptScoreQueryBuilder queryBuilder) {
-        return false;
+    public void testCacheability() throws IOException {
+        ScriptScoreQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

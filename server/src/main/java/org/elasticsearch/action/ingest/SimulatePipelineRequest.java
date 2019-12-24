@@ -103,11 +103,6 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
@@ -184,12 +179,6 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 dataMap, Fields.SOURCE);
             String index = ConfigurationUtils.readStringOrIntProperty(null, null,
                 dataMap, MetaData.INDEX.getFieldName(), "_index");
-            if (dataMap.containsKey(MetaData.TYPE.getFieldName())) {
-                deprecationLogger.deprecatedAndMaybeLog("simulate_pipeline_with_types",
-                    "[types removal] specifying _type in pipeline simulation requests is deprecated");
-            }
-            String type = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, MetaData.TYPE.getFieldName(), "_doc");
             String id = ConfigurationUtils.readStringOrIntProperty(null, null,
                 dataMap, MetaData.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
@@ -204,7 +193,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                     MetaData.VERSION_TYPE.getFieldName()));
             }
             IngestDocument ingestDocument =
-                new IngestDocument(index, type, id, routing, version, versionType, document);
+                new IngestDocument(index, id, routing, version, versionType, document);
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;

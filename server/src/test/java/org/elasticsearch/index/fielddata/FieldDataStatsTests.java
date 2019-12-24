@@ -30,16 +30,14 @@ public class FieldDataStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map == null ? null :
-            map);
+        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
-        FieldDataStats read = new FieldDataStats();
         StreamInput input = out.bytes().streamInput();
-        read.readFrom(input);
+        FieldDataStats read = new FieldDataStats(input);
         assertEquals(-1, input.read());
-        assertEquals(stats.evictions, read.evictions);
-        assertEquals(stats.memorySize, read.memorySize);
+        assertEquals(stats.getEvictions(), read.getEvictions());
+        assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
     }
 }

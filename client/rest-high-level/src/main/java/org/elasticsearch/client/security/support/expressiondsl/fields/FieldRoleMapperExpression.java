@@ -23,8 +23,6 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -53,7 +51,7 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
             throw new IllegalArgumentException("null or empty values for field (" + field + ")");
         }
         this.field = field;
-        this.values = Collections.unmodifiableList(Arrays.asList(values));
+        this.values = List.of(values);
     }
 
     public String getField() {

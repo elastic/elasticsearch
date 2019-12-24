@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -99,7 +100,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 1)
                         .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
-                    .putMapping("_doc",
+                    .putMapping(
                         XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                             .startObject()
                                 .startObject("_doc")
@@ -113,7 +114,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 1)
                         .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
-                    .putMapping("_doc",
+                    .putMapping(
                         XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                             .startObject()
                                 .startObject("_doc")
@@ -166,11 +167,11 @@ public class TransportMultiGetActionTests extends ESTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
-        request.add(new MultiGetRequest.Item("index1", "_doc", "1"));
-        request.add(new MultiGetRequest.Item("index1", "_doc", "2"));
+        request.add(new MultiGetRequest.Item("index1", "1"));
+        request.add(new MultiGetRequest.Item("index1", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
+        transportAction = new TransportMultiGetAction(transportService, clusterService, client,
             new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiGetResponse> listener,
@@ -183,7 +184,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -191,11 +192,11 @@ public class TransportMultiGetActionTests extends ESTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
-        request.add(new MultiGetRequest.Item("index2", "_doc", "1").routing("1"));
-        request.add(new MultiGetRequest.Item("index2", "_doc", "2"));
+        request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
+        request.add(new MultiGetRequest.Item("index2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
+        transportAction = new TransportMultiGetAction(transportService, clusterService, client,
             new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiGetResponse> listener,
@@ -210,7 +211,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
         assertTrue(shardActionInvoked.get());
 
     }

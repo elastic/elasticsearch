@@ -33,8 +33,7 @@ public class PutPrivilegesResponseTests extends ESTestCase {
         final BytesStreamOutput output = new BytesStreamOutput();
         original.writeTo(output);
         output.flush();
-        final PutPrivilegesResponse copy = new PutPrivilegesResponse();
-        copy.readFrom(output.bytes().streamInput());
+        final PutPrivilegesResponse copy = new PutPrivilegesResponse(output.bytes().streamInput());
         assertThat(copy.created(), equalTo(original.created()));
         assertThat(Strings.toString(copy), equalTo(Strings.toString(original)));
     }

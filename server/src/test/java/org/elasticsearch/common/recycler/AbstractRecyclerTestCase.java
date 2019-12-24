@@ -36,7 +36,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
     protected static final Recycler.C<byte[]> RECYCLER_C = new AbstractRecyclerC<byte[]>() {
 
         @Override
-        public byte[] newInstance(int sizing) {
+        public byte[] newInstance() {
             byte[] value = new byte[10];
             // "fresh" is intentionally not 0 to ensure we covered this code path
             Arrays.fill(value, FRESH);
@@ -99,7 +99,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
             assertNotSame(b1, b2);
         }
         o.close();
-        r.close();
     }
 
     public void testRecycle() {
@@ -111,7 +110,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         o = r.obtain();
         assertRecycled(o.v());
         o.close();
-        r.close();
     }
 
     public void testDoubleRelease() {
@@ -128,7 +126,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         final Recycler.V<byte[]> v2 = r.obtain();
         final Recycler.V<byte[]> v3 = r.obtain();
         assertNotSame(v2.v(), v3.v());
-        r.close();
     }
 
     public void testDestroyWhenOverCapacity() {
@@ -152,9 +149,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         // release first ref, verify for destruction
         o.close();
         assertDead(data);
-
-        // close the rest
-        r.close();
     }
 
     public void testClose() {
@@ -171,10 +165,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
 
         // verify that recycle() ran
         assertRecycled(data);
-
-        // closing the recycler should mark recycled instances via destroy()
-        r.close();
-        assertDead(data);
     }
 
 }

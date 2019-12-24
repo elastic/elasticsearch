@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-import java.util.function.Supplier;
-
 public class TransportGetBucketsAction extends HandledTransportAction<GetBucketsAction.Request, GetBucketsAction.Response> {
 
     private final JobResultsProvider jobResultsProvider;
@@ -28,7 +26,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
     @Inject
     public TransportGetBucketsAction(TransportService transportService, ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
                                      JobManager jobManager, Client client) {
-        super(GetBucketsAction.NAME, transportService, actionFilters, (Supplier<GetBucketsAction.Request>) GetBucketsAction.Request::new);
+        super(GetBucketsAction.NAME, transportService, actionFilters, GetBucketsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;

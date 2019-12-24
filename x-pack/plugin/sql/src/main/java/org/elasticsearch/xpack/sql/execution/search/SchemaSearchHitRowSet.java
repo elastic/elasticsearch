@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
@@ -21,8 +21,8 @@ import java.util.List;
 class SchemaSearchHitRowSet extends SearchHitRowSet implements SchemaRowSet {
     private final Schema schema;
 
-    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, SearchHit[] hits, int limitHits, String scrollId) {
-        super(exts, mask, hits, limitHits, scrollId);
+    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, int limitHits, SearchResponse response) {
+        super(exts, mask, limitHits, response);
         this.schema = schema;
     }
 

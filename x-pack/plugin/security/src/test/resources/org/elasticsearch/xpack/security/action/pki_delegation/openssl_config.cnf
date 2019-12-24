@@ -1,0 +1,185 @@
+####################################################################
+# CA Definition
+[ ca ]
+default_ca      = CA_default            # The default ca section
+
+####################################################################
+# Per the above, this is where we define CA values
+[ CA_default ]
+
+# By default we use "user certificate" extensions when signing
+x509_extensions = usr_cert              # The extentions to add to the cert
+
+# Honor extensions requested of us
+copy_extensions    = copy
+
+# Comment out the following two lines for the "traditional"
+# (and highly broken) format.
+name_opt        = ca_default            # Subject Name options
+cert_opt        = ca_default            # Certificate field options
+
+# Extensions to add to a CRL. Note: Netscape communicator chokes on V2 CRLs
+# so this is commented out by default to leave a V1 CRL.
+# crlnumber must also be commented out to leave a V1 CRL.
+#crl_extensions        = crl_ext
+default_days    = 1460                  # how long to certify for
+default_md      = sha256                # which md to use.
+preserve        = no                    # keep passed DN ordering
+
+# A few difference way of specifying how similar the request should look
+# For type CA, the listed attributes must be the same, and the optional
+# and supplied fields are just that :-)
+policy          = policy_anything
+
+####################################################################
+# The default policy for the CA when signing requests, requires some
+# resemblence to the CA cert
+#
+[ policy_match ]
+countryName             = match         # Must be the same as the CA
+stateOrProvinceName     = match         # Must be the same as the CA
+organizationName        = match         # Must be the same as the CA
+organizationalUnitName  = optional      # not required
+commonName              = supplied      # must be there, whatever it is
+emailAddress            = optional      # not required
+
+####################################################################
+# An alternative policy not referred to anywhere in this file. Can
+# be used by specifying '-policy policy_anything' to ca(8).
+#
+[ policy_anything ]
+countryName             = optional
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+
+####################################################################
+# This is where we define how to generate CSRs
+[ req ]
+default_bits            = 2048
+default_keyfile         = privkey.pem
+distinguished_name      = req_distinguished_name # where to get DN for reqs
+attributes              = req_attributes         # req attributes
+x509_extensions         = v3_ca  # The extentions to add to self signed certs
+req_extensions          = v3_req # The extensions to add to req's
+
+# This sets a mask for permitted string types. There are several options.
+# default: PrintableString, T61String, BMPString.
+# pkix   : PrintableString, BMPString.
+# utf8only: only UTF8Strings.
+# nombstr : PrintableString, T61String (no BMPStrings or UTF8Strings).
+# MASK:XXXX a literal mask value.
+# WARNING: current versions of Netscape crash on BMPStrings or UTF8Strings
+# so use this option with caution!
+string_mask = nombstr
+
+
+####################################################################
+# Per "req" section, this is where we define DN info
+[ req_distinguished_name ]
+
+0.organizationName              = Organization Name (company)
+0.organizationName_default      = org
+
+organizationalUnitName          = Organizational Unit Name (eg, section)
+organizationalUnitName_default  = elasticsearch
+
+commonName                      = Common Name (hostname, IP, or your name)
+commonName_default              = Elasticsearch Test Certificate
+commonName_max = 64
+
+####################################################################
+# We don't want these, but the section must exist
+[ req_attributes ]
+#challengePassword              = A challenge password
+#challengePassword_min          = 4
+#challengePassword_max          = 20
+#unstructuredName               = An optional company name
+
+
+####################################################################
+# Extensions for when we sign normal certs (specified as default)
+[ usr_cert ]
+
+# User certs aren't CAs, by definition
+basicConstraints=CA:false
+
+# Here are some examples of the usage of nsCertType. If it is omitted
+# the certificate can be used for anything *except* object signing.
+# This is OK for an SSL server.
+#nsCertType = server
+# For an object signing certificate this would be used.
+#nsCertType = objsign
+# For normal client use this is typical
+#nsCertType = client, email
+# and for everything including object signing:
+#nsCertType = client, email, objsign
+# This is typical in keyUsage for a client certificate.
+#keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+# PKIX recommendations harmless if included in all certificates.
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+
+# This stuff is for subjectAltName and issuerAltname.
+# Import the email address.
+#subjectAltName=email:copy
+# An alternative to produce certificates that aren't
+# deprecated according to PKIX.
+#subjectAltName=email:move
+
+
+####################################################################
+# Extension for requests
+[ v3_req ]
+basicConstraints = CA:FALSE
+
+# PKIX recommendation.
+subjectKeyIdentifier = hash
+
+subjectAltName = @alt_names
+
+####################################################################
+# An alternative section of extensions, not referred to anywhere
+# else in the config. We'll use this via '-extensions v3_ca' when
+# using ca(8) to sign another CA.
+#
+[ v3_ca ]
+
+# PKIX recommendation.
+subjectKeyIdentifier=hash
+authorityKeyIdentifier = keyid,issuer
+
+# This is what PKIX recommends but some broken software chokes on critical
+# extensions.
+#basicConstraints = critical,CA:true
+# So we do this instead.
+basicConstraints = CA:true
+
+# Key usage: this is typical for a CA certificate. However since it will
+# prevent it being used as an test self-signed certificate it is best
+# left out by default.
+# keyUsage = cRLSign, keyCertSign
+
+# Some might want this also
+# nsCertType = sslCA, emailCA
+
+# Include email address in subject alt name: another PKIX recommendation
+#subjectAltName=email:move
+# Copy issuer details
+#issuerAltName=issuer:copy
+
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = localhost
+DNS.2 = localhost.localdomain
+DNS.3 = localhost4
+DNS.4 = localhost4.localdomain4
+DNS.5 = localhost6
+DNS.6 = localhost6.localdomain6
+IP.1 = 127.0.0.1
+IP.2 = ::1

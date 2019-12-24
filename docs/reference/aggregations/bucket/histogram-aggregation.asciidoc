@@ -1,12 +1,13 @@
 [[search-aggregations-bucket-histogram-aggregation]]
 === Histogram Aggregation
 
-A multi-bucket values source based aggregation that can be applied on numeric values extracted from the documents.
-It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the documents have a field
-that holds a price (numeric), we can configure this aggregation to dynamically build buckets with interval `5`
-(in case of price it may represent $5). When the aggregation executes, the price field of every document will be
-evaluated and will be rounded down to its closest bucket - for example, if the price is `32` and the bucket size is `5`
-then the rounding will yield `30` and thus the document will "fall" into the bucket that is associated with the key `30`.
+A multi-bucket values source based aggregation that can be applied on numeric values or numeric range values extracted
+from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the
+documents have a field that holds a price (numeric), we can configure this aggregation to dynamically build buckets with
+interval `5` (in case of price it may represent $5). When the aggregation executes, the price field of every document
+will be evaluated and will be rounded down to its closest bucket - for example, if the price is `32` and the bucket size
+is `5` then the rounding will yield `30` and thus the document will "fall" into the bucket that is associated with the
+key `30`.
 To make this more formal, here is the rounding function that is used:
 
 [source,java]
@@ -14,12 +15,16 @@ To make this more formal, here is the rounding function that is used:
 bucket_key = Math.floor((value - offset) / interval) * interval + offset
 --------------------------------------------------
 
+For range values, a document can fall into multiple buckets. The first bucket is computed from the lower
+bound of the range in the same way as a bucket for a single value is computed.  The final bucket is computed in the same
+way from the upper bound of the range, and the range is counted in all buckets in between and including those two.
+
 The `interval` must be a positive decimal, while the `offset` must be a decimal in `[0, interval)`
 (a decimal greater than or equal to `0` and less than `interval`)
 
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
-[source,js]
+[source,console,id=histogram-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -33,12 +38,11 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -78,7 +82,7 @@ The response above show that no documents has a price that falls within the rang
 response will fill gaps in the histogram with empty buckets. It is possible change that and request buckets with
 a higher minimum count thanks to the `min_doc_count` setting:
 
-[source,js]
+[source,console,id=histogram-aggregation-min-doc-count-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -93,12 +97,11 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -143,7 +146,7 @@ the first bucket you'll get will be the one with `100` as its key. This is confu
 to get those buckets between `0 - 100`.
 
 With `extended_bounds` setting, you now can "force" the histogram aggregation to start building buckets on a specific
-`min` values and also keep on building buckets up to a `max` value (even if there are no documents anymore). Using
+`min` value and also keep on building buckets up to a `max` value (even if there are no documents anymore). Using
 `extended_bounds` only makes sense when `min_doc_count` is 0 (the empty buckets will never be returned if `min_doc_count`
 is greater than 0).
 
@@ -154,7 +157,7 @@ under a range `filter` aggregation with the appropriate `from`/`to` settings.
 
 Example:
 
-[source,js]
+[source,console,id=histogram-aggregation-extended-bounds-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -175,8 +178,15 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
+When aggregating ranges, buckets are based on the values of the returned documents.  This means the response may include
+buckets outside of a query's range. For example, if your query looks for values greater than 100, and you have a range
+covering 50 to 150, and an interval of 50, that document will land in 3 buckets - 50, 100, and 150. In general, it's
+best to think of the query and aggregation steps as independent - the query selects a set of documents, and then the
+aggregation buckets those documents without regard to how they were selected.
+See <<search-aggregations-bucket-range-field-note,note on bucketing range
+fields>> for more information and an example.
 
 ==== Order
 
@@ -185,8 +195,10 @@ the `order` setting. Supports the same `order` functionality as the <<search-agg
 
 ==== Offset
 
-By default the bucket keys start with 0 and then continue in even spaced steps of `interval`, e.g. if the interval is 10 the first buckets
-(assuming there is data inside them) will be `[0, 10)`, `[10, 20)`, `[20, 30)`. The bucket boundaries can be shifted by using the `offset` option.
+By default the bucket keys start with 0 and then continue in even spaced steps
+of `interval`, e.g. if the interval is `10`, the first three buckets (assuming
+there is data inside them) will be `[0, 10)`, `[10, 20)`, `[20, 30)`. The bucket
+boundaries can be shifted by using the `offset` option.
 
 This can be best illustrated with an example. If there are 10 documents with values ranging from 5 to 14, using interval `10` will result in
 two buckets with 5 documents each. If an additional offset `5` is used, there will be only one single bucket `[5, 15)` containing all the 10
@@ -197,7 +209,7 @@ documents.
 By default, the buckets are returned as an ordered array. It is also possible to request the response as a hash
 instead keyed by the buckets keys:
 
-[source,js]
+[source,console,id=histogram-aggregation-keyed-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -212,12 +224,11 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -257,7 +268,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console,id=histogram-aggregation-missing-value-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -272,7 +283,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Documents without a value in the `quantity` field will fall into the same bucket as documents that have the value `0`.

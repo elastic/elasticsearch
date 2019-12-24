@@ -11,10 +11,8 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -46,10 +44,8 @@ public final class SecurityQueryTemplateEvaluator {
      * @return resultant query string after compiling and executing the script.
      * If the source does not contain template then it will return the query
      * source without any modifications.
-     * @throws IOException thrown when there is any error parsing the query
-     * string.
      */
-    public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) throws IOException {
+    public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) {
         // EMPTY is safe here because we never use namedObject
         try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE, querySource)) {
@@ -66,27 +62,21 @@ public final class SecurityQueryTemplateEvaluator {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException("Unexpected token [" + token + "]");
                 }
-                Script script = Script.parse(parser);
-                // Add the user details to the params
-                Map<String, Object> params = new HashMap<>();
-                if (script.getParams() != null) {
-                    params.putAll(script.getParams());
-                }
                 Map<String, Object> userModel = new HashMap<>();
                 userModel.put("username", user.principal());
                 userModel.put("full_name", user.fullName());
                 userModel.put("email", user.email());
                 userModel.put("roles", Arrays.asList(user.roles()));
                 userModel.put("metadata", Collections.unmodifiableMap(user.metadata()));
-                params.put("_user", userModel);
-                // Always enforce mustache script lang:
-                script = new Script(script.getType(), script.getType() == ScriptType.STORED ? null : "mustache", script.getIdOrCode(),
-                        script.getOptions(), params);
-                TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
-                return compiledTemplate.execute();
+                Map<String, Object> extraParams = Collections.singletonMap("_user", userModel);
+
+                return MustacheTemplateEvaluator.evaluate(scriptService, parser, extraParams);
             } else {
                 return querySource;
             }
+        } catch (IOException ioe) {
+            throw new ElasticsearchParseException("failed to parse query", ioe);
         }
     }
+
 }

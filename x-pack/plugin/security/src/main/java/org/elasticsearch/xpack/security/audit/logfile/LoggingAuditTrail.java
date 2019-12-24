@@ -5,7 +5,14 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.core.Filter.Result;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -14,12 +21,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -28,23 +36,21 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
-import org.apache.logging.log4j.LogManager;
-
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -61,6 +67,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
@@ -85,6 +92,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
 
     // changing any of this names requires changing the log4j2.properties file too
+    public static final String LOG_TYPE = "type";
+    public static final String TIMESTAMP = "timestamp";
     public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
     public static final String ORIGIN_ADDRESS_FIELD_NAME = "origin.address";
     public static final String NODE_NAME_FIELD_NAME = "node.name";
@@ -149,6 +158,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             "indices",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
 
+    private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
+
     private final Logger logger;
     private final ThreadContext threadContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
@@ -164,7 +175,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, LogManager.getLogger(), threadPool.getThreadContext());
+        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
@@ -205,6 +216,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeIndicesFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        // this log filter ensures that audit events are not filtered out because of the log level
+        final LoggerContext ctx = LoggerContext.getContext(false);
+        MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
+        ctx.addFilter(auditMarkerFilter);
+        ctx.updateLoggers();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ignored -> {
+            LogManager.getLogger(Security.class).warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
+        }, List.of(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
     @Override
@@ -223,7 +242,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -246,7 +265,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -268,7 +287,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -287,7 +306,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -309,7 +328,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -327,7 +346,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -348,7 +367,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -368,7 +387,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -391,7 +410,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -412,7 +431,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -438,7 +457,47 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext)
                         .with(authorizationInfo.asMap())
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
+            }
+        }
+    }
+
+    @Override
+    public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String index,
+                                    String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
+        assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
+        final String[] indices = index == null ? null : new String[] { index };
+        final User user = authentication.getUser();
+        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        if (isSystem && eventType == ACCESS_GRANTED) {
+            eventType = SYSTEM_ACCESS_GRANTED;
+        }
+        if (events.contains(eventType)) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(effectiveRealmName(authentication)),
+                            Optional.of(authorizationInfo), Optional.ofNullable(indices))) == false) {
+                final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
+                        .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                        .with(EVENT_ACTION_FIELD_NAME, eventType == ACCESS_DENIED ? "access_denied" : "access_granted")
+                        .with(ACTION_FIELD_NAME, action)
+                        .with(REQUEST_NAME_FIELD_NAME, requestName)
+                        .withRequestId(requestId)
+                        .withSubject(authentication)
+                        .with(INDICES_FIELD_NAME, indices)
+                        .withOpaqueId(threadContext)
+                        .withXForwardedFor(threadContext)
+                        .with(authorizationInfo.asMap());
+                final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
+                if (restAddress != null) {
+                    logEntryBuilder
+                        .with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
+                } else if (remoteAddress != null) {
+                    logEntryBuilder
+                        .with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress.address()));
+                }
+                logger.info(AUDIT_MARKER, logEntryBuilder.build());
             }
         }
     }
@@ -463,7 +522,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -481,7 +540,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -502,7 +561,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -525,7 +584,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -544,7 +603,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -562,7 +621,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -586,7 +645,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -611,7 +670,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -633,7 +692,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -935,11 +994,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private volatile Predicate<AuditEventMetaInfo> predicate;
 
         private EventFilterPolicyRegistry(Settings settings) {
-            final MapBuilder<String, EventFilterPolicy> mapBuilder = MapBuilder.newMapBuilder();
+            final var entries = new ArrayList<Map.Entry<String, EventFilterPolicy>>();
             for (final String policyName : settings.getGroups(FILTER_POLICY_PREFIX, true).keySet()) {
-                mapBuilder.put(policyName, new EventFilterPolicy(policyName, settings));
+                entries.add(entry(policyName, new EventFilterPolicy(policyName, settings)));
             }
-            policyMap = mapBuilder.immutableMap();
+            policyMap = Maps.ofEntries(entries);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }
@@ -949,7 +1008,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
-            policyMap = MapBuilder.newMapBuilder(policyMap).put(policyName, eventFilterPolicy).immutableMap();
+            policyMap = Maps.copyMayWithAddedOrReplacedEntry(policyMap, policyName, eventFilterPolicy);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }

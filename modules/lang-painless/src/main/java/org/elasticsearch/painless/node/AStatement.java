@@ -29,7 +29,7 @@ import org.objectweb.asm.Label;
 public abstract class AStatement extends ANode {
 
     /**
-     * Set to true when the final statement in an {@link SSource} is reached.
+     * Set to true when the final statement in an {@link SClass} is reached.
      * Used to determine whether or not an auto-return is necessary.
      */
     boolean lastSource = false;

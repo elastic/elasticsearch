@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 0,
-        transportClientRatio = 0.0,
         numClientNodes = 0)
 public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCase {
 

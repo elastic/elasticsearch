@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
@@ -38,14 +38,8 @@ public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeo
     }
 
     @Override
-    InternalGeoHashGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
-                                          InternalAggregations aggregations) {
-        return new InternalGeoHashGridBucket(hashAsLong, docCount, aggregations);
-    }
-
-    @Override
     public String getKeyAsString() {
-        return GeoHashUtils.stringEncode(hashAsLong);
+        return Geohash.stringEncode(hashAsLong);
     }
 
     @Override

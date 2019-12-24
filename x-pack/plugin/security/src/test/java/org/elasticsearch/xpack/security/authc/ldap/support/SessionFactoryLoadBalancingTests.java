@@ -20,7 +20,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -31,6 +30,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
@@ -51,7 +52,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that the server sets properly load balance connections without throwing exceptions
  */
-@TestLogging("org.elasticsearch.xpack.security.authc.ldap.support:DEBUG")
 public class SessionFactoryLoadBalancingTests extends LdapTestCase {
 
     private ThreadPool threadPool;
@@ -320,9 +320,15 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             final List<Socket> openedSockets = new ArrayList<>();
             final List<InetAddress> blacklistedAddress = new ArrayList<>();
             try {
-                final boolean allSocketsOpened = awaitBusy(() -> {
+                final boolean allSocketsOpened = waitUntil(() -> {
                     try {
-                        final List<InetAddress> inetAddressesToBind = Arrays.stream(InetAddressHelper.getAllAddresses())
+                        InetAddress[] allAddresses = InetAddressHelper.getAllAddresses();
+                        if (serverAddress instanceof Inet4Address) {
+                            allAddresses = InetAddressHelper.filterIPV4(allAddresses);
+                        } else {
+                            allAddresses = InetAddressHelper.filterIPV6(allAddresses);
+                        }
+                        final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
                             .filter(addr -> blacklistedAddress.contains(addr) == false)
                             .collect(Collectors.toList());
@@ -331,10 +337,14 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                                 final Socket socket = openMockSocket(serverAddress, serverPort, localAddress, portToBind);
                                 openedSockets.add(socket);
                                 logger.debug("opened socket [{}]", socket);
-                            } catch (NoRouteToHostException e) {
+                            } catch (NoRouteToHostException | ConnectException e) {
                                 logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
                                 blacklistedAddress.add(localAddress);
                             }
+                        }
+                        if (openedSockets.size() == 0) {
+                            logger.debug("Could not open any sockets from the available addresses");
+                            return false;
                         }
                         return true;
                     } catch (IOException e) {

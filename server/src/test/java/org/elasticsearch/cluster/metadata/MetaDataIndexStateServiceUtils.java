@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.index.Index;
@@ -43,7 +43,7 @@ public class MetaDataIndexStateServiceUtils {
      */
     public static ClusterState closeRoutingTable(final ClusterState state,
                                                  final Map<Index, ClusterBlock> blockedIndices,
-                                                 final Map<Index, AcknowledgedResponse> results) {
-        return MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results);
+                                                 final Map<Index, CloseIndexResponse.IndexResult> results) {
+        return MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
     }
 }

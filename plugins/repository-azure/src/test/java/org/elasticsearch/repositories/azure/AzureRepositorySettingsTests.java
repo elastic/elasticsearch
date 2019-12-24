@@ -26,7 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -42,7 +42,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .put(settings)
             .build();
         final AzureRepository azureRepository = new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
-            TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, mock(AzureStorageService.class));
+            NamedXContentRegistry.EMPTY, mock(AzureStorageService.class), BlobStoreTestUtil.mockClusterService());
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
     }

@@ -40,16 +40,8 @@ public class GetAliasesResponse extends ActionResponse {
         this.aliases = aliases;
     }
 
-    GetAliasesResponse() {
-    }
-
-    public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
-        return aliases;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public GetAliasesResponse(StreamInput in) throws IOException {
+        super(in);
         int size = in.readVInt();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
@@ -64,9 +56,12 @@ public class GetAliasesResponse extends ActionResponse {
         aliases = aliasesBuilder.build();
     }
 
+    public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
+        return aliases;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(aliases.size());
         for (ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
             out.writeString(entry.key);

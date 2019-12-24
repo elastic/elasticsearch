@@ -14,7 +14,7 @@ queries, and is returned as part of the search hits.
 For instance the below query matches all documents that have one or more fields
 that got ignored:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _search
 {
@@ -25,12 +25,11 @@ GET _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Similarly, the below query finds all documents whose `@timestamp` field was
 ignored at index time:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _search
 {
@@ -41,5 +40,3 @@ GET _search
   }
 }
 --------------------------------------------------
-// CONSOLE
-

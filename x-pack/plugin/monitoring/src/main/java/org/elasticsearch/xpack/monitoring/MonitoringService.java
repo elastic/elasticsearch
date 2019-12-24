@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -218,6 +219,11 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 return;
             }
 
+            if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+                logger.debug("cluster service not started");
+                return;
+            }
+
             if (semaphore.tryAcquire() == false) {
                 logger.debug("monitoring execution is skipped until previous execution terminated");
                 return;
@@ -233,7 +239,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                     final Collection<MonitoringDoc> results = new ArrayList<>();
                     for (Collector collector : collectors) {
                         if (isStarted() == false) {
-                            // Do not collect more data if the the monitoring service is stopping
+                            // Do not collect more data if the monitoring service is stopping
                             // otherwise some collectors might just fail.
                             return;
                         }

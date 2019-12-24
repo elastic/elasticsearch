@@ -26,7 +26,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +45,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * Information about snapshotted file
      */
     public static class FileInfo {
-        private static final String UNKNOWN_CHECKSUM = "_na_";
 
         private final String name;
         private final ByteSizeValue partSize;
@@ -226,14 +224,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             return metadata.isSame(fileInfo.metadata);
         }
 
-        /**
-         * Checks if the checksum for the file is unknown. This only is possible on an empty shard's
-         * segments_N file which was created in older Lucene versions.
-         */
-        public boolean hasUnknownChecksum() {
-            return metadata.checksum().equals(UNKNOWN_CHECKSUM);
-        }
-
         static final String NAME = "name";
         static final String PHYSICAL_NAME = "physical_name";
         static final String LENGTH = "length";
@@ -247,16 +237,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          *
          * @param file    file info
          * @param builder XContent builder
-         * @param params  parameters
          */
-        public static void toXContent(FileInfo file, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public static void toXContent(FileInfo file, XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field(NAME, file.name);
             builder.field(PHYSICAL_NAME, file.metadata.name());
             builder.field(LENGTH, file.metadata.length());
-            if (file.metadata.checksum().equals(UNKNOWN_CHECKSUM) == false) {
-                builder.field(CHECKSUM, file.metadata.checksum());
-            }
+            builder.field(CHECKSUM, file.metadata.checksum());
             if (file.partSize != null) {
                 builder.field(PART_SIZE, file.partSize.getBytes());
             }
@@ -348,6 +335,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
     }
 
+    /**
+     * Snapshot name
+     */
     private final String snapshot;
 
     private final long indexVersion;
@@ -365,7 +355,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Constructs new shard snapshot metadata from snapshot metadata
      *
-     * @param snapshot              snapshot id
+     * @param snapshot              snapshot name
      * @param indexVersion          index version
      * @param indexFiles            list of files in the shard
      * @param startTime             snapshot start time
@@ -382,7 +372,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         assert indexVersion >= 0;
         this.snapshot = snapshot;
         this.indexVersion = indexVersion;
-        this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
+        this.indexFiles = List.copyOf(indexFiles);
         this.startTime = startTime;
         this.time = time;
         this.incrementalFileCount = incrementalFileCount;
@@ -390,18 +380,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
-     * Returns index version
+     * Returns snapshot name
      *
-     * @return index version
-     */
-    public long indexVersion() {
-        return indexVersion;
-    }
-
-    /**
-     * Returns snapshot id
-     *
-     * @return snapshot id
+     * @return snapshot name
      */
     public String snapshot() {
         return snapshot;
@@ -493,7 +474,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         builder.field(INCREMENTAL_SIZE, incrementalSize);
         builder.startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
-            FileInfo.toXContent(fileInfo, builder, params);
+            FileInfo.toXContent(fileInfo, builder);
         }
         builder.endArray();
         return builder;

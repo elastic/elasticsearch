@@ -56,19 +56,38 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 }
 
                 Request reindex = new Request("POST", "/_reindex");
-                reindex.setJsonEntity(
+                if (randomBoolean()) {
+                    // Reindex using the external version_type
+                    reindex.setJsonEntity(
                         "{\n"
-                      + "  \"source\":{\n"
-                      + "    \"index\": \"test\",\n"
-                      + "    \"size\": 1,\n"
-                      + "    \"remote\": {\n"
-                      + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
-                      + "    }\n"
-                      + "  },\n"
-                      + "  \"dest\": {\n"
-                      + "    \"index\": \"test\"\n"
-                      + "  }\n"
-                      + "}");
+                            + "  \"source\":{\n"
+                            + "    \"index\": \"test\",\n"
+                            + "    \"size\": 1,\n"
+                            + "    \"remote\": {\n"
+                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
+                            + "    }\n"
+                            + "  },\n"
+                            + "  \"dest\": {\n"
+                            + "    \"index\": \"test\",\n"
+                            + "    \"version_type\": \"external\"\n"
+                            + "  }\n"
+                            + "}");
+                } else {
+                    // Reindex using the default internal version_type
+                    reindex.setJsonEntity(
+                        "{\n"
+                            + "  \"source\":{\n"
+                            + "    \"index\": \"test\",\n"
+                            + "    \"size\": 1,\n"
+                            + "    \"remote\": {\n"
+                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
+                            + "    }\n"
+                            + "  },\n"
+                            + "  \"dest\": {\n"
+                            + "    \"index\": \"test\"\n"
+                            + "  }\n"
+                            + "}");
+                }
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");
                 if (requestsPerSecond != null) {

@@ -7,7 +7,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 1
         body: >
           {
@@ -17,7 +16,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 2
         body: >
           {
@@ -27,7 +25,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 3
         body: >
           {
@@ -37,7 +34,6 @@ setup:
   - do:
       index:
         index: idx
-        type: type
         id: 4
         body: >
           {
@@ -168,9 +164,6 @@ setup:
 
 ---
 "Test search input mustache integration (using request body and rest_total_hits_as_int)":
-  - skip:
-      version: " - 6.99.99"
-      reason: "rest_total_hits_as_int support was added in 7.0"
   - do:
       watcher.execute_watch:
         body: >
@@ -222,10 +215,6 @@ setup:
 
 ---
 "Test search input mustache integration (using request template and rest_total_hits_as_int)":
-  - skip:
-      version: " - 6.99.99"
-      reason: "rest_total_hits_as_int support was added in 7.0"
-
   - do:
       put_script:
         id: "search-template"

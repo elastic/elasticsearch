@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 /**
  * Performs a series of elasticsearch queries and aggregations to explore
@@ -85,7 +84,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     @Inject
     public TransportGraphExploreAction(ThreadPool threadPool, NodeClient client, TransportService transportService,
                                        ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
@@ -181,7 +180,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             currentHopNumber++;
             Hop currentHop = request.getHop(currentHopNumber);
 
-            final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
+            final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(
                     request.indicesOptions());
             if (request.routing() != null) {
                 searchRequest.routing(request.routing());
@@ -568,7 +567,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         public synchronized void start() {
             try {
 
-                final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
+                final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(
                         request.indicesOptions());
                 if (request.routing() != null) {
                     searchRequest.routing(request.routing());

@@ -44,37 +44,17 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
 
     private static final Logger logger = LogManager.getLogger(SettingsBasedSeedHostsProvider.class);
 
-    public static final Setting<List<String>> LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
-        Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(), Property.NodeScope, Property.Deprecated);
-
     public static final Setting<List<String>> DISCOVERY_SEED_HOSTS_SETTING =
         Setting.listSetting("discovery.seed_hosts", emptyList(), Function.identity(), Property.NodeScope);
 
-    // these limits are per-address
-    private static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
-    private static final int LIMIT_LOCAL_PORTS_COUNT = 5;
-
     private final List<String> configuredHosts;
-    private final int limitPortCounts;
 
     public SettingsBasedSeedHostsProvider(Settings settings, TransportService transportService) {
-        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
-            if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both ["
-                    + DISCOVERY_SEED_HOSTS_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey() + "]");
-            }
-            configuredHosts = LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
-            // we only limit to 1 address, makes no sense to ping 100 ports
-            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
-        } else if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
+        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_SEED_HOSTS_SETTING.get(settings);
-            // we only limit to 1 address, makes no sense to ping 100 ports
-            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
         } else {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
-            configuredHosts = transportService.getLocalAddresses();
-            limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
+            configuredHosts = transportService.getDefaultSeedAddresses();
         }
 
         logger.debug("using initial hosts {}", configuredHosts);
@@ -82,6 +62,6 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
 
     @Override
     public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
-        return hostsResolver.resolveHosts(configuredHosts, limitPortCounts);
+        return hostsResolver.resolveHosts(configuredHosts);
     }
 }

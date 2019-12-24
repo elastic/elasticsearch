@@ -18,7 +18,7 @@
  */
 package org.apache.lucene.queries;
 
-import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 
 public class FloatRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
 
@@ -28,8 +28,8 @@ public class FloatRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryD
     }
 
     @Override
-    protected RangeFieldMapper.RangeType rangeType() {
-        return RangeFieldMapper.RangeType.FLOAT;
+    protected RangeType rangeType() {
+        return RangeType.FLOAT;
     }
 
     @Override

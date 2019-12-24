@@ -23,7 +23,7 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.Snippet;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
+import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 
 import java.io.UnsupportedEncodingException;
@@ -42,11 +42,11 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
 
     public static final String SEARCH_HIT_TYPE = "_hit_term";
     private final Encoder encoder;
-    private AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer;
+    AnnotatedText[] annotations;
 
-    public AnnotatedPassageFormatter(AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer, Encoder encoder) {
-        this.annotatedHighlighterAnalyzer = annotatedHighlighterAnalyzer;
+    public AnnotatedPassageFormatter(AnnotatedText[] annotations, Encoder encoder) {
         this.encoder = encoder;
+        this.annotations = annotations;
     }
 
     static class MarkupPassage {
@@ -158,7 +158,7 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
         int pos;
         int j = 0;
         for (Passage passage : passages) {
-            AnnotationToken [] annotations = annotatedHighlighterAnalyzer.getIntersectingAnnotations(passage.getStartOffset(), 
+            AnnotationToken [] annotations = getIntersectingAnnotations(passage.getStartOffset(), 
                     passage.getEndOffset());            
             MarkupPassage mergedMarkup = mergeAnnotations(annotations, passage);
             
@@ -194,6 +194,27 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
         }                    
         return snippets;
     }
+    
+    public AnnotationToken[] getIntersectingAnnotations(int start, int end) {
+        List<AnnotationToken> intersectingAnnotations = new ArrayList<>();
+        int fieldValueOffset =0;
+        for (AnnotatedText fieldValueAnnotations : this.annotations) {
+            //This is called from a highlighter where all of the field values are concatenated
+            // so each annotation offset will need to be adjusted so that it takes into account 
+            // the previous values AND the MULTIVAL delimiter
+            for (int i = 0; i < fieldValueAnnotations.numAnnotations(); i++) {
+                AnnotationToken token = fieldValueAnnotations.getAnnotation(i);
+                if (token.intersects(start - fieldValueOffset, end - fieldValueOffset)) {
+                    intersectingAnnotations
+                            .add(new AnnotationToken(token.offset + fieldValueOffset, token.endOffset + 
+                                    fieldValueOffset, token.value));
+                }
+            }
+            //add 1 for the fieldvalue separator character
+            fieldValueOffset +=fieldValueAnnotations.textMinusMarkup.length() +1;
+        }
+        return intersectingAnnotations.toArray(new AnnotationToken[intersectingAnnotations.size()]);
+    }     
 
     private void append(StringBuilder dest, String content, int start, int end) {
         dest.append(encoder.encodeText(content.substring(start, end)));

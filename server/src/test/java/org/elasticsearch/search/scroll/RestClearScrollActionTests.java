@@ -22,7 +22,6 @@ package org.elasticsearch.search.scroll;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -45,7 +44,7 @@ import static org.mockito.Mockito.verify;
 public class RestClearScrollActionTests extends ESTestCase {
 
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        RestClearScrollAction action = new RestClearScrollAction(Settings.EMPTY, mock(RestController.class));
+        RestClearScrollAction action = new RestClearScrollAction(mock(RestController.class));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
@@ -56,7 +55,7 @@ public class RestClearScrollActionTests extends ESTestCase {
         NodeClient nodeClient = mock(NodeClient.class);
         doNothing().when(nodeClient).searchScroll(any(), any());
 
-        RestClearScrollAction action = new RestClearScrollAction(Settings.EMPTY, mock(RestController.class));
+        RestClearScrollAction action = new RestClearScrollAction(mock(RestController.class));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withParams(Collections.singletonMap("scroll_id", "QUERY_STRING"))
                 .withContent(new BytesArray("{\"scroll_id\": [\"BODY\"]}"), XContentType.JSON).build();

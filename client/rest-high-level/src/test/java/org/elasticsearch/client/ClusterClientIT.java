@@ -317,12 +317,12 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
                 .getConcreteSettingForNamespace(clusterAlias)
                 .get(settingsResponse.getTransientSettings());
         int connectionsPerCluster = SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER
-                .get(settingsResponse.getDefaultSettings());
+                .get(settingsResponse.getTransientSettings());
         TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING
-                .get(settingsResponse.getDefaultSettings());
+                .get(settingsResponse.getTransientSettings());
         boolean skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
                 .getConcreteSettingForNamespace(clusterAlias)
-                .get(settingsResponse.getDefaultSettings());
+                .get(settingsResponse.getTransientSettings());
 
         RemoteInfoRequest request = new RemoteInfoRequest();
         RemoteInfoResponse response = execute(request, highLevelClient().cluster()::remoteInfo,

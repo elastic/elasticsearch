@@ -20,7 +20,6 @@
 package org.elasticsearch.client.cluster;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -57,7 +56,7 @@ public final class RemoteConnectionInfo {
                 }
                 return new RemoteConnectionInfo(clusterAlias,
                         modeInfo,
-                        TimeValue.parseTimeValue((String) args[2], INITIAL_CONNECT_TIMEOUT),
+                        (String) args[2],
                         (boolean) args[3]);
             });
 
@@ -76,15 +75,18 @@ public final class RemoteConnectionInfo {
         PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffModeInfo.NUM_NODES_CONNECTED));
     }
 
-    final ModeInfo modeInfo;
-    final TimeValue initialConnectionTimeout;
-    final String clusterAlias;
-    final boolean skipUnavailable;
+    private final ModeInfo modeInfo;
+    // TODO: deprecate and remove this field in favor of initialConnectionTimeout field that is of type TimeValue.
+    // When rest api versioning exists then change org.elasticsearch.transport.RemoteConnectionInfo to properly serialize
+    // the initialConnectionTimeout field so that we can properly parse initialConnectionTimeout as TimeValue
+    private final String initialConnectionTimeoutString;
+    private final String clusterAlias;
+    private final boolean skipUnavailable;
 
-    RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, TimeValue initialConnectionTimeout, boolean skipUnavailable) {
+    RemoteConnectionInfo(String clusterAlias, ModeInfo modeInfo, String initialConnectionTimeoutString, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
         this.modeInfo = modeInfo;
-        this.initialConnectionTimeout = initialConnectionTimeout;
+        this.initialConnectionTimeoutString = initialConnectionTimeoutString;
         this.skipUnavailable = skipUnavailable;
     }
 
@@ -100,8 +102,8 @@ public final class RemoteConnectionInfo {
         return modeInfo;
     }
 
-    public TimeValue getInitialConnectionTimeout() {
-        return initialConnectionTimeout;
+    public String getInitialConnectionTimeoutString() {
+        return initialConnectionTimeoutString;
     }
 
     public boolean isSkipUnavailable() {
@@ -119,13 +121,13 @@ public final class RemoteConnectionInfo {
         RemoteConnectionInfo that = (RemoteConnectionInfo) o;
         return skipUnavailable == that.skipUnavailable &&
                 Objects.equals(modeInfo, that.modeInfo) &&
-                Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
+                Objects.equals(initialConnectionTimeoutString, that.initialConnectionTimeoutString) &&
                 Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable);
+        return Objects.hash(modeInfo, initialConnectionTimeoutString, clusterAlias, skipUnavailable);
     }
 
     public interface ModeInfo {

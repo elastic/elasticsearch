@@ -63,7 +63,8 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
         for (org.elasticsearch.client.cluster.RemoteConnectionInfo clientRemoteInfo : clientInstance.getInfos()) {
             RemoteConnectionInfo serverRemoteInfo = serverInfos.get(clientRemoteInfo.getClusterAlias());
             assertThat(clientRemoteInfo.getClusterAlias(), equalTo(serverRemoteInfo.getClusterAlias()));
-            assertThat(clientRemoteInfo.getInitialConnectionTimeout(), equalTo(serverRemoteInfo.getInitialConnectionTimeout()));
+            assertThat(clientRemoteInfo.getInitialConnectionTimeoutString(),
+                equalTo(serverRemoteInfo.getInitialConnectionTimeout().toString()));
             assertThat(clientRemoteInfo.isConnected(), equalTo(serverRemoteInfo.isConnected()));
             assertThat(clientRemoteInfo.isSkipUnavailable(), equalTo(serverRemoteInfo.isSkipUnavailable()));
             assertThat(clientRemoteInfo.getModeInfo().isConnected(), equalTo(serverRemoteInfo.getModeInfo().isConnected()));

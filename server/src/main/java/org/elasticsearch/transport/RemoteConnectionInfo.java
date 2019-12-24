@@ -121,7 +121,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             builder.field("connected", modeInfo.isConnected());
             builder.field("mode", modeInfo.modeName());
             modeInfo.toXContent(builder, params);
-            builder.field("initial_connect_timeout", initialConnectionTimeout.getStringRep());
+            builder.field("initial_connect_timeout", initialConnectionTimeout);
             builder.field("skip_unavailable", skipUnavailable);
         }
         builder.endObject();

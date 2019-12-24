@@ -332,7 +332,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getInfos().size(), equalTo(1));
         RemoteConnectionInfo info = response.getInfos().get(0);
         assertThat(info.getClusterAlias(), equalTo(clusterAlias));
-        assertThat(info.getInitialConnectionTimeout(), equalTo(initialConnectionTimeout));
+        assertThat(info.getInitialConnectionTimeoutString(), equalTo(initialConnectionTimeout.toString()));
         assertThat(info.isSkipUnavailable(), equalTo(skipUnavailable));
         assertThat(info.getModeInfo().modeName(), equalTo(SniffModeInfo.NAME));
         assertThat(info.getModeInfo().isConnected(), equalTo(true));

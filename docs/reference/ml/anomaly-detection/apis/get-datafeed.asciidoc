@@ -44,8 +44,11 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 `<feed_id>`::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
++
+--
 If you do not specify one of these options, the API returns information about
 all {dfeeds}.
+--
 
 [[ml-get-datafeed-query-parms]]
 ==== {api-query-parms-title}

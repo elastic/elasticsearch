@@ -10,6 +10,12 @@ password-protect your data as well as implement more advanced security measures
 such as encrypting communications, role-based access control, IP filtering, and
 auditing. 
 
+--
+
+NOTE: RBAC and TLS support were made Basic license features in versions 6.8 and 7.1.  If you are on a older version you will need to upgrade to use these features.
+
+--
+
 To use {es} {security-features}:
 
 . Verify that you are using a license that includes the {security-features}.

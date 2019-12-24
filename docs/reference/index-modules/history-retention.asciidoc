@@ -65,6 +65,9 @@ there>>. {ccr-cap} will not function if soft deletes are disabled.
   configured at index creation and only on indices created on or after 6.5.0.
   The default value is `true`.
 
+  deprecated::[7.6, Indices with soft deletes disabled are deprecated and will be rejected.
+  All indices will have soft deletes enabled regardless of this setting in the future.]
+
 `index.soft_deletes.retention_lease.period`::
 
   The maximum length of time to retain a shard history retention lease before

@@ -512,28 +512,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
     /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    private static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
-
-        final Response response = client().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
-
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
-        }
-        assertNotNull(minVersion);
-        return minVersion;
-    }
-
-    /**
      * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
      * that the index has started shards.
      */
@@ -695,7 +673,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureGreen(index);
             indexDocs(index, 0, randomIntBetween(100, 200));
             flush(index, randomBoolean());
-            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, false);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
             // uncommitted docs must be less than 10% of committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
         } else {
@@ -705,9 +683,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 || nodeName.startsWith(CLUSTER_NAME + "-0")
                 || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
-            if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, true);
-            }
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
     }
 

@@ -72,7 +72,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -474,7 +473,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 null,
                 testThreadPool,
                 null,
-                Collections.emptyMap(),
+                Collections.emptyList(),
                 false
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
@@ -562,9 +561,12 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testValidateIndexNameChecksSystemIndexNames() {
-        Map<String, SystemIndexDescriptor> systemIndexDescriptors = new HashMap<>();
-        systemIndexDescriptors.put(".test", new SystemIndexDescriptor(".test", "test"));
-        systemIndexDescriptors.put(".test3", new SystemIndexDescriptor(".test3", "test"));
+        List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test-overlapping", "test"));
+
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
@@ -588,6 +590,16 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             // Check NO deprecation warnings if we give the index name
             checkerService.validateIndexName(".test", ClusterState.EMPTY_STATE);
             checkerService.validateIndexName(".test3", ClusterState.EMPTY_STATE);
+
+            // Check that patterns with wildcards work
+            checkerService.validateIndexName(".pattern-test", ClusterState.EMPTY_STATE);
+            checkerService.validateIndexName(".pattern-test-with-suffix", ClusterState.EMPTY_STATE);
+            checkerService.validateIndexName(".pattern-test-other-suffix", ClusterState.EMPTY_STATE);
+
+            // Check that an exception is thrown if more than one descriptor matches the index name
+            expectThrows(IllegalStateException.class,
+                () -> checkerService.validateIndexName(".pattern-test-overlapping", ClusterState.EMPTY_STATE));
+
         } finally {
             testThreadPool.shutdown();
         }

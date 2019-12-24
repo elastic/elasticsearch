@@ -79,12 +79,12 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -118,7 +118,7 @@ public class MetaDataCreateIndexService {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
-    private final Map<String, SystemIndexDescriptor> systemIndexDescriptors;
+    private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
     private final boolean forbidPrivateIndexSettings;
 
     public MetaDataCreateIndexService(
@@ -131,7 +131,7 @@ public class MetaDataCreateIndexService {
         final IndexScopedSettings indexScopedSettings,
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
-        final Map<String, SystemIndexDescriptor> systemIndexDescriptors,
+        final Collection<SystemIndexDescriptor> systemIndexDescriptors,
         final boolean forbidPrivateIndexSettings) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -154,9 +154,18 @@ public class MetaDataCreateIndexService {
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
-        if (index.charAt(0) == '.' && (Objects.isNull(systemIndexDescriptors) || systemIndexDescriptors.containsKey(index) == false)) {
-            deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
-                "names starting with a dot will fail as these names are reserved for system indices", index);
+
+        List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
+            .filter(descriptor -> descriptor.matchesIndexPattern(index))
+            .collect(toList());
+        if (index.charAt(0) == '.') {
+            if (matchingDescriptors.isEmpty()) {
+                deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
+                    "names starting with a dot will fail as these names are reserved for system indices", index);
+            } else if (matchingDescriptors.size() > 1) {
+                // TODO: Actually supply the name here
+                throw new IllegalStateException("index name [" + index + "] is claimed as a system index by multiple plugins");
+            }
         }
         if (state.routingTable().hasIndex(index)) {
             throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());

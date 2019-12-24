@@ -19,29 +19,57 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.regex.Regex;
+
+import java.util.Objects;
+
 /**
  * Describes a system index. Provides the information required to create and maintain the system index.
  */
 public class SystemIndexDescriptor {
-    private final String name;
+    private final String indexPattern;
     private final String sourcePluginName;
+    private final CharacterRunAutomaton indexPatternAutomaton;
 
     /**
      *
-     * @param indexName The name of the system index.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
      * @param sourcePluginName The name of the plugin responsible for this system index.
      */
-    public SystemIndexDescriptor(String indexName, String sourcePluginName) {
-        this.name = indexName;
+    public SystemIndexDescriptor(String indexPattern, String sourcePluginName) {
+        Objects.requireNonNull(indexPattern, "system index pattern must not be null");
+        if (indexPattern.length() < 2) {
+            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
+                "] but must at least 2 characters in length");
+        }
+        if (indexPattern.charAt(0) != '.') {
+            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
+                "] but must start with the character [.]");
+        }
+        if (indexPattern.charAt(1) == '*') {
+            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
+                "] but must not start with the character sequence [.*] to prevent conflicts");
+        }
+        this.indexPattern = indexPattern;
+        this.indexPatternAutomaton = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(indexPattern));
         this.sourcePluginName = sourcePluginName;
     }
 
     /**
-     * Get the name of the system index.
-     * @return The name of the system index.
+     * @return The pattern of index names that this descriptor will be used for.
      */
-    public String getIndexName() {
-        return name;
+    public String getIndexPattern() {
+        return indexPattern;
+    }
+
+    /**
+     * Checks whether an index name matches the system index name pattern for this descriptor.
+     * @param index The index name to be checked against the index pattern given at construction time.
+     * @return True if the name matches the pattern, false otherwise.
+     */
+    public boolean matchesIndexPattern(String index) {
+        return indexPatternAutomaton.run(index);
     }
 
     /**

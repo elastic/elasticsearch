@@ -162,7 +162,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
-                Collections.emptyMap(),
+                Collections.emptyList(),
                 true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(null, createIndexService,
                 new AliasValidator(), null,
@@ -196,7 +196,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 xContentRegistry(),
-                Collections.emptyMap(),
+                Collections.emptyList(),
                 true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
                 clusterService, createIndexService, new AliasValidator(), indicesService,

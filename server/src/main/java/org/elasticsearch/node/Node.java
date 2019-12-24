@@ -424,15 +424,11 @@ public class Node implements Closeable {
                             .flatMap(m -> m.entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            final Map<String, SystemIndexDescriptor> systemIndexDescriptors = pluginsService.filterPlugins(SystemIndexPlugin.class)
+            final List<SystemIndexDescriptor> systemIndexDescriptors = pluginsService.filterPlugins(SystemIndexPlugin.class)
                 .stream()
                 .flatMap(plugin -> plugin.getSystemIndexDescriptors().stream())
-                .collect(Collectors.toUnmodifiableMap(SystemIndexDescriptor::getIndexName, Function.identity(),
-                    (descA, descB) -> {
-                        throw new IllegalStateException("\"multiple plugins, [" + descA.getSourcePluginName() + "] and [" +
-                            descB.getSourcePluginName() + "], attempted to register index name [" + descA.getIndexName() + "]," +
-                            "but each system index can only be managed by a single plugin");
-                    }));
+                .collect(Collectors.toList());
+
             final IndicesService indicesService =
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,

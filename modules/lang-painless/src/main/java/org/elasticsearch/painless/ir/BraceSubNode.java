@@ -21,11 +21,36 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class BraceSubNode extends UnaryNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public BraceSubNode setChildNode(ExpressionNode childNode) {
+        super.setChildNode(childNode);
+        return this;
+    }
+
+    @Override
+    public BraceSubNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public BraceSubNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public BraceSubNode() {
         // do nothing

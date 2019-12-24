@@ -21,9 +21,11 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class BlockNode extends StatementNode {
@@ -34,6 +36,11 @@ public class BlockNode extends StatementNode {
 
     public BlockNode addStatementNode(StatementNode statementNode) {
         statementNodes.add(statementNode);
+        return this;
+    }
+
+    public BlockNode addStatementNodes(Collection<StatementNode> statementNodes) {
+        this.statementNodes.addAll(statementNodes);
         return this;
     }
 
@@ -90,6 +97,12 @@ public class BlockNode extends StatementNode {
 
     public int getStatementCount() {
         return statementCount;
+    }
+
+    @Override
+    public BlockNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

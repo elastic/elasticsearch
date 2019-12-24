@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -40,7 +41,33 @@ public class ConditionalNode extends BinaryNode {
         return conditionNode;
     }
 
-    /* ---- end tree structure ---- */
+    @Override
+    public ConditionalNode setLeftNode(ExpressionNode leftNode) {
+        super.setLeftNode(leftNode);
+        return this;
+    }
+
+    @Override
+    public ConditionalNode setRightNode(ExpressionNode rightNode) {
+        super.setRightNode(rightNode);
+        return this;
+    }
+
+    @Override
+    public ConditionalNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public ConditionalNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public ConditionalNode() {
         // do nothing

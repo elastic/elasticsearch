@@ -19,7 +19,10 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
+
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public abstract class ArgumentsNode extends ExpressionNode {
@@ -30,6 +33,11 @@ public abstract class ArgumentsNode extends ExpressionNode {
 
     public ArgumentsNode addArgumentNode(ExpressionNode argumentNode) {
         argumentNodes.add(argumentNode);
+        return this;
+    }
+
+    public ArgumentsNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
+        this.argumentNodes.addAll(argumentNodes);
         return this;
     }
 
@@ -65,7 +73,21 @@ public abstract class ArgumentsNode extends ExpressionNode {
         return this;
     }
 
-    /* ---- end tree structure ---- */
+    @Override
+    public ArgumentsNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public ArgumentsNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public ArgumentsNode() {
         // do nothing

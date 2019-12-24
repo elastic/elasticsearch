@@ -19,9 +19,20 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
 import org.objectweb.asm.Label;
 
 public abstract class StatementNode extends IRNode {
+
+    /* ---- begin node data ---- */
+
+    @Override
+    public StatementNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     protected Label continueLabel = null;
     protected Label breakLabel = null;

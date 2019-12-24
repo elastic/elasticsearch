@@ -21,15 +21,62 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.util.Collection;
+
 public class ListInitializationNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public ListInitializationNode addArgumentNode(ExpressionNode argumentNode) {
+        super.addArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public ListInitializationNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
+        super.addArgumentNodes(argumentNodes);
+        return this;
+    }
+
+    @Override
+    public ListInitializationNode setArgumentNode(int index, ExpressionNode argumentNode) {
+        super.setArgumentNode(index, argumentNode);
+        return this;
+    }
+
+    @Override
+    public ListInitializationNode removeArgumentNode(ExpressionNode argumentNode) {
+        super.removeArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public ListInitializationNode removeArgumentNode(int index) {
+        super.removeArgumentNode(index);
+        return this;
+    }
+
+    @Override
+    public ListInitializationNode clearArgumentNodes() {
+        super.clearArgumentNodes();
+        return this;
+    }
+
+    @Override
+    public ListInitializationNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected PainlessConstructor constructor;
     protected PainlessMethod method;
@@ -50,6 +97,12 @@ public class ListInitializationNode extends ArgumentsNode {
 
     public PainlessMethod getMethod() {
         return method;
+    }
+
+    @Override
+    public ListInitializationNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

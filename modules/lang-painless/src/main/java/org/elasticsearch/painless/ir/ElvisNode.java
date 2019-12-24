@@ -21,10 +21,41 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 
 public class ElvisNode extends BinaryNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public ElvisNode setLeftNode(ExpressionNode leftNode) {
+        super.setLeftNode(leftNode);
+        return this;
+    }
+
+    @Override
+    public ElvisNode setRightNode(ExpressionNode rightNode) {
+        super.setRightNode(rightNode);
+        return this;
+    }
+
+    @Override
+    public ElvisNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public ElvisNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public ElvisNode() {
         // do nothing

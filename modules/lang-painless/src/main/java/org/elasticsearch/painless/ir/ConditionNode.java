@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
+
 public abstract class ConditionNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
@@ -44,7 +46,15 @@ public abstract class ConditionNode extends StatementNode {
         return blockNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public ConditionNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public ConditionNode() {
         // do nothing

@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
@@ -77,6 +78,12 @@ public class FieldNode extends IRNode {
 
     public Object getInstance() {
         return instance;
+    }
+
+    @Override
+    public FieldNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

@@ -27,8 +27,8 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -81,6 +81,11 @@ public class ClassNode extends IRNode {
         return this;
     }
 
+    public ClassNode addFieldNodes(Collection<FieldNode> fieldNodes) {
+        this.fieldNodes.addAll(fieldNodes);
+        return this;
+    }
+
     public ClassNode setFieldNode(int index, FieldNode fieldNode) {
         fieldNodes.set(index, fieldNode);
         return this;
@@ -118,6 +123,11 @@ public class ClassNode extends IRNode {
         return this;
     }
 
+    public ClassNode addFunctionNode(Collection<FunctionNode> functionNodes) {
+        this.functionNodes.addAll(functionNodes);
+        return this;
+    }
+
     public ClassNode setFunctionNode(int index, FunctionNode functionNode) {
         functionNodes.set(index, functionNode);
         return this;
@@ -152,6 +162,11 @@ public class ClassNode extends IRNode {
 
     public ClassNode addStatementNode(StatementNode statementNode) {
         statementNodes.add(statementNode);
+        return this;
+    }
+
+    public ClassNode addStatementNodes(Collection<StatementNode> statementNodes) {
+        this.statementNodes.addAll(statementNodes);
         return this;
     }
 
@@ -267,6 +282,11 @@ public class ClassNode extends IRNode {
         return this;
     }
 
+    public ClassNode addExtractedVariables(Collection<String> extractedVariables) {
+        this.extractedVariables.addAll(extractedVariables);
+        return this;
+    }
+
     public boolean containsExtractedVariable(String extractedVariable) {
         return extractedVariables.contains(extractedVariable);
     }
@@ -291,6 +311,11 @@ public class ClassNode extends IRNode {
     
     public ClassNode addGetMethod(org.objectweb.asm.commons.Method getMethod) {
         getMethods.add(getMethod);
+        return this;
+    }
+
+    public ClassNode addGetMethods(Collection<org.objectweb.asm.commons.Method> getMethods) {
+        this.getMethods.addAll(getMethods);
         return this;
     }
 
@@ -325,7 +350,13 @@ public class ClassNode extends IRNode {
         getMethods.clear();
         return this;
     }
-    
+
+    @Override
+    public ClassNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
     /* ---- end node data ---- */
 
     protected Globals globals;

@@ -21,11 +21,49 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class WhileNode extends LoopNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public WhileNode setConditionNode(ExpressionNode conditionNode) {
+        super.setConditionNode(conditionNode);
+        return this;
+    }
+
+    @Override
+    public WhileNode setBlockNode(BlockNode blockNode) {
+        super.setBlockNode(blockNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public WhileNode setContinuous(boolean isContinuous) {
+        super.setContinuous(isContinuous);
+        return this;
+    }
+
+    @Override
+    public WhileNode setLoopCounter(Locals.Variable loopCounter) {
+        super.setLoopCounter(loopCounter);
+        return this;
+    }
+
+    @Override
+    public WhileNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public WhileNode() {
         // do nothing

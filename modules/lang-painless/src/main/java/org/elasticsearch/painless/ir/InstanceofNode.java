@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
@@ -49,6 +50,18 @@ public class InstanceofNode extends UnaryNode {
         return resolvedTypeNode;
     }
 
+    @Override
+    public InstanceofNode setChildNode(ExpressionNode childNode) {
+        super.setChildNode(childNode);
+        return this;
+    }
+
+    @Override
+    public InstanceofNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
     /* ---- end tree structure, begin node data ---- */
 
     protected boolean isPrimitiveResult;
@@ -60,6 +73,12 @@ public class InstanceofNode extends UnaryNode {
 
     public boolean isPrimitiveResult() {
         return isPrimitiveResult;
+    }
+
+    @Override
+    public InstanceofNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

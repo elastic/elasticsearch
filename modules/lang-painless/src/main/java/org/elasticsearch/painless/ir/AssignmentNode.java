@@ -23,6 +23,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -30,7 +31,27 @@ import org.elasticsearch.painless.lookup.def;
 
 public class AssignmentNode extends BinaryNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public AssignmentNode setLeftNode(ExpressionNode leftNode) {
+        super.setLeftNode(leftNode);
+        return this;
+    }
+
+    @Override
+    public AssignmentNode setRightNode(ExpressionNode rightNode) {
+        super.setRightNode(rightNode);
+        return this;
+    }
+
+    @Override
+    public AssignmentNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected boolean pre;
     protected boolean post;
@@ -101,6 +122,12 @@ public class AssignmentNode extends BinaryNode {
 
     public PainlessCast getBack() {
         return back;
+    }
+
+    @Override
+    public AssignmentNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

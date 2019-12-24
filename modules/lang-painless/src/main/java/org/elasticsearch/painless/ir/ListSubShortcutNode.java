@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -29,7 +30,21 @@ import org.objectweb.asm.Opcodes;
 
 public class ListSubShortcutNode extends UnaryNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public ListSubShortcutNode setChildNode(ExpressionNode childNode) {
+        super.setChildNode(childNode);
+        return this;
+    }
+
+    @Override
+    public ListSubShortcutNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected PainlessMethod setter;
     protected PainlessMethod getter;
@@ -50,6 +65,12 @@ public class ListSubShortcutNode extends UnaryNode {
 
     public PainlessMethod getGetter() {
         return getter;
+    }
+
+    @Override
+    public ListSubShortcutNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

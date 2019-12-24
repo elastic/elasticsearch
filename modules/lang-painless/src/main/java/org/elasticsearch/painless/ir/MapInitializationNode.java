@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -88,6 +89,12 @@ public class MapInitializationNode extends ExpressionNode {
         return this;
     }
 
+    @Override
+    public MapInitializationNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
     /* ---- end tree structure, begin node data ---- */
 
     protected PainlessConstructor constructor;
@@ -109,6 +116,12 @@ public class MapInitializationNode extends ExpressionNode {
 
     public PainlessMethod getMethod() {
         return method;
+    }
+
+    @Override
+    public MapInitializationNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -34,7 +35,27 @@ import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 
 public class ComparisonNode extends BinaryNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public ComparisonNode setLeftNode(ExpressionNode leftNode) {
+        super.setLeftNode(leftNode);
+        return this;
+    }
+
+    @Override
+    public ComparisonNode setRightNode(ExpressionNode rightNode) {
+        super.setRightNode(rightNode);
+        return this;
+    }
+
+    @Override
+    public ComparisonNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected Operation operation;
 
@@ -45,6 +66,12 @@ public class ComparisonNode extends BinaryNode {
 
     public Operation getOperation() {
         return operation;
+    }
+
+    @Override
+    public ComparisonNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

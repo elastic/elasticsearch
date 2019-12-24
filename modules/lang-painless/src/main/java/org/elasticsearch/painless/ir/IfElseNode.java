@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -40,7 +41,27 @@ public class IfElseNode extends ConditionNode {
         return elseBlockNode;
     }
 
-    /* ---- end tree structure ---- */
+    @Override
+    public IfElseNode setConditionNode(ExpressionNode conditionNode) {
+        super.setConditionNode(conditionNode);
+        return this;
+    }
+
+    @Override
+    public IfElseNode setBlockNode(BlockNode blockNode) {
+        this.blockNode = blockNode;
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public IfElseNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public IfElseNode() {
         // do nothing

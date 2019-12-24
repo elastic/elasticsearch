@@ -24,13 +24,22 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 public class CapturingFuncRefNode extends ExpressionNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public CapturingFuncRefNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected String name;
     protected Variable captured;
@@ -71,6 +80,12 @@ public class CapturingFuncRefNode extends ExpressionNode {
 
     public String getPointer() {
         return pointer;
+    }
+
+    @Override
+    public CapturingFuncRefNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

@@ -21,9 +21,12 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
+
+import static org.elasticsearch.painless.Locals.Variable;
 
 public class ForLoopNode extends LoopNode {
 
@@ -50,7 +53,39 @@ public class ForLoopNode extends LoopNode {
         return afterthoughtNode;
     }
 
-    /* ---- end tree structure ---- */
+    @Override
+    public ForLoopNode setConditionNode(ExpressionNode conditionNode) {
+        super.setConditionNode(conditionNode);
+        return this;
+    }
+
+    @Override
+    public ForLoopNode setBlockNode(BlockNode blockNode) {
+        super.setBlockNode(blockNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public ForLoopNode setContinuous(boolean isContinuous) {
+        super.setContinuous(isContinuous);
+        return this;
+    }
+
+    @Override
+    public ForLoopNode setLoopCounter(Variable loopCounter) {
+        super.setLoopCounter(loopCounter);
+        return this;
+    }
+
+    @Override
+    public ForLoopNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public ForLoopNode() {
         // do nothing

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
@@ -31,6 +32,32 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class BinaryMathNode extends ShiftNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public BinaryMathNode setShiftTypeNode(TypeNode shiftTypeNode) {
+        super.setShiftTypeNode(shiftTypeNode);
+        return this;
+    }
+
+    @Override
+    public BinaryMathNode setLeftNode(ExpressionNode leftNode) {
+        super.setLeftNode(leftNode);
+        return this;
+    }
+
+    @Override
+    public BinaryMathNode setRightNode(ExpressionNode rightNode) {
+        super.setRightNode(rightNode);
+        return this;
+    }
+
+    @Override
+    public BinaryMathNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
 
     /* ---- begin node data ---- */
 
@@ -63,6 +90,12 @@ public class BinaryMathNode extends ShiftNode {
 
     public boolean getOriginallyExplicit() {
         return originallyExplicit;
+    }
+
+    @Override
+    public BinaryMathNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.objectweb.asm.Label;
@@ -33,8 +34,9 @@ public class ForEachSubArrayNode extends LoopNode {
 
     protected TypeNode indexedTypeNode;
 
-    public void setIndexedTypeNode(TypeNode indexedTypeNode) {
+    public ForEachSubArrayNode setIndexedTypeNode(TypeNode indexedTypeNode) {
         this.indexedTypeNode = indexedTypeNode;
+        return this;
     }
 
     public TypeNode getIndexedTypeNode() {
@@ -47,6 +49,18 @@ public class ForEachSubArrayNode extends LoopNode {
 
     public String getIndexedCanonicalTypeName() {
         return indexedTypeNode.getCanonicalTypeName();
+    }
+
+    @Override
+    public ForEachSubArrayNode setConditionNode(ExpressionNode conditionNode) {
+        super.setConditionNode(conditionNode);
+        return this;
+    }
+
+    @Override
+    public ForEachSubArrayNode setBlockNode(BlockNode blockNode) {
+        super.setBlockNode(blockNode);
+        return this;
     }
 
     /* ---- begin node data ---- */
@@ -90,6 +104,24 @@ public class ForEachSubArrayNode extends LoopNode {
 
     public Variable getIndex() {
         return this.index;
+    }
+
+    @Override
+    public ForEachSubArrayNode setContinuous(boolean isContinuous) {
+        super.setContinuous(isContinuous);
+        return this;
+    }
+
+    @Override
+    public ForEachSubArrayNode setLoopCounter(Variable loopCounter) {
+        super.setLoopCounter(loopCounter);
+        return this;
+    }
+
+    @Override
+    public ForEachSubArrayNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

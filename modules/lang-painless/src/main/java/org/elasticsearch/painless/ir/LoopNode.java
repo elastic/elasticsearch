@@ -20,10 +20,25 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
 
 public abstract class LoopNode extends ConditionNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public LoopNode setConditionNode(ExpressionNode conditionNode) {
+        super.setConditionNode(conditionNode);
+        return this;
+    }
+
+    @Override
+    public LoopNode setBlockNode(BlockNode blockNode) {
+        this.blockNode = blockNode;
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected boolean isContinuous;
     protected Variable loopCounter;
@@ -44,6 +59,12 @@ public abstract class LoopNode extends ConditionNode {
 
     public Variable getLoopCounter() {
         return loopCounter;
+    }
+
+    @Override
+    public LoopNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

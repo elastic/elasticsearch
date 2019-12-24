@@ -21,9 +21,11 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public final class DeclarationBlockNode extends StatementNode {
@@ -32,44 +34,57 @@ public final class DeclarationBlockNode extends StatementNode {
 
     protected List<DeclarationNode> declarationNodes = new ArrayList<>();
 
-    public DeclarationBlockNode addStatementNode(DeclarationNode declarationNode) {
+    public DeclarationBlockNode addDeclarationNode(DeclarationNode declarationNode) {
         declarationNodes.add(declarationNode);
         return this;
     }
 
-    public DeclarationBlockNode setStatementNode(int index, DeclarationNode declarationNode) {
+    public DeclarationBlockNode addDeclarationNodes(Collection<DeclarationNode> declarationNodes) {
+        this.declarationNodes.addAll(declarationNodes);
+        return this;
+    }
+    
+    public DeclarationBlockNode setDeclarationNode(int index, DeclarationNode declarationNode) {
         declarationNodes.set(index, declarationNode);
         return this;
     }
 
-    public DeclarationNode getStatementNode(int index) {
+    public DeclarationNode getDeclarationNode(int index) {
         return declarationNodes.get(index);
     }
 
-    public DeclarationBlockNode removeStatementNode(DeclarationNode declarationNode) {
+    public DeclarationBlockNode removeDeclarationNode(DeclarationNode declarationNode) {
         declarationNodes.remove(declarationNode);
         return this;
     }
 
-    public DeclarationBlockNode removeStatementNode(int index) {
+    public DeclarationBlockNode removeDeclarationNode(int index) {
         declarationNodes.remove(index);
         return this;
     }
 
-    public int getStatementsSize() {
+    public int getDeclarationsSize() {
         return declarationNodes.size();
     }
 
-    public List<DeclarationNode> getStatementsNodes() {
+    public List<DeclarationNode> getDeclarationsNodes() {
         return declarationNodes;
     }
 
-    public DeclarationBlockNode clearStatementNodes() {
+    public DeclarationBlockNode clearDeclarationNodes() {
         declarationNodes.clear();
         return this;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public DeclarationBlockNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public DeclarationBlockNode() {
         // do nothing

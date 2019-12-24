@@ -21,10 +21,27 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 
 public class CastNode extends UnaryNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public CastNode setChildNode(ExpressionNode childNode) {
+        super.setChildNode(childNode);
+        return this;
+    }
+
+    @Override
+    public CastNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     /* ---- begin node data ---- */
 
@@ -37,6 +54,12 @@ public class CastNode extends UnaryNode {
 
     public PainlessCast getCast() {
         return cast;
+    }
+
+    @Override
+    public CastNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

@@ -341,7 +341,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         GeneratorAdapter deterAdapter = new GeneratorAdapter(Opcodes.ASM5, isResultDeterministic,
             writer.visitMethod(Opcodes.ACC_PUBLIC, methodName, isResultDeterministic.getDescriptor(), null, null));
         deterAdapter.visitCode();
-        deterAdapter.push(scriptRoot.deterministic);
+        deterAdapter.push(scriptRoot.isDeterministic());
         deterAdapter.returnValue();
         deterAdapter.endMethod();
 

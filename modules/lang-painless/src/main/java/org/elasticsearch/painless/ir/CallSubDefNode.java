@@ -22,15 +22,61 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class CallSubDefNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public CallSubDefNode addArgumentNode(ExpressionNode argumentNode) {
+        super.addArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public CallSubDefNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
+        super.addArgumentNodes(argumentNodes);
+        return this;
+    }
+
+    @Override
+    public CallSubDefNode setArgumentNode(int index, ExpressionNode argumentNode) {
+        super.setArgumentNode(index, argumentNode);
+        return this;
+    }
+
+    @Override
+    public CallSubDefNode removeArgumentNode(ExpressionNode argumentNode) {
+        super.removeArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public CallSubDefNode removeArgumentNode(int index) {
+        super.removeArgumentNode(index);
+        return this;
+    }
+
+    @Override
+    public CallSubDefNode clearArgumentNodes() {
+        super.clearArgumentNodes();
+        return this;
+    }
+
+    @Override
+    public CallSubDefNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected String name;
     protected String recipe;
@@ -57,6 +103,11 @@ public class CallSubDefNode extends ArgumentsNode {
 
     public CallSubDefNode addPointer(String pointer) {
         pointers.add(pointer);
+        return this;
+    }
+
+    public CallSubDefNode addPointers(Collection<String> pointers) {
+        this.pointers.addAll(pointers);
         return this;
     }
 
@@ -97,6 +148,11 @@ public class CallSubDefNode extends ArgumentsNode {
         return this;
     }
 
+    public CallSubDefNode addTypeParameters(Collection<Class<?>> typeParameters) {
+        this.typeParameters.addAll(typeParameters);
+        return this;
+    }
+
     public CallSubDefNode setTypeParameter(int index, Class<?> typeParameter) {
         typeParameters.set(index, typeParameter);
         return this;
@@ -128,7 +184,13 @@ public class CallSubDefNode extends ArgumentsNode {
         typeParameters.clear();
         return this;
     }
-    
+
+    @Override
+    public CallSubDefNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
     /* ---- end node data ---- */
 
     public CallSubDefNode() {

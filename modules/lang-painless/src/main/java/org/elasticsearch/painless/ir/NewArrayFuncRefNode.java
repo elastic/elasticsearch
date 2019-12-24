@@ -22,11 +22,20 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class NewArrayFuncRefNode extends ExpressionNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public NewArrayFuncRefNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected FunctionRef funcRef;
 
@@ -37,6 +46,12 @@ public class NewArrayFuncRefNode extends ExpressionNode {
 
     public FunctionRef getFuncRef() {
         return funcRef;
+    }
+
+    @Override
+    public NewArrayFuncRefNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

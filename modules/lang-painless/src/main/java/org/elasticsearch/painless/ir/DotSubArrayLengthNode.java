@@ -21,9 +21,28 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class DotSubArrayLengthNode extends ExpressionNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public DotSubArrayLengthNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public DotSubArrayLengthNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public DotSubArrayLengthNode() {
         // do nothing

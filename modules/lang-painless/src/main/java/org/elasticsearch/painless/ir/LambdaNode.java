@@ -23,20 +23,35 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
+import java.util.Collection;
 import java.util.List;
 
 public class LambdaNode extends ExpressionNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public LambdaNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected List<Variable> captures;
     protected FunctionRef funcRef;
 
     public LambdaNode addCapture(Variable capture) {
         captures.add(capture);
+        return this;
+    }
+
+    public LambdaNode addCaptures(Collection<Variable> captures) {
+        this.captures.addAll(captures);
         return this;
     }
 
@@ -80,7 +95,13 @@ public class LambdaNode extends ExpressionNode {
     public FunctionRef getFuncRef() {
         return funcRef;
     }
-    
+
+    @Override
+    public LambdaNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
     /* ---- end node data ---- */
 
     public LambdaNode() {

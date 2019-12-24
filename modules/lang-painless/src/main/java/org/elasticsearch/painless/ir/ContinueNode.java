@@ -21,9 +21,20 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class ContinueNode extends StatementNode {
+
+    /* ---- begin node data ---- */
+
+    @Override
+    public ContinueNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public ContinueNode() {
         // do nothing

@@ -21,11 +21,58 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Collection;
 
 public class NewArrayNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public NewArrayNode addArgumentNode(ExpressionNode argumentNode) {
+        super.addArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public NewArrayNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
+        super.addArgumentNodes(argumentNodes);
+        return this;
+    }
+
+    @Override
+    public NewArrayNode setArgumentNode(int index, ExpressionNode argumentNode) {
+        super.setArgumentNode(index, argumentNode);
+        return this;
+    }
+
+    @Override
+    public NewArrayNode removeArgumentNode(ExpressionNode argumentNode) {
+        super.removeArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public NewArrayNode removeArgumentNode(int index) {
+        super.removeArgumentNode(index);
+        return this;
+    }
+
+    @Override
+    public NewArrayNode clearArgumentNodes() {
+        super.clearArgumentNodes();
+        return this;
+    }
+
+    @Override
+    public NewArrayNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected boolean initialize;
 
@@ -36,6 +83,12 @@ public class NewArrayNode extends ArgumentsNode {
 
     public boolean getInitialize() {
         return initialize;
+    }
+
+    @Override
+    public NewArrayNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

@@ -21,9 +21,40 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class DotNode extends PrefixNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public DotNode setPrefixNode(ExpressionNode prefixNode) {
+        this.prefixNode = prefixNode;
+        return this;
+    }
+
+    @Override
+    public DotNode setChildNode(ExpressionNode childNode) {
+        super.setChildNode(childNode);
+        return this;
+    }
+
+    @Override
+    public DotNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public DotNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public DotNode() {
         // do nothing

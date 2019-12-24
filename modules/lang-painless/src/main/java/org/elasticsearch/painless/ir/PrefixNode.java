@@ -19,21 +19,44 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
+
 public abstract class PrefixNode extends UnaryNode {
 
     /* ---- begin tree structure ---- */
 
     protected ExpressionNode prefixNode;
 
-    public void setPrefixNode(ExpressionNode prefixNode) {
+    public PrefixNode setPrefixNode(ExpressionNode prefixNode) {
         this.prefixNode = prefixNode;
+        return this;
     }
 
     public ExpressionNode getPrefixNode() {
         return prefixNode;
     }
 
-    /* ---- end tree structure ---- */
+    @Override
+    public PrefixNode setChildNode(ExpressionNode childNode) {
+        super.setChildNode(childNode);
+        return this;
+    }
+
+    @Override
+    public PrefixNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public PrefixNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public PrefixNode() {
         // do nothing

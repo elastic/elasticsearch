@@ -21,12 +21,59 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
+import java.util.Collection;
+
 public class CallSubNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public CallSubNode addArgumentNode(ExpressionNode argumentNode) {
+        super.addArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public CallSubNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
+        super.addArgumentNodes(argumentNodes);
+        return this;
+    }
+
+    @Override
+    public CallSubNode setArgumentNode(int index, ExpressionNode argumentNode) {
+        super.setArgumentNode(index, argumentNode);
+        return this;
+    }
+
+    @Override
+    public CallSubNode removeArgumentNode(ExpressionNode argumentNode) {
+        super.removeArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public CallSubNode removeArgumentNode(int index) {
+        super.removeArgumentNode(index);
+        return this;
+    }
+
+    @Override
+    public CallSubNode clearArgumentNodes() {
+        super.clearArgumentNodes();
+        return this;
+    }
+
+    @Override
+    public CallSubNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected PainlessMethod method;
     protected Class<?> box;
@@ -45,8 +92,14 @@ public class CallSubNode extends ArgumentsNode {
         return this;
     }
 
-    public Class<?> getPost() {
+    public Class<?> getBox() {
         return box;
+    }
+
+    @Override
+    public CallSubNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

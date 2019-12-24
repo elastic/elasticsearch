@@ -23,6 +23,7 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -40,7 +41,21 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
  */
 public class ForEachSubIterableNode extends LoopNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public ForEachSubIterableNode setConditionNode(ExpressionNode conditionNode) {
+        super.setConditionNode(conditionNode);
+        return this;
+    }
+
+    @Override
+    public ForEachSubIterableNode setBlockNode(BlockNode blockNode) {
+        super.setBlockNode(blockNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected Variable variable;
     protected PainlessCast cast;
@@ -81,6 +96,24 @@ public class ForEachSubIterableNode extends LoopNode {
 
     public PainlessMethod getMethod() {
         return method;
+    }
+
+    @Override
+    public ForEachSubIterableNode setContinuous(boolean isContinuous) {
+        super.setContinuous(isContinuous);
+        return this;
+    }
+
+    @Override
+    public ForEachSubIterableNode setLoopCounter(Variable loopCounter) {
+        super.setLoopCounter(loopCounter);
+        return this;
+    }
+
+    @Override
+    public ForEachSubIterableNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

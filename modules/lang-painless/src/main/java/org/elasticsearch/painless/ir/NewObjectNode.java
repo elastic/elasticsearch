@@ -21,14 +21,61 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.util.Collection;
+
 public final class NewObjectNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public NewObjectNode addArgumentNode(ExpressionNode argumentNode) {
+        super.addArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public NewObjectNode addArgumentNodes(Collection<ExpressionNode> argumentNodes) {
+        super.addArgumentNodes(argumentNodes);
+        return this;
+    }
+
+    @Override
+    public NewObjectNode setArgumentNode(int index, ExpressionNode argumentNode) {
+        super.setArgumentNode(index, argumentNode);
+        return this;
+    }
+
+    @Override
+    public NewObjectNode removeArgumentNode(ExpressionNode argumentNode) {
+        super.removeArgumentNode(argumentNode);
+        return this;
+    }
+
+    @Override
+    public NewObjectNode removeArgumentNode(int index) {
+        super.removeArgumentNode(index);
+        return this;
+    }
+
+    @Override
+    public NewObjectNode clearArgumentNodes() {
+        super.clearArgumentNodes();
+        return this;
+    }
+
+    @Override
+    public NewObjectNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected PainlessConstructor constructor;
     protected boolean read;
@@ -49,6 +96,12 @@ public final class NewObjectNode extends ArgumentsNode {
 
     public boolean getRead() {
         return read;
+    }
+
+    @Override
+    public NewObjectNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

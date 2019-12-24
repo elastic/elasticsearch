@@ -21,10 +21,12 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class TryNode extends StatementNode {
@@ -45,6 +47,11 @@ public class TryNode extends StatementNode {
 
     public TryNode addCatchNode(CatchNode catchNode) {
         catchNodes.add(catchNode);
+        return this;
+    }
+
+    public TryNode addCatchNodes(Collection<CatchNode> catchNodes) {
+        this.catchNodes.addAll(catchNodes);
         return this;
     }
 
@@ -80,7 +87,15 @@ public class TryNode extends StatementNode {
         return this;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public TryNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
 
     public TryNode() {
         // do nothing

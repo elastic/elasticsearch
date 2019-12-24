@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 public class TypeNode extends IRNode {
@@ -38,6 +39,12 @@ public class TypeNode extends IRNode {
 
     public String getCanonicalTypeName() {
         return PainlessLookupUtility.typeToCanonicalTypeName(type);
+    }
+
+    @Override
+    public TypeNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

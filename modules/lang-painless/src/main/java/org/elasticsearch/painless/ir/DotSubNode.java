@@ -21,11 +21,20 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.objectweb.asm.Type;
 
 public class DotSubNode extends ExpressionNode {
+
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public DotSubNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
 
     /* ---- begin node data ---- */
 
@@ -38,6 +47,12 @@ public class DotSubNode extends ExpressionNode {
 
     public PainlessField getField() {
         return field;
+    }
+
+    @Override
+    public DotSubNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

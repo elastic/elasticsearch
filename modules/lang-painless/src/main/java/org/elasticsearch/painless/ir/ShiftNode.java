@@ -19,16 +19,17 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
+
 public abstract class ShiftNode extends BinaryNode {
+
+    /* ---- begin tree structure ---- */
 
     protected TypeNode shiftTypeNode;
 
-    public ShiftNode() {
-        // do nothing
-    }
-
-    public void setShiftTypeNode(TypeNode shiftTypeNode) {
+    public ShiftNode setShiftTypeNode(TypeNode shiftTypeNode) {
         this.shiftTypeNode = shiftTypeNode;
+        return this;
     }
 
     public TypeNode getShiftTypeNode() {
@@ -41,5 +42,37 @@ public abstract class ShiftNode extends BinaryNode {
 
     public String getShiftCanonicalTypeName() {
         return shiftTypeNode.getCanonicalTypeName();
+    }
+
+    @Override
+    public ShiftNode setLeftNode(ExpressionNode leftNode) {
+        super.setLeftNode(leftNode);
+        return this;
+    }
+
+    @Override
+    public ShiftNode setRightNode(ExpressionNode rightNode) {
+        super.setRightNode(rightNode);
+        return this;
+    }
+
+    @Override
+    public ShiftNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
+
+    @Override
+    public ShiftNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
+    }
+
+    /* ---- end node data ---- */
+
+    public ShiftNode() {
+        // do nothing
     }
 }

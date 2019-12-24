@@ -76,5 +76,11 @@ public class ScriptRoot {
         return prefix + "$synthetic$" + syntheticCounter++;
     }
 
-    public void markNonDeterministic(boolean nondeterministic) { this.deterministic &= !nondeterministic; }
+    public void markNonDeterministic(boolean nondeterministic) {
+        this.deterministic &= !nondeterministic;
+    }
+
+    public boolean isDeterministic() {
+        return deterministic;
+    }
 }

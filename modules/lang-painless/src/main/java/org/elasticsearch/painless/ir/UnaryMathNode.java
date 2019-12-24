@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.def;
@@ -31,7 +32,21 @@ import org.objectweb.asm.Type;
 
 public class UnaryMathNode extends UnaryNode {
 
-    /* ---- begin node data ---- */
+    /* ---- begin tree structure ---- */
+
+    @Override
+    public UnaryMathNode setTypeNode(TypeNode typeNode) {
+        super.setTypeNode(typeNode);
+        return this;
+    }
+
+    @Override
+    public UnaryMathNode setChildNode(ExpressionNode childNode) {
+        super.setChildNode(childNode);
+        return this;
+    }
+
+    /* ---- end tree structure, begin node data ---- */
 
     protected Operation operation;
     protected boolean cat;
@@ -62,6 +77,12 @@ public class UnaryMathNode extends UnaryNode {
 
     public boolean getOriginallyExplicit() {
         return originallyExplicit;
+    }
+
+    @Override
+    public UnaryMathNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

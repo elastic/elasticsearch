@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 public class StatementExpressionNode extends StatementNode {
@@ -49,6 +50,12 @@ public class StatementExpressionNode extends StatementNode {
 
     public boolean getMethodEscape() {
         return methodEscape;
+    }
+
+    @Override
+    public StatementExpressionNode setLocation(Location location) {
+        super.setLocation(location);
+        return this;
     }
 
     /* ---- end node data ---- */

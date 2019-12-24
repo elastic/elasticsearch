@@ -82,6 +82,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -641,15 +642,16 @@ public class RelocationIT extends ESIntegTestCase {
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
             for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metaData().indices().keys()) {
-                final String indexName = it.value;
-                final Set<String> expectedLeaseIds = Stream.of(client().admin().indices().prepareStats(indexName).get().getShards())
-                    .filter(s -> s.getShardRouting().started())
-                    .map(s -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(s.getShardRouting().currentNodeId()))
-                    .collect(Collectors.toSet());
-                for (ShardStats shard : client().admin().indices().prepareStats(indexName).get().getShards()) {
-                    final Set<String> actualLeaseIds = shard.getRetentionLeaseStats().retentionLeases().leases()
-                        .stream().map(RetentionLease::id).collect(Collectors.toSet());
-                    assertThat(expectedLeaseIds, everyItem(in(actualLeaseIds)));
+                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it.value).get().getShards())
+                    .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
+                for (List<ShardStats> shardStats : byShardId.values()) {
+                    Set<String> expectedLeaseIds = shardStats.stream()
+                        .map(s -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(s.getShardRouting())).collect(Collectors.toSet());
+                    for (ShardStats shardStat : shardStats) {
+                        Set<String> actualLeaseIds = shardStat.getRetentionLeaseStats().retentionLeases().leases().stream()
+                            .map(RetentionLease::id).collect(Collectors.toSet());
+                        assertThat(expectedLeaseIds, everyItem(in(actualLeaseIds)));
+                    }
                 }
             }
         });

@@ -643,6 +643,7 @@ public class RelocationIT extends ESIntegTestCase {
             for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metaData().indices().keys()) {
                 final String indexName = it.value;
                 final Set<String> expectedLeaseIds = Stream.of(client().admin().indices().prepareStats(indexName).get().getShards())
+                    .filter(s -> s.getShardRouting().started())
                     .map(s -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(s.getShardRouting().currentNodeId()))
                     .collect(Collectors.toSet());
                 for (ShardStats shard : client().admin().indices().prepareStats(indexName).get().getShards()) {

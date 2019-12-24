@@ -45,12 +45,12 @@ public class DeclarationNode extends StatementNode {
 
     protected Variable variable;
 
-    public DeclarationNode setCaptured(Variable variable) {
+    public DeclarationNode setVariable(Variable variable) {
         this.variable = variable;
         return this;
     }
 
-    public Variable getCaptured() {
+    public Variable getVariable() {
         return variable;
     }
 

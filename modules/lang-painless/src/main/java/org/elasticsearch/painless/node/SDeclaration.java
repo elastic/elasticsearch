@@ -19,14 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
@@ -73,29 +70,11 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        if (expression == null) {
-            Class<?> sort = variable.clazz;
-
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expression.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+    DeclarationNode write() {
+        return new DeclarationNode()
+                .setExpressionNode(expression.write())
+                .setLocation(location)
+                .setVariable(variable);
     }
 
     @Override

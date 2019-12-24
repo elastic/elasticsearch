@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -213,13 +214,14 @@ final class Compiler {
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
         root.extractVariables(extractedVariables);
         ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
-        Map<String, Object> statics = root.write();
+        ClassNode classNode = root.writeClass();
+        Map<String, Object> statics = classNode.write();
 
         try {
-            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, root.getBytes());
+            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, classNode.getBytes());
             clazz.getField("$NAME").set(null, name);
             clazz.getField("$SOURCE").set(null, source);
-            clazz.getField("$STATEMENTS").set(null, root.getStatements());
+            clazz.getField("$STATEMENTS").set(null, classNode.getStatements());
             clazz.getField("$DEFINITION").set(null, painlessLookup);
 
             for (Map.Entry<String, Object> statik : statics.entrySet()) {
@@ -245,8 +247,9 @@ final class Compiler {
                 debugStream);
         root.extractVariables(new HashSet<>());
         root.analyze(painlessLookup, settings);
-        root.write();
+        ClassNode classNode = root.writeClass();
+        classNode.write();
 
-        return root.getBytes();
+        return classNode.getBytes();
     }
 }

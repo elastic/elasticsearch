@@ -126,7 +126,7 @@ public class ForEachSubArrayNode extends LoopNode {
 
     /* ---- end node data ---- */
 
-    ForEachSubArrayNode() {
+    public ForEachSubArrayNode() {
         // do nothing
     }
 

@@ -19,15 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.CallSubDefNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -94,24 +91,23 @@ final class PSubDefCall extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    CallSubDefNode write() {
+        CallSubDefNode callSubDefNode = new CallSubDefNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location)
+                .setName(name)
+                .setRecipe(recipe.toString())
+                .addPointers(pointers)
+                .addTypeParameters(parameterTypes);
 
         for (AExpression argument : arguments) {
-            argument.write(classWriter, methodWriter, globals);
+            callSubDefNode.addArgumentNode(argument.write());
         }
 
-        // create method type from return value and arguments
-        Type[] asmParameterTypes = new Type[parameterTypes.size()];
-        for (int index = 0; index < asmParameterTypes.length; ++index) {
-            asmParameterTypes[index] = MethodWriter.getType(parameterTypes.get(index));
-        }
-        Type methodType = Type.getMethodType(MethodWriter.getType(actual), asmParameterTypes);
-
-        List<Object> args = new ArrayList<>();
-        args.add(recipe.toString());
-        args.addAll(pointers);
-        methodWriter.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
+        return callSubDefNode;
     }
 
     @Override

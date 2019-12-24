@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Label;
 
 import java.util.Set;
 
@@ -60,14 +58,13 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        Label end = new Label();
-        methodWriter.dup();
-        methodWriter.ifNull(end);
-        guarded.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
+    NullSafeSubNode write() {
+        return new NullSafeSubNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setChildNode(guarded.write());
     }
 
     @Override

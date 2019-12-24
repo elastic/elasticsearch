@@ -19,17 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.FunctionNode;
+import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
@@ -141,36 +139,22 @@ public final class SFunction extends AStatement {
         }
     }
 
-    /** Writes the function to given ClassVisitor. */
-    void write(ClassWriter classWriter, Globals globals) {
-        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
-        if (synthetic) {
-            access |= Opcodes.ACC_SYNTHETIC;
-        }
-        final MethodWriter methodWriter = classWriter.newMethodWriter(access, method);
-        methodWriter.visitCode();
-        write(classWriter, methodWriter, globals);
-        methodWriter.endMethod();
+    @Override
+    public StatementNode write() {
+        throw new UnsupportedOperationException();
     }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (maxLoopCounter > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
-            methodWriter.push(maxLoopCounter);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-        }
-
-        block.write(classWriter, methodWriter, globals);
-
-        if (!methodEscape) {
-            if (returnType == void.class) {
-                methodWriter.returnValue();
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+    FunctionNode writeFunction() {
+        return new FunctionNode()
+                .setBlockNode(block.write())
+                .setLocation(location)
+                .setName(name)
+                .setReturnType(returnType)
+                .addTypeParameters(typeParameters)
+                .setSynthetic(synthetic)
+                .setMethodEscape(methodEscape)
+                .setLoopCounter(loopCounter)
+                .setMaxLoopCounter(maxLoopCounter);
     }
 
     @Override

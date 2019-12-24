@@ -19,13 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.DotSubShortcutNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
 
@@ -77,19 +76,15 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.invokeMethodCall(getter);
-
-        if (!getter.returnType.equals(getter.javaMethod.getReturnType())) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    int accessElementCount() {
-        return 1;
+    DotSubShortcutNode write() {
+        return new DotSubShortcutNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location)
+                .setGetter(getter)
+                .setSetter(setter);
     }
 
     @Override
@@ -100,31 +95,6 @@ final class PSubShortcut extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.invokeMethodCall(getter);
-
-        if (getter.returnType != getter.javaMethod.getReturnType()) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.invokeMethodCall(setter);
-
-        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 
     @Override

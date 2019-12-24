@@ -19,14 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.IfElseNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -107,30 +103,12 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        Label fals = new Label();
-        Label end = new Label();
-
-        condition.write(classWriter, methodWriter, globals);
-        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-        ifblock.continu = continu;
-        ifblock.brake = brake;
-        ifblock.write(classWriter, methodWriter, globals);
-
-        if (!ifblock.allEscape) {
-            methodWriter.goTo(end);
-        }
-
-        methodWriter.mark(fals);
-
-        elseblock.continu = continu;
-        elseblock.brake = brake;
-        elseblock.write(classWriter, methodWriter, globals);
-
-        methodWriter.mark(end);
+    IfElseNode write() {
+        return new IfElseNode()
+                .setConditionNode(condition.write())
+                .setBlockNode(ifblock.write())
+                .setElseBlockNode(elseblock.write())
+                .setLocation(location);
     }
 
     @Override

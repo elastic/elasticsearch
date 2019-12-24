@@ -19,11 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.StaticNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -57,8 +56,13 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
+    StaticNode write() {
+        return new StaticNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location);
     }
 
     @Override

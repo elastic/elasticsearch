@@ -19,14 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.IfNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
@@ -81,19 +77,11 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        Label fals = new Label();
-
-        condition.write(classWriter, methodWriter, globals);
-        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-        ifblock.continu = continu;
-        ifblock.brake = brake;
-        ifblock.write(classWriter, methodWriter, globals);
-
-        methodWriter.mark(fals);
+    IfNode write() {
+        return new IfNode()
+                .setConditionNode(condition.write())
+                .setBlockNode(ifblock.write())
+                .setLocation(location);
     }
 
     @Override

@@ -31,8 +31,9 @@ public class FieldNode extends IRNode {
 
     protected TypeNode typeNode;
 
-    public void setTypeNode(TypeNode typeNode) {
+    public FieldNode setTypeNode(TypeNode typeNode) {
         this.typeNode = typeNode;
+        return this;
     }
 
     public TypeNode getTypeNode() {

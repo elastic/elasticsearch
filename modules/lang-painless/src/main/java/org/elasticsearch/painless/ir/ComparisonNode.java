@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
@@ -36,6 +35,25 @@ import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 public class ComparisonNode extends BinaryNode {
 
     /* ---- begin tree structure ---- */
+
+    protected TypeNode comparisonTypeNode;
+
+    public ComparisonNode setComparisonTypeNode(TypeNode comparisonTypeNode) {
+        this.comparisonTypeNode = comparisonTypeNode;
+        return this;
+    }
+
+    public TypeNode getComparisonTypeNode() {
+        return comparisonTypeNode;
+    }
+
+    public Class<?> getComparisonType() {
+        return comparisonTypeNode.getType();
+    }
+
+    public String getComparisonCanonicalTypeName() {
+        return comparisonTypeNode.getCanonicalTypeName();
+    }
 
     @Override
     public ComparisonNode setLeftNode(ExpressionNode leftNode) {
@@ -102,31 +120,32 @@ public class ComparisonNode extends BinaryNode {
 
         boolean writejump = true;
 
-        Class<?> type = getType();
-        Type asmType = MethodWriter.getType(type);
+        Class<?> comparisonType = getComparisonType();
+        Type asmComparisonType = MethodWriter.getType(comparisonType);
 
-        if (type == void.class || type == byte.class || type == short.class || type == char.class) {
-            throw new IllegalStateException("unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for comparison");
-        } else if (type == boolean.class) {
-            if (eq) methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
+        if (comparisonType == void.class || comparisonType == byte.class || comparisonType == short.class || comparisonType == char.class) {
+            throw new IllegalStateException("unexpected type [" + getComparisonCanonicalTypeName() + "] for comparison");
+        } else if (comparisonType == boolean.class) {
+            if (eq) methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
             else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
                         "for type [" + getCanonicalTypeName() + "]");
             }
-        } else if (type == int.class || type == long.class || type == float.class || type == double.class) {
-            if (eq) methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
-            else if (lt) methodWriter.ifCmp(asmType, MethodWriter.LT, jump);
-            else if (lte) methodWriter.ifCmp(asmType, MethodWriter.LE, jump);
-            else if (gt) methodWriter.ifCmp(asmType, MethodWriter.GT, jump);
-            else if (gte) methodWriter.ifCmp(asmType, MethodWriter.GE, jump);
+        } else if (comparisonType == int.class || comparisonType == long.class
+                || comparisonType == float.class || comparisonType == double.class) {
+            if (eq) methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
+            else if (lt) methodWriter.ifCmp(asmComparisonType, MethodWriter.LT, jump);
+            else if (lte) methodWriter.ifCmp(asmComparisonType, MethodWriter.LE, jump);
+            else if (gt) methodWriter.ifCmp(asmComparisonType, MethodWriter.GT, jump);
+            else if (gte) methodWriter.ifCmp(asmComparisonType, MethodWriter.GE, jump);
             else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
                         "for type [" + getCanonicalTypeName() + "]");
             }
 
-        } else if (type == def.class) {
+        } else if (comparisonType == def.class) {
             Type booleanType = Type.getType(boolean.class);
             Type descriptor = Type.getMethodType(booleanType,
                     MethodWriter.getType(leftNode.getType()), MethodWriter.getType(rightNode.getType()));
@@ -138,7 +157,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     writejump = false;
                 } else {
-                    methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
                 if (rightNode instanceof NullNode) {
@@ -147,7 +166,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
                 }
             } else if (lt) {
                 methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
@@ -173,7 +192,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
                     writejump = false;
                 } else {
-                    methodWriter.ifCmp(asmType, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
                 if (rightNode instanceof NullNode) {
@@ -182,7 +201,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
                     methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    methodWriter.ifCmp(asmType, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
                 }
             } else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +

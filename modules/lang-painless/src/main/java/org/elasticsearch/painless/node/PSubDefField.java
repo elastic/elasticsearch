@@ -19,14 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.DotSubDefNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -57,17 +55,14 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
-    }
-
-    @Override
-    int accessElementCount() {
-        return 1;
+    DotSubDefNode write() {
+        return new DotSubDefNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location)
+                .setValue(value);
     }
 
     @Override
@@ -78,29 +73,6 @@ final class PSubDefField extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         this.actual = actual;
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
-            org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), MethodWriter.getType(actual));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 
     @Override

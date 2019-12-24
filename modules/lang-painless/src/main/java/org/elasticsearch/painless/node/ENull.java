@@ -19,14 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.NullNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
 
@@ -65,8 +63,13 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitInsn(Opcodes.ACONST_NULL);
+    NullNode write() {
+        return new NullNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location);
     }
 
     @Override

@@ -34,6 +34,25 @@ public class UnaryMathNode extends UnaryNode {
 
     /* ---- begin tree structure ---- */
 
+    protected TypeNode unaryTypeNode;
+
+    public UnaryMathNode setUnaryTypeNode(TypeNode unaryTypeNode) {
+        this.unaryTypeNode = unaryTypeNode;
+        return this;
+    }
+
+    public TypeNode getUnaryTypeNode() {
+        return unaryTypeNode;
+    }
+
+    public Class<?> getUnaryType() {
+        return unaryTypeNode.getType();
+    }
+
+    public String getUnaryCanonicalTypeName() {
+        return unaryTypeNode.getCanonicalTypeName();
+    }
+    
     @Override
     public UnaryMathNode setTypeNode(TypeNode typeNode) {
         super.setTypeNode(typeNode);

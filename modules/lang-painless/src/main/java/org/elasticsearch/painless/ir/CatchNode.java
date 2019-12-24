@@ -77,8 +77,8 @@ public class CatchNode extends StatementNode {
 
         methodWriter.mark(jump);
         methodWriter.visitVarInsn(MethodWriter.getType(
-                declarationNode.getCaptured().clazz).getOpcode(Opcodes.ISTORE),
-                declarationNode.getCaptured().getSlot());
+                declarationNode.getVariable().clazz).getOpcode(Opcodes.ISTORE),
+                declarationNode.getVariable().getSlot());
 
         if (blockNode != null) {
             blockNode.continueLabel = continueLabel;
@@ -86,7 +86,7 @@ public class CatchNode extends StatementNode {
             blockNode.write(classWriter, methodWriter, globals);
         }
 
-        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declarationNode.getCaptured().clazz).getInternalName());
+        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declarationNode.getVariable().clazz).getInternalName());
 
         if (exception != null && (blockNode == null || blockNode.doAllEscape() == false)) {
             methodWriter.goTo(exception);

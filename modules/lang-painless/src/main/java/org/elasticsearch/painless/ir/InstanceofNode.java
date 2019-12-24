@@ -37,16 +37,16 @@ public class InstanceofNode extends UnaryNode {
         return this;
     }
 
+    public TypeNode getExpressionTypeNode() {
+        return expressionTypeNode;
+    }
+
     public InstanceofNode setResolvedTypeNode(TypeNode resolvedTypeNode) {
         this.resolvedTypeNode = resolvedTypeNode;
         return this;
     }
 
-    public TypeNode setExpressionTypeNode() {
-        return expressionTypeNode;
-    }
-
-    public TypeNode setResolvedTypeNode() {
+    public TypeNode getResolvedTypeNode() {
         return resolvedTypeNode;
     }
 

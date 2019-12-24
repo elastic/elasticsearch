@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
 
@@ -72,14 +70,10 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        if (expression != null) {
-            expression.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.returnValue();
+    ReturnNode write() {
+        return new ReturnNode()
+                .setExpressionNode(expression.write())
+                .setLocation(location);
     }
 
     @Override

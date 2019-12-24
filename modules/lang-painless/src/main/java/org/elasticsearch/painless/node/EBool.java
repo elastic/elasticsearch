@@ -19,15 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ir.BooleanNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
@@ -79,40 +76,16 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (operation == Operation.AND) {
-            Label fals = new Label();
-            Label end = new Label();
-
-            left.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            right.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else if (operation == Operation.OR) {
-            Label tru = new Label();
-            Label fals = new Label();
-            Label end = new Label();
-
-            left.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            right.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.mark(tru);
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+    BooleanNode write() {
+        return new BooleanNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLeftNode(left.write())
+                .setRightNode(right.write())
+                .setLocation(location)
+                .setOperation(operation);
     }
 
     @Override

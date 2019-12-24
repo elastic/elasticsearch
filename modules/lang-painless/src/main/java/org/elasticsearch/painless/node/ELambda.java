@@ -19,18 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.LambdaNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -188,25 +186,15 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        if (ref != null) {
-            methodWriter.writeDebugInfo(location);
-            // load captures
-            for (Variable capture : captures) {
-                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
-            }
-
-            methodWriter.invokeLambdaCall(ref);
-        } else {
-            // placeholder
-            methodWriter.push((String)null);
-            // load captures
-            for (Variable capture : captures) {
-                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
-            }
-        }
+    LambdaNode write() {
+        return new LambdaNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location)
+                .setFuncRef(ref)
+                .addCaptures(captures);
     }
 
     @Override

@@ -55,7 +55,7 @@ public class ConstantNode extends ExpressionNode {
 
     /* ---- end node data ---- */
     
-    ConstantNode() {
+    public ConstantNode() {
         // do nothing
     }
 

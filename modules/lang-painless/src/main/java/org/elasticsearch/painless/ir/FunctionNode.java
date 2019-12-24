@@ -78,6 +78,11 @@ public class FunctionNode extends IRNode {
         return this;
     }
 
+    public FunctionNode addTypeParameters(List<Class<?>> typeParameters) {
+        this.typeParameters.addAll(typeParameters);
+        return this;
+    }
+
     public FunctionNode setTypeParameter(int index, Class<?> typeParameter) {
         typeParameters.set(index, typeParameter);
         return this;

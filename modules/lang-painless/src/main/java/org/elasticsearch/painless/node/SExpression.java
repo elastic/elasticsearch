@@ -19,11 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -72,15 +70,11 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-        expression.write(classWriter, methodWriter, globals);
-
-        if (methodEscape) {
-            methodWriter.returnValue();
-        } else {
-            methodWriter.writePop(MethodWriter.getType(expression.expected).getSize());
-        }
+    StatementExpressionNode write() {
+        return new StatementExpressionNode()
+                .setExpressionNode(expression.write())
+                .setLocation(location)
+                .setMethodEscape(methodEscape);
     }
 
     @Override

@@ -19,13 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.InstanceofNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -82,20 +81,23 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // primitive types
-        if (primitiveExpression) {
-            // run the expression anyway (who knows what it does)
-            expression.write(classWriter, methodWriter, globals);
-            // discard its result
-            methodWriter.writePop(MethodWriter.getType(expression.actual).getSize());
-            // push our result: its a primitive so it cannot be null.
-            methodWriter.push(resolvedType.isAssignableFrom(expressionType));
-        } else {
-            // ordinary instanceof
-            expression.write(classWriter, methodWriter, globals);
-            methodWriter.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
-        }
+    InstanceofNode write() {
+        return new InstanceofNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setChildNode(expression.write())
+                .setExpressionTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(expressionType)
+                )
+                .setResolvedTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(resolvedType)
+                )
+                .setLocation(location)
+                .setPrimitiveResult(primitiveExpression);
     }
 
     @Override

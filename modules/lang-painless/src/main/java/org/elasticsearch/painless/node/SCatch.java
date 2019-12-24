@@ -19,15 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
@@ -91,26 +88,11 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        Label jump = new Label();
-
-        methodWriter.mark(jump);
-        methodWriter.visitVarInsn(
-                MethodWriter.getType(declaration.variable.clazz).getOpcode(Opcodes.ISTORE), declaration.variable.getSlot());
-
-        if (block != null) {
-            block.continu = continu;
-            block.brake = brake;
-            block.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declaration.variable.clazz).getInternalName());
-
-        if (exception != null && (block == null || !block.allEscape)) {
-            methodWriter.goTo(exception);
-        }
+    CatchNode write() {
+        return new CatchNode()
+                .setDeclarationNode(declaration.write())
+                .setBlockNode(block.write())
+                .setLocation(location);
     }
 
     @Override

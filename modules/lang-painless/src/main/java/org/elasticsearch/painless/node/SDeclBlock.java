@@ -19,11 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
@@ -62,10 +60,15 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        for (AStatement declaration : declarations) {
-            declaration.write(classWriter, methodWriter, globals);
+    DeclarationBlockNode write() {
+        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode()
+                .setLocation(location);
+
+        for (SDeclaration declaration : declarations) {
+            declarationBlockNode.addDeclarationNode(declaration.write());
         }
+
+        return declarationBlockNode;
     }
 
     @Override

@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.ConditionNode;
+import org.elasticsearch.painless.ir.ForEachLoopNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -111,8 +110,10 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.write(classWriter, methodWriter, globals);
+    ForEachLoopNode write() {
+        return new ForEachLoopNode()
+                .setConditionNode((ConditionNode)sub.write())
+                .setLocation(location);
     }
 
     @Override

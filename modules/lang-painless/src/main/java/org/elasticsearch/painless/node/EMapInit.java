@@ -19,17 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.MapInitializationNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.HashMap;
 import java.util.List;
@@ -110,24 +107,21 @@ public final class EMapInit extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.newInstance(MethodWriter.getType(actual));
-        methodWriter.dup();
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+    MapInitializationNode write() {
+        MapInitializationNode mapInitializationNode = new MapInitializationNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location)
+                .setConstructor(constructor)
+                .setMethod(method);
 
         for (int index = 0; index < keys.size(); ++index) {
-            AExpression key = keys.get(index);
-            AExpression value = values.get(index);
-
-            methodWriter.dup();
-            key.write(classWriter, methodWriter, globals);
-            value.write(classWriter, methodWriter, globals);
-            methodWriter.invokeMethodCall(method);
-            methodWriter.pop();
+            mapInitializationNode.addArgumentNode(keys.get(index).write(), values.get(index).write());
         }
+
+        return mapInitializationNode;
     }
 
     @Override

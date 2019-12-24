@@ -19,11 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.ContinueNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Set;
@@ -58,8 +56,9 @@ public final class SContinue extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.goTo(continu);
+    ContinueNode write() {
+        return new ContinueNode()
+                .setLocation(location);
     }
 
     @Override

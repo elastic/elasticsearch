@@ -19,19 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.ir.CapturingFuncRefNode;
+import org.elasticsearch.painless.ir.TypeNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
@@ -85,23 +81,17 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        if (defPointer != null) {
-            // dynamic interface: push captured parameter on stack
-            // TODO: don't do this: its just to cutover :)
-            methodWriter.push((String)null);
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-        } else if (ref == null) {
-            // typed interface, dynamic implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(MethodWriter.getType(expected), MethodWriter.getType(captured.clazz));
-            methodWriter.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.typeToCanonicalTypeName(expected));
-        } else {
-            // typed interface, typed implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            methodWriter.invokeLambdaCall(ref);
-        }
+    CapturingFuncRefNode write() {
+        return new CapturingFuncRefNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location)
+                .setCaptured(captured)
+                .setName(call)
+                .setPointer(defPointer)
+                .setFuncRef(ref);
     }
 
     @Override

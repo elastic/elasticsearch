@@ -19,14 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ir.TypeNode;
+import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
@@ -63,13 +61,14 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
-
-    @Override
-    int accessElementCount() {
-        return 0;
+    VariableNode write() {
+        return new VariableNode()
+                .setTypeNode(new TypeNode()
+                        .setLocation(location)
+                        .setType(actual)
+                )
+                .setLocation(location)
+                .setVariable(variable);
     }
 
     @Override
@@ -80,21 +79,6 @@ public final class EVariable extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 
     @Override

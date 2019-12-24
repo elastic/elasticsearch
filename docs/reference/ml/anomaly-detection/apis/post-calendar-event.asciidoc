@@ -40,18 +40,18 @@ of which must have a start time, end time, and description.
 	and end times may be specified as integer milliseconds since the epoch or as a
 	string in ISO 8601 format. An event resource has the following properties:
 
-	`calendar_id`:::
+`events`.`calendar_id`:::
 	  (Optional, string) An identifier for the calendar that contains the scheduled
 	  event.
 
-	`description`:::
+`events`.`description`:::
 	  (Optional, string) A description of the scheduled event.
 
-	`end_time`:::
+`events`.`end_time`:::
 	  (Required, date) The timestamp for the end of the scheduled event
 	  in milliseconds since the epoch or ISO 8601 format.
 
-	`start_time`:::
+`events`.`start_time`:::
 	 (Required, date) The timestamp for the beginning of the scheduled event
 	 in milliseconds since the epoch or ISO 8601 format.
 

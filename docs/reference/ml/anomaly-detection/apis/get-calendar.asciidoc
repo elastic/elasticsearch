@@ -40,27 +40,24 @@ For more information, see
 [[ml-get-calendar-request-body]]
 ==== {api-request-body-title}
 
-`page`::
-`from`:::
+`page`.`from`::
     (Optional, integer) Skips the specified number of calendars.
 
-`size`:::
+`page`.`size`::
     (Optional, integer) Specifies the maximum number of calendars to obtain.
 
 [[ml-get-calendar-results]]
 ==== {api-response-body-title}
 
-The API returns the following information:
+The API returns an array of calendar resources, which have the following
+properties:
 
-`calendars`::
-  (array) An array of calendar resources. A calendar resource has the following
-  properties:
-  `calendar_id`:::
-    (string) A numerical character string that uniquely identifies the calendar.
+`calendar_id`::
+(string) A numerical character string that uniquely identifies the calendar.
 
-  `job_ids`:::
-    (array) An array of {anomaly-job} identifiers. For example:
-    `["total-requests"]`.
+`job_ids`::
+(array) An array of {anomaly-job} identifiers. For example:
+`["total-requests"]`.
 
 [[ml-get-calendar-example]]
 ==== {api-examples-title}

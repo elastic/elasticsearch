@@ -59,8 +59,8 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
-import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -68,14 +68,14 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Binar
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
-import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
-import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
-import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
@@ -106,6 +106,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -772,6 +773,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
+            "cluster.remote_info",
             "create",
             "get_script_context",
             "get_script_languages",

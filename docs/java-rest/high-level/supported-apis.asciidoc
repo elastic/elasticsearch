@@ -168,14 +168,12 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-put-settings>>
 * <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
-* <<java-rest-high-cluster-remote-info>>
 
 :upid: {mainid}-cluster
 :doc-tests-file: {doc-tests}/ClusterClientDocumentationIT.java
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
-include::cluster/remote_info.asciidoc[]
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:

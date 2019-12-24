@@ -2,7 +2,7 @@
   "indices.get_upgrade":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-upgrade.html",
-      "description":"The _upgrade API is no longer useful and will be removed."
+      "description":"Returns a progress status of current upgrade."
     },
     "stability":"stable",
     "url":{
@@ -47,6 +47,10 @@
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       }
+    },
+    "deprecated":{
+      "version":"8.0.0",
+      "description":"The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
     }
   }
 }

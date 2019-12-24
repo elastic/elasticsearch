@@ -2,7 +2,7 @@
   "indices.upgrade":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-upgrade.html",
-      "description":"The _upgrade API is no longer useful and will be removed."
+      "description":"Upgrades to the current version of Lucene."
     },
     "stability":"stable",
     "url":{
@@ -55,6 +55,10 @@
         "type":"boolean",
         "description":"If true, only ancient (an older Lucene major release) segments will be upgraded"
       }
+    },
+    "deprecated":{
+      "version":"8.0.0",
+      "description":"The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
     }
   }
 }

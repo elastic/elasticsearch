@@ -92,10 +92,9 @@ parallel and close one when you are satisfied with the results of the other job.
 
 `script_fields`::
   (Optional, object) Specifies scripts that evaluate custom expressions and
-  returns script fields to the {dfeed}. The
-  <<ml-detectorconfig,detector configuration objects>> in a job can contain
-  functions that use these script fields. For more information, see
-  <<request-body-search-script-fields,Script fields>>.
+  returns script fields to the {dfeed}. The detector configuration objects in a
+  job can contain functions that use these script fields. For more information,
+  see <<request-body-search-script-fields,Script fields>>.
 
 `scroll_size`::
   (Optional, unsigned integer) The `size` parameter that is used in {es}

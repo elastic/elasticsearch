@@ -138,10 +138,6 @@ public abstract class AbstractScopedSettings {
         return AFFIX_KEY_PATTERN.matcher(key).matches();
     }
 
-    public Logger getLogger() {
-        return logger;
-    }
-
     public Setting.Property getScope() {
         return this.scope;
     }

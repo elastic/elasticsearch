@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -34,6 +36,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -1122,21 +1126,35 @@ public class SettingTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("must be stored inside elasticsearch.yml"));
     }
 
+    @TestLogging(value="org.elasticsearch.common.settings.IndexScopedSettings:INFO",
+        reason="to ensure we log INFO-level messages from IndexScopedSettings")
     public void testLogSettingUpdate() throws Exception {
-        IndexMetaData metaData = newIndexMeta("index1",
+        final IndexMetaData metaData = newIndexMeta("index1",
             Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "20s").build());
-        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
-        Logger logger = settings.getScopedSettings().getLogger();
+        final IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
 
-        MockAppender appender = new MockAppender("trace_appender");
-        appender.start();
-        Loggers.addAppender(logger, appender);
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            "message",
+            "org.elasticsearch.common.settings.IndexScopedSettings",
+            Level.INFO,
+            "updating [index.refresh_interval] from [20s] to [10s]") {
+            @Override
+            public boolean innerMatch(LogEvent event) {
+                return event.getMarker().getName().equals(" [index1]");
+            }
+        });
+        mockLogAppender.start();
+        final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
+        try {
+            Loggers.addAppender(logger, mockLogAppender);
+            settings.updateIndexMetaData(newIndexMeta("index1",
+                Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build()));
 
-        settings.updateIndexMetaData(newIndexMeta("index1",
-            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build()));
-
-        assertThat(appender.lastMementoMessage().getFormattedMessage(), equalTo("updating [index.refresh_interval] from [20s] to [10s]"));
-        assertThat(appender.getLoggerMaker(), equalTo(" [index1]"));
-        appender.stop();
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockLogAppender);
+            mockLogAppender.stop();
+        }
     }
 }

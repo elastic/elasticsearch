@@ -39,7 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoBoundingBoxIT extends ESIntegTestCase {
+public class GeoBoundingBoxQueryIT extends ESIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

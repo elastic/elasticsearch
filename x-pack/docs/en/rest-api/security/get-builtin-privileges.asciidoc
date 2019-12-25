@@ -63,7 +63,6 @@ A successful call returns an object with "cluster" and "index" fields.
   "cluster" : [
     "all",
     "create_snapshot",
-    "monitor_snapshot",
     "delegate_pki",
     "manage",
     "manage_api_key",
@@ -88,6 +87,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_data_frame_transforms",
     "monitor_ml",
     "monitor_rollup",
+    "monitor_snapshot",
     "monitor_transform",
     "monitor_watcher",
     "none",

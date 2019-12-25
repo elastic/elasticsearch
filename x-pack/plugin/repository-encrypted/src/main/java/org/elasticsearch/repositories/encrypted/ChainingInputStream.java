@@ -8,6 +8,9 @@ package org.elasticsearch.repositories.encrypted;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -45,6 +48,8 @@ import org.elasticsearch.common.Nullable;
  * This is NOT thread-safe, multiple threads sharing a single instance must synchronize access.
  */
 public abstract class ChainingInputStream extends InputStream {
+
+    private static final Logger LOGGER = LogManager.getLogger(ChainingInputStream.class);
 
     /**
      * value for the current input stream when there are no subsequent streams remaining, i.e. when
@@ -216,8 +221,8 @@ public abstract class ChainingInputStream extends InputStream {
      * This simply forwards the {@code available} call to the current
      * component input stream, so the returned value is a conservative
      * lower bound of the available byte count; i.e. it's possible that
-     * subsequent component streams have available bytes which are not
-     * accounted for in the return value of this method.
+     * subsequent component streams have available bytes but this method
+     * only returns the available bytes of the current component.
      *
      * @return     an estimate of the number of bytes that can be read (or skipped
      *             over) from this input stream without blocking.
@@ -271,6 +276,7 @@ public abstract class ChainingInputStream extends InputStream {
                     markIn.close();
                 } catch (IOException e) {
                     // an IOException on a component input stream close is not important
+                    LOGGER.info("IOException while closing a marked component input stream during a mark", e);
                 }
             }
             // stores the current input stream to be reused in case of a reset
@@ -312,6 +318,7 @@ public abstract class ChainingInputStream extends InputStream {
                 currentIn.close();
             } catch (IOException e) {
                 // an IOException on a component input stream close is not important
+                LOGGER.info("IOException while closing the current component input stream during a reset", e);
             }
         }
         currentIn = markIn;

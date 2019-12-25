@@ -61,12 +61,13 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
      * used during encryption.
      * Each ciphertext packet is prepended by the Initilization Vector and appended the Authentication Tag.
      * Decryption is 1:1, and the ciphertext is not padded, but stripping away the IV and the AT amounts to a shorter
-     * plaintext.
+     * plaintext compared to the ciphertext.
      *
      * @see EncryptionPacketsInputStream#getEncryptionLength(long, int)
      */
     public static long getDecryptionLength(long ciphertextLength, int packetLength) {
-        long encryptedPacketLength = packetLength + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES;
+        long encryptedPacketLength =
+                packetLength + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES;
         long completePackets = ciphertextLength / encryptedPacketLength;
         long decryptedSize = completePackets * packetLength;
         if (ciphertextLength % encryptedPacketLength != 0) {

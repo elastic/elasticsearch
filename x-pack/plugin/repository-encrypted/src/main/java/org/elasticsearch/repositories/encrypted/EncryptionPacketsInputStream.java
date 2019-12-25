@@ -99,7 +99,8 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         this.packetLength = packetLength;
         this.packetIv = ByteBuffer.allocate(EncryptedRepository.GCM_IV_LENGTH_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
         this.packetIv.putInt(0, nonce);
-        this.encryptedPacketLength = packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
+        this.encryptedPacketLength =
+                packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         this.counter = EncryptedRepository.PACKET_START_COUNTER;
         this.markCounter = null;
         this.markSourceOnNextPacket = -1;

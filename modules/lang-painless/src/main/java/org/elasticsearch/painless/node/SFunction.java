@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.StatementNode;
@@ -59,8 +58,6 @@ public final class SFunction extends AStatement {
 
     org.objectweb.asm.commons.Method method;
     List<Parameter> parameters = new ArrayList<>();
-
-    private Variable loop = null;
 
     public SFunction(Location location, String rtnType, String name,
                      List<String> paramTypes, List<String> paramNames, SBlock block,
@@ -135,7 +132,7 @@ public final class SFunction extends AStatement {
         }
 
         if (maxLoopCounter > 0) {
-            loop = locals.getVariable(null, Locals.LOOP);
+            loopCounter = locals.getVariable(null, Locals.LOOP);
         }
     }
 

@@ -80,8 +80,8 @@ public class CallSubDefNode extends ArgumentsNode {
 
     protected String name;
     protected String recipe;
-    protected List<String> pointers;
-    protected List<Class<?>> typeParameters;
+    protected List<String> pointers = new ArrayList<>();
+    protected List<Class<?>> typeParameters = new ArrayList<>();
 
     public CallSubDefNode setName(String name) {
         this.name = name;
@@ -208,7 +208,7 @@ public class CallSubDefNode extends ArgumentsNode {
         // create method type from return value and arguments
         Type[] asmParameterTypes = new Type[typeParameters.size()];
         for (int index = 0; index < asmParameterTypes.length; ++index) {
-            asmParameterTypes[index] = Type.getType(typeParameters.get(index));
+            asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
         }
         Type methodType = Type.getMethodType(MethodWriter.getType(getType()), asmParameterTypes);
 

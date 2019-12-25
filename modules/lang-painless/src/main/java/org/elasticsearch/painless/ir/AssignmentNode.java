@@ -33,6 +33,25 @@ public class AssignmentNode extends BinaryNode {
 
     /* ---- begin tree structure ---- */
 
+    protected TypeNode compoundTypeNode;
+
+    public AssignmentNode setCompoundTypeNode(TypeNode compoundTypeNode) {
+        this.compoundTypeNode = compoundTypeNode;
+        return this;
+    }
+
+    public TypeNode getCompoundTypeNode() {
+        return compoundTypeNode;
+    }
+
+    public Class<?> getCompoundType() {
+        return compoundTypeNode.getType();
+    }
+
+    public String getCompoundCanonicalTypeName() {
+        return compoundTypeNode.getCanonicalTypeName();
+    }
+    
     @Override
     public AssignmentNode setLeftNode(ExpressionNode leftNode) {
         super.setLeftNode(leftNode);
@@ -200,11 +219,11 @@ public class AssignmentNode extends BinaryNode {
             // XXX: fix these types, but first we need def compound assignment tests.
             // its tricky here as there are possibly explicit casts, too.
             // write the operation instruction for compound assignment
-            if (getType() == def.class) {
+            if (getCompoundType() == def.class) {
                 methodWriter.writeDynamicBinaryInstruction(
-                    location, getType(), def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                    location, getCompoundType(), def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
-                methodWriter.writeBinaryInstruction(location, getType(), operation);
+                methodWriter.writeBinaryInstruction(location, getCompoundType(), operation);
             }
 
             methodWriter.writeCast(back); // if necessary cast the promotion type value back to the lhs's type

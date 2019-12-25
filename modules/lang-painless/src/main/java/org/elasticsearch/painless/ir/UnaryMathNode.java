@@ -141,13 +141,13 @@ public class UnaryMathNode extends UnaryNode {
             Type childType = MethodWriter.getType(childNode.getType());
 
             if (operation == Operation.BWNOT) {
-                if (getType() == def.class) {
+                if (getUnaryType() == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
                     methodWriter.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
-                    if (getType() == int.class) {
+                    if (getUnaryType() == int.class) {
                         methodWriter.push(-1);
-                    } else if (getType() == long.class) {
+                    } else if (getUnaryType() == long.class) {
                         methodWriter.push(-1L);
                     } else {
                         throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
@@ -157,14 +157,14 @@ public class UnaryMathNode extends UnaryNode {
                     methodWriter.math(MethodWriter.XOR, actualType);
                 }
             } else if (operation == Operation.SUB) {
-                if (getType() == def.class) {
+                if (getUnaryType() == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
                     methodWriter.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
                     methodWriter.math(MethodWriter.NEG, actualType);
                 }
             } else if (operation == Operation.ADD) {
-                if (getType() == def.class) {
+                if (getUnaryType() == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
                     methodWriter.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 }

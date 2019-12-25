@@ -196,7 +196,8 @@ public final class EUnary extends AExpression {
                         .setType(promote)
                 )
                 .setLocation(location)
-                .setOperation(operation);
+                .setOperation(operation)
+                .setOriginallExplicit(originallyExplicit);
     }
 
     @Override

@@ -73,7 +73,8 @@ public class PSubNullSafeField extends AStoreable {
                         .setLocation(location)
                         .setType(actual)
                 )
-                .setChildNode(guarded.write());
+                .setChildNode(guarded.write())
+                .setLocation(location);
     }
 
     @Override

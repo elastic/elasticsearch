@@ -91,7 +91,7 @@ public final class SCatch extends AStatement {
     CatchNode write() {
         return new CatchNode()
                 .setDeclarationNode(declaration.write())
-                .setBlockNode(block.write())
+                .setBlockNode(block == null ? null : block.write())
                 .setLocation(location);
     }
 

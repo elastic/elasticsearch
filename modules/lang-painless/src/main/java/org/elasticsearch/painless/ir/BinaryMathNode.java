@@ -35,6 +35,25 @@ public class BinaryMathNode extends ShiftNode {
 
     /* ---- begin tree structure ---- */
 
+    protected TypeNode binaryTypeNode;
+
+    public BinaryMathNode setBinaryTypeNode(TypeNode binaryTypeNode) {
+        this.binaryTypeNode = binaryTypeNode;
+        return this;
+    }
+
+    public TypeNode getBinaryTypeNode() {
+        return binaryTypeNode;
+    }
+
+    public Class<?> getBinaryType() {
+        return binaryTypeNode.getType();
+    }
+
+    public String getBinaryCanonicalTypeName() {
+        return binaryTypeNode.getCanonicalTypeName();
+    }
+
     @Override
     public BinaryMathNode setShiftTypeNode(TypeNode shiftTypeNode) {
         super.setShiftTypeNode(shiftTypeNode);
@@ -108,20 +127,20 @@ public class BinaryMathNode extends ShiftNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        if (getType() == String.class && operation == Operation.ADD) {
+        if (getBinaryType() == String.class && operation == Operation.ADD) {
             if (!cat) {
                 methodWriter.writeNewStrings();
             }
 
             leftNode.write(classWriter, methodWriter, globals);
 
-            if ((leftNode instanceof BinaryMathNode) == false || ((BinaryMathNode)leftNode).cat == false) {
+            if (!(leftNode instanceof BinaryMathNode) || !((BinaryMathNode)leftNode).cat) {
                 methodWriter.writeAppendStrings(leftNode.getType());
             }
 
             rightNode.write(classWriter, methodWriter, globals);
 
-            if ((rightNode instanceof BinaryMathNode) == false || ((BinaryMathNode)rightNode).cat == false) {
+            if (!(rightNode instanceof BinaryMathNode) || !((BinaryMathNode)rightNode).cat) {
                 methodWriter.writeAppendStrings(rightNode.getType());
             }
 
@@ -145,7 +164,7 @@ public class BinaryMathNode extends ShiftNode {
             leftNode.write(classWriter, methodWriter, globals);
             rightNode.write(classWriter, methodWriter, globals);
 
-            if (getType() == def.class || (getShiftTypeNode() != null && getShiftType() == def.class)) {
+            if (getBinaryType() == def.class || (getShiftType() != null && getShiftType() == def.class)) {
                 // def calls adopt the wanted return value. if there was a narrowing cast,
                 // we need to flag that so that its done at runtime.
                 int flags = 0;

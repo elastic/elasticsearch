@@ -28,6 +28,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class FunctionNode extends IRNode {
@@ -49,7 +50,7 @@ public class FunctionNode extends IRNode {
 
     protected String name;
     Class<?> returnType;
-    List<Class<?>> typeParameters;
+    List<Class<?>> typeParameters = new ArrayList<>();
     protected boolean isSynthetic;
     protected boolean doesMethodEscape;
     protected Variable loopCounter;
@@ -116,7 +117,7 @@ public class FunctionNode extends IRNode {
     }
 
     public FunctionNode setSynthetic(boolean isSythetic) {
-        this.name = name;
+        this.isSynthetic = isSythetic;
         return this;
     }
 
@@ -171,11 +172,11 @@ public class FunctionNode extends IRNode {
             access |= Opcodes.ACC_SYNTHETIC;
         }
 
-        Type asmReturnType = Type.getType(returnType);
+        Type asmReturnType = MethodWriter.getType(returnType);
         Type[] asmParameterTypes = new Type[typeParameters.size()];
 
         for (int index = 0; index < asmParameterTypes.length; ++index) {
-            asmParameterTypes[index] = Type.getType(typeParameters.get(index));
+            asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
         }
 
         Method method = new Method(name, asmReturnType, asmParameterTypes);

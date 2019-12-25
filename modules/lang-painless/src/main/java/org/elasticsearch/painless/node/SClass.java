@@ -181,7 +181,8 @@ public final class SClass extends AStatement {
                 .setSourceText(sourceText)
                 .setMainMethod(mainMethod)
                 .setMethodEscape(methodEscape)
-                .addGetMethods(getMethods);
+                .addGetMethods(getMethods)
+                .addExtractedVariables(extractedVariables);
 
         for (SField field : fields) {
             classNode.addFieldNode(field.writeField());

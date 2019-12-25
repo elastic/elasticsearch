@@ -27,6 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -42,7 +43,7 @@ public class LambdaNode extends ExpressionNode {
 
     /* ---- end tree structure, begin node data ---- */
 
-    protected List<Variable> captures;
+    protected List<Variable> captures = new ArrayList<>();
     protected FunctionRef funcRef;
 
     public LambdaNode addCapture(Variable capture) {

@@ -120,32 +120,33 @@ public class ComparisonNode extends BinaryNode {
 
         boolean writejump = true;
 
-        Class<?> comparisonType = getComparisonType();
-        Type asmComparisonType = MethodWriter.getType(comparisonType);
+        Type type = MethodWriter.getType(getComparisonType());
 
-        if (comparisonType == void.class || comparisonType == byte.class || comparisonType == short.class || comparisonType == char.class) {
-            throw new IllegalStateException("unexpected type [" + getComparisonCanonicalTypeName() + "] for comparison");
-        } else if (comparisonType == boolean.class) {
-            if (eq) methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
+        if (getComparisonType() == void.class || getComparisonType() == byte.class
+                || getComparisonType() == short.class || getComparisonType() == char.class) {
+            throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
+                    "for type [" + getCanonicalTypeName() + "]");
+        } else if (getComparisonType() == boolean.class) {
+            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
             else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
                         "for type [" + getCanonicalTypeName() + "]");
             }
-        } else if (comparisonType == int.class || comparisonType == long.class
-                || comparisonType == float.class || comparisonType == double.class) {
-            if (eq) methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
-            else if (lt) methodWriter.ifCmp(asmComparisonType, MethodWriter.LT, jump);
-            else if (lte) methodWriter.ifCmp(asmComparisonType, MethodWriter.LE, jump);
-            else if (gt) methodWriter.ifCmp(asmComparisonType, MethodWriter.GT, jump);
-            else if (gte) methodWriter.ifCmp(asmComparisonType, MethodWriter.GE, jump);
+        } else if (getComparisonType() == int.class || getComparisonType() == long.class
+                || getComparisonType() == float.class || getComparisonType() == double.class) {
+            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
+            else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
+            else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
+            else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
+            else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
             else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
                         "for type [" + getCanonicalTypeName() + "]");
             }
 
-        } else if (comparisonType == def.class) {
+        } else if (getComparisonType() == def.class) {
             Type booleanType = Type.getType(boolean.class);
             Type descriptor = Type.getMethodType(booleanType,
                     MethodWriter.getType(leftNode.getType()), MethodWriter.getType(rightNode.getType()));
@@ -157,7 +158,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     writejump = false;
                 } else {
-                    methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
                 if (rightNode instanceof NullNode) {
@@ -166,7 +167,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
                 }
             } else if (lt) {
                 methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
@@ -192,7 +193,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
                     writejump = false;
                 } else {
-                    methodWriter.ifCmp(asmComparisonType, MethodWriter.EQ, jump);
+                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
                 }
             } else if (ne) {
                 if (rightNode instanceof NullNode) {
@@ -201,7 +202,7 @@ public class ComparisonNode extends BinaryNode {
                     methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
                     methodWriter.ifZCmp(MethodWriter.EQ, jump);
                 } else {
-                    methodWriter.ifCmp(asmComparisonType, MethodWriter.NE, jump);
+                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
                 }
             } else {
                 throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +

@@ -64,7 +64,8 @@ public class PSubNullSafeCallInvoke extends AExpression {
                         .setLocation(location)
                         .setType(actual)
                 )
-                .setChildNode(guarded.write());
+                .setChildNode(guarded.write())
+                .setLocation(location);
     }
 
     @Override

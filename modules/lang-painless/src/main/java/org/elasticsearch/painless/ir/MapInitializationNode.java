@@ -55,7 +55,7 @@ public class MapInitializationNode extends ExpressionNode {
     }
 
     public ExpressionNode getValueNode(int index) {
-        return keyNodes.get(index);
+        return valueNodes.get(index);
     }
 
     public ExpressionNode[] getArgumentNode(int index) {

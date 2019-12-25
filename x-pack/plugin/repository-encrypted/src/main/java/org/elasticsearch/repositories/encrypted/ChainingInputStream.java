@@ -31,7 +31,7 @@ import org.elasticsearch.common.Nullable;
  * This stream does support {@code mark} and {@code reset} but it expects that the component
  * streams also support it. When {@code mark} is invoked on the chaining input stream, the
  * call is forwarded to the current input stream component and a reference to that component
- * is stored internally. A {@reset} invocation on the chaining input stream will then make the
+ * is stored internally. A {@code reset} invocation on the chaining input stream will then make the
  * stored component the current component and will then call the {@code reset} on it.
  * The {@link #nextComponent(InputStream)} method must be able to generate the same components
  * anew, starting from the component of the {@code reset} call.

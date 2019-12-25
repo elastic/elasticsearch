@@ -56,13 +56,22 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     private boolean hasNext;
     private long counter;
 
-    public static long getDecryptionSize(long size, int packetLength) {
-        long encryptedPacketLength = packetLength + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES + EncryptedRepository.GCM_IV_SIZE_IN_BYTES;
-        long completePackets = size / encryptedPacketLength;
+    /**
+     * Computes and returns the length of the plaintext given the {@code ciphertextLength} and the {@code packetLength}
+     * used during encryption.
+     * Each ciphertext packet is prepended by the Initilization Vector and appended the Authentication Tag.
+     * Decryption is 1:1, and the ciphertext is not padded, but stripping away the IV and the AT amounts to a shorter
+     * plaintext.
+     *
+     * @see EncryptionPacketsInputStream#getEncryptionLength(long, int)
+     */
+    public static long getDecryptionLength(long ciphertextLength, int packetLength) {
+        long encryptedPacketLength = packetLength + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES;
+        long completePackets = ciphertextLength / encryptedPacketLength;
         long decryptedSize = completePackets * packetLength;
-        if (size % encryptedPacketLength != 0) {
-            decryptedSize += (size % encryptedPacketLength) - EncryptedRepository.GCM_IV_SIZE_IN_BYTES
-                    - EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        if (ciphertextLength % encryptedPacketLength != 0) {
+            decryptedSize += (ciphertextLength % encryptedPacketLength) - EncryptedRepository.GCM_IV_LENGTH_IN_BYTES
+                    - EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         }
         return decryptedSize;
     }
@@ -75,8 +84,8 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             throw new IllegalArgumentException("Invalid packet length [" + packetLength + "]");
         }
         this.packetLength = packetLength;
-        this.packet = new byte[packetLength + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES];
-        this.iv = new byte[EncryptedRepository.GCM_IV_SIZE_IN_BYTES];
+        this.packet = new byte[packetLength + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES];
+        this.iv = new byte[EncryptedRepository.GCM_IV_LENGTH_IN_BYTES];
         this.hasNext = true;
         this.counter = EncryptedRepository.PACKET_START_COUNTER;
     }
@@ -90,7 +99,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             return null;
         }
         PrefixInputStream packetInputStream = new PrefixInputStream(source,
-                packetLength + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES,
+                packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES,
                 false);
         int currentPacketLength = decrypt(packetInputStream);
         // only the last packet is shorter, so this must be the last packet
@@ -123,7 +132,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             throw new IOException("Invalid packet IV");
         }
         int packetLength = packetInputStream.read(packet);
-        if (packetLength < EncryptedRepository.GCM_TAG_SIZE_IN_BYTES) {
+        if (packetLength < EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES) {
             throw new IOException("Error while reading the packet");
         }
         Cipher packetCipher = getPacketDecryptionCipher(iv);
@@ -136,7 +145,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     }
 
     private Cipher getPacketDecryptionCipher(byte[] packetIv) throws IOException {
-        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, packetIv);
+        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, packetIv);
         try {
             Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
             packetCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);

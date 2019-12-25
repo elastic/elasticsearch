@@ -33,13 +33,22 @@ import java.util.Objects;
  * the resulting stream.
  * <p>
  * The packets are encrypted using the same {@link SecretKey} but using a different initialization
- * vector. The IV is 12 bytes wide and is comprised of a 4-byte integer {@code nonce}, the same for
- * every packet in a stream, but which MUST not otherwise be repeated for the same {@code SecretKey}
- * across other streams, and a monotonically increasing long counter. When assembling the resulting
- * stream, the IV is prepended to the corresponding packet's ciphertext.
+ * vector. The IV of each packet is 12 bytes wide and is comprised of a 4-byte integer {@code nonce},
+ * the same for every packet in the stream, and a monotonically increasing 8-byte integer counter.
+ * The caller must assure that the same {@code nonce} is not reused for other encrypted streams
+ * using the same {@code secretKey}. The counter from the IV identifies the position of the packet
+ * in the encrypted stream, so that packets cannot be reordered without breaking the decryption.
+ * When assembling the encrypted stream, the IV is prepended to the corresponding packet's ciphertext.
  * <p>
- * The packet size is preferably a large multiple of the AES block size (128 bytes), but any positive
- * integer value smaller than {@link EncryptedRepository#MAX_PACKET_LENGTH_IN_BYTES} is valid.
+ * The packet length is preferably a large multiple (typically 128) of the AES block size (128 bytes),
+ * but any positive integer value smaller than {@link EncryptedRepository#MAX_PACKET_LENGTH_IN_BYTES}
+ * is valid. A larger packet length incurs smaller relative size overhead because the 12 byte wide IV
+ * and the 16 byte wide authentication tag are constant no matter the packet length. A larger packet
+ * length also exposes more opportunities for the JIT compilation of the AES encryption loop. But
+ * {@code mark} will buffer up to packet length bytes, and, more importantly, <b>decryption</b> might
+ * need to allocate a memory buffer the size of the packet in order to assure that no un-authenticated
+ * decrypted ciphertext is returned. The decryption procedure is the primary factor that limits the
+ * packet length.
  * <p>
  * This input stream supports the {@code mark} and {@code reset} operations, but only if the wrapped
  * stream supports them as well. A {@code mark} call will trigger the memory buffering of the current
@@ -56,18 +65,29 @@ import java.util.Objects;
  */
 public final class EncryptionPacketsInputStream extends ChainingInputStream {
 
-    protected final InputStream source; // protected for tests
     private final SecretKey secretKey;
     private final int packetLength;
     private final ByteBuffer packetIv;
     private final int encryptedPacketLength;
 
-    protected long counter; // protected for tests
-    protected Long markCounter; // protected for tests
-    protected int markSourceOnNextPacket; // protected for tests
+    final InputStream source; // package-protected for tests
+    long counter; // package-protected for tests
+    Long markCounter; // package-protected for tests
+    int markSourceOnNextPacket; // package-protected for tests
 
-    public static long getEncryptionSize(long size, int packetLength) {
-        return size + (size / packetLength + 1) * (EncryptedRepository.GCM_TAG_SIZE_IN_BYTES + EncryptedRepository.GCM_IV_SIZE_IN_BYTES);
+    /**
+     * Computes and returns the length of the ciphertext given the {@code plaintextLength} and the {@code packetLength}
+     * used during encryption.
+     * The plaintext is segmented into packets of equal {@code packetLength} length, with the exception of the last
+     * packet which is shorter and can have a length of {@code 0}. Encryption is packet-wise and is 1:1, with no padding.
+     * But each encrypted packet is prepended by the Initilization Vector and appended the Authentication Tag, including
+     * the last packet, so when pieced together will amount to a longer resulting ciphertext.
+     *
+     * @see DecryptionPacketsInputStream#getDecryptionLength(long, int)
+     */
+    public static long getEncryptionLength(long plaintextLength, int packetLength) {
+        return plaintextLength + (plaintextLength / packetLength + 1) * (EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES
+                + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES);
     }
 
     public EncryptionPacketsInputStream(InputStream source, SecretKey secretKey, int nonce, int packetLength) {
@@ -77,9 +97,9 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
             throw new IllegalArgumentException("Invalid packet length [" + packetLength + "]");
         }
         this.packetLength = packetLength;
-        this.packetIv = ByteBuffer.allocate(EncryptedRepository.GCM_IV_SIZE_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        this.packetIv = ByteBuffer.allocate(EncryptedRepository.GCM_IV_LENGTH_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
         this.packetIv.putInt(0, nonce);
-        this.encryptedPacketLength = packetLength + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        this.encryptedPacketLength = packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         this.counter = EncryptedRepository.PACKET_START_COUNTER;
         this.markCounter = null;
         this.markSourceOnNextPacket = -1;
@@ -147,7 +167,7 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
     }
 
     private static Cipher getPacketEncryptionCipher(SecretKey secretKey, byte[] packetIv) throws IOException {
-        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, packetIv);
+        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, packetIv);
         try {
             Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
             packetCipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmParameterSpec);

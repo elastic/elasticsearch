@@ -825,7 +825,7 @@ GET /messages/_search?pretty=true
 ===== Age of a Message Script Field Example
 
 The following example uses a
-{ref}/search-request-script-fields.html[script field] as part of the
+{ref}/search-request-body.html#request-body-search-script-fields[script field] as part of the
 <<painless-field-context, field context>> to display the elapsed time between
 "now" and when a message was received.
 

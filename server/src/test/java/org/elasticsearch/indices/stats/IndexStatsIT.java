@@ -982,9 +982,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         indexRandom(false, true,
                 client().prepareIndex("index").setId("1").setSource("foo", "bar"),
                 client().prepareIndex("index").setId("2").setSource("foo", "baz"));
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
-        }
+        persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
         ensureGreen();
 

@@ -83,7 +83,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK =
         new ClusterBlock(5, "index read-only (api)", false, false, false,
-            RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+            RestStatus.TOO_MANY_REQUESTS, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock INDEX_READ_BLOCK =
         new ClusterBlock(7, "index read (api)", false, false, false,
             RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
@@ -95,7 +95,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK =
         new ClusterBlock(12, "index read-only / allow delete (api)", false, false,
-            true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
+            true, RestStatus.TOO_MANY_REQUESTS, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
 
     public enum State {
         OPEN((byte) 0),

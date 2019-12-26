@@ -148,7 +148,9 @@ public class ElasticsearchAssertions {
             assertNotNull("expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(),
                     clusterBlockException);
             assertThat(clusterBlockException.blocks().size(), greaterThan(0));
-            assertThat(clusterBlockException.status(), CoreMatchers.equalTo(RestStatus.FORBIDDEN));
+
+            RestStatus status = checkReadOnlyBlock(clusterBlockException.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
+            assertThat(clusterBlockException.status(), CoreMatchers.equalTo(status));
         }
     }
 
@@ -164,7 +166,8 @@ public class ElasticsearchAssertions {
             fail("Request executed with success but a ClusterBlockException was expected");
         } catch (ClusterBlockException e) {
             assertThat(e.blocks().size(), greaterThan(0));
-            assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+            RestStatus status = checkReadOnlyBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
+            assertThat(e.status(), equalTo(status));
 
             if (expectedBlockId != null) {
                 boolean found = false;
@@ -187,6 +190,15 @@ public class ElasticsearchAssertions {
      */
     public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final ClusterBlock expectedBlock) {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
+    }
+
+    private static boolean checkReadOnlyBlock(Set<ClusterBlock> clusterBlocks){
+        for (ClusterBlock clusterBlock : clusterBlocks) {
+            if (clusterBlock.id() == 5 || clusterBlock.id() == 6 || clusterBlock.id() == 12 || clusterBlock.id() == 13) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static String formatShardStatus(BroadcastResponse response) {

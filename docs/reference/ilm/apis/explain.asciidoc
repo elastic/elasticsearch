@@ -276,7 +276,7 @@ the case.
       "failed_step_retry_count": 1, <3>
       "step_info": { <4>
         "type": "cluster_block_exception",
-        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] blocked by: [FORBIDDEN/5/index read-only (api)",
+        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] blocked by: [TOO_MANY_REQUESTS/5/index read-only (api)",
         "index_uuid": "H7lF9n36Rzqa-KfKcnGQMg",
         "index": "test-000057"
       },

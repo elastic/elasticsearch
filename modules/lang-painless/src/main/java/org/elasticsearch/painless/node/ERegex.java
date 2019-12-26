@@ -20,10 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.RegexNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -61,7 +62,7 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
@@ -87,7 +88,7 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    RegexNode write() {
+    RegexNode write(ClassNode classNode) {
         RegexNode regexNode = new RegexNode();
         regexNode.setLocation(location);
 

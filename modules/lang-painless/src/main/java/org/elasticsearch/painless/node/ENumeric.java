@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -48,7 +49,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
         }
@@ -115,7 +116,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    ExpressionNode write() {
+    ExpressionNode write(ClassNode classNode) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 

@@ -21,10 +21,11 @@ package org.elasticsearch.painless.node;
 
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.AssignmentNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -71,26 +72,26 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        analyzeLHS(scriptRoot, locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        analyzeLHS(scriptRoot, scope);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(scriptRoot, locals);
+            analyzeCompound(scriptRoot, scope);
         } else if (rhs != null) {
-            analyzeSimple(scriptRoot, locals);
+            analyzeSimple(scriptRoot, scope);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
     }
 
-    private void analyzeLHS(ScriptRoot scriptRoot, Locals locals) {
+    private void analyzeLHS(ScriptRoot scriptRoot, Scope scope) {
         if (lhs instanceof AStoreable) {
             AStoreable lhs = (AStoreable)this.lhs;
 
             lhs.read = read;
             lhs.write = true;
-            lhs.analyze(scriptRoot, locals);
+            lhs.analyze(scriptRoot, scope);
         } else {
             throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
         }
@@ -134,8 +135,8 @@ public final class EAssignment extends AExpression {
         }
     }
 
-    private void analyzeCompound(ScriptRoot scriptRoot, Locals locals) {
-        rhs.analyze(scriptRoot, locals);
+    private void analyzeCompound(ScriptRoot scriptRoot, Scope scope) {
+        rhs.analyze(scriptRoot, scope);
         boolean shift = false;
 
         if (operation == Operation.MUL) {
@@ -197,7 +198,7 @@ public final class EAssignment extends AExpression {
             rhs.expected = promote;
         }
 
-        rhs = rhs.cast(scriptRoot, locals);
+        rhs = rhs.cast(scriptRoot, scope);
 
         there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
         back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
@@ -206,12 +207,12 @@ public final class EAssignment extends AExpression {
         this.actual = read ? lhs.actual : void.class;
     }
 
-    private void analyzeSimple(ScriptRoot scriptRoot, Locals locals) {
+    private void analyzeSimple(ScriptRoot scriptRoot, Scope scope) {
         AStoreable lhs = (AStoreable)this.lhs;
 
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
         if (lhs.isDefOptimized()) {
-            rhs.analyze(scriptRoot, locals);
+            rhs.analyze(scriptRoot, scope);
 
             if (rhs.actual == void.class) {
                 throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -222,10 +223,10 @@ public final class EAssignment extends AExpression {
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
             rhs.expected = lhs.actual;
-            rhs.analyze(scriptRoot, locals);
+            rhs.analyze(scriptRoot, scope);
         }
 
-        rhs = rhs.cast(scriptRoot, locals);
+        rhs = rhs.cast(scriptRoot, scope);
 
         this.statement = true;
         this.actual = read ? lhs.actual : void.class;
@@ -238,11 +239,11 @@ public final class EAssignment extends AExpression {
      * also read from.
      */
     @Override
-    AssignmentNode write() {
+    AssignmentNode write(ClassNode classNode) {
         AssignmentNode assignmentNode = new AssignmentNode();
 
-        assignmentNode.setLeftNode(lhs.write());
-        assignmentNode.setRightNode(rhs.write());
+        assignmentNode.setLeftNode(lhs.write(classNode));
+        assignmentNode.setRightNode(rhs.write(classNode));
 
         assignmentNode.setLocation(location);
         assignmentNode.setExpressionType(actual);

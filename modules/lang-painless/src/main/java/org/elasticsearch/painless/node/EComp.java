@@ -20,9 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
@@ -57,29 +58,29 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (operation == Operation.EQ) {
-            analyzeEq(scriptRoot, locals);
+            analyzeEq(scriptRoot, scope);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(scriptRoot, locals);
+            analyzeEqR(scriptRoot, scope);
         } else if (operation == Operation.NE) {
-            analyzeNE(scriptRoot, locals);
+            analyzeNE(scriptRoot, scope);
         } else if (operation == Operation.NER) {
-            analyzeNER(scriptRoot, locals);
+            analyzeNER(scriptRoot, scope);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(scriptRoot, locals);
+            analyzeGTE(scriptRoot, scope);
         } else if (operation == Operation.GT) {
-            analyzeGT(scriptRoot, locals);
+            analyzeGT(scriptRoot, scope);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(scriptRoot, locals);
+            analyzeLTE(scriptRoot, scope);
         } else if (operation == Operation.LT) {
-            analyzeLT(scriptRoot, locals);
+            analyzeLT(scriptRoot, scope);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeEq(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -129,7 +130,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeEqR(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeEqR(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -170,7 +171,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNE(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeNE(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -220,7 +221,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNER(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeNER(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -261,7 +262,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGTE(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeGTE(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -301,7 +302,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGT(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeGT(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -341,7 +342,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLTE(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeLTE(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -381,7 +382,7 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLT(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeLT(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -422,11 +423,11 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    ComparisonNode write() {
+    ComparisonNode write(ClassNode classNode) {
         ComparisonNode comparisonNode = new ComparisonNode();
 
-        comparisonNode.setLeftNode(left.write());
-        comparisonNode.setRightNode(right.write());
+        comparisonNode.setLeftNode(left.write(classNode));
+        comparisonNode.setRightNode(right.write(classNode));
 
         comparisonNode.setLocation(location);
         comparisonNode.setExpressionType(actual);

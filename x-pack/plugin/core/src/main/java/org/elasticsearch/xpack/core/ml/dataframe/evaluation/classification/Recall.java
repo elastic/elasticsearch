@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,24 +70,14 @@ public class Recall implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
-    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+    private static final int MAX_CLASSES_CARDINALITY = 1000;
 
-    private final int maxClassesCardinality;
-    private String actualField;
-    private EvaluationMetricResult result;
+    private final SetOnce<String> actualField = new SetOnce<>();
+    private final SetOnce<Result> result = new SetOnce<>();
 
-    public Recall() {
-        this((Integer) null);
-    }
+    public Recall() {}
 
-    // Visible for testing
-    public Recall(@Nullable Integer maxClassesCardinality) {
-        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
-    }
-
-    public Recall(StreamInput in) throws IOException {
-        this.maxClassesCardinality = in.readVInt();
-    }
+    public Recall(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -102,8 +92,8 @@ public class Recall implements EvaluationMetric {
     @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField = actualField;
-        if (result != null) {
+        this.actualField.trySet(actualField);
+        if (result.get() != null) {
             return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
         Script script = buildScript(actualField, predictedField);
@@ -111,7 +101,7 @@ public class Recall implements EvaluationMetric {
             Arrays.asList(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
-                    .size(maxClassesCardinality)
+                    .size(MAX_CLASSES_CARDINALITY)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             Arrays.asList(
                 PipelineAggregatorBuilders.avgBucket(
@@ -121,15 +111,15 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (result == null &&
+        if (result.get() == null &&
                 aggs.get(BY_ACTUAL_CLASS_AGG_NAME) instanceof Terms &&
                 aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
             if (byActualClassAgg.getSumOfOtherDocCounts() > 0) {
-                // This means there were more than {@code maxClassesCardinality} buckets.
+                // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average recall accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField);
+                    "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField.get());
             }
             NumericMetricsAggregation.SingleValue avgRecallAgg = aggs.get(AVG_RECALL_AGG_NAME);
             List<PerClassResult> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
@@ -138,18 +128,17 @@ public class Recall implements EvaluationMetric {
                 NumericMetricsAggregation.SingleValue recallAgg = bucket.getAggregations().get(PER_ACTUAL_CLASS_RECALL_AGG_NAME);
                 classes.add(new PerClassResult(className, recallAgg.value()));
             }
-            result = new Result(classes, avgRecallAgg.value());
+            result.set(new Result(classes, avgRecallAgg.value()));
         }
     }
 
     @Override
-    public Optional<EvaluationMetricResult> getResult() {
-        return Optional.ofNullable(result);
+    public Optional<Result> getResult() {
+        return Optional.ofNullable(result.get());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxClassesCardinality);
     }
 
     @Override

@@ -159,7 +159,7 @@ methods of the types in between. Type B is also considered to be a type A
 in both relationships.
 
 For the complete list of Painless reference types and their supported methods,
-see the https://www.elastic.co/guide/en/elasticsearch/reference/current/painless-api-reference.html[Painless API Reference].
+see the {painless}/painless-api-reference.html[Painless API Reference].
 
 For more information about working with reference types, see
 <<field-access, Accessing Fields>> and <<method-access, Calling Methods>>.

@@ -110,7 +110,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         test6.mark(randomInt());
     }
 
-    public void testHeadComponentArgumentIsNull() throws Exception {
+    public void testInitialComponentArgumentIsNull() throws Exception {
         AtomicReference<InputStream> headInputStream = new AtomicReference<>();
         AtomicBoolean nextCalled = new AtomicBoolean(false);
         ChainingInputStream test = new ChainingInputStream() {

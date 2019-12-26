@@ -28,6 +28,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -98,7 +99,7 @@ public class BinaryMathNode extends BinaryNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         if (getBinaryType() == String.class && operation == Operation.ADD) {
@@ -106,13 +107,13 @@ public class BinaryMathNode extends BinaryNode {
                 methodWriter.writeNewStrings();
             }
 
-            getLeftNode().write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
 
             if (getLeftNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getLeftNode()).getCat() == false) {
                 methodWriter.writeAppendStrings(getLeftNode().getExpressionType());
             }
 
-            getRightNode().write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, globals, scopeTable);
 
             if (getRightNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getRightNode()).getCat() == false) {
                 methodWriter.writeAppendStrings(getRightNode().getExpressionType());
@@ -122,8 +123,8 @@ public class BinaryMathNode extends BinaryNode {
                 methodWriter.writeToStrings();
             }
         } else if (operation == Operation.FIND || operation == Operation.MATCH) {
-            getRightNode().write(classWriter, methodWriter, globals);
-            getLeftNode().write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, globals, scopeTable);
+            getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
             methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
@@ -135,8 +136,8 @@ public class BinaryMathNode extends BinaryNode {
                         "for type [" + getExpressionCanonicalTypeName() + "]");
             }
         } else {
-            getLeftNode().write(classWriter, methodWriter, globals);
-            getRightNode().write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
+            getRightNode().write(classWriter, methodWriter, globals, scopeTable);
 
             if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
                 // def calls adopt the wanted return value. if there was a narrowing cast,

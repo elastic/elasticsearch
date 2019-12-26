@@ -105,7 +105,6 @@ public final class SWhile extends AStatement {
         whileNode.setBlockNode(block == null ? null : block.write());
 
         whileNode.setLocation(location);
-        whileNode.setLoopCounter(loopCounter);
         whileNode.setContinuous(continuous);
 
         return whileNode;

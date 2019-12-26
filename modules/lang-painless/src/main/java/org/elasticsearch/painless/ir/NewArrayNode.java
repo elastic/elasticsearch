@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 public class NewArrayNode extends ArgumentsNode {
 
@@ -40,7 +41,7 @@ public class NewArrayNode extends ArgumentsNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         if (initialize) {
@@ -52,12 +53,12 @@ public class NewArrayNode extends ArgumentsNode {
 
                 methodWriter.dup();
                 methodWriter.push(index);
-                argumentNode.write(classWriter, methodWriter, globals);
+                argumentNode.write(classWriter, methodWriter, globals, scopeTable);
                 methodWriter.arrayStore(MethodWriter.getType(getExpressionType().getComponentType()));
             }
         } else {
             for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(classWriter, methodWriter, globals);
+                argumentNode.write(classWriter, methodWriter, globals, scopeTable);
             }
 
             if (getArgumentNodes().size() > 1) {

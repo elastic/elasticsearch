@@ -22,13 +22,14 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 public class DotNode extends BinaryNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getLeftNode().write(classWriter, methodWriter, globals);
-        getRightNode().write(classWriter, methodWriter, globals);
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+        getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
+        getRightNode().write(classWriter, methodWriter, globals, scopeTable);
     }
 
     @Override
@@ -36,19 +37,18 @@ public class DotNode extends BinaryNode {
         return getRightNode().accessElementCount();
     }
 
-    @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getLeftNode().write(classWriter, methodWriter, globals);
-        getRightNode().setup(classWriter, methodWriter, globals);
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+        getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
+        getRightNode().setup(classWriter, methodWriter, globals, scopeTable);
     }
 
     @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getRightNode().load(classWriter, methodWriter, globals);
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+        getRightNode().load(classWriter, methodWriter, globals, scopeTable);
     }
 
     @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getRightNode().store(classWriter, methodWriter, globals);
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+        getRightNode().store(classWriter, methodWriter, globals, scopeTable);
     }
 }

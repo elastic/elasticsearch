@@ -65,7 +65,7 @@ public final class EVariable extends AStoreable {
 
         variableNode.setLocation(location);
         variableNode.setExpressionType(actual);
-        variableNode.setVariable(variable);
+        variableNode.setName(name);
 
         return variableNode;
     }

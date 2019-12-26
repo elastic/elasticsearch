@@ -85,13 +85,12 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
 
         capturingFuncRefNode.setLocation(location);
         capturingFuncRefNode.setExpressionType(actual);
-        capturingFuncRefNode.setCaptured(captured);
+        capturingFuncRefNode.setCapturedName(captured.name);
         capturingFuncRefNode.setName(call);
         capturingFuncRefNode.setPointer(defPointer);
         capturingFuncRefNode.setFuncRef(ref);;
 
         return capturingFuncRefNode;
-
     }
 
     @Override

@@ -286,6 +286,10 @@ Number of suggest operations, such as `0`.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
++
+--
+deprecated::[8.0, Parameter `local` is deprecated. It has no effect on the API call locality.]
+--
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

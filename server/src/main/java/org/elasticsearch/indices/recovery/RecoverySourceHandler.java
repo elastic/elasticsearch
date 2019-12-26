@@ -555,7 +555,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    private void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
+    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
         runUnderPrimaryPermit(() -> {
                 // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
                 // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an

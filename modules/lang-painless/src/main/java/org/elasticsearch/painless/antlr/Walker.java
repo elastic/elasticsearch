@@ -251,6 +251,16 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         // part of the overall class
         List<AStatement> statements = new ArrayList<>();
 
+        // add gets methods as declarations available for the user as variables
+        for (int index = 0; index < scriptClassInfo.getGetMethods().size(); ++index) {
+            org.objectweb.asm.commons.Method method = scriptClassInfo.getGetMethods().get(index);
+            String name = method.getName().substring(3);
+            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+
+            statements.add(new SDeclaration(location(ctx),
+                    new DResolvedType(location(ctx), scriptClassInfo.getGetReturns().get(index), false), name, null));
+        }
+
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }

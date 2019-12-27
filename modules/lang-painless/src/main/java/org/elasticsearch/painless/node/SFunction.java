@@ -125,20 +125,6 @@ public final class SFunction extends ANode {
             functionScope.defineVariable(location, typeParameter, parameterName, false);
         }
 
-        // TODO: do not specialize for execute
-        // TODO: https://github.com/elastic/elasticsearch/issues/51841
-        if ("execute".equals(name)) {
-            for (int get = 0; get < scriptRoot.getScriptClassInfo().getGetMethods().size(); ++get) {
-                org.objectweb.asm.commons.Method method = scriptRoot.getScriptClassInfo().getGetMethods().get(get);
-                String name = method.getName().substring(3);
-                name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-
-                Class<?> rtn = scriptRoot.getScriptClassInfo().getGetReturns().get(get);
-                functionScope.defineVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
-            }
-        }
-        // TODO: end
-
         maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
 
         if (block.statements.isEmpty()) {
@@ -146,7 +132,7 @@ public final class SFunction extends ANode {
         }
 
         block.lastSource = true;
-        block.analyze(scriptRoot, functionScope.newLocalScope());
+        block.analyze(scriptRoot, functionScope);
         methodEscape = block.methodEscape;
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {

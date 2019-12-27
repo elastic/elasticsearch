@@ -261,20 +261,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             paramNames.add(argument.getName());
         }
 
-        /*for (int index = 0; index < scriptClassInfo.getGetMethods().size(); ++index) {
-            org.objectweb.asm.commons.Method method = scriptClassInfo.getGetMethods().get(index);
-            String name = method.getName().substring(3);
-            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-
-            statements.add(0, new SDeclaration(location(ctx),
-                    new DResolvedType(location(ctx), scriptClassInfo.getGetReturns().get(index), false), name, null));
-        }*/
-
         SFunction execute = new SFunction(location(ctx), returnCanonicalTypeName, "execute", paramTypes, paramNames, new SBlock(
                 location(ctx), statements), true, false, false, true);
         functions.add(execute);
 
-        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions, statements);
+        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions);
     }
 
     @Override

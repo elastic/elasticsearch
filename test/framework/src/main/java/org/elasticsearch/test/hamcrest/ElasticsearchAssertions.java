@@ -194,7 +194,7 @@ public class ElasticsearchAssertions {
 
     private static boolean checkReadOnlyBlock(Set<ClusterBlock> clusterBlocks){
         for (ClusterBlock clusterBlock : clusterBlocks) {
-            if (clusterBlock.id() == 5 || clusterBlock.id() == 6 || clusterBlock.id() == 12 || clusterBlock.id() == 13) {
+            if (clusterBlock.id() == 12) {
                 return true;
             }
         }

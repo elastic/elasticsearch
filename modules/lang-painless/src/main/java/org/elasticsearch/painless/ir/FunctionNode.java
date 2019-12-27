@@ -51,7 +51,9 @@ public class FunctionNode extends IRNode {
     private Class<?> returnType;
     private List<Class<?>> typeParameters = new ArrayList<>();
     private List<String> parameterNames = new ArrayList<>();
+    private boolean isStatic;
     private boolean isSynthetic;
+    private boolean doAutoReturn;
     private boolean doesMethodEscape;
     private int maxLoopCounter;
 
@@ -87,12 +89,28 @@ public class FunctionNode extends IRNode {
         return parameterNames;
     }
 
+    public void setStatic(boolean isStatic) {
+        this.isStatic = isStatic;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
     public void setSynthetic(boolean isSythetic) {
         this.isSynthetic = isSythetic;
     }
 
     public boolean isSynthetic() {
         return isSynthetic;
+    }
+
+    public void setAutoReturn(boolean doAutoReturn) {
+        this.doAutoReturn = doAutoReturn;
+    }
+
+    public boolean doAutoReturn() {
+        return doAutoReturn;
     }
 
     public void setMethodEscape(boolean doesMethodEscape) {
@@ -115,7 +133,13 @@ public class FunctionNode extends IRNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
-        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
+        int access = Opcodes.ACC_PUBLIC;
+
+        if (isStatic) {
+            access |= Opcodes.ACC_STATIC;
+        } else {
+            scopeTable.defineVariable(Object.class, "#this");
+        }
 
         if (isSynthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
@@ -150,6 +174,22 @@ public class FunctionNode extends IRNode {
 
         if (doesMethodEscape == false) {
             if (returnType == void.class) {
+                methodWriter.returnValue();
+            } else if (doAutoReturn) {
+                if (returnType == boolean.class) {
+                    methodWriter.push(false);
+                } else if (returnType == byte.class || returnType == char.class || returnType == short.class || returnType == int.class) {
+                    methodWriter.push(0);
+                } else if (returnType == long.class) {
+                    methodWriter.push(0L);
+                } else if (returnType == float.class) {
+                    methodWriter.push(0f);
+                } else if (returnType == double.class) {
+                    methodWriter.push(0d);
+                } else {
+                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
+                }
+
                 methodWriter.returnValue();
             } else {
                 throw new IllegalStateException("not all paths provide a return value " +

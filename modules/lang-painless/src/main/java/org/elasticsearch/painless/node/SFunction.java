@@ -46,7 +46,10 @@ public final class SFunction extends ANode {
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
     private final SBlock block;
+    public final boolean isInternal;
+    public final boolean isStatic;
     public final boolean synthetic;
+    public final boolean doAutoReturn;
 
     private int maxLoopCounter;
 
@@ -60,7 +63,7 @@ public final class SFunction extends ANode {
 
     public SFunction(Location location, String rtnType, String name,
             List<String> paramTypes, List<String> paramNames,
-            SBlock block, boolean synthetic) {
+            SBlock block, boolean isInternal, boolean isStatic, boolean synthetic, boolean doAutoReturn) {
         super(location);
 
         this.rtnTypeStr = Objects.requireNonNull(rtnType);
@@ -68,7 +71,10 @@ public final class SFunction extends ANode {
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.block = Objects.requireNonNull(block);
+        this.isInternal = isInternal;
         this.synthetic = synthetic;
+        this.isStatic = isStatic;
+        this.doAutoReturn = doAutoReturn;
     }
 
     void generateSignature(PainlessLookup painlessLookup) {
@@ -138,7 +144,9 @@ public final class SFunction extends ANode {
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
         functionNode.getParameterNames().addAll(paramNameStrs);
+        functionNode.setStatic(isStatic);
         functionNode.setSynthetic(synthetic);
+        functionNode.setAutoReturn(doAutoReturn);
         functionNode.setMethodEscape(methodEscape);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 

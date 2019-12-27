@@ -92,7 +92,8 @@ public final class SClass extends ANode {
                 throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
             }
 
-            scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, false);
+            scriptRoot.getFunctionTable().addFunction(
+                    function.name, function.returnType, function.typeParameters, function.isInternal, function.isStatic);
         }
 
         // copy protection is required because synthetic functions are

@@ -9,13 +9,14 @@ package org.elasticsearch.repositories.encrypted;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,62 +28,88 @@ import static org.mockito.Mockito.when;
 
 public class ChainingInputStreamTests extends ESTestCase {
 
-    public void testSkipAcrossComponents() throws Exception {
+    public void testSkipWithinComponent() throws Exception {
+        byte[] b1 = randomByteArrayOfLength(randomIntBetween(2, 16));
         ChainingInputStream test = new ChainingInputStream() {
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
-                return null;
-            }
-        };
-        byte[] b1 = randomByteArrayOfLength(randomIntBetween(1, 16));
-        test.currentIn = new ByteArrayInputStream(b1);
-        long nSkip = test.skip(b1.length + randomIntBetween(1, 16));
-        assertThat(nSkip, Matchers.is((long)b1.length));
-        byte[] b2 = randomByteArrayOfLength(randomIntBetween(1, 16));
-        test = new ChainingInputStream() {
-            boolean second = false;
-            @Override
-            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
-                if (false == second) {
-                    second = true;
-                    return new ByteArrayInputStream(b2);
+                if (currentComponentIn == null) {
+                    return new ByteArrayInputStream(b1);
                 } else {
                     return null;
                 }
             }
         };
-        test.currentIn = new ByteArrayInputStream(b1);
+        int prefix = randomIntBetween(0, b1.length - 2);
+        test.readNBytes(prefix);
+        // skip less bytes than the component has
+        int nSkip1 = randomInt(b1.length - prefix);
+        long nSkip = test.skip(nSkip1);
+        assertThat((int)nSkip, Matchers.is(nSkip1));
+        int nSkip2 = randomInt(b1.length - prefix - nSkip1 + randomIntBetween(1, 8));
+        // skip more bytes than the component has
+        nSkip = test.skip(nSkip2);
+        assertThat((int) nSkip, Matchers.is(b1.length - prefix - nSkip1));
+    }
+
+    public void testSkipAcrossComponents() throws Exception {
+        byte[] b1 = randomByteArrayOfLength(randomIntBetween(1, 16));
+        byte[] b2 = randomByteArrayOfLength(randomIntBetween(1, 16));
+        ChainingInputStream test = new ChainingInputStream() {
+            final Iterator<ByteArrayInputStream> iter = List.of(new ByteArrayInputStream(b1), new ByteArrayInputStream(b2)).iterator();
+
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (iter.hasNext()) {
+                    return iter.next();
+                } else {
+                    return null;
+                }
+            }
+        };
         long skipArg = b1.length + randomIntBetween(1, b2.length);
-        nSkip = test.skip(skipArg);
+        long nSkip = test.skip(skipArg);
         assertThat(nSkip, Matchers.is(skipArg));
         byte[] rest = test.readAllBytes();
-        assertThat((long)rest.length, Matchers.is(b1.length + b2.length - nSkip));
+        assertThat((long) rest.length, Matchers.is(b1.length + b2.length - nSkip));
         for (int i = rest.length - 1; i >= 0; i--) {
-            assertThat(rest[i], Matchers.is(b2[i + (int)nSkip - b1.length]));
+            assertThat(rest[i], Matchers.is(b2[i + (int) nSkip - b1.length]));
         }
     }
 
     public void testEmptyChain() throws Exception {
-        ChainingInputStream emptyStream = newEmptyStream();
+        // chain is empty because it doesn't have any components
+        ChainingInputStream emptyStream = newEmptyStream(false);
         assertThat(emptyStream.read(), Matchers.is(-1));
-        emptyStream = newEmptyStream();
+        emptyStream = newEmptyStream(false);
         byte[] b = randomByteArrayOfLength(randomIntBetween(1, 8));
         int off = randomInt(b.length - 1);
         assertThat(emptyStream.read(b, off, b.length - off), Matchers.is(-1));
-        emptyStream = newEmptyStream();
+        emptyStream = newEmptyStream(false);
         assertThat(emptyStream.available(), Matchers.is(0));
-        emptyStream = newEmptyStream();
+        emptyStream = newEmptyStream(false);
+        assertThat(emptyStream.skip(randomIntBetween(1, 32)), Matchers.is(0L));
+        // chain is empty because all its components are empty
+        emptyStream = newEmptyStream(true);
+        assertThat(emptyStream.read(), Matchers.is(-1));
+        emptyStream = newEmptyStream(true);
+        b = randomByteArrayOfLength(randomIntBetween(1, 8));
+        off = randomInt(b.length - 1);
+        assertThat(emptyStream.read(b, off, b.length - off), Matchers.is(-1));
+        emptyStream = newEmptyStream(true);
+        assertThat(emptyStream.available(), Matchers.is(0));
+        emptyStream = newEmptyStream(true);
         assertThat(emptyStream.skip(randomIntBetween(1, 32)), Matchers.is(0L));
     }
 
     public void testClose() throws Exception {
-        ChainingInputStream test1 = newEmptyStream();
+        ChainingInputStream test1 = newEmptyStream(randomBoolean());
         test1.close();
         IOException e = expectThrows(IOException.class, () -> {
             test1.read();
         });
         assertThat(e.getMessage(), Matchers.is("Stream is closed"));
-        ChainingInputStream test2 = newEmptyStream();
+        ChainingInputStream test2 = newEmptyStream(randomBoolean());
         test2.close();
         byte[] b = randomByteArrayOfLength(randomIntBetween(2, 9));
         int off = randomInt(b.length - 2);
@@ -90,51 +117,61 @@ public class ChainingInputStreamTests extends ESTestCase {
             test2.read(b, off, randomInt(b.length - off - 1));
         });
         assertThat(e.getMessage(), Matchers.is("Stream is closed"));
-        ChainingInputStream test3 = newEmptyStream();
+        ChainingInputStream test3 = newEmptyStream(randomBoolean());
         test3.close();
         e = expectThrows(IOException.class, () -> {
             test3.skip(randomInt(31));
         });
-        ChainingInputStream test4 = newEmptyStream();
+        assertThat(e.getMessage(), Matchers.is("Stream is closed"));
+        ChainingInputStream test4 = newEmptyStream(randomBoolean());
         test4.close();
         e = expectThrows(IOException.class, () -> {
             test4.available();
         });
-        ChainingInputStream test5 = newEmptyStream();
+        assertThat(e.getMessage(), Matchers.is("Stream is closed"));
+        ChainingInputStream test5 = newEmptyStream(randomBoolean());
         test5.close();
         e = expectThrows(IOException.class, () -> {
             test5.reset();
         });
-        ChainingInputStream test6 = newEmptyStream();
+        assertThat(e.getMessage(), Matchers.is("Stream is closed"));
+        ChainingInputStream test6 = newEmptyStream(randomBoolean());
         test6.close();
-        test6.mark(randomInt());
+        try {
+            test6.mark(randomInt());
+        } catch (Exception e1) {
+            assumeNoException("mark on a closed stream should not throw", e1);
+        }
     }
 
     public void testInitialComponentArgumentIsNull() throws Exception {
-        AtomicReference<InputStream> headInputStream = new AtomicReference<>();
+        AtomicReference<InputStream> initialInputStream = new AtomicReference<>();
         AtomicBoolean nextCalled = new AtomicBoolean(false);
         ChainingInputStream test = new ChainingInputStream() {
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
-                headInputStream.set(currentComponentIn);
+                initialInputStream.set(currentComponentIn);
                 nextCalled.set(true);
                 return null;
             }
         };
         assertThat(test.read(), Matchers.is(-1));
         assertThat(nextCalled.get(), Matchers.is(true));
-        assertThat(headInputStream.get(), Matchers.nullValue());
+        assertThat(initialInputStream.get(), Matchers.nullValue());
     }
 
     public void testChaining() throws Exception {
         int componentCount = randomIntBetween(2, 9);
+        ByteBuffer testSource = ByteBuffer.allocate(componentCount);
         TestInputStream[] sourceComponents = new TestInputStream[componentCount];
         for (int i = 0; i < sourceComponents.length; i++) {
             byte[] b = randomByteArrayOfLength(randomInt(1));
+            testSource.put(b);
             sourceComponents[i] = new TestInputStream(b);
         }
         ChainingInputStream test = new ChainingInputStream() {
             int i = 0;
+
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
                 if (i == 0) {
@@ -142,11 +179,11 @@ public class ChainingInputStreamTests extends ESTestCase {
                     return sourceComponents[i++];
                 } else if (i < sourceComponents.length) {
                     assertThat(((TestInputStream) currentComponentIn).closed.get(), Matchers.is(true));
-                    assertThat(currentComponentIn, Matchers.is(sourceComponents[i-1]));
+                    assertThat(currentComponentIn, Matchers.is(sourceComponents[i - 1]));
                     return sourceComponents[i++];
                 } else if (i == sourceComponents.length) {
                     assertThat(((TestInputStream) currentComponentIn).closed.get(), Matchers.is(true));
-                    assertThat(currentComponentIn, Matchers.is(sourceComponents[i-1]));
+                    assertThat(currentComponentIn, Matchers.is(sourceComponents[i - 1]));
                     i++;
                     return null;
                 } else {
@@ -159,7 +196,12 @@ public class ChainingInputStreamTests extends ESTestCase {
                 return false;
             }
         };
-        test.readAllBytes();
+        byte[] testArr = test.readAllBytes();
+        byte[] ref = testSource.array();
+        // testArr and ref should be equal, but ref might have trailing zeroes
+        for (int i = 0; i < testArr.length; i++) {
+            assertThat(testArr[i], Matchers.is(ref[i]));
+        }
     }
 
     public void testEmptyInputStreamComponents() throws Exception {
@@ -168,42 +210,42 @@ public class ChainingInputStreamTests extends ESTestCase {
         byte[] result = test.v1().readAllBytes();
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
-            Assert.assertThat(result[i], Matchers.is(test.v2()[i]));
+            assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // leading double empty streams
         test = testEmptyComponentsInChain(3, Arrays.asList(0, 1));
         result = test.v1().readAllBytes();
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
-            Assert.assertThat(result[i], Matchers.is(test.v2()[i]));
+            assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // trailing single empty stream
         test = testEmptyComponentsInChain(3, Arrays.asList(2));
         result = test.v1().readAllBytes();
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
-            Assert.assertThat(result[i], Matchers.is(test.v2()[i]));
+            assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // trailing double empty stream
         test = testEmptyComponentsInChain(3, Arrays.asList(1, 2));
         result = test.v1().readAllBytes();
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
-            Assert.assertThat(result[i], Matchers.is(test.v2()[i]));
+            assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // middle single empty stream
         test = testEmptyComponentsInChain(3, Arrays.asList(1));
         result = test.v1().readAllBytes();
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
-            Assert.assertThat(result[i], Matchers.is(test.v2()[i]));
+            assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // leading and trailing empty streams
         test = testEmptyComponentsInChain(3, Arrays.asList(0, 2));
         result = test.v1().readAllBytes();
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
-            Assert.assertThat(result[i], Matchers.is(test.v2()[i]));
+            assertThat(result[i], Matchers.is(test.v2()[i]));
         }
     }
 
@@ -217,6 +259,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         sourceComponents[2] = new TestInputStream(b2);
         ChainingInputStream test = new ChainingInputStream() {
             int i = 0;
+
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
                 chainComponents[i] = (TestInputStream) currentComponentIn;
@@ -233,11 +276,7 @@ public class ChainingInputStreamTests extends ESTestCase {
                 return false;
             }
         };
-        byte[] b = test.readAllBytes();
-        assertThat(b.length, Matchers.is(b1.length));
-        for (int i = 0; i < b.length; i++) {
-            Assert.assertThat(b[i], Matchers.is(b1[i]));
-        }
+        assertThat(test.readAllBytes(), Matchers.equalTo(b1));
         assertThat(chainComponents[0], Matchers.nullValue());
         assertThat(chainComponents[1], Matchers.is(sourceComponents[0]));
         assertThat(chainComponents[1].closed.get(), Matchers.is(true));
@@ -247,13 +286,17 @@ public class ChainingInputStreamTests extends ESTestCase {
 
     public void testCallsForwardToCurrentComponent() throws Exception {
         InputStream mockCurrentIn = mock(InputStream.class);
+        when(mockCurrentIn.markSupported()).thenReturn(true);
         ChainingInputStream test = new ChainingInputStream() {
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
-                throw new IllegalStateException();
+                if (currentComponentIn == null) {
+                    return mockCurrentIn;
+                } else {
+                    throw new IllegalStateException();
+                }
             }
         };
-        test.currentIn = mockCurrentIn;
         // verify "byte-wise read" is proxied to the current component stream
         when(mockCurrentIn.read()).thenReturn(randomInt(255));
         test.read();
@@ -336,10 +379,7 @@ public class ChainingInputStreamTests extends ESTestCase {
             }
         };
         byte[] result = test.readAllBytes();
-        assertThat(result.length, Matchers.is(b.length));
-        for (int i = 0; i < result.length; i++) {
-            Assert.assertThat(result[i], Matchers.is(b[i]));
-        }
+        assertThat(result, Matchers.equalTo(b));
     }
 
     public void testMark() throws Exception {
@@ -483,6 +523,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         }
         return new Tuple<>(new ChainingInputStream() {
             int i = 0;
+
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
                 if (i < sourceComponents.length) {
@@ -499,13 +540,27 @@ public class ChainingInputStreamTests extends ESTestCase {
         }, result);
     }
 
-    private ChainingInputStream newEmptyStream() {
-        return new ChainingInputStream() {
-            @Override
-            InputStream nextComponent(InputStream currentElementIn) throws IOException {
-                return null;
-            }
-        };
+    private ChainingInputStream newEmptyStream(boolean hasEmptyComponents) {
+        if (hasEmptyComponents) {
+            final Iterator<ByteArrayInputStream> iterator = Arrays.asList(
+                    randomArray(1, 5, ByteArrayInputStream[]::new, () -> new ByteArrayInputStream(new byte[0]))).iterator();
+            return new ChainingInputStream() {
+                InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                    if (iterator.hasNext()) {
+                        return iterator.next();
+                    } else {
+                        return null;
+                    }
+                }
+            };
+        } else {
+            return new ChainingInputStream() {
+                @Override
+                InputStream nextComponent(InputStream currentElementIn) throws IOException {
+                    return null;
+                }
+            };
+        }
     }
 
     static class TestInputStream extends InputStream {

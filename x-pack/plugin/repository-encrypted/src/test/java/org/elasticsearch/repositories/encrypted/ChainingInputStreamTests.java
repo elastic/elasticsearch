@@ -9,20 +9,24 @@ package org.elasticsearch.repositories.encrypted;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,7 +50,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         int nSkip1 = randomInt(b1.length - prefix);
         long nSkip = test.skip(nSkip1);
         assertThat((int)nSkip, Matchers.is(nSkip1));
-        int nSkip2 = randomInt(b1.length - prefix - nSkip1 + randomIntBetween(1, 8));
+        int nSkip2 = b1.length - prefix - nSkip1 + randomIntBetween(1, 8);
         // skip more bytes than the component has
         nSkip = test.skip(nSkip2);
         assertThat((int) nSkip, Matchers.is(b1.length - prefix - nSkip1));
@@ -247,6 +251,10 @@ public class ChainingInputStreamTests extends ESTestCase {
         for (int i = 0; i < result.length; i++) {
             assertThat(result[i], Matchers.is(test.v2()[i]));
         }
+        // all streams are empty
+        test = testEmptyComponentsInChain(3, Arrays.asList(0, 1, 2));
+        result = test.v1().readAllBytes();
+        assertThat(result.length, Matchers.is(0));
     }
 
     public void testNullComponentTerminatesChain() throws Exception {
@@ -382,9 +390,10 @@ public class ChainingInputStreamTests extends ESTestCase {
         assertThat(result, Matchers.equalTo(b));
     }
 
-    public void testMark() throws Exception {
+    public void testMarkAtBeginning() throws Exception {
         InputStream mockIn = mock(InputStream.class);
         when(mockIn.markSupported()).thenReturn(true);
+        when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
         ChainingInputStream test = new ChainingInputStream() {
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
@@ -395,51 +404,488 @@ public class ChainingInputStreamTests extends ESTestCase {
                 }
             }
         };
-        int readLimit = randomInt(63);
+        assertThat(test.currentIn, Matchers.nullValue());
         // mark at the beginning
-        test.mark(readLimit);
         assertThat(test.markIn, Matchers.nullValue());
-        // mark intermediary position
-        when(mockIn.read()).thenReturn(randomInt(255));
+        test.mark(randomInt(63));
+        assertThat(test.markIn, Matchers.nullValue());
+        // another mark is a no-op
+        test.mark(randomInt(63));
+        assertThat(test.markIn, Matchers.nullValue());
+        // read does not change the marK
         test.read();
         assertThat(test.currentIn, Matchers.is(mockIn));
-        test.mark(readLimit);
-        assertThat(test.markIn, Matchers.is(mockIn));
-        verify(mockIn).mark(Mockito.eq(readLimit));
-        // mark end position
+        // mark reference is still unchanged
+        assertThat(test.markIn, Matchers.nullValue());
+        // read reaches end
         when(mockIn.read()).thenReturn(-1);
         test.read();
         assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
-        verify(mockIn, never()).close();
-        readLimit = randomInt(63);
-        test.mark(readLimit);
         verify(mockIn).close();
-        assertThat(test.markIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark reference is still unchanged
+        assertThat(test.markIn, Matchers.nullValue());
     }
 
-    public void testReset() throws Exception {
-        InputStream mockMarkIn = mock(InputStream.class);
-        when(mockMarkIn.markSupported()).thenReturn(true);
-        InputStream mockCurrentIn = mock(InputStream.class);
-        when(mockCurrentIn.markSupported()).thenReturn(true);
+    public void testMarkAtEnding() throws Exception {
+        InputStream mockIn = mock(InputStream.class);
+        when(mockIn.markSupported()).thenReturn(true);
+        when(mockIn.read()).thenAnswer(invocationOnMock -> randomFrom(-1, randomInt(255)));
         ChainingInputStream test = new ChainingInputStream() {
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
-                return null;
+                if (currentComponentIn == null) {
+                    return mockIn;
+                } else {
+                    return null;
+                }
             }
         };
-        test.currentIn = mockCurrentIn;
-        test.markIn = mockMarkIn;
-        test.reset();
-        assertThat(test.currentIn, Matchers.is(mockMarkIn));
-        assertThat(test.markIn, Matchers.is(mockMarkIn));
-        verify(mockMarkIn).reset();
-        when(mockCurrentIn.read()).thenReturn(-1);
-        verify(mockMarkIn, never()).close();
-        verify(mockCurrentIn).close();
+        // read all bytes
+        while (test.read() != -1) {}
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark is null (beginning)
+        assertThat(test.markIn, Matchers.nullValue());
+        test.mark(randomInt(255));
+        assertThat(test.markIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // another mark is a no-op
+        test.mark(randomInt(255));
+        assertThat(test.markIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
     }
 
-    public void testMarkAfterReset() throws Exception {
+    public void testSingleMarkAnywhere() throws Exception {
+        Supplier<InputStream> mockInputStreamSupplier = () -> {
+            InputStream mockIn = mock(InputStream.class);
+            when(mockIn.markSupported()).thenReturn(true);
+            try {
+                when(mockIn.read()).thenAnswer(invocationOnMock -> randomFrom(-1, randomInt(1)));
+                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).
+                        thenAnswer(invocationOnMock -> {
+                            final int len = (int) invocationOnMock.getArguments()[2];
+                            if (len == 0) {
+                                return 0;
+                            } else {
+                                if (randomBoolean()) {
+                                    return -1;
+                                } else {
+                                    // partial read return
+                                    return randomIntBetween(1, len);
+                                }
+                            }
+                        });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return mockIn;
+        };
+        AtomicBoolean chainingInputStreamEOF = new AtomicBoolean(false);
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (chainingInputStreamEOF.get()) {
+                    return null;
+                } else {
+                    return mockInputStreamSupplier.get();
+                }
+            }
+        };
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.readNBytes(randomInt(63));
+        }
+        InputStream currentIn = test.currentIn;
+        int readLimit = randomInt(63);
+        test.mark(readLimit);
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(currentIn).mark(Mockito.eq(readLimit));
+        // mark again, same position
+        readLimit = randomInt(63);
+        test.mark(readLimit);
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(currentIn).mark(Mockito.eq(readLimit));
+        // read more (possibly moving on to a new component)
+        test.readNBytes(randomInt(63));
+        // mark does not budge
+        assertThat(test.markIn, Matchers.is(currentIn));
+        // read until the end
+        chainingInputStreamEOF.set(true);
+        test.readAllBytes();
+        // current component is at the end
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark is still put
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.markIn, never()).close();
+        // but close also closes the mark
+        test.close();
+        verify(test.markIn).close();
+    }
+
+    public void testMarkOverwritesPreviousMark() throws Exception {
+        AtomicBoolean chainingInputStreamEOF = new AtomicBoolean(false);
+        Supplier<InputStream> mockInputStreamSupplier = () -> {
+            InputStream mockIn = mock(InputStream.class);
+            when(mockIn.markSupported()).thenReturn(true);
+            try {
+                // single byte read never returns "-1" so it never advances component
+                when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
+                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).
+                        thenAnswer(invocationOnMock -> {
+                            final int len = (int) invocationOnMock.getArguments()[2];
+                            if (len == 0) {
+                                return 0;
+                            } else {
+                                if (randomBoolean()) {
+                                    return -1;
+                                } else {
+                                    // partial read return
+                                    return randomIntBetween(1, len);
+                                }
+                            }
+                        });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return mockIn;
+        };
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (chainingInputStreamEOF.get()) {
+                    return null;
+                } else {
+                    return mockInputStreamSupplier.get();
+                }
+            }
+        };
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.readNBytes(randomInt(63));
+        }
+        InputStream currentIn = test.currentIn;
+        int readLimit = randomInt(63);
+        test.mark(readLimit);
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.markIn).mark(Mockito.eq(readLimit));
+        // read more within the same component
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.read();
+        }
+        // mark does not budge
+        assertThat(test.markIn, Matchers.is(currentIn));
+        // mark again
+        readLimit = randomInt(63);
+        test.mark(readLimit);
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(currentIn, never()).close();
+        verify(currentIn).mark(Mockito.eq(readLimit));
+        // read more while switching the component
+        for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
+            test.readNBytes(randomInt(63));
+        }
+        // mark does not budge
+        assertThat(test.markIn, Matchers.is(currentIn));
+        // mark again
+        readLimit = randomInt(63);
+        test.mark(readLimit);
+        assertThat(test.markIn, Matchers.is(test.currentIn));
+        // previous mark closed
+        verify(currentIn).close();
+        verify(test.markIn).mark(Mockito.eq(readLimit));
+        InputStream markIn = test.markIn;
+        // read until the end
+        chainingInputStreamEOF.set(true);
+        test.readAllBytes();
+        // current component is at the end
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark is still put
+        assertThat(test.markIn, Matchers.is(markIn));
+        verify(test.markIn, never()).close();
+        // mark at the end
+        readLimit = randomInt(63);
+        test.mark(readLimit);
+        assertThat(test.markIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        verify(markIn).close();
+    }
+
+    public void testResetAtBeginning() throws Exception {
+        InputStream mockIn = mock(InputStream.class);
+        when(mockIn.markSupported()).thenReturn(true);
+        when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (currentComponentIn == null) {
+                    return mockIn;
+                } else {
+                    return null;
+                }
+            }
+        };
+        assertThat(test.currentIn, Matchers.nullValue());
+        assertThat(test.markIn, Matchers.nullValue());
+        if (randomBoolean()) {
+            // mark at the beginning
+            test.mark(randomInt(63));
+            assertThat(test.markIn, Matchers.nullValue());
+        }
+        // reset immediately
+        test.reset();
+        assertThat(test.currentIn, Matchers.nullValue());
+        // read does not change the marK
+        test.read();
+        assertThat(test.currentIn, Matchers.is(mockIn));
+        // mark reference is still unchanged
+        assertThat(test.markIn, Matchers.nullValue());
+        // reset back to beginning
+        test.reset();
+        verify(mockIn).close();
+        assertThat(test.currentIn, Matchers.nullValue());
+        // read reaches end
+        when(mockIn.read()).thenReturn(-1);
+        test.read();
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark reference is still unchanged
+        assertThat(test.markIn, Matchers.nullValue());
+        // reset back to beginning
+        test.reset();
+        assertThat(test.currentIn, Matchers.nullValue());
+    }
+
+    public void testResetAtEnding() throws Exception {
+        InputStream mockIn = mock(InputStream.class);
+        when(mockIn.markSupported()).thenReturn(true);
+        when(mockIn.read()).thenAnswer(invocationOnMock -> randomFrom(-1, randomInt(255)));
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (currentComponentIn == null) {
+                    return mockIn;
+                } else {
+                    return null;
+                }
+            }
+        };
+        // read all bytes
+        while (test.read() != -1) {}
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark is null (beginning)
+        assertThat(test.markIn, Matchers.nullValue());
+        test.mark(randomInt(255));
+        assertThat(test.markIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // reset
+        test.reset();
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        assertThat(test.read(), Matchers.is(-1));
+        // another mark is a no-op
+        test.mark(randomInt(255));
+        assertThat(test.markIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        assertThat(test.read(), Matchers.is(-1));
+    }
+
+    public void testResetForSingleMarkAnywhere() throws Exception {
+        Supplier<InputStream> mockInputStreamSupplier = () -> {
+            InputStream mockIn = mock(InputStream.class);
+            when(mockIn.markSupported()).thenReturn(true);
+            try {
+                // single byte read never returns "-1" so it never advances component
+                when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
+                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).
+                        thenAnswer(invocationOnMock -> {
+                            final int len = (int) invocationOnMock.getArguments()[2];
+                            if (len == 0) {
+                                return 0;
+                            } else {
+                                if (randomBoolean()) {
+                                    return -1;
+                                } else {
+                                    // partial read return
+                                    return randomIntBetween(1, len);
+                                }
+                            }
+                        });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return mockIn;
+        };
+        AtomicBoolean chainingInputStreamEOF = new AtomicBoolean(false);
+        AtomicReference<InputStream> nextComponentArg = new AtomicReference<>();
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (nextComponentArg.get() != null) {
+                    Assert.assertThat(currentComponentIn, Matchers.is(nextComponentArg.get()));
+                    nextComponentArg.set(null);
+                }
+                if (chainingInputStreamEOF.get()) {
+                    return null;
+                } else {
+                    return mockInputStreamSupplier.get();
+                }
+            }
+        };
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.readNBytes(randomInt(63));
+        }
+        InputStream currentIn = test.currentIn;
+        int readLimit = randomInt(63);
+        test.mark(readLimit);
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(currentIn).mark(Mockito.eq(readLimit));
+        // read more without moving to a new component
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.read();
+        }
+        test.reset();
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.currentIn, never()).close();
+        verify(test.currentIn).reset();
+        // read more, moving on to a new component
+        for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
+            test.readNBytes(randomInt(63));
+        }
+        // mark does not budge
+        assertThat(test.markIn, Matchers.is(currentIn));
+        assertThat(test.currentIn, Matchers.not(currentIn));
+        InputStream lastCurrentIn = test.currentIn;
+        // reset back
+        test.reset();
+        verify(lastCurrentIn).close();
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.currentIn, times(2)).reset();
+        // assert the "nextComponent" argument
+        nextComponentArg.set(currentIn);
+        // read more, moving on to a new component
+        for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
+            test.readNBytes(randomInt(63));
+        }
+        // read until the end
+        chainingInputStreamEOF.set(true);
+        test.readAllBytes();
+        // current component is at the end
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark is still put
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.markIn, never()).close();
+        // reset when stream is at the end
+        test.reset();
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.currentIn, times(3)).reset();
+        // assert the "nextComponent" argument
+        nextComponentArg.set(currentIn);
+        // read more to verify that current component is passed as nextComponent argument
+        test.readAllBytes();
+    }
+
+    public void testResetForDoubleMarkAnywhere() throws Exception {
+        Supplier<InputStream> mockInputStreamSupplier = () -> {
+            InputStream mockIn = mock(InputStream.class);
+            when(mockIn.markSupported()).thenReturn(true);
+            try {
+                // single byte read never returns "-1" so it never advances component
+                when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
+                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).
+                        thenAnswer(invocationOnMock -> {
+                            final int len = (int) invocationOnMock.getArguments()[2];
+                            if (len == 0) {
+                                return 0;
+                            } else {
+                                if (randomBoolean()) {
+                                    return -1;
+                                } else {
+                                    // partial read return
+                                    return randomIntBetween(1, len);
+                                }
+                            }
+                        });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return mockIn;
+        };
+        AtomicBoolean chainingInputStreamEOF = new AtomicBoolean(false);
+        AtomicReference<InputStream> nextComponentArg = new AtomicReference<>();
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (nextComponentArg.get() != null) {
+                    Assert.assertThat(currentComponentIn, Matchers.is(nextComponentArg.get()));
+                    nextComponentArg.set(null);
+                }
+                if (chainingInputStreamEOF.get()) {
+                    return null;
+                } else {
+                    return mockInputStreamSupplier.get();
+                }
+            }
+        };
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.readNBytes(randomInt(63));
+        }
+        InputStream currentIn = test.currentIn;
+        int readLimit = randomInt(63);
+        // first mark
+        test.mark(readLimit);
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(currentIn).mark(Mockito.eq(readLimit));
+        // read more without moving to a new component
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.read();
+        }
+        test.reset();
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.currentIn, never()).close();
+        verify(test.currentIn).reset();
+        // read more, moving on to a new component
+        for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
+            test.readNBytes(randomInt(63));
+        }
+        // mark does not budge
+        assertThat(test.markIn, Matchers.is(currentIn));
+        assertThat(test.currentIn, Matchers.not(currentIn));
+        InputStream lastCurrentIn = test.currentIn;
+        // reset back
+        test.reset();
+        verify(lastCurrentIn).close();
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.currentIn, times(2)).reset();
+        // assert the "nextComponent" argument
+        nextComponentArg.set(currentIn);
+        // read more, moving on to a new component
+        for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
+            test.readNBytes(randomInt(63));
+        }
+        // read until the end
+        chainingInputStreamEOF.set(true);
+        test.readAllBytes();
+        // current component is at the end
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        // mark is still put
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.markIn, never()).close();
+        // reset when stream is at the end
+        test.reset();
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        verify(test.currentIn, times(3)).reset();
+        // assert the "nextComponent" argument
+        nextComponentArg.set(currentIn);
+        // read more to verify that current component is passed as nextComponent argument
+        test.readAllBytes();
+    }
+
+    public void testMarkAfterResetNoMock() throws Exception {
         int len = randomIntBetween(8, 15);
         byte[] b = randomByteArrayOfLength(len);
         for (int p = 0; p <= len; p++) {

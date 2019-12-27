@@ -289,7 +289,8 @@ public abstract class ChainingInputStream extends InputStream {
 
     /**
      * Repositions this stream to the position at the time the
-     * {@code mark} method was last called on this chaining input stream.
+     * {@code mark} method was last called on this chaining input stream,
+     * or at the beginning if the {@code mark} method was never called.
      * Subsequent read calls will return the same bytes in the same
      * order since the point of the {@code mark} call. Naturally,
      * {@code mark} can be invoked at any moment, even after a

@@ -246,10 +246,10 @@ public class ClassNode extends IRNode {
         statementsMethod.endMethod();
 
         // Write the method defined in the interface:
-        MethodWriter executeMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, scriptClassInfo.getExecuteMethod());
-        executeMethod.visitCode();
-        write(classWriter, executeMethod, globals, new ScopeTable());
-        executeMethod.endMethod();
+        //MethodWriter executeMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, scriptClassInfo.getExecuteMethod());
+        //executeMethod.visitCode();
+        //write(classWriter, executeMethod, globals, new ScopeTable());
+        //executeMethod.endMethod();
 
         // Write all fields:
         for (FieldNode fieldNode : fieldNodes) {

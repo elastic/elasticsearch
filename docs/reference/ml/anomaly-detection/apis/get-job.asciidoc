@@ -61,8 +61,8 @@ properties, see <<ml-put-job-request-body,create {anomaly-jobs} API>>.
 property is informational; you cannot change its value.
   
 `finished_time`::
-(string) If the job closed or failed, this is the time the job finished,
-otherwise it is `null`. This property is informational; you cannot change its
+(string) If the job closed or failed, this is the time the job finished.
+Otherwise, it is `null`. This property is informational; you cannot change its
 value.
 
 `job_type`::

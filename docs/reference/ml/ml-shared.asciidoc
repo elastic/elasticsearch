@@ -143,7 +143,7 @@ tag::categorization-analyzer[]
 If `categorization_field_name` is specified, you can also define the analyzer
 that is used to interpret the categorization field. This property cannot be used
 at the same time as `categorization_filters`. The categorization analyzer
-specifies how the `categorization_field` is interpreted by the categorization
+specifies how the categorization field is interpreted by the categorization
 process. The syntax is very similar to that used to define the `analyzer` in the
 <<indices-analyze,Analyze endpoint>>. For more information, see
 {ml-docs}/ml-configuring-categories.html[Categorizing log messages].
@@ -170,7 +170,7 @@ end::categorization-analyzer[]
 
 tag::categorization-examples-limit[]
 The maximum number of examples stored per category in memory and in the results
-data store. The default value is 4.  If you increase this value, more examples
+data store. The default value is `4`.  If you increase this value, more examples
 are available, however it requires that you have more storage available. If you
 set this value to `0`, no examples are stored.
 +
@@ -485,51 +485,6 @@ optionally `results_field` (`ml` by default).
     (Optional, string) Defines the name of the field in which to store the 
     results of the analysis. Default to `ml`.
 end::dest[]
-
-tag::detector[]
-A detector has the following properties:
-
-`by_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
-
-`custom_rules`::::
-(array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
-
-`detector_description`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
-
-`detector_index`::::
-(integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
-
-`exclude_frequent`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
-
-`field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
-
-`function`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=function]
-
-`over_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
-
-`partition_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
-
-`use_null`::::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
-
-end::detector[]
 
 tag::detector-description[]
 A description of the detector. For example, `Low event rate`.

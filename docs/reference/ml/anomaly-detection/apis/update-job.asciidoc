@@ -155,14 +155,6 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
 
-[NOTE]
---
-If the `memory_status` property in the `model_size_stats` object has a value
-of `hard_limit`, this means that it was unable to process some data. You might
-want to re-run this job with an increased `model_memory_limit`.
---
-
-
 [[ml-update-job-example]]
 ==== {api-examples-title}
 

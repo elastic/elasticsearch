@@ -35,7 +35,8 @@ For more information about categories, see
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<category_id>`::
   (Optional, long) Identifier for the category. If you do not specify this

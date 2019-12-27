@@ -456,3 +456,12 @@ See <<rollup-put-job-api-request-body>>.
 This page was deleted.
 See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
 <<get-transform>>.
+
+[role="exclude",id="ml-job-resource"]
+=== Job resources
+
+This page was deleted.
+[[ml-analysisconfig]]
+See the details in
+[[ml-apimodelplotconfig]]
+<<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.

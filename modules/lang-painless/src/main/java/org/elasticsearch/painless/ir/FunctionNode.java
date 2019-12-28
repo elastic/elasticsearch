@@ -33,7 +33,6 @@ import org.objectweb.asm.commons.Method;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BOOTSTRAP_METHOD_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.COLLECTIONS_TYPE;
@@ -252,7 +251,7 @@ public class FunctionNode extends IRNode {
             methodWriter.dup();
             methodWriter.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
             methodWriter.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
-            methodWriter.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+            methodWriter.invokeVirtual(CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
             methodWriter.throwException();
             // This looks like:
             // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
@@ -268,7 +267,7 @@ public class FunctionNode extends IRNode {
             methodWriter.loadThis();
             methodWriter.swap();
             methodWriter.invokeStatic(COLLECTIONS_TYPE, EMPTY_MAP_METHOD);
-            methodWriter.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+            methodWriter.invokeVirtual(CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
             methodWriter.throwException();
             methodWriter.mark(endCatch);
         }

@@ -132,7 +132,7 @@ public final class SFunction extends ANode {
         }
 
         block.lastSource = true;
-        block.analyze(scriptRoot, functionScope);
+        block.analyze(scriptRoot, functionScope.newLocalScope());
         methodEscape = block.methodEscape;
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {

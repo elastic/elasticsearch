@@ -740,6 +740,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(4, 16); i++) {
             test.read();
         }
+        // first reset
         test.reset();
         assertThat(test.currentIn, Matchers.is(currentIn));
         assertThat(test.markIn, Matchers.is(currentIn));
@@ -753,7 +754,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         assertThat(test.markIn, Matchers.is(currentIn));
         assertThat(test.currentIn, Matchers.not(currentIn));
         InputStream lastCurrentIn = test.currentIn;
-        // reset back
+        // second reset
         test.reset();
         verify(lastCurrentIn).close();
         assertThat(test.currentIn, Matchers.is(currentIn));
@@ -837,52 +838,65 @@ public class ChainingInputStreamTests extends ESTestCase {
         assertThat(test.currentIn, Matchers.is(currentIn));
         assertThat(test.markIn, Matchers.is(currentIn));
         verify(currentIn).mark(Mockito.eq(readLimit));
-        // read more without moving to a new component
-        for (int i = 0; i < randomIntBetween(4, 16); i++) {
-            test.read();
-        }
-        test.reset();
-        assertThat(test.currentIn, Matchers.is(currentIn));
-        assertThat(test.markIn, Matchers.is(currentIn));
-        verify(test.currentIn, never()).close();
-        verify(test.currentIn).reset();
-        // read more, moving on to a new component
-        for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(1, 2); i++) {
             test.readNBytes(randomInt(63));
         }
-        // mark does not budge
-        assertThat(test.markIn, Matchers.is(currentIn));
-        assertThat(test.currentIn, Matchers.not(currentIn));
         InputStream lastCurrentIn = test.currentIn;
-        // reset back
-        test.reset();
-        verify(lastCurrentIn).close();
-        assertThat(test.currentIn, Matchers.is(currentIn));
-        assertThat(test.markIn, Matchers.is(currentIn));
-        verify(test.currentIn, times(2)).reset();
-        // assert the "nextComponent" argument
-        nextComponentArg.set(currentIn);
-        // read more, moving on to a new component
-        for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
+        // second mark
+        readLimit = randomInt(63);
+        test.mark(readLimit);
+        if (lastCurrentIn != currentIn) {
+            verify(currentIn).close();
+        }
+        assertThat(test.currentIn, Matchers.is(lastCurrentIn));
+        assertThat(test.markIn, Matchers.is(lastCurrentIn));
+        verify(lastCurrentIn).mark(Mockito.eq(readLimit));
+        currentIn = lastCurrentIn;
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(1, 2); i++) {
             test.readNBytes(randomInt(63));
         }
-        // read until the end
-        chainingInputStreamEOF.set(true);
-        test.readAllBytes();
-        // current component is at the end
-        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
-        // mark is still put
-        assertThat(test.markIn, Matchers.is(currentIn));
-        verify(test.markIn, never()).close();
-        // reset when stream is at the end
+        lastCurrentIn = test.currentIn;
+        // reset
         test.reset();
         assertThat(test.currentIn, Matchers.is(currentIn));
         assertThat(test.markIn, Matchers.is(currentIn));
-        verify(test.currentIn, times(3)).reset();
-        // assert the "nextComponent" argument
+        if (lastCurrentIn != currentIn) {
+            verify(lastCurrentIn).close();
+        }
+        verify(currentIn).reset();
+        // assert the "nextComponet" arg is the current component
         nextComponentArg.set(currentIn);
-        // read more to verify that current component is passed as nextComponent argument
-        test.readAllBytes();
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            test.readNBytes(randomInt(63));
+        }
+        lastCurrentIn = test.currentIn;
+        // third mark after reset
+        readLimit = randomInt(63);
+        test.mark(readLimit);
+        if (lastCurrentIn != currentIn) {
+            verify(currentIn).close();
+        }
+        assertThat(test.currentIn, Matchers.is(lastCurrentIn));
+        assertThat(test.markIn, Matchers.is(lastCurrentIn));
+        verify(lastCurrentIn).mark(Mockito.eq(readLimit));
+        nextComponentArg.set(lastCurrentIn);
+        currentIn = lastCurrentIn;
+        // possibly skips over several components
+        for (int i = 0; i < randomIntBetween(1, 2); i++) {
+            test.readNBytes(randomInt(63));
+        }
+        lastCurrentIn = test.currentIn;
+        // reset after mark after reset
+        test.reset();
+        assertThat(test.currentIn, Matchers.is(currentIn));
+        assertThat(test.markIn, Matchers.is(currentIn));
+        if (lastCurrentIn != currentIn) {
+            verify(lastCurrentIn).close();
+        }
+        verify(currentIn).reset();
     }
 
     public void testMarkAfterResetNoMock() throws Exception {

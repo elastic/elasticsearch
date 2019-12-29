@@ -170,7 +170,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
             SecretKey dataEncryptionKey = keyGenerator.generateKey();
             int nonce = secureRandom.nextInt();
-            long encryptedBlobSize = EncryptionPacketsInputStream.getEncryptionSize(blobSize, PACKET_LENGTH_IN_BYTES);
+            long encryptedBlobSize = EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
             try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
                     dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
                 this.delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);

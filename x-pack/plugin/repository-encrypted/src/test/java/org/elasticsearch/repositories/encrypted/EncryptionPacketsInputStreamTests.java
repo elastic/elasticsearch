@@ -126,8 +126,8 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
                 plaintextOffset, size), secretKey, nonce, packetSize)) {
             referenceCiphertextArray = encryptionInputStream.readAllBytes();
         }
-        assertThat((long)referenceCiphertextArray.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionSize(size, packetSize)));
-        int encryptedPacketSize = packetSize + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        assertThat((long)referenceCiphertextArray.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionLength(size, packetSize)));
+        int encryptedPacketSize = packetSize + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         try (InputStream encryptionInputStream = new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
                 plaintextOffset, size), secretKey, nonce, packetSize)) {
             // mark at the beginning
@@ -170,7 +170,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
 
     public void testMarkResetInsidePacketNoMock() throws Exception {
         int packetSize = 3 + Randomness.get().nextInt(64);
-        int encryptedPacketSize = EncryptedRepository.GCM_IV_SIZE_IN_BYTES + packetSize + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        int encryptedPacketSize = EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + packetSize + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         int size = 3 * packetSize + Randomness.get().nextInt(64);
         byte[] bytes = new byte[size];
         Randomness.get().nextBytes(bytes);
@@ -216,7 +216,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
 
     public void testMarkResetAcrossPacketsNoMock() throws Exception {
         int packetSize = 3 + Randomness.get().nextInt(64);
-        int encryptedPacketSize = EncryptedRepository.GCM_IV_SIZE_IN_BYTES + packetSize + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        int encryptedPacketSize = EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + packetSize + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         int size = 3 * packetSize + Randomness.get().nextInt(64);
         byte[] bytes = new byte[size];
         Randomness.get().nextBytes(bytes);
@@ -286,7 +286,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
             referenceCiphertextArray = encryptionInputStream.readAllBytes();
         }
         int encryptedLen = referenceCiphertextArray.length;
-        assertThat((long) encryptedLen, Matchers.is(EncryptionPacketsInputStream.getEncryptionSize(plainLen, packetSize)));
+        assertThat((long) encryptedLen, Matchers.is(EncryptionPacketsInputStream.getEncryptionLength(plainLen, packetSize)));
         for (int mark1 = 0; mark1 < encryptedLen; mark1++) {
             for (int offset1 = 0; offset1 < encryptedLen - mark1; offset1++) {
                 int mark2 = Randomness.get().nextInt(encryptedLen - mark1);
@@ -378,27 +378,27 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
     }
 
     private void testEncryptPacketWise(int size, int packetSize, ReadStrategy readStrategy) throws Exception {
-        int encryptedPacketSize = packetSize + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        int encryptedPacketSize = packetSize + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - size + 1);
         int nonce = Randomness.get().nextInt();
         long counter = EncryptedRepository.PACKET_START_COUNTER;
         try (InputStream encryptionInputStream = new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
                 plaintextOffset, size), secretKey, nonce, packetSize)) {
             byte[] ciphertextArray = readStrategy.readAll(encryptionInputStream);
-            assertThat((long)ciphertextArray.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionSize(size, packetSize)));
+            assertThat((long)ciphertextArray.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionLength(size, packetSize)));
             for (int ciphertextOffset = 0; ciphertextOffset < ciphertextArray.length; ciphertextOffset += encryptedPacketSize) {
                 ByteBuffer ivBuffer = ByteBuffer.wrap(ciphertextArray, ciphertextOffset,
-                        EncryptedRepository.GCM_IV_SIZE_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
+                        EncryptedRepository.GCM_IV_LENGTH_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
                 assertThat(ivBuffer.getInt(), Matchers.is(nonce));
                 assertThat(ivBuffer.getLong(), Matchers.is(counter++));
-                GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_SIZE_IN_BYTES * Byte.SIZE,
+                GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE,
                         Arrays.copyOfRange(ciphertextArray, ciphertextOffset,
-                                ciphertextOffset + EncryptedRepository.GCM_IV_SIZE_IN_BYTES));
+                                ciphertextOffset + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES));
                 Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
                 packetCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);
                 try (InputStream packetDecryptionInputStream = new CipherInputStream(new ByteArrayInputStream(ciphertextArray,
-                        ciphertextOffset + EncryptedRepository.GCM_IV_SIZE_IN_BYTES,
-                        packetSize + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES), packetCipher)) {
+                        ciphertextOffset + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES,
+                        packetSize + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES), packetCipher)) {
                     byte[] decryptedCiphertext = packetDecryptionInputStream.readAllBytes();
                     int decryptedPacketSize = size <= packetSize ? size : packetSize;
                     assertThat(decryptedCiphertext.length, Matchers.is(decryptedPacketSize));

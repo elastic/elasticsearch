@@ -49,26 +49,24 @@ public class ExtractedFieldsDetectorFactory {
         this.client = Objects.requireNonNull(client);
     }
 
-    public void createFromSource(DataFrameAnalyticsConfig config, boolean isTaskRestarting,
-                                 ActionListener<ExtractedFieldsDetector> listener) {
-        create(config.getSource().getIndex(), config, isTaskRestarting, listener);
+    public void createFromSource(DataFrameAnalyticsConfig config, ActionListener<ExtractedFieldsDetector> listener) {
+        create(config.getSource().getIndex(), config, listener);
     }
 
-    public void createFromDest(DataFrameAnalyticsConfig config, boolean isTaskRestarting,
-                               ActionListener<ExtractedFieldsDetector> listener) {
-        create(new String[] {config.getDest().getIndex()}, config, isTaskRestarting, listener);
+    public void createFromDest(DataFrameAnalyticsConfig config, ActionListener<ExtractedFieldsDetector> listener) {
+        create(new String[] {config.getDest().getIndex()}, config, listener);
     }
 
-    private void create(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting,
-                        ActionListener<ExtractedFieldsDetector> listener) {
+    private void create(String[] index, DataFrameAnalyticsConfig config, ActionListener<ExtractedFieldsDetector> listener) {
         AtomicInteger docValueFieldsLimitHolder = new AtomicInteger();
         AtomicReference<FieldCapabilitiesResponse> fieldCapsResponseHolder = new AtomicReference<>();
 
         // Step 4. Create cardinality by field map and build detector
         ActionListener<Map<String, Long>> fieldCardinalitiesHandler = ActionListener.wrap(
             fieldCardinalities -> {
-                ExtractedFieldsDetector detector = new ExtractedFieldsDetector(index, config, isTaskRestarting,
-                    docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
+                ExtractedFieldsDetector detector =
+                    new ExtractedFieldsDetector(
+                        index, config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
                 listener.onResponse(detector);
             },
             listener::onFailure

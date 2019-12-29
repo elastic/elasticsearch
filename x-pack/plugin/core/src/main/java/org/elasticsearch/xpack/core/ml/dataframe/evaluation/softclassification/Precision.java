@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+
 public class Precision extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("precision");
@@ -44,7 +46,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(BinarySoftClassification.NAME, NAME);
     }
 
     @Override

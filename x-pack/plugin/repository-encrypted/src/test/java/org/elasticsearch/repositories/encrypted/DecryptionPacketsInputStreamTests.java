@@ -115,8 +115,8 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                 packetLen)) {
             encryptedBytes = in.readAllBytes();
         }
-        for (int i = EncryptedRepository.GCM_IV_SIZE_IN_BYTES; i < EncryptedRepository.GCM_IV_SIZE_IN_BYTES + len +
-                EncryptedRepository.GCM_TAG_SIZE_IN_BYTES; i++) {
+        for (int i = EncryptedRepository.GCM_IV_LENGTH_IN_BYTES; i < EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + len +
+                EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES; i++) {
             for (int j = 0; j < 8; j++) {
                 // flip bit
                 encryptedBytes[i] ^= (1 << j);
@@ -146,10 +146,10 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                 packetLen)) {
             encryptedBytes = in.readAllBytes();
         }
-        assertThat(encryptedBytes.length, Matchers.is((int) EncryptionPacketsInputStream.getEncryptionSize(len, packetLen)));
-        int encryptedPacketLen = EncryptedRepository.GCM_IV_SIZE_IN_BYTES + packetLen + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        assertThat(encryptedBytes.length, Matchers.is((int) EncryptionPacketsInputStream.getEncryptionLength(len, packetLen)));
+        int encryptedPacketLen = EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + packetLen + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         for (int i = 0; i < encryptedBytes.length; i += encryptedPacketLen) {
-            for (int j = 0; j < EncryptedRepository.GCM_IV_SIZE_IN_BYTES; j++) {
+            for (int j = 0; j < EncryptedRepository.GCM_IV_LENGTH_IN_BYTES; j++) {
                 for (int k = 0; k < 8; k++) {
                     // flip bit
                     encryptedBytes[i + j] ^= (1 << k);
@@ -174,14 +174,14 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                     packetLen)) {
                 encryptedBytes = in.readAllBytes();
             }
-            assertThat((long) encryptedBytes.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionSize(len, packetLen)));
+            assertThat((long) encryptedBytes.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionLength(len, packetLen)));
             byte[] decryptedBytes;
             try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, nonce,
                     packetLen)) {
                 decryptedBytes = in.readAllBytes();
             }
             assertThat(decryptedBytes.length, Matchers.is(len));
-            assertThat((long) decryptedBytes.length, Matchers.is(DecryptionPacketsInputStream.getDecryptionSize(encryptedBytes.length,
+            assertThat((long) decryptedBytes.length, Matchers.is(DecryptionPacketsInputStream.getDecryptionLength(encryptedBytes.length,
                     packetLen)));
             for (int i = 0; i < len; i++) {
                 assertThat(decryptedBytes[i], Matchers.is(plainBytes[i]));

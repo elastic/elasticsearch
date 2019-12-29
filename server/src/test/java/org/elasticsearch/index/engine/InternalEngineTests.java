@@ -5464,7 +5464,22 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 docs = getDocIds(hardDeletesEngine, true);
             }
+            // We need to remove min_retained_seq_no commit tag as the actual hard-deletes engine does not have it.
+            store.trimUnsafeCommits(translogPath);
+            Map<String, String> userData = new HashMap<>(store.readLastCommittedSegmentsInfo().userData);
+            userData.remove(Engine.MIN_RETAINED_SEQNO);
+            IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
+                .setIndexCreatedVersionMajor(Version.CURRENT.luceneVersion.major)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                .setCommitOnClose(false)
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig)) {
+                writer.setLiveCommitData(userData.entrySet());
+                writer.commit();
+            }
             try (InternalEngine softDeletesEngine = new InternalEngine(config)) { // do not recover from translog
+                assertThat(softDeletesEngine.getLastCommittedSegmentInfos().userData, equalTo(userData));
                 assertThat(softDeletesEngine.getVersionMap().keySet(), empty());
                 softDeletesEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 if (randomBoolean()) {

@@ -262,7 +262,7 @@ public class MetaDataCreateIndexService {
      * Handles the cluster state transition to a version that reflects the {@link CreateIndexClusterStateUpdateRequest}.
      * All the requested changes are firstly validated before mutating the {@link ClusterState}.
      */
-    ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request) throws Exception {
+    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request) throws Exception {
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
         Index createdIndex = null;
         String removalExtraInfo = null;

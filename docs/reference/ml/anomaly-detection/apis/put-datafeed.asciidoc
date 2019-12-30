@@ -69,10 +69,13 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
 (Required, array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
 
-
 `job_id`::
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`max_empty_searches`::
+(Optional,integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
  
 `query`::
 (Optional, object)

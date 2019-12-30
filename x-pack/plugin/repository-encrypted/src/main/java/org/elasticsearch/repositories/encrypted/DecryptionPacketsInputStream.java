@@ -153,10 +153,10 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             throw new IOException("Encrypted packet is too short");
         }
         try {
-            // in-place decryption of the whole packet
+            // in-place decryption of the whole packet and return decrypted length
             return packetCipher.doFinal(packetBuffer, 0, packetLength, packetBuffer);
         } catch (ShortBufferException | IllegalBlockSizeException | BadPaddingException e) {
-            throw new IOException("Exception during packet ", e);
+            throw new IOException("Exception during packet decryption", e);
         }
     }
 
@@ -167,7 +167,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             packetCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);
             return packetCipher;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {
-            throw new IOException(e);
+            throw new IOException("Exception during packet cipher initialisation", e);
         }
     }
 }

@@ -138,6 +138,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -4029,6 +4030,36 @@ public class InternalEngineTests extends EngineTestCase {
             "2", uid), searcherFactory)) {
             assertThat(result.exists(), equalTo(exists));
         }
+    }
+
+    /**
+     * Test that we do not leak out information on a deleted doc due to it existing in version map. There are at least 2 cases:
+     * <ul>
+     *     <li>Guessing the deleted seqNo makes the operation succeed</li>
+     *     <li>Providing any other seqNo leaks info that the doc was deleted (and its SeqNo)</li>
+     * </ul>
+     */
+    public void testVersionConflictIgnoreDeletedDoc() throws IOException {
+        ParsedDocument doc = testParsedDocument("1", null, testDocument(),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        engine.delete(new Engine.Delete("1", newUid("1"), 1));
+        for (long seqNo : new long[]{0, 1, randomNonNegativeLong()}) {
+            assertDeletedVersionConflict(engine.index(new Engine.Index(newUid("1"), doc, UNASSIGNED_SEQ_NO, 1,
+                    Versions.MATCH_ANY, VersionType.INTERNAL,
+                    PRIMARY, randomNonNegativeLong(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, seqNo, 1)),
+                "update: " + seqNo);
+
+            assertDeletedVersionConflict(engine.delete(new Engine.Delete("1", newUid("1"), UNASSIGNED_SEQ_NO, 1,
+                    Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, randomNonNegativeLong(), seqNo, 1)),
+                "delete: " + seqNo);
+        }
+    }
+
+    private void assertDeletedVersionConflict(Engine.Result result, String operation) {
+        assertNotNull("Must have failure for " + operation, result.getFailure());
+        assertThat(operation, result.getFailure(), Matchers.instanceOf(VersionConflictEngineException.class));
+        VersionConflictEngineException exception = (VersionConflictEngineException) result.getFailure();
+        assertThat(operation, exception.getMessage(), containsString("but no document was found"));
     }
 
     /*

@@ -1004,6 +1004,79 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
        assertBusy(() -> assertTrue(indexExists(thirdIndex)));
    }
 
+    public void testRolloverStepRetriesUntilRolledOverIndexIsDeleted() throws Exception {
+        String index = this.index + "-000001";
+        String rolledIndex = this.index + "-000002";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null));
+
+        // create the rolled index so the rollover of the first index fails
+        createIndexWithSettings(
+            rolledIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            false
+        );
+
+        createIndexWithSettings(
+            index,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            true
+        );
+
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
+
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"attempt-rollover\"\n" +
+            "  }\n" +
+            "}");
+
+        // Using {@link #waitUntil} here as ILM moves back and forth between the {@link WaitForRolloverReadyStep} step and
+        // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
+        // increases the wait time between calls exponentially, we might miss the window where the policy is on
+        // {@link WaitForRolloverReadyStep} and the move to `attempt-rollover` request will not be successful.
+        waitUntil(() -> {
+            try {
+                return client().performRequest(moveToStepRequest).getStatusLine().getStatusCode() == 200;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        // Similar to above, using {@link #waitUntil} as we want to make sure the `attempt-rollover` step started failing and is being
+        // retried (which means ILM moves back and forth between the `attempt-rollover` step and the `error` step)
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(index);
+                String step = (String) explainIndexResponse.get("step");
+                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
+                return step != null && step.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        deleteIndex(rolledIndex);
+
+        // the rollover step should eventually succeed
+        assertBusy(() -> assertThat(indexExists(rolledIndex), is(true)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
+    }
+
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         String index = "index";
 

@@ -98,6 +98,7 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         }
         this.packetLength = packetLength;
         this.packetIv = ByteBuffer.allocate(EncryptedRepository.GCM_IV_LENGTH_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        // nonce takes the first 4 bytes of the IV
         this.packetIv.putInt(0, nonce);
         this.encryptedPacketLength =
                 packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
@@ -121,7 +122,9 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         }
         // create the new packet
         InputStream encryptionInputStream = new PrefixInputStream(source, packetLength, false);
-        packetIv.putLong(4, counter++);
+        // the counter takes up the last 8 bytes of the packet IV (12 byte wide)
+        // the first 4 bytes are used by the nonce (which is the same for every packet IV)
+        packetIv.putLong(Integer.BYTES, counter++);
         if (counter == EncryptedRepository.PACKET_START_COUNTER) {
             // counter wrap around
             throw new IOException("Maximum packet count limit exceeded");

@@ -1720,7 +1720,7 @@ public class InternalEngineTests extends EngineTestCase {
                 currentTerm.set(currentTerm.get() + 1L);
                 engine.rollTranslogGeneration();
             }
-            final long correctVersion = docDeleted && randomBoolean() ? Versions.MATCH_DELETED : lastOpVersion;
+            final long correctVersion = docDeleted ? Versions.MATCH_DELETED : lastOpVersion;
             logger.info("performing [{}]{}{}",
                 op.operationType().name().charAt(0),
                 versionConflict ? " (conflict " + conflictingVersion + ")" : "",
@@ -1743,7 +1743,7 @@ public class InternalEngineTests extends EngineTestCase {
                     final Engine.IndexResult result;
                     if (versionedOp) {
                         // TODO: add support for non-existing docs
-                        if (randomBoolean() && lastOpSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        if (randomBoolean() && lastOpSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && docDeleted == false) {
                             result = engine.index(indexWithSeq.apply(lastOpSeqNo, lastOpTerm, index));
                         } else {
                             result = engine.index(indexWithVersion.apply(correctVersion, index));
@@ -1778,8 +1778,9 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
                 } else {
                     final Engine.DeleteResult result;
+                    long correctSeqNo = docDeleted ? UNASSIGNED_SEQ_NO : lastOpSeqNo;
                     if (versionedOp && lastOpSeqNo != UNASSIGNED_SEQ_NO && randomBoolean()) {
-                        result = engine.delete(delWithSeq.apply(lastOpSeqNo, lastOpTerm, delete));
+                        result = engine.delete(delWithSeq.apply(correctSeqNo, lastOpTerm, delete));
                     } else if (versionedOp) {
                         result = engine.delete(delWithVersion.apply(correctVersion, delete));
                     } else {

@@ -145,6 +145,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         if (counter == EncryptedRepository.PACKET_START_COUNTER) {
             throw new IOException("Maximum packet count limit exceeded");
         }
+        // cipher used to decrypt only the current packetInputStream
         Cipher packetCipher = getPacketDecryptionCipher(packetBuffer);
         // read the rest of the packet, reusing the packetBuffer
         int packetLength = packetInputStream.readNBytes(packetBuffer, 0, packetBuffer.length);
@@ -152,10 +153,10 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             throw new IOException("Encrypted packet is too short");
         }
         try {
-            // in-place decryption
+            // in-place decryption of the whole packet
             return packetCipher.doFinal(packetBuffer, 0, packetLength, packetBuffer);
         } catch (ShortBufferException | IllegalBlockSizeException | BadPaddingException e) {
-            throw new IOException(e);
+            throw new IOException("Exception during packet ", e);
         }
     }
 

@@ -48,8 +48,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=retain]
 [[ml-update-snapshot-example]]
 ==== {api-examples-title}
 
-The following example updates the snapshot identified as `1491852978`:
-
 [source,console]
 --------------------------------------------------
 POST

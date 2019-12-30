@@ -61,9 +61,6 @@ properties:
 [[ml-get-filter-example]]
 ==== {api-examples-title}
 
-The following example gets configuration information for the `safe_domains`
-filter:
-
 [source,console]
 --------------------------------------------------
 GET _ml/filters/safe_domains

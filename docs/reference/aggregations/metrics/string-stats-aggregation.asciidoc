@@ -16,7 +16,7 @@ The string stats aggregation returns the following results:
 the aggregation. Shannon entropy quantifies the amount of information contained in the field. It is a very useful metric for
 measuring a wide range of properties of a data set, such as diversity, similarity, randomness etc.
 
-Assuming the data consists of a twitter messages:
+Assuming the data consists of twitter messages:
 
 [source,console]
 --------------------------------------------------

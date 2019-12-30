@@ -439,8 +439,7 @@ public class MetaDataCreateIndexService {
         MetaDataCreateIndexService.checkShardLimit(indexSettings, currentState);
         if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             DEPRECATION_LOGGER.deprecatedAndMaybeLog("soft_deletes_disabled",
-                "Index with soft deletes disabled is deprecated and will be rejected. " +
-                "All indices will have soft deletes enabled regardless of this setting in the future. " +
+                "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
                 "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
         return indexSettings;

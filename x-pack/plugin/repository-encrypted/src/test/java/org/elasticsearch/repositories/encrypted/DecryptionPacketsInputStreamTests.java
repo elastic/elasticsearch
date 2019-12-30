@@ -75,7 +75,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             IOException e = expectThrows(IOException.class, () -> {
                 in.readAllBytes();
             });
-            assertThat(e.getMessage(), Matchers.is("Invalid packet IV"));
+            assertThat(e.getMessage(), Matchers.startsWith("Packet nonce mismatch."));
         }
     }
 
@@ -98,7 +98,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             IOException e = expectThrows(IOException.class, () -> {
                 in.readAllBytes();
             });
-            assertThat(e.getMessage(), Matchers.is("javax.crypto.AEADBadTagException: Tag mismatch!"));
+            assertThat(e.getMessage(), Matchers.is("Exception during packet decryption"));
         }
     }
 
@@ -126,7 +126,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                     IOException e = expectThrows(IOException.class, () -> {
                         in.readAllBytes();
                     });
-                    assertThat(e.getMessage(), Matchers.is("javax.crypto.AEADBadTagException: Tag mismatch!"));
+                    assertThat(e.getMessage(), Matchers.is("Exception during packet decryption"));
                 }
                 // flip bit back
                 encryptedBytes[i] ^= (1 << j);
@@ -158,7 +158,11 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                         IOException e = expectThrows(IOException.class, () -> {
                             in.readAllBytes();
                         });
-                        assertThat(e.getMessage(), Matchers.is("Invalid packet IV"));
+                        if (j < Integer.BYTES) {
+                            assertThat(e.getMessage(), Matchers.startsWith("Packet nonce mismatch"));
+                        } else {
+                            assertThat(e.getMessage(), Matchers.startsWith("Packet counter mismatch"));
+                        }
                     }
                     // flip bit back
                     encryptedBytes[i + j] ^= (1 << k);

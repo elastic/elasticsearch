@@ -29,13 +29,14 @@ privileges. See <<security-privileges>> and
 ==== {api-description-title}
 
 For more information about categories, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
 
 [[ml-get-category-path-parms]]
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<category_id>`::
   (Optional, long) Identifier for the category. If you do not specify this

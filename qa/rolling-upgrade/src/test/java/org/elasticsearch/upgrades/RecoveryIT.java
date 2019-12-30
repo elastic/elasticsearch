@@ -541,28 +541,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
     /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    private static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
-
-        final Response response = client().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
-
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
-        }
-        assertNotNull(minVersion);
-        return minVersion;
-    }
-
-    /**
      * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
      * that the index has started shards.
      */
@@ -750,6 +728,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 || nodeName.startsWith(CLUSTER_NAME + "-0")
                 || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
     }
 
@@ -773,5 +752,41 @@ public class RecoveryIT extends AbstractRollingTestCase {
             flush(index, true);
             assertEmptyTranslog(index);
         }
+    }
+
+    public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
+        final String indexName = "test-auto-expand-filtering";
+        final Version minimumNodeVersion = minimumNodeVersion();
+
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+        List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .build());
+            ensureGreen(indexName);
+            updateIndexSettings(indexName,
+                Settings.builder().put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
+        }
+
+        final int numberOfReplicas = Integer.parseInt(
+            getIndexSettingsAsMap(indexName).get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS).toString());
+        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
+            assertEquals(nodes.size() - 2, numberOfReplicas);
+            ensureGreen(indexName);
+        } else {
+            assertEquals(nodes.size() - 1, numberOfReplicas);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexSettings(index);
+        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 }

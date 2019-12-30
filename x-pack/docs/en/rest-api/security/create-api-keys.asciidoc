@@ -54,7 +54,7 @@ authenticated user_. If you supply role descriptors then the resultant permissio
 would be an intersection of API keys permissions and authenticated user's permissions
 thereby limiting the access scope for API keys.
 The structure of role descriptor is the same as the request for create role API.
-For more details, see <<security-api-roles,role management APIs>>.
+For more details, see <<security-api-put-role, create or update roles API>>.
 
 `expiration`::
 (Optional, string) Expiration time for the API key. By default, API keys never

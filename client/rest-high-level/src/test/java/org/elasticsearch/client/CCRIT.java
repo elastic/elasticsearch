@@ -19,10 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -51,9 +48,7 @@ import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
@@ -74,27 +69,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
     @Before
     public void setupRemoteClusterConfig() throws Exception {
-        // Configure local cluster as remote cluster:
-        // TODO: replace with nodes info highlevel rest client code when it is available:
-        final Request request = new Request("GET", "/_nodes");
-        Map<?, ?> nodesResponse = (Map<?, ?>) toMap(client().performRequest(request)).get("nodes");
-        // Select node info of first node (we don't know the node id):
-        nodesResponse = (Map<?, ?>) nodesResponse.get(nodesResponse.keySet().iterator().next());
-        String transportAddress = (String) nodesResponse.get("transport_address");
-
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local_cluster.seeds", transportAddress));
-        ClusterUpdateSettingsResponse updateSettingsResponse =
-            highLevelClient().cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
-        assertThat(updateSettingsResponse.isAcknowledged(), is(true));
-
-        assertBusy(() -> {
-            Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
-                .performRequest(new Request("GET", "/_remote/info")))
-                .get("local_cluster");
-            assertThat(localConnection, notNullValue());
-            assertThat(localConnection.get("connected"), is(true));
-        });
+        setupRemoteClusterConfig("local_cluster");
     }
 
     public void testIndexFollowing() throws Exception {
@@ -309,10 +284,6 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("copy-logs-20200101");
         AcknowledgedResponse pauseFollowResponse = ccrClient.pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
         assertThat(pauseFollowResponse.isAcknowledged(), is(true));
-    }
-
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 
 }

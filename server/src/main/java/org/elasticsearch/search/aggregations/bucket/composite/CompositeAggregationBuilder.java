@@ -235,7 +235,8 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else {
             afterKey = null;
         }
-        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData, size, configs, afterKey);
+        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData, size,
+            configs, afterKey);
     }
 
 

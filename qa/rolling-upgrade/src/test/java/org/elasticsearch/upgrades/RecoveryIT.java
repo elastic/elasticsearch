@@ -282,7 +282,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    public void testRecoveryWithSoftDeletes() throws Exception {
+    public void testRecovery() throws Exception {
         final String index = "recover_with_soft_deletes";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()

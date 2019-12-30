@@ -103,7 +103,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
                 return actual.getLevel().equals("WARN") &&
-                    actual.getComponent().equals("o.e.x.c.a.AutoFollowCoordinator") &&
+                    actual.getComponent().contains("AutoFollowCoordinator") &&
                     actual.getNodeName().startsWith("follow-cluster-0") &&
                     actual.getMessage().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
                     actual.stacktrace().contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +

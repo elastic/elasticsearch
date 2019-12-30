@@ -55,7 +55,7 @@ public class JsonLogsStream {
     }
 
     public static Stream<JsonLogLine> from(BufferedReader reader, ObjectParser<JsonLogLine, Void> logLineParser) throws IOException {
-        return new JsonLogsStream(reader,JsonLogLine.ES_LOG_LINE).stream();
+        return new JsonLogsStream(reader, logLineParser).stream();
     }
 
     public static Stream<JsonLogLine> from(BufferedReader reader) throws IOException {

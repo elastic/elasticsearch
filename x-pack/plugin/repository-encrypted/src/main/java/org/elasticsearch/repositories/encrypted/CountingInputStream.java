@@ -13,10 +13,12 @@ import java.util.Objects;
 /**
  * A {@code CountingInputStream} wraps another input stream and counts the number of bytes
  * that have been read or skipped.
- * Bytes replayed following a {@code reset} call are not counted multiple times, i.e. only
- * the bytes that are produced in a single pass, without resets, by the wrapped stream are counted.
+ * <p>
  * This input stream does no buffering on its own and only supports {@code mark} and
- * {@code reset} if the wrapped stream supports it.
+ * {@code reset} if the underlying wrapped stream supports it.
+ * <p>
+ * If the stream supports {@code mark} and {@code reset} the byte count is also reset to the
+ * value that it had on the last {@code mark} call, thereby not counting the same bytes twice.
  * <p>
  * If the {@code closeSource} constructor argument is {@code true}, closing this
  * stream will also close the wrapped input stream. Apart from closing the wrapped

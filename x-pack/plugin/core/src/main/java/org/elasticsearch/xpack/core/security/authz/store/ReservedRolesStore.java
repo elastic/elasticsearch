@@ -256,14 +256,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 .privileges("view_index_metadata")
                                 .allowRestrictedIndices(true)
                                 .build() }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
-                .put("monitor_snapshot_user", new RoleDescriptor("monitor_snapshot_user",
-                        new String[] { "monitor_snapshot", GetRepositoriesAction.NAME },
-                        new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder()
-                                .indices("*")
-                                .privileges("view_index_metadata")
-                                .allowRestrictedIndices(true)
-                                .build() }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
-
                 .put("enrich_user", new RoleDescriptor("enrich_user", new String[]{ "manage_enrich", "manage_ingest_pipelines", "monitor" },
                         new RoleDescriptor.IndicesPrivileges[]{  RoleDescriptor.IndicesPrivileges.builder()
                             .indices(".enrich-*")

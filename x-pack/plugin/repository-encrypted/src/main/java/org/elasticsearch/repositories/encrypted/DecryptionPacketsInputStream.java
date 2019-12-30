@@ -59,7 +59,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     /**
      * Computes and returns the length of the plaintext given the {@code ciphertextLength} and the {@code packetLength}
      * used during encryption.
-     * Each ciphertext packet is prepended by the Initilization Vector and appended the Authentication Tag.
+     * Each ciphertext packet is prepended by the Initilization Vector and has the Authentication Tag appended.
      * Decryption is 1:1, and the ciphertext is not padded, but stripping away the IV and the AT amounts to a shorter
      * plaintext compared to the ciphertext.
      *

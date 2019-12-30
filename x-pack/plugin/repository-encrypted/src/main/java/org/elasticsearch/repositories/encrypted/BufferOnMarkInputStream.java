@@ -30,8 +30,7 @@ import java.util.Objects;
  */
 public final class BufferOnMarkInputStream extends FilterInputStream {
 
-    // all protected for tests
-    protected final int bufferSize;
+    final int bufferSize; // package-protected for tests
     /**
      * The array used to store the bytes to be replayed upon a reset call.
      * The buffer portion that stores valid bytes, which must be returned by the read calls after a reset call,
@@ -42,29 +41,29 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
      * are equal. The buffer is full if it stores {@code bufferSize} elements.
      * To avoid mixing up the two states, the actual allocated size of the array is {@code bufferSize + 1}.
      */
-    protected byte[] ringBuffer;
+    byte[] ringBuffer; // package-protected for tests
     /**
      * The inclusive start offset of the bytes that must be replayed after a reset call.
      */
-    protected int head;
+    int head; // package-protected for tests
     /**
      * The exclusive end offset of the bytes that must be replayed after a reset call.
      */
-    protected int tail;
+    int tail; // package-protected for tests
     /**
      * The current offset of the next byte to be returned from the buffer for the reads following a reset.
      * This is defined only when {@code resetCalled} is {@code true}.
      */
-    protected int position;
+    int position; // package-protected for tests
     /**
      * {@code true} when the result of a read or skip from the underlying stream must also be stored in the buffer
      */
-    protected boolean markCalled;
+    boolean markCalled; // package-protected for tests
     /**
      * {@code true} when the returned bytes must come from the buffer and not from the underlying stream
      */
-    protected boolean resetCalled;
-    protected boolean closed;
+    boolean resetCalled; // package-protected for tests
+    boolean closed; // package-protected for tests
 
     /**
      * Creates a {@code BufferOnMarkInputStream} that buffers a maximum of {@code bufferSize} elements
@@ -237,6 +236,15 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     }
 
     /**
+     * Tests if this input stream supports the {@code mark} and
+     * {@code reset} methods. This always returns {@code true}.
+     */
+    @Override
+    public boolean markSupported() {
+        return true;
+    }
+
+    /**
      * Marks the current position in this input stream. A subsequent call to
      * the {@code reset} method repositions this stream at the last marked
      * position so that subsequent reads re-read the same bytes.
@@ -284,15 +292,6 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
                 head = tail = position = 0;
             }
         }
-    }
-
-    /**
-     * Tests if this input stream supports the {@code mark} and
-     * {@code reset} methods. This always returns {@code true}.
-     */
-    @Override
-    public boolean markSupported() {
-        return true;
     }
 
     /**

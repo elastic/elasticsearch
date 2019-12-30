@@ -42,7 +42,7 @@ import java.util.List;
 public class CustomLoggingConfigIT extends ESRestTestCase {
     //we are looking for a line where pattern contains nodeName nodeId clusterId clusterName message :
     // "integTest-0 kTCpXIn_SJu5x_f4GJNXug LRnKMHc7Qh2jmY3QOkCSnQ integTest recovered [0] indices into cluster_state"
-    private static final String NODE_STARTED = ".*integTest-0 \\w+ \\w+ \\w+ recovered.*cluster_state.*";
+    private static final String NODE_STARTED = ".*integTest-0 [\\w-]+ [\\w-]+ integTest .*recovered.*cluster_state.*";
 
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {

@@ -13,6 +13,7 @@ import org.hamcrest.Matchers;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
@@ -43,7 +44,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
     }
 
     public void testSuccessEncryptAndDecryptTypicalPacketLength() throws Exception {
-        int len = 512 + Randomness.get().nextInt(512);
+        int len = 1024 + Randomness.get().nextInt(512);
         byte[] plainBytes = new byte[len];
         Randomness.get().nextBytes(plainBytes);
         SecretKey secretKey = generateSecretKey();
@@ -180,16 +181,28 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             }
             assertThat((long) encryptedBytes.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionLength(len, packetLen)));
             byte[] decryptedBytes;
-            try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, nonce,
-                    packetLen)) {
+            try (InputStream in = new DecryptionPacketsInputStream(new ReadLessFilterInputStream(new ByteArrayInputStream(encryptedBytes)),
+                    secretKey, nonce, packetLen)) {
                 decryptedBytes = in.readAllBytes();
             }
             assertThat(decryptedBytes.length, Matchers.is(len));
             assertThat((long) decryptedBytes.length, Matchers.is(DecryptionPacketsInputStream.getDecryptionLength(encryptedBytes.length,
                     packetLen)));
-            for (int i = 0; i < len; i++) {
-                assertThat(decryptedBytes[i], Matchers.is(plainBytes[i]));
-            }
+            assertThat(decryptedBytes, Matchers.equalTo(plainBytes));
+        }
+    }
+
+    // input stream that reads less bytes than asked to, testing that packet-wide reads don't rely on `read` calls for memory buffers which
+    // always return the same number of bytes they are asked to
+    private static class ReadLessFilterInputStream extends FilterInputStream {
+
+        protected ReadLessFilterInputStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return super.read(b, off, randomIntBetween(0, len));
         }
     }
 

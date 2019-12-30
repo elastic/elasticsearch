@@ -58,8 +58,6 @@ of which must have a start time, end time, and description.
 [[ml-post-calendar-event-example]]
 ==== {api-examples-title}
 
-You can add scheduled events to the `planned-outages` calendar as follows:
-
 [source,console]
 --------------------------------------------------
 POST _ml/calendars/planned-outages/events

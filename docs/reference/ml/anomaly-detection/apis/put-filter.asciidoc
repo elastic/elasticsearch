@@ -47,8 +47,6 @@ the `custom_rules` property of detector configuration objects.
 [[ml-put-filter-example]]
 ==== {api-examples-title}
 
-The following example creates the `safe_domains` filter:
-
 [source,console]
 --------------------------------------------------
 PUT _ml/filters/safe_domains

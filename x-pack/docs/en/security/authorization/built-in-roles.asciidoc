@@ -15,7 +15,7 @@ Grants access necessary for the APM system user to send system-level data
 (such as monitoring) to {es}.
 
 [[built-in-roles-apm-user]] `apm_user` ::
-Grants the privileges required for APM users (such as `read` and
+Grants the privileges required for APM users (such as `read` and 
 `view_index_metadata` privileges on the `apm-*` and `.ml-anomalies*` indices).
 
 [[built-in-roles-beats-admin]] `beats_admin` ::
@@ -27,7 +27,7 @@ Grants access necessary for the Beats system user to send system-level data
 (such as monitoring) to {es}.
 +
 --
-[NOTE]
+[NOTE] 
 ===============================
 * This role should not be assigned to users as the granted permissions may
 change between releases.
@@ -37,27 +37,27 @@ suitable for writing beats output to {es}.
 
 --
 
-[[built-in-roles-transform-admin]] `transform_admin` ::
-Grants `manage_transform` cluster privileges, which enable you to manage
-{transforms}. This role also includes all
+[[built-in-roles-transform-admin]] `transform_admin` :: 
+Grants `manage_transform` cluster privileges, which enable you to manage 
+{transforms}. This role also includes all 
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transform-user]] `transform_user` ::
-Grants `monitor_transform` cluster privileges, which enable you to use
+Grants `monitor_transform` cluster privileges, which enable you to use 
 {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-data-frame-transforms-admin]] `data_frame_transforms_admin` ::
-(This role is deprecated, please use the
-<<built-in-roles-transform-admin,`transform_admin`>> role instead.) Grants
-`manage_data_frame_transforms` cluster privileges, which enable you to manage
+(This role is deprecated, please use the 
+<<built-in-roles-transform-admin,`transform_admin`>> role instead.) Grants 
+`manage_data_frame_transforms` cluster privileges, which enable you to manage 
 {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-data-frame-transforms-user]] `data_frame_transforms_user` ::
-(This role is deprecated, please use the
-<<built-in-roles-transform-user,`transform_user`>> role instead.) Grants
-`monitor_data_frame_transforms` cluster privileges, which enable you to use
+(This role is deprecated, please use the 
+<<built-in-roles-transform-user,`transform_user`>> role instead.) Grants 
+`monitor_data_frame_transforms` cluster privileges, which enable you to use 
 {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
@@ -100,7 +100,7 @@ Grants access necessary for the Logstash system user to send system-level data
 {logstash-ref}/ls-security.html[Configuring Security in Logstash].
 +
 --
-[NOTE]
+[NOTE] 
 ===============================
 * This role should not be assigned to users as the granted permissions may
 change between releases.
@@ -131,17 +131,17 @@ Monitoring users should also be assigned the `kibana_user` role.
 
 [[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
 Grants the minimum privileges required to write data into the monitoring indices
-(`.monitoring-*`). This role also has the privileges necessary to create
-{metricbeat} indices (`metricbeat-*`) and write data into them.
+(`.monitoring-*`). This role also has the privileges necessary to create 
+{metricbeat} indices (`metricbeat-*`) and write data into them. 
 
 [[built-in-roles-remote-monitoring-collector]] `remote_monitoring_collector`::
 Grants the minimum privileges required to collect monitoring data for the {stack}.
 
 [[built-in-roles-reporting-user]] `reporting_user`::
 Grants the specific privileges required for users of {reporting} other than those
-required to use {kib}. This role grants access to the reporting indices; each
-user has access to only their own reports. Reporting users should also be
-assigned the `kibana_user` role and a role that grants them access to the data
+required to use {kib}. This role grants access to the reporting indices; each 
+user has access to only their own reports. Reporting users should also be 
+assigned the `kibana_user` role and a role that grants them access to the data 
 that will be used to generate reports.
 
 [[built-in-roles-snapshot-user]] `snapshot_user`::

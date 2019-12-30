@@ -125,8 +125,8 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         // the counter takes up the last 8 bytes of the packet IV (12 byte wide)
         // the first 4 bytes are used by the nonce (which is the same for every packet IV)
         packetIv.putLong(Integer.BYTES, counter++);
+        // counter wrap around
         if (counter == EncryptedRepository.PACKET_START_COUNTER) {
-            // counter wrap around
             throw new IOException("Maximum packet count limit exceeded");
         }
         Cipher packetCipher = getPacketEncryptionCipher(secretKey, packetIv.array());

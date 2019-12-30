@@ -22,6 +22,9 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
+import static org.elasticsearch.repositories.encrypted.EncryptedRepository.GCM_IV_LENGTH_IN_BYTES;
+import static org.elasticsearch.repositories.encrypted.EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
+
 /**
  * A {@code DecryptionPacketsInputStream} wraps an encrypted input stream and decrypts
  * its contents. This is designed (and tested) to decrypt only the encryption format that
@@ -50,8 +53,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     private final SecretKey secretKey;
     private final int nonce;
     private final int packetLength;
-    private final byte[] packet;
-    private final byte[] iv;
+    private final byte[] packetBuffer;
 
     private boolean hasNext;
     private long counter;
@@ -66,13 +68,11 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
      * @see EncryptionPacketsInputStream#getEncryptionLength(long, int)
      */
     public static long getDecryptionLength(long ciphertextLength, int packetLength) {
-        long encryptedPacketLength =
-                packetLength + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES;
+        long encryptedPacketLength = packetLength + GCM_TAG_LENGTH_IN_BYTES + GCM_IV_LENGTH_IN_BYTES;
         long completePackets = ciphertextLength / encryptedPacketLength;
         long decryptedSize = completePackets * packetLength;
         if (ciphertextLength % encryptedPacketLength != 0) {
-            decryptedSize += (ciphertextLength % encryptedPacketLength) - EncryptedRepository.GCM_IV_LENGTH_IN_BYTES
-                    - EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
+            decryptedSize += (ciphertextLength % encryptedPacketLength) - GCM_IV_LENGTH_IN_BYTES - GCM_TAG_LENGTH_IN_BYTES;
         }
         return decryptedSize;
     }
@@ -85,8 +85,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             throw new IllegalArgumentException("Invalid packet length [" + packetLength + "]");
         }
         this.packetLength = packetLength;
-        this.packet = new byte[packetLength + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES];
-        this.iv = new byte[EncryptedRepository.GCM_IV_LENGTH_IN_BYTES];
+        this.packetBuffer = new byte[packetLength + GCM_TAG_LENGTH_IN_BYTES];
         this.hasNext = true;
         this.counter = EncryptedRepository.PACKET_START_COUNTER;
     }
@@ -100,14 +99,14 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             return null;
         }
         PrefixInputStream packetInputStream = new PrefixInputStream(source,
-                packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES,
+                packetLength + GCM_IV_LENGTH_IN_BYTES + GCM_TAG_LENGTH_IN_BYTES,
                 false);
         int currentPacketLength = decrypt(packetInputStream);
         // only the last packet is shorter, so this must be the last packet
         if (currentPacketLength != packetLength) {
             hasNext = false;
         }
-        return new ByteArrayInputStream(packet, 0, currentPacketLength);
+        return new ByteArrayInputStream(packetBuffer, 0, currentPacketLength);
     }
 
     @Override
@@ -125,28 +124,43 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     }
 
     private int decrypt(PrefixInputStream packetInputStream) throws IOException {
-        if (packetInputStream.read(iv) != iv.length) {
-            throw new IOException("Error while reading the heading IV of the packet");
+        // read only the IV prefix into the packet buffer
+        int ivLength = packetInputStream.readNBytes(packetBuffer, 0, GCM_IV_LENGTH_IN_BYTES);
+        if (ivLength != GCM_IV_LENGTH_IN_BYTES) {
+            throw new IOException("Packet heading IV error. Unexpected length [" + ivLength + "].");
         }
-        ByteBuffer ivBuffer = ByteBuffer.wrap(iv).order(ByteOrder.LITTLE_ENDIAN);
-        if (ivBuffer.getInt(0) != nonce || ivBuffer.getLong(4) != counter++) {
-            throw new IOException("Invalid packet IV");
+        // extract the nonce and the counter from the packet IV
+        ByteBuffer ivBuffer = ByteBuffer.wrap(packetBuffer, 0, GCM_IV_LENGTH_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        int packetIvNonce = ivBuffer.getInt(0);
+        long packetIvCounter = ivBuffer.getLong(Integer.BYTES);
+        if (packetIvNonce != nonce) {
+            throw new IOException("Packet nonce mismatch. Expecting [" + nonce + "], but got [" + packetIvNonce + "].");
         }
-        int packetLength = packetInputStream.read(packet);
-        if (packetLength < EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES) {
-            throw new IOException("Error while reading the packet");
+        if (packetIvCounter != counter) {
+            throw new IOException("Packet counter mismatch. Expecting [" + counter + "], but got [" + packetIvCounter + "].");
         }
-        Cipher packetCipher = getPacketDecryptionCipher(iv);
+        // counter increment for the subsequent packet
+        counter++;
+        // counter wrap around
+        if (counter == EncryptedRepository.PACKET_START_COUNTER) {
+            throw new IOException("Maximum packet count limit exceeded");
+        }
+        Cipher packetCipher = getPacketDecryptionCipher(packetBuffer);
+        // read the rest of the packet, reusing the packetBuffer
+        int packetLength = packetInputStream.readNBytes(packetBuffer, 0, packetBuffer.length);
+        if (packetLength < GCM_TAG_LENGTH_IN_BYTES) {
+            throw new IOException("Encrypted packet is too short");
+        }
         try {
             // in-place decryption
-            return packetCipher.doFinal(packet, 0, packetLength, packet);
+            return packetCipher.doFinal(packetBuffer, 0, packetLength, packetBuffer);
         } catch (ShortBufferException | IllegalBlockSizeException | BadPaddingException e) {
             throw new IOException(e);
         }
     }
 
-    private Cipher getPacketDecryptionCipher(byte[] packetIv) throws IOException {
-        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, packetIv);
+    private Cipher getPacketDecryptionCipher(byte[] packet) throws IOException {
+        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, packet, 0, GCM_IV_LENGTH_IN_BYTES);
         try {
             Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
             packetCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);

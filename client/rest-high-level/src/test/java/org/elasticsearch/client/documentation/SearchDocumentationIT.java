@@ -704,6 +704,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::search-scroll-example
+            int count = 0;
             final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
             SearchRequest searchRequest = new SearchRequest("posts");
             searchRequest.scroll(scroll);
@@ -714,14 +715,16 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT); // <1>
             String scrollId = searchResponse.getScrollId();
             SearchHit[] searchHits = searchResponse.getHits().getHits();
-
-            while (searchHits != null && searchHits.length > 0) { // <2>
+            count += searchHits.length;
+            long totalValue = searchResponse.getHits().getTotalHits().value;
+            while (searchHits != null && searchHits.length > 0 && totalValue != count) { // <2>
                 // <3>
                 SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <4>
                 scrollRequest.scroll(scroll);
                 searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
                 scrollId = searchResponse.getScrollId();
                 searchHits = searchResponse.getHits().getHits();
+                count += searchHits.length;
             }
 
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest(); // <5>

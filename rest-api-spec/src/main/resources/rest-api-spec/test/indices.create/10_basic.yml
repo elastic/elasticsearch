@@ -129,8 +129,8 @@
 
   - do:
       warnings:
-        - Index with soft deletes disabled is deprecated and will be rejected. All indices will have soft deletes enabled regardless
-          of this setting in the future. Please do not specify value for setting [index.soft_deletes.enabled] of index [test_index].
+        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
+          Please do not specify value for setting [index.soft_deletes.enabled] of index [test_index].
       indices.create:
         index: test_index
         body:

@@ -93,6 +93,11 @@ public final class PrefixInputStream extends FilterInputStream {
     }
 
     @Override
+    public boolean markSupported() {
+        return false;
+    }
+
+    @Override
     public void mark(int readlimit) {
         // mark and reset are not supported
     }
@@ -100,11 +105,6 @@ public final class PrefixInputStream extends FilterInputStream {
     @Override
     public void reset() throws IOException {
         throw new IOException("mark/reset not supported");
-    }
-
-    @Override
-    public boolean markSupported() {
-        return false;
     }
 
     @Override

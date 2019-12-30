@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.index;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -30,6 +31,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
@@ -82,8 +85,21 @@ public class MappingUpdatedAction {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    listener.onFailure(unwrapException(e));
                 }
             });
+    }
+
+    // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.
+    private static Exception unwrapException(Exception cause) {
+        return cause instanceof ElasticsearchException ? unwrapEsException((ElasticsearchException) cause) : cause;
+    }
+
+    private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
+        Throwable root = esEx.unwrapCause();
+        if (root instanceof RuntimeException) {
+            return (RuntimeException) root;
+        }
+        return new UncategorizedExecutionException("Failed execution", root);
     }
 }

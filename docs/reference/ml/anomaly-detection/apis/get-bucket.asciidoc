@@ -63,10 +63,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 `expand`::
 (Optional, boolean) If true, the output includes anomaly records.
 
-`page`::
-`page`.`from`:::
+`page`.`from`::
 (Optional, integer) Skips the specified number of buckets.
-`page`.`size`:::
+`page`.`size`::
 (Optional, integer) Specifies the maximum number of buckets to obtain.
 
 `sort`::

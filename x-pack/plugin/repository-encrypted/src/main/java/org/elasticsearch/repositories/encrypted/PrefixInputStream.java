@@ -94,6 +94,7 @@ public final class PrefixInputStream extends FilterInputStream {
 
     @Override
     public void mark(int readlimit) {
+        // mark and reset are not supported
     }
 
     @Override

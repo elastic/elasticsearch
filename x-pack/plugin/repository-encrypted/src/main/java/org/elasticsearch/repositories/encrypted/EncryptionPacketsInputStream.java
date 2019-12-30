@@ -113,7 +113,8 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
             // there are no more packets
             return null;
         }
-        // mark source input stream at packet boundary
+        // If the enclosing stream has a mark set,
+        // then apply it to the source input stream when we reach a packet boundary
         if (markSourceOnNextPacket != -1) {
             source.mark(markSourceOnNextPacket);
             markSourceOnNextPacket = -1;

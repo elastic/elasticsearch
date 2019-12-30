@@ -38,6 +38,278 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
+[[cluster-stats-api-response-body]]
+==== {api-response-body-title}
+
+`_nodes.total`::
+(integer)
+Total number of nodes in the cluster.
+
+`_nodes.successful`::
+(integer)
+Number of nodes that started succesfully.
+
+`_nodes.failed`::
+(integer)
+Number of nodes that failed to start.
+
+`cluster_name`::
+(string)
+Name of the cluster.
+
+`cluster_uuid`::
+(string)
+Unique identifier for the cluster.
+
+`timestamp`::
+(https://en.wikipedia.org/wiki/Unix_time[Unix timestamp])
+Last time the cluster statistics were refreshed.
+
+`status`::
+(string)
+Health status of the cluster based on the state of its primary and replica
+shards. Returned values include:
+
+  `green`:::
+  All primary shard and replica shards are assigned. There are at least two
+  copies of all shards.
+
+  `yellow`:::
+  All primary shards are assigned, but one or more replica shards are
+  unassigned. If a node in the cluster fails, data could be lost.
+
+  `red`:::
+  One or more primary shards are unassigned. This can occur briefly during
+  cluster startup as primary shards are assigned during cluster startup. At
+  other times, this status may indicate data loss.
+
+`indices.count`::
+(integer)
+Total number of indices in the cluster.
+
+`indices.shards.total`::
+(integer)
+Total number of shards for all indices.
+
+`indices.shards.primaries`::
+(integer)
+Number of primary shards.
+
+`indices.shards.replication`::
+(integer)
+Number of replica shards.
+
+`indices.shards.index.shards.min`::
+(integer)
+Lowest historic number of shards for the cluster.
+
+`indices.shards.index.shards.max`::
+(integer)
+Highest historic number of shards for the cluster.
+
+`indices.shards.index.shards.avg`::
+(integer)
+Average number of shards for the cluster.
+
+`indices.shards.index.primaries.min`::
+(integer)
+Lowest historic number of primary shards for the cluster.
+
+`indices.shards.index.primaries.max`::
+(integer)
+Highest historic number of primary shards for the cluster.
+
+`indices.shards.index.primaries.avg`::
+(integer)
+Average number of primary shards for the cluster.
+
+`indices.shards.index.replication.min`::
+(integer)
+Lowest historic number of replica shards for the cluster.
+
+`indices.shards.index.replication.max`::
+(integer)
+Highest historic number of replica shards for the cluster.
+
+`indices.shards.index.replication.avg`::
+(integer)
+Average number of replica shards for the cluster.
+
+`indices.docs.count`::
+(integer)
+Number of non-deleted documents in the cluster.
++
+This number is based on documents in Lucene segments and may include documents
+from nested fields.
+
+`indices.docs.deleted`::
+(integer)
+Number of deleted documents in the cluster.
++
+This number is based on documents in Lucene segments. {es} reclaims the disk
+space of deleted Lucene documents when a segment is merged.
+
+`indices.store.size`::
+(<<byte-units, byte units>>)
+Size of the indices store.
+
+`indices.store.size_in_bytes`::
+(integer)
+Size, in bytes, of the store.
+
+`indices.fielddata.memory_size`::
+(<<byte-units, byte units>>)
+Memory used for fielddata cache.
+
+`indices.fielddata.memory_size_in_bytes`::
+(integer)
+Memory, in bytes, used for fielddata cache.
+
+`indices.fielddata.evictions`::
+(integer)
+Number of fielddata evictions.
+
+`indices.query_cache.memory_size`::
+(<<byte-units, byte units>>)
+Memory used for query cache.
+
+`indices.query_cache.memory_size_in_bytes`::
+(integer)
+Memory, in bytes, used for query cache.
+
+`indices.query_cache.total_count`::
+(integer)
+Total count of hits, misses, and cached queries in the query cache.
+
+`indices.query_cache.hit_count`::
+(integer)
+Number of query cache hits.
+
+`indices.query_cache.miss_count`::
+(integer)
+Number of query cache misses.
+
+`indices.query_cache.cache_size`::
+(integer)
+Size, in bytes, of the query cache.
+
+`indices.query_cache.cache_count`::
+(integer)
+Count of queries in the query cache.
+
+`indices.query_cache.evictions`::
+(integer)
+Number of query cache evictions.
+
+`indices.completion.size_in_bytes`::
+(<<byte-units, byte units>>)
+Memory used for completion.
+
+`indices.completion.size_in_bytes`::
+(integer)
+Memory, in bytes, used for completion.
+
+`indices.segments.count`::
+(integer)
+Number of segments.
+
+`indices.segments.memory`::
+(<<byte-units, byte units>>)
+Size of segments.
+
+`indices.segments.memory_in_bytes`::
+(integer)
+Size, in bytes, of segments.
+
+`indices.segments.terms_memory`::
+(<<byte-units, byte units>>)
+Size of terms in segments.
+
+`indices.segments.terms_memory_in_bytes`::
+(integer)
+Size, in bytes, of terms in segments.
+
+`indices.segments.stored_fields_memory`::
+(<<byte-units, byte units>>)
+Size of stored fields in segments.
+
+`indices.segments.stored_fields_memory_in_bytes`::
+(integer)
+Size, in bytes, of stored fields in segments.
+
+`indices.segments.term_vectors_memory`::
+(<<byte-units, byte units>>)
+Size of term vectors in segments.
+
+`indices.segments.term_vectors_memory_in_bytes`::
+(integer)
+Size, in bytes, of term vectors in segments.
+
+`indices.segments.norms_memory`::
+(<<byte-units, byte units>>)
+Size of normalization factors in segments.
+
+`indices.segments.norms_memory_in_bytes`::
+(integer)
+Size, in bytes, of normalization factors in segments.
+
+`indices.segments.points_memory`::
+(<<byte-units, byte units>>)
+Size of points in segments.
+
+`indices.segments.points_memory_in_bytes`::
+(integer)
+Size, in bytes, of points in segments.
+
+`indices.segments.doc_values_memory`::
+(<<byte-units, byte units>>)
+Size of doc values in segments.
+
+`indices.segments.doc_values_memory_in_bytes`::
+(integer)
+Size, in bytes, of doc values in segments.
+
+`indices.segments.index_writer_memory_in_bytes`::
+(<<byte-units, byte units>>)
+Memory used by the index writer.
+
+`indices.segments.index_writer_memory_in_bytes`::
+(integer)
+Memory, in bytes, used by the index writer.
+
+`indices.segments.version_map_memory`::
+(<<byte-units, byte units>>)
+Memory used by the version map.
+
+`indices.segments.version_map_memory_in_bytes`::
+(integer)
+Memory, in bytes, used by the version map.
+
+`indices.segments.fixed_bit_set_memory`::
+(<<byte-units, byte units>>)
+Memory used by fixed bit sets for nested object field types and type
+filters for <<parent-join,join>> fields.
+
+`indices.segments.fixed_bit_set_memory_in_bytes`::
+(integer)
+Memory, in bytes, used by fixed bit sets.
+
+`indices.segments.max_unsafe_auto_id_timestamp`::
+(integer)
+Timestamp of the most recent retry request.
+
+`indices.segments.file_sizes.size`::
+(<<byte-units, byte units>>)
+Size of the segment file.
+
+`indices.segments.file_sizes.size_in_bytes`::
+(integer)
+Size, in bytes, of the segment file.
+
+`indices.segments.file_sizes.description`::
+(string)
+Description of the segment file.
+
 
 [[cluster-stats-api-example]]
 ==== {api-examples-title}

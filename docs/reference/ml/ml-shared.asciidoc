@@ -1,3 +1,4 @@
+
 tag::aggregations[]
 If set, the {dfeed} performs aggregation searches. Support for aggregations is
 limited and should only be used with low cardinality data. For more information,

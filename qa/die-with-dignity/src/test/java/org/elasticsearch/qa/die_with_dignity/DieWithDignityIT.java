@@ -68,10 +68,10 @@ public class DieWithDignityIT extends ESRestTestCase {
         try {
             while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
                 final String line = it.next();
-                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*integTest-0.*fatal error.*")) {
+                if( containsAll(line,".*ERROR.*", ".*ExceptionsHelper.*", ".*integTest-0.*", ".*fatal error.*")) {
                     fatalError = true;
-                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*integTest-0.*"
-                    + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
+                } else if (containsAll(line,".*ERROR.*",".*ElasticsearchUncaughtExceptionHandler.*",
+                    ".*integTest-0.*",".*fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
                     fatalErrorInThreadExiting = true;
                     assertTrue(it.hasNext());
                     assertThat(it.next(), containsString("java.lang.OutOfMemoryError: die with dignity"));
@@ -86,6 +86,15 @@ public class DieWithDignityIT extends ESRestTestCase {
             debugLogs(path);
             throw ae;
         }
+    }
+
+    private boolean containsAll(String line, String ... subStrings) {
+        for(String subString : subStrings){
+            if(line.matches(subString) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void debugLogs(Path path) throws IOException {

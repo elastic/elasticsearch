@@ -40,7 +40,9 @@ import java.util.List;
  * The intention is to confirm that users can still run their Elasticsearch instances with previous configurations.
  */
 public class CustomLoggingConfigIT extends ESRestTestCase {
-    private static final String NODE_STARTED = ".*integTest-0.*cluster.uuid.*node.id.*recovered.*cluster_state.*";
+    //we are looking for a line where pattern contains nodeName nodeId clusterId clusterName message :
+    // "integTest-0 kTCpXIn_SJu5x_f4GJNXug LRnKMHc7Qh2jmY3QOkCSnQ integTest recovered [0] indices into cluster_state"
+    private static final String NODE_STARTED = ".*integTest-0 \\w+ \\w+ \\w+ recovered.*cluster_state.*";
 
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {
@@ -62,6 +64,7 @@ public class CustomLoggingConfigIT extends ESRestTestCase {
     @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
     private Path getLogFile() {
         String logFileString = System.getProperty("tests.logfile");
+        System.out.println(logFileString);
         if (logFileString == null) {
             fail("tests.logfile must be set to run this test. It is automatically "
                 + "set by gradle. If you must set it yourself then it should be the absolute path to the "

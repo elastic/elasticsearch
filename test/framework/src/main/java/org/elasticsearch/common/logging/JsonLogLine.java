@@ -30,7 +30,9 @@ import java.util.List;
  * Parsing log lines with this class confirms the json format of logs
  */
 public class JsonLogLine {
-    public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(true);
+    public static final ObjectParser<JsonLogLine, Void> ECS_LOG_LINE = createECSParser(true);
+    public static final ObjectParser<JsonLogLine, Void> ES_LOG_LINE = createESParser(true);
+
 
     private String type;
     private String timestamp;
@@ -150,7 +152,7 @@ public class JsonLogLine {
         this.stacktrace = stacktrace;
     }
 
-    private static ObjectParser<JsonLogLine, Void> createParser(boolean ignoreUnknownFields) {
+    private static ObjectParser<JsonLogLine, Void> createECSParser(boolean ignoreUnknownFields) {
         ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("json_log_line", ignoreUnknownFields, JsonLogLine::new);
         parser.declareString(JsonLogLine::setType, new ParseField("type"));
         parser.declareString(JsonLogLine::setTimestamp, new ParseField("@timestamp"));
@@ -163,6 +165,22 @@ public class JsonLogLine {
         parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
         parser.declareStringArray(JsonLogLine::setTags, new ParseField("tags"));
         parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("error.stack_trace"));
+
+        return parser;
+    }
+
+    private static ObjectParser<JsonLogLine, Void> createESParser(boolean ignoreUnknownFields) {
+        ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, JsonLogLine::new);
+        parser.declareString(JsonLogLine::setType, new ParseField("type"));
+        parser.declareString(JsonLogLine::setTimestamp, new ParseField("timestamp"));
+        parser.declareString(JsonLogLine::setLevel, new ParseField("level"));
+        parser.declareString(JsonLogLine::setComponent, new ParseField("component"));
+        parser.declareString(JsonLogLine::setClusterName, new ParseField("cluster.name"));
+        parser.declareString(JsonLogLine::setNodeName, new ParseField("node.name"));
+        parser.declareString(JsonLogLine::setClusterUuid, new ParseField("cluster.uuid"));
+        parser.declareString(JsonLogLine::setNodeId, new ParseField("node.id"));
+        parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
+        parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("stacktrace"));
 
         return parser;
     }

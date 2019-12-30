@@ -135,11 +135,11 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             final Settings settings,
             final Path configPath) {
         super(settings);
+        // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
+        // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
-        Environment env = transportClientMode ? null : new Environment(settings, configPath);
 
-        setSslService(new SSLService(settings, env));
         setLicenseState(new XPackLicenseState(settings));
 
         this.licensing = new Licensing(settings);
@@ -156,7 +156,14 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     protected void setSslService(SSLService sslService) { XPackPlugin.sslService.set(sslService); }
     protected void setLicenseService(LicenseService licenseService) { XPackPlugin.licenseService.set(licenseService); }
     protected void setLicenseState(XPackLicenseState licenseState) { XPackPlugin.licenseState.set(licenseState); }
-    public static SSLService getSharedSslService() { return sslService.get(); }
+
+    public static SSLService getSharedSslService() {
+        final SSLService ssl = XPackPlugin.sslService.get();
+        if (ssl == null) {
+            throw new IllegalStateException("SSL Service is not constructed yet");
+        }
+        return ssl;
+    }
     public static LicenseService getSharedLicenseService() { return licenseService.get(); }
     public static XPackLicenseState getSharedLicenseState() { return licenseState.get(); }
 
@@ -249,14 +256,16 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         List<Object> components = new ArrayList<>();
 
+        final SSLService sslService = new SSLService(environment);
+        setSslService(sslService);
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(environment, getSslService(), resourceWatcherService);
+        new SSLConfigurationReloader(environment, sslService, resourceWatcherService);
 
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
 
         // It is useful to override these as they are what guice is injecting into actions
-        components.add(getSslService());
+        components.add(sslService);
         components.add(getLicenseService());
         components.add(getLicenseState());
 

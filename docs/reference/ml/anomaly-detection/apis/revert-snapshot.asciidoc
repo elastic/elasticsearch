@@ -24,7 +24,7 @@ Reverts to a specific snapshot.
 [[ml-revert-snapshot-desc]]
 ==== {api-description-title}
 
-The {ml} feature in {xpack} reacts quickly to anomalous input, learning new
+The {ml-features} reacts quickly to anomalous input, learning new
 behaviors in data. Highly anomalous input increases the variance in the models
 whilst the system learns whether this is a new step-change in behavior or a
 one-off event. In the case where this anomalous input is known to be a one-off,
@@ -60,8 +60,7 @@ If you want to resend data, then delete the intervening results.
 
 [source,console]
 --------------------------------------------------
-POST
-_ml/anomaly_detectors/high_sum_total_sales/model_snapshots/1577221697/_revert
+POST _ml/anomaly_detectors/high_sum_total_sales/model_snapshots/1575402237/_revert
 {
   "delete_intervening_results": true
 }
@@ -72,30 +71,32 @@ When the operation is complete, you receive the following results:
 [source,js]
 ----
 {
-  "model": {
-    "job_id": "high_sum_total_sales",
-    "min_version": "6.4.0",
-    "timestamp": 1577221697000,
-    "description": "Periodic background persist at 2019-12-24T21:08:17+0000",
-    "snapshot_id": "1577221697",
-    "snapshot_doc_count": 1,
-    "model_size_stats": {
-      "job_id": "high_sum_total_sales",
-      "result_type": "model_size_stats",
-      "model_bytes": 1325334,
+  "model" : {
+    "job_id" : "high_sum_total_sales",
+    "min_version" : "6.4.0",
+    "timestamp" : 1575402237000,
+    "description" : "State persisted due to job close at 2019-12-03T19:43:57+0000",
+    "snapshot_id" : "1575402237",
+    "snapshot_doc_count" : 1,
+    "model_size_stats" : {
+      "job_id" : "high_sum_total_sales",
+      "result_type" : "model_size_stats",
+      "model_bytes" : 1638816,
       "model_bytes_exceeded" : 0,
       "model_bytes_memory_limit" : 10485760,
       "total_by_field_count" : 3,
-      "total_over_field_count" : 2361,
+      "total_over_field_count" : 3320,
       "total_partition_field_count" : 2,
       "bucket_allocation_failures_count" : 0,
       "memory_status" : "ok",
-      "log_time" : 1577221697000,
-      "timestamp" : 1577217600000
+      "log_time" : 1575402237000,
+      "timestamp" : 1576965600000
     },
-    "latest_record_time_stamp" : 1577221286000,
-    "latest_result_time_stamp" : 1577217600000,
+    "latest_record_time_stamp" : 1576971072000,
+    "latest_result_time_stamp" : 1576965600000,
     "retain" : false
   }
 }
 ----
+
+For a description of these properties, see the <<ml-get-snapshot-results,get model snapshots API>>.

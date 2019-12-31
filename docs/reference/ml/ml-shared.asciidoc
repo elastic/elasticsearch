@@ -957,7 +957,7 @@ is `100`.
 end::size[]
 
 tag::snapshot-id[]
-Identifier for the model snapshot.
+A numerical character string that uniquely identifies the model snapshot.
 end::snapshot-id[]
 
 tag::source-put-dfa[]

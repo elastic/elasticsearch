@@ -26,8 +26,7 @@ import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 
 /**
- * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
- * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
+ * Pattern converter to format the cluster_id variable into JSON fields <code>cluster.id</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "ClusterIdConverter")
 @ConverterKeys({"EScluster_id"})
@@ -44,9 +43,10 @@ public final class ClusterIdConverter extends LogEventPatternConverter {
     }
 
     /**
-     * Formats the node.id and cluster.uuid into json fields.
+     * Formats the cluster.uuid into json fields.
      *
-     * @param event - a log event is ignored in this method as it uses the nodeId and clusterId to format
+     * @param event - a log event is ignored in this method as it uses the clusterId value
+     *              from <code>NodeAndClusterIdStateListener</code> to format
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {

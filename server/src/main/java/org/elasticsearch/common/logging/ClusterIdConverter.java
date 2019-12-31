@@ -29,7 +29,7 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
  * Pattern converter to format the cluster_id variable into JSON fields <code>cluster.id</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "ClusterIdConverter")
-@ConverterKeys({"EScluster_id"})
+@ConverterKeys({"cluster_id"})
 public final class ClusterIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
@@ -39,7 +39,7 @@ public final class ClusterIdConverter extends LogEventPatternConverter {
     }
 
     public ClusterIdConverter() {
-        super("EScluster_id", "EScluster_id");
+        super("cluster_id", "cluster_id");
     }
 
     /**

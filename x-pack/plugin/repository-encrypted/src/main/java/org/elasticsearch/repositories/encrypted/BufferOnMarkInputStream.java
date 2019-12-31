@@ -30,31 +30,7 @@ import java.util.Objects;
  */
 public final class BufferOnMarkInputStream extends FilterInputStream {
 
-    final int bufferSize; // package-protected for tests
-    /**
-     * The array used to store the bytes to be replayed upon a reset call.
-     * The buffer portion that stores valid bytes, which must be returned by the read calls after a reset call,
-     * is demarcated by a {@code head} (inclusive) and a {@code tail} offset (exclusive). The offsets wrap around,
-     * i.e. if the {@code tail} offset is smaller than the {@code head} offset, then the portion of valid bytes
-     * is that from the {@code head} offset until the end of the buffer array and from the start of the array
-     * until the {@code tail} offset. The buffer is empty when both the {@code head} and the {@code tail} offsets
-     * are equal. The buffer is full if it stores {@code bufferSize} elements.
-     * To avoid mixing up the two states, the actual allocated size of the array is {@code bufferSize + 1}.
-     */
-    byte[] ringBuffer; // package-protected for tests
-    /**
-     * The inclusive start offset of the bytes that must be replayed after a reset call.
-     */
-    int head; // package-protected for tests
-    /**
-     * The exclusive end offset of the bytes that must be replayed after a reset call.
-     */
-    int tail; // package-protected for tests
-    /**
-     * The current offset of the next byte to be returned from the buffer for the reads following a reset.
-     * This is defined only when {@code resetCalled} is {@code true}.
-     */
-    int position; // package-protected for tests
+    final RingBuffer ringBuffer; // package-protected for tests
     /**
      * {@code true} when the result of a read or skip from the underlying stream must also be stored in the buffer
      */
@@ -75,13 +51,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
      */
     public BufferOnMarkInputStream(InputStream in, int bufferSize) {
         super(Objects.requireNonNull(in));
-        if (bufferSize <= 0) {
-            throw new IllegalArgumentException("The buffersize constructor argument must be a strictly positive value");
-        }
-        this.bufferSize = bufferSize;
-        // the ring buffer is lazily allocated upon the first mark call
-        this.ringBuffer = null;
-        this.head = this.tail = this.position = -1;
+        this.ringBuffer = new RingBuffer(bufferSize);
         this.markCalled = this.resetCalled = false;
         this.closed = false;
     }
@@ -120,7 +90,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         }
         // firstly try reading any buffered bytes in case this read call is part of a rewind following a reset call
         if (resetCalled) {
-            int bytesRead = readFromBuffer(b, off, len);
+            int bytesRead = ringBuffer.read(b, off, len);
             if (bytesRead == 0) {
                 // rewinding is complete, no more bytes to replay
                 resetCalled = false;
@@ -134,12 +104,12 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         }
         // if mark has been previously called, buffer all the read bytes
         if (markCalled) {
-            if (bytesRead > getRemainingBufferCapacity()) {
+            if (bytesRead > ringBuffer.getAvailableToWriteByteCount()) {
                 // could not fully write to buffer, invalidate mark
                 markCalled = false;
-                head = tail = position = 0;
+                ringBuffer.clear();
             } else {
-                writeToBuffer(b, off, bytesRead);
+                ringBuffer.write(b, off, bytesRead);
             }
         }
         return bytesRead;
@@ -225,11 +195,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         ensureOpen();
         int bytesAvailable = 0;
         if (resetCalled) {
-            if (position <= tail) {
-                bytesAvailable += tail - position;
-            } else {
-                bytesAvailable += ringBuffer.length - position + tail;
-            }
+            bytesAvailable += ringBuffer.getAvailableToReadByteCount();
         }
         bytesAvailable += in.available();
         return bytesAvailable;
@@ -269,8 +235,9 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     public void mark(int readlimit) {
         // readlimit is otherwise ignored but this defensively fails if the caller is expecting to be able to mark/reset more than this
         // instance can accommodate in the ring mark buffer
-        if (readlimit > bufferSize) {
-            throw new IllegalArgumentException("Readlimit value [" + readlimit + "] exceeds the maximum value of [" + bufferSize + "]");
+        if (readlimit > ringBuffer.getBufferSize()) {
+            throw new IllegalArgumentException("Readlimit value [" + readlimit + "] exceeds the maximum value of [" +
+                    ringBuffer.getBufferSize() + "]");
         } else if (readlimit < 0) {
             throw new IllegalArgumentException("Readlimit value [" + readlimit + "] cannot be negative");
         }
@@ -278,19 +245,11 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             return;
         }
         markCalled = true;
-        // lazily allocate the mark ring buffer
-        if (ringBuffer == null) {
-            // "+ 1" for the full-buffer sentinel free element
-            ringBuffer = new byte[bufferSize + 1];
-            head = tail = position = 0;
+        if (resetCalled) {
+            // mark while replaying after a reset
+            ringBuffer.mark();
         } else {
-            if (resetCalled) {
-                // mark after reset
-                head = position;
-            } else {
-                // discard any leftovers in buffer
-                head = tail = position = 0;
-            }
+            ringBuffer.clear();
         }
     }
 
@@ -313,7 +272,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             throw new IOException("Mark not called or has been invalidated");
         }
         resetCalled = true;
-        position = head;
+        ringBuffer.reset();
     }
 
     /**
@@ -325,7 +284,6 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     public void close() throws IOException {
         if (false == closed) {
             closed = true;
-            ringBuffer = null;
             in.close();
         }
     }
@@ -335,50 +293,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
      * This is the same as the {@code bufferSize} constructor argument.
      */
     public int getMaxMarkReadlimit() {
-        return bufferSize;
-    }
-
-    private int readFromBuffer(byte[] b, int off, int len) {
-        if (position == tail) {
-            return 0;
-        }
-        final int readLength;
-        if (position <= tail) {
-            readLength = Math.min(len, tail - position);
-        } else {
-            readLength = Math.min(len, ringBuffer.length - position);
-        }
-        System.arraycopy(ringBuffer, position, b, off, readLength);
-        position += readLength;
-        if (position == ringBuffer.length) {
-            position = 0;
-        }
-        return readLength;
-    }
-
-    private void writeToBuffer(byte[] b, int off, int len) {
-        while (len > 0) {
-            final int writeLength;
-            if (head <= tail) {
-                writeLength = Math.min(len, ringBuffer.length - tail - (head == 0 ? 1 : 0));
-            } else {
-                writeLength = Math.min(len, head - tail - 1);
-            }
-            if (writeLength <= 0) {
-                throw new IllegalStateException("No space left in the mark buffer");
-            }
-            System.arraycopy(b, off, ringBuffer, tail, writeLength);
-            tail += writeLength;
-            off += writeLength;
-            len -= writeLength;
-            if (tail == ringBuffer.length) {
-                tail = 0;
-                // tail wrap-around overwrites head
-                if (head == 0) {
-                    throw new IllegalStateException("Possible overflow of the mark buffer");
-                }
-            }
-        }
+        return ringBuffer.getBufferSize();
     }
 
     private void ensureOpen() throws IOException {
@@ -387,49 +302,136 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         }
     }
 
-    // protected for tests
-    protected int getRemainingBufferCapacity() {
-        if (ringBuffer == null) {
-            return bufferSize;
-        }
-        if (head == tail) {
-            return ringBuffer.length - 1;
-        } else if (head < tail) {
-            return ringBuffer.length - tail + head - 1;
-        } else {
-            return head - tail - 1;
-        }
-    }
-
-    //protected for tests
-    protected int getRemainingBufferToRead() {
-        if (ringBuffer == null) {
-            return 0;
-        }
-        if (head <= tail) {
-            return tail - position;
-        } else if (position >= head) {
-            return ringBuffer.length - position + tail;
-        } else {
-            return tail - position;
-        }
-    }
-
-    // protected for tests
-    protected int getCurrentBufferCount() {
-        if (ringBuffer == null) {
-            return 0;
-        }
-        if (head <= tail) {
-            return tail - head;
-        } else {
-            return ringBuffer.length - head + tail;
-        }
-    }
-
     // only for tests
     protected InputStream getWrapped() {
         return in;
+    }
+
+    static class RingBuffer {
+
+        final int bufferSize; // package-protected for tests
+        /**
+         * The array used to store the bytes to be replayed upon a reset call.
+         * The buffer portion that stores valid bytes, which must be returned by the read calls after a reset call,
+         * is demarcated by a {@code head} (inclusive) and a {@code tail} offset (exclusive). The offsets wrap around,
+         * i.e. if the {@code tail} offset is smaller than the {@code head} offset, then the portion of valid bytes
+         * is that from the {@code head} offset until the end of the buffer array and from the start of the array
+         * until the {@code tail} offset. The buffer is empty when both the {@code head} and the {@code tail} offsets
+         * are equal. The buffer is full if it stores {@code bufferSize} elements.
+         * To avoid mixing up the two states, the actual allocated size of the array is {@code bufferSize + 1}.
+         */
+        byte[] buffer; // package-protected for tests
+        /**
+         * The inclusive start offset of the bytes that must be replayed after a reset call.
+         */
+        int head; // package-protected for tests
+        /**
+         * The exclusive end offset of the bytes that must be replayed after a reset call.
+         */
+        int tail; // package-protected for tests
+        /**
+         * The current offset of the next byte to be returned from the buffer for the reads following a reset.
+         * This is defined only when {@code resetCalled} is {@code true}.
+         */
+        int position; // package-protected for tests
+
+        RingBuffer(int bufferSize) {
+            if (bufferSize <= 0) {
+                throw new IllegalArgumentException("The buffersize constructor argument must be a strictly positive value");
+            }
+            this.bufferSize = bufferSize;
+        }
+
+        int getBufferSize() {
+            return bufferSize;
+        }
+
+        void reset() {
+            position = head;
+        }
+
+        void mark() {
+            head = position;
+        }
+
+        void clear() {
+            head = position = tail = 0;
+        }
+
+        int read(byte[] b, int off, int len) {
+            if (position == tail) {
+                return 0;
+            }
+            final int readLength;
+            if (position <= tail) {
+                readLength = Math.min(len, tail - position);
+            } else {
+                readLength = Math.min(len, buffer.length - position);
+            }
+            System.arraycopy(buffer, position, b, off, readLength);
+            position += readLength;
+            if (position == buffer.length) {
+                position = 0;
+            }
+            return readLength;
+        }
+
+        void write(byte[] b, int off, int len) {
+            if (buffer == null && len > 0) {
+                // "+ 1" for the full-buffer sentinel free element
+                buffer = new byte[bufferSize + 1];
+                head = position = tail = 0;
+            }
+            while (len > 0) {
+                final int writeLength;
+                if (head <= tail) {
+                    writeLength = Math.min(len, buffer.length - tail - (head == 0 ? 1 : 0));
+                } else {
+                    writeLength = Math.min(len, head - tail - 1);
+                }
+                if (writeLength <= 0) {
+                    throw new IllegalStateException("No space left in the mark buffer");
+                }
+                System.arraycopy(b, off, buffer, tail, writeLength);
+                tail += writeLength;
+                off += writeLength;
+                len -= writeLength;
+                if (tail == buffer.length) {
+                    tail = 0;
+                    // tail wrap-around overwrites head
+                    if (head == 0) {
+                        throw new IllegalStateException("Possible overflow of the mark buffer");
+                    }
+                }
+            }
+        }
+
+        int getAvailableToWriteByteCount() {
+            if (buffer == null) {
+                return bufferSize;
+            }
+            if (head == tail) {
+                return buffer.length - 1;
+            } else if (head < tail) {
+                return buffer.length - tail + head - 1;
+            } else {
+                return head - tail - 1;
+            }
+        }
+
+        int getAvailableToReadByteCount() {
+            if (buffer == null) {
+                return 0;
+            }
+            if (head <= tail) {
+                return tail - position;
+            } else if (position >= head) {
+                return buffer.length - position + tail;
+            } else {
+                return tail - position;
+            }
+        }
+
     }
 
 }

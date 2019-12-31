@@ -70,6 +70,11 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         sb.append(message.toString());
     }
 
+    @Override
+    protected void asJson(StringBuilder sb) {
+        super.asJson(sb);
+    }
+
     public static String inQuotes(String s) {
         if(s == null)
             return inQuotes("");

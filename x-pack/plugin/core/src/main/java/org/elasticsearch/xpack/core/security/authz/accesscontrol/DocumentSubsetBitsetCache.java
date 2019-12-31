@@ -54,8 +54,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * The primary benefit of the cache is to avoid recalculating the "live docs" (visible documents) when a user performs multiple
  * consecutive queries across one or more large indices. Given the memory examples above, the cache is only useful if it can hold at
- * least 1 large (>100Mb) {@code BitSet} during a user's active session, and ideally should be capable of support multiple simultaneous
- * users with distinct DLS queries.
+ * least 1 large (100Mb or more ) {@code BitSet} during a user's active session, and ideally should be capable of support multiple
+ * simultaneous users with distinct DLS queries.
  *
  * For this reason the default memory usage (weight) for the cache set to 10% of JVM heap ({@link #CACHE_SIZE_SETTING}), so that it
  * automatically scales with the size of the Elasticsearch deployment, and can provide benefit to most use cases without needing

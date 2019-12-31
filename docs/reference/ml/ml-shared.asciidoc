@@ -821,11 +821,6 @@ applied. For example, "CPU,NetworkIn,DiskWrites". Wildcards are not supported.
 Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
-tag::model-snapshot-id[]
-A numerical character string that uniquely identifies the model snapshot. For 
-example, `1575402236000 `.
-end::model-snapshot-id[]
-
 tag::model-snapshot-retention-days[]
 The time in days that model snapshots are retained for the job. Older snapshots
 are deleted. The default value is `1`, which means snapshots are retained for
@@ -957,7 +952,7 @@ is `100`.
 end::size[]
 
 tag::snapshot-id[]
-Identifier for the model snapshot.
+A numerical character string that uniquely identifies the model snapshot.
 end::snapshot-id[]
 
 tag::source-put-dfa[]

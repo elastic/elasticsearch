@@ -1052,3 +1052,18 @@ See the details in
 [[ml-datafeed-delayed-data-check-config]] <<ml-put-datafeed>>,
 <<ml-update-datafeed>>, <<ml-get-datafeed>>, and
 [[ml-datafeed-counts]] <<ml-get-datafeed-stats>>.
+
+[role="exclude",id="ml-jobstats"]
+=== Job statistics
+
+This
+[[ml-datacounts]]
+page
+[[ml-modelsizestats]]
+was
+[[ml-forecastsstats]]
+deleted.
+[[ml-timingstats]]
+See
+[[ml-stats-node]]
+the details in <<ml-get-job-stats>>.

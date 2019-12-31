@@ -24,9 +24,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.lucene.util.SetOnce;
-
-import java.util.Locale;
 
 /**
  * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
@@ -35,8 +32,6 @@ import java.util.Locale;
 @Plugin(category = PatternConverter.CATEGORY, name = "ClusterIdConverter")
 @ConverterKeys({"EScluster_id"})
 public final class ClusterIdConverter extends LogEventPatternConverter {
-    private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
-
     /**
      * Called by log4j2 to initialize this converter.
      */
@@ -46,17 +41,6 @@ public final class ClusterIdConverter extends LogEventPatternConverter {
 
     public ClusterIdConverter() {
         super("EScluster_id", "EScluster_id");
-    }
-
-    /**
-     * Updates only once the clusterID and nodeId.
-     * Subsequent executions will throw {@link SetOnce.AlreadySetException}.
-     *
-     * @param nodeId      a nodeId received from cluster state update
-     * @param clusterUUID a clusterId received from cluster state update
-     */
-    public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
-         nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
     }
 
     /**
@@ -72,7 +56,4 @@ public final class ClusterIdConverter extends LogEventPatternConverter {
         // nodeId/clusterUuid not received yet, not appending
     }
 
-    private static String formatIds(String clusterUUID, String nodeId) {
-        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
-    }
 }

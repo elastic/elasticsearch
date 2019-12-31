@@ -310,7 +310,7 @@ final class Bootstrap {
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        NodeNamePatternConverter.setGLobalNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
+        NodeNamePatternConverter.setGlobalNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         if (environment.pidFile() != null) {
             try {
                 PidFile.create(environment.pidFile(), true);

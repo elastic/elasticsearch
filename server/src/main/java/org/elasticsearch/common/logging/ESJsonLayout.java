@@ -50,7 +50,7 @@ import java.util.Set;
  * <li>component - logger name, most of the times class name</li>
  * <li>cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
  * <li>node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml</li>
- * <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeAndClusterIdConverter and present
+ * <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeIdConverter and present
  * once clusterStateUpdate is first received</li>
  * <li>message - a json escaped message. Multiline messages will be converted to single line with new line explicitly
  * replaced to \n</li>

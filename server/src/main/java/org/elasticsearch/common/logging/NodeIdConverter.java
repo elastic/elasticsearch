@@ -24,9 +24,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.lucene.util.SetOnce;
-
-import java.util.Locale;
 
 /**
  * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
@@ -34,29 +31,16 @@ import java.util.Locale;
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeIdConverter")
 @ConverterKeys({"ESnode_id"})
-public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
-    private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
-
+public final class NodeIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static NodeAndClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new NodeAndClusterIdConverter();
+    public static NodeIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
+        return new NodeIdConverter();
     }
 
-    public NodeAndClusterIdConverter() {
+    public NodeIdConverter() {
         super("ESnode_id", "ESnode_id");
-    }
-
-    /**
-     * Updates only once the clusterID and nodeId.
-     * Subsequent executions will throw {@link org.apache.lucene.util.SetOnce.AlreadySetException}.
-     *
-     * @param nodeId      a nodeId received from cluster state update
-     * @param clusterUUID a clusterId received from cluster state update
-     */
-    public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
-         nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
     }
 
     /**
@@ -70,9 +54,5 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
             toAppendTo.append(NodeAndClusterIdStateListener.nodeAndClusterId.get().v1());
         }
         // nodeId/clusterUuid not received yet, not appending
-    }
-
-    private static String formatIds(String clusterUUID, String nodeId) {
-        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }

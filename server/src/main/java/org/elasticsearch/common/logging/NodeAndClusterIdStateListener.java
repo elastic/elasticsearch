@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 /**
  * The {@link NodeAndClusterIdStateListener} listens to cluster state changes and ONLY when receives the first update
- * it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeAndClusterIdConverter}.
+ * it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeIdConverter}.
  * Once the first update is received, it will automatically be de-registered from subsequent updates.
  */
 public class NodeAndClusterIdStateListener implements ClusterStateObserver.Listener {
@@ -42,7 +42,7 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
 
     /**
      * Subscribes for the first cluster state update where nodeId and clusterId is present
-     * and sets these values in {@link NodeAndClusterIdConverter}.
+     * and sets these values in {@link NodeIdConverter}.
      */
     public static void getAndSetNodeIdAndClusterId(ClusterService clusterService, ThreadContext threadContext) {
         ClusterState clusterState = clusterService.state();
@@ -69,8 +69,9 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
         String clusterUUID = getClusterUUID(state);
 
         logger.debug("Received cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
-        /*NodeAndClusterIdConverter.*/setNodeIdAndClusterId(nodeId, clusterUUID);
+        setNodeIdAndClusterId(nodeId, clusterUUID);
     }
+
     void setNodeIdAndClusterId(String nodeId, String clusterUUID){
         nodeAndClusterId.set(Tuple.tuple(nodeId,clusterUUID));
     }

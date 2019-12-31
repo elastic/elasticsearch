@@ -73,7 +73,7 @@ value.
 
 `model_snapshot_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
+include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-get-job-response-codes]]
 ==== {api-response-codes-title}

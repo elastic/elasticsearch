@@ -83,18 +83,8 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public long longValue() {
-        return longSum;
-    }
-
-    @Override
     public double getValue() {
         return doubleSum;
-    }
-
-    @Override
-    public long getLongValue() {
-        return longSum;
     }
 
     @Override

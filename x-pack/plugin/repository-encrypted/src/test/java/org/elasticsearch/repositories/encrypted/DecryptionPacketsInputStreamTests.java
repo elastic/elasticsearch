@@ -188,7 +188,9 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             assertThat(decryptedBytes.length, Matchers.is(len));
             assertThat((long) decryptedBytes.length, Matchers.is(DecryptionPacketsInputStream.getDecryptionLength(encryptedBytes.length,
                     packetLen)));
-            assertThat(decryptedBytes, Matchers.equalTo(plainBytes));
+            for (int i = 0; i < len; i++) {
+                assertThat(decryptedBytes[i], Matchers.is(plainBytes[i]));
+            }
         }
     }
 
@@ -202,7 +204,10 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-            return super.read(b, off, randomIntBetween(0, len));
+            if (len == 0) {
+                return 0;
+            }
+            return super.read(b, off, randomIntBetween(1, len));
         }
     }
 

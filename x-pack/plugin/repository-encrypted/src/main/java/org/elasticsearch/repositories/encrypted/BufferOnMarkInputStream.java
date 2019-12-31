@@ -15,7 +15,7 @@ import java.util.Objects;
  * All the bytes read or skipped following a {@link #mark(int)} call are also stored in a fixed-size internal array
  * so they can be replayed following a {@link #reset()} call. The size of the internal buffer is specified at construction
  * time. It is an error (throws {@code IllegalArgumentException}) to specify a larger {@code readlimit} value as an argument
- * to a mark call.
+ * to a {@code mark} call.
  * <p>
  * Unlike the {@link java.io.BufferedInputStream} this only buffers upon a {@link #mark(int)} call,
  * i.e. if {@code mark} is never called this is equivalent to a bare pass-through {@link FilterInputStream}.
@@ -28,8 +28,12 @@ import java.util.Objects;
  * <p>
  * This is NOT thread-safe, multiple threads sharing a single instance must synchronize access.
  */
-public final class BufferOnMarkInputStream extends FilterInputStream {
+public final class BufferOnMarkInputStream extends InputStream {
 
+    final InputStream source;
+    /**
+     * the buffer used to store the bytes following a mark (which are replayed on reset)
+     */
     final RingBuffer ringBuffer; // package-protected for tests
     /**
      * {@code true} when the result of a read or skip from the underlying stream must also be stored in the buffer
@@ -43,14 +47,14 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
 
     /**
      * Creates a {@code BufferOnMarkInputStream} that buffers a maximum of {@code bufferSize} elements
-     * from the wrapped input stream {@code in} in order to support {@code mark} and {@code reset}.
-     * The {@code bufferSize} is the maximum value for the mark readlimit.
+     * from the wrapped input stream {@code source} in order to support {@code mark} and {@code reset}.
+     * The {@code bufferSize} is the maximum value for the {@code mark} readlimit argument.
      *
-     * @param in the underlying input buffer
+     * @param source the underlying input buffer
      * @param bufferSize the number of bytes that can be stored after a call to mark
      */
-    public BufferOnMarkInputStream(InputStream in, int bufferSize) {
-        super(Objects.requireNonNull(in));
+    public BufferOnMarkInputStream(InputStream source, int bufferSize) {
+        this.source = source;
         this.ringBuffer = new RingBuffer(bufferSize);
         this.markCalled = this.resetCalled = false;
         this.closed = false;
@@ -98,7 +102,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
                 return bytesRead;
             }
         }
-        int bytesRead = in.read(b, off, len);
+        int bytesRead = source.read(b, off, len);
         if (bytesRead <= 0) {
             return bytesRead;
         }
@@ -164,7 +168,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             if (resetCalled) {
                 throw new IllegalStateException("Reset cannot be called without a preceding mark invocation");
             }
-            return in.skip(n);
+            return source.skip(n);
         }
         long remaining = n;
         int size = (int)Math.min(2048, remaining);
@@ -197,7 +201,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         if (resetCalled) {
             bytesAvailable += ringBuffer.getAvailableToReadByteCount();
         }
-        bytesAvailable += in.available();
+        bytesAvailable += source.available();
         return bytesAvailable;
     }
 
@@ -284,7 +288,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     public void close() throws IOException {
         if (false == closed) {
             closed = true;
-            in.close();
+            source.close();
         }
     }
 
@@ -304,7 +308,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
 
     // only for tests
     protected InputStream getWrapped() {
-        return in;
+        return source;
     }
 
     static class RingBuffer {
@@ -358,29 +362,57 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             head = position = tail = 0;
         }
 
+        /**
+         * Reads up to {@code len} bytes from the ring buffer and places them in the {@code b} array starting at offset {@code off}.
+         * This advances the internal pointer of the ring buffer so that a subsequent call will return the following bytes, not the
+         * same ones (see {@link #reset()}).
+         * Exactly {@code len} bytes are read and placed in the array, but no more than {@link #getAvailableToReadByteCount()}; i.e.
+         * if {@code len} is greater than the value returned by {@link #getAvailableToReadByteCount()} this reads all the remaining
+         * available bytes (which could be {@code 0}).
+         * This returns the exact count of bytes read (the minimum of {@code len} and the value of {@code #getAvailableToReadByteCount}).
+         *
+         * @param b   the array where to place the bytes read
+         * @param off the offset in the array where to start placing the bytes read (i.e. first byte is stored at b[off])
+         * @param len the maximum number of bytes to read
+         * @return the number of bytes actually read
+         */
         int read(byte[] b, int off, int len) {
-            if (position == tail) {
+            Objects.requireNonNull(b);
+            Objects.checkFromIndexSize(off, len, b.length);
+            if (position == tail || len == 0) {
                 return 0;
             }
+            // the number of bytes to read
             final int readLength;
             if (position <= tail) {
                 readLength = Math.min(len, tail - position);
             } else {
+                // the ring buffer contains elements that wrap around the end of the array
                 readLength = Math.min(len, buffer.length - position);
             }
             System.arraycopy(buffer, position, b, off, readLength);
+            // update the internal pointer with the bytes read
             position += readLength;
             if (position == buffer.length) {
+                // pointer wrap around
                 position = 0;
+                // also read the remaining bytes after the wrap around
+                return readLength + read(b, off + readLength, len - readLength);
             }
             return readLength;
         }
 
         void write(byte[] b, int off, int len) {
+            Objects.requireNonNull(b);
+            Objects.checkFromIndexSize(off, len, b.length);
+            // allocate internal buffer lazily
             if (buffer == null && len > 0) {
-                // "+ 1" for the full-buffer sentinel free element
+                // "+ 1" for the full-buffer sentinel element
                 buffer = new byte[bufferSize + 1];
                 head = position = tail = 0;
+            }
+            if (len > getAvailableToWriteByteCount()) {
+                throw new IllegalArgumentException("Not enough remaining space in the ring buffer");
             }
             while (len > 0) {
                 final int writeLength;
@@ -390,7 +422,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
                     writeLength = Math.min(len, head - tail - 1);
                 }
                 if (writeLength <= 0) {
-                    throw new IllegalStateException("No space left in the mark buffer");
+                    throw new IllegalStateException("No space left in the ring buffer");
                 }
                 System.arraycopy(b, off, buffer, tail, writeLength);
                 tail += writeLength;
@@ -400,7 +432,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
                     tail = 0;
                     // tail wrap-around overwrites head
                     if (head == 0) {
-                        throw new IllegalStateException("Possible overflow of the mark buffer");
+                        throw new IllegalStateException("Possible overflow of the ring buffer");
                     }
                 }
             }

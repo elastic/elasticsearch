@@ -166,10 +166,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 (string) The value of the partition field.
 
 `probability`::
-(number) The probability of the individual anomaly occurring, in the range 0 to
-1. This value can be held to a high precision of over 300 decimal places, so the 
-`record_score` is provided as a human-readable and friendly interpretation of
-this.
+(number) The probability of the individual anomaly occurring, in the range `0`
+to `1`. This value can be held to a high precision of over 300 decimal places,
+so the `record_score` is provided as a human-readable and friendly
+interpretation of this.
 
 `multi_bucket_impact`::
 (number) an indication of how strongly an anomaly is multi bucket or single

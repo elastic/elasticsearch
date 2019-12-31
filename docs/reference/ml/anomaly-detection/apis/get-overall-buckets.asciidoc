@@ -77,8 +77,11 @@ time.
 `exclude_interim`::
 (Optional, boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
++
+--
 If any of the job bucket results within the overall bucket interval are interim
 results, the overall bucket results are interim results.
+--
 
 `overall_score`::
 (Optional, double) Returns overall buckets with overall scores greater than or

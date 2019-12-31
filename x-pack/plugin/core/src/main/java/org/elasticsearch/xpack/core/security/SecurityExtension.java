@@ -33,7 +33,7 @@ import java.util.function.BiConsumer;
 public interface SecurityExtension {
 
     /**
-     * This interface provides access to components (clients & services) that may be used
+     * This interface provides access to components (clients and services) that may be used
      * within custom realms and role providers.
      */
     interface SecurityComponents {

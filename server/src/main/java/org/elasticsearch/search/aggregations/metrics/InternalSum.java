@@ -31,13 +31,26 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
-    private final double sum;
+    private final double doubleSum;
+    private final long longSum;
+    private final boolean isFloating;
 
     InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-        this.sum = sum;
+        this.doubleSum = sum;
+        this.longSum = (long) sum;
         this.format = formatter;
+        this.isFloating = true;
+    }
+
+    InternalSum(String name, long sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
+                Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
+        this.doubleSum = (double) sum;
+        this.longSum = sum;
+        this.format = formatter;
+        this.isFloating = false;
     }
 
     /**
@@ -46,13 +59,17 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     public InternalSum(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        sum = in.readDouble();
+        doubleSum = in.readDouble();
+        longSum = in.readLong();
+        isFloating = in.readBoolean();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
-        out.writeDouble(sum);
+        out.writeDouble(doubleSum);
+        out.writeLong(longSum);
+        out.writeBoolean(isFloating);
     }
 
     @Override
@@ -62,38 +79,66 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public double value() {
-        return sum;
+        return doubleSum;
+    }
+
+    @Override
+    public long longValue() {
+        return longSum;
     }
 
     @Override
     public double getValue() {
-        return sum;
+        return doubleSum;
+    }
+
+    @Override
+    public long getLongValue() {
+        return longSum;
     }
 
     @Override
     public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        // Compute the sum of double values with Kahan summation algorithm which is more
-        // accurate than naive summation.
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        for (InternalAggregation aggregation : aggregations) {
-            double value = ((InternalSum) aggregation).sum;
-            kahanSummation.add(value);
+        if (isFloating) {
+            // Compute the sum of double values with Kahan summation algorithm which is more
+            // accurate than naive summation.
+            CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+            for (InternalAggregation aggregation : aggregations) {
+                double value = ((InternalSum) aggregation).doubleSum;
+                kahanSummation.add(value);
+            }
+            return new InternalSum(name, kahanSummation.value(), format, pipelineAggregators(), getMetaData());
+        } else {
+            // Compute the sum of long values with naive summation.
+            long sum = 0L;
+            for (InternalAggregation aggregation : aggregations) {
+                long value = ((InternalSum) aggregation).longSum;
+                sum += value;
+            }
+            return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
         }
-        return new InternalSum(name, kahanSummation.value(), format, pipelineAggregators(), getMetaData());
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE.getPreferredName(), sum);
-        if (format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(sum).toString());
+        if (isFloating) {
+            builder.field(CommonFields.VALUE.getPreferredName(), doubleSum);
+            if (format != DocValueFormat.RAW) {
+                builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(doubleSum).toString());
+            }
+            return builder;
+        } else {
+            builder.field(CommonFields.VALUE.getPreferredName(), longSum);
+            if (format != DocValueFormat.RAW) {
+                builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(longSum).toString());
+            }
+            return builder;
         }
-        return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sum);
+        return Objects.hash(super.hashCode(), doubleSum, longSum);
     }
 
     @Override
@@ -103,6 +148,6 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         if (super.equals(obj) == false) return false;
 
         InternalSum that = (InternalSum) obj;
-        return Objects.equals(sum, that.sum);
+        return Objects.equals(doubleSum, that.doubleSum) && Objects.equals(longSum, that.longSum);
     }
 }

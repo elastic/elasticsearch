@@ -29,6 +29,10 @@ public interface NumericMetricsAggregation extends Aggregation {
 
         String getValueAsString();
 
+        default long longValue() {
+            return 0L;
+        }
+
     }
 
     interface MultiValue extends NumericMetricsAggregation {

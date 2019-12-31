@@ -24,7 +24,7 @@ package org.elasticsearch.search.aggregations.metrics;
 public interface Sum extends NumericMetricsAggregation.SingleValue {
 
     /**
-     * The sum, default for double values.
+     * The sum.
      */
     double getValue();
 }

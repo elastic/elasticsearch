@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -42,8 +40,6 @@ import java.util.List;
 import java.util.Map;
 
 class SumAggregator extends NumericMetricsAggregator.SingleValue {
-
-    private static final Logger LOG = LogManager.getLogger(SumAggregator.class);
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
@@ -100,7 +96,6 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
                         compensations.set(bucket, kahanSummation.delta());
                         doubleSums.set(bucket, kahanSummation.value());
-                        LOG.debug("summing bucket is {}, {}", bucket, kahanSummation.value());
                     }
                 }
             };
@@ -122,7 +117,6 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
                         }
 
                         longSums.set(bucket, sum);
-                        LOG.debug("summing bucket is {}, {}", bucket, sum);
                     }
                 }
             };
@@ -135,10 +129,8 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
             return 0.0;
         }
         if (valuesSource.isFloatingPoint()) {
-            LOG.debug("get metric double sum = {}", doubleSums.get(owningBucketOrd));
             return doubleSums.get(owningBucketOrd);
         } else {
-            LOG.debug("get metric long sum = {}", longSums.get(owningBucketOrd));
             return (double) longSums.get(owningBucketOrd);
         }
     }
@@ -149,10 +141,8 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
             return buildEmptyAggregation();
         }
         if (valuesSource.isFloatingPoint()) {
-            LOG.info("build agg double sum = {}", doubleSums.get(bucket));
             return new InternalSum(name, doubleSums.get(bucket), format, pipelineAggregators(), metaData());
         } else {
-            LOG.info("build agg long sum = {}", longSums.get(bucket));
             return new InternalSum(name, longSums.get(bucket), format, pipelineAggregators(), metaData());
         }
     }

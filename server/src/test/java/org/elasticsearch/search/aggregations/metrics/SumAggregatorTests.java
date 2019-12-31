@@ -164,6 +164,29 @@ public class SumAggregatorTests extends AggregatorTestCase {
         verifySummationOfDoubles(largeValues, Double.NEGATIVE_INFINITY, 0d);
     }
 
+    public void testSummationAccuracyLong() throws IOException {
+        // Summing up a normal array of long values
+        long[] longValues = new long[]{1, 17458313843517748L};
+        verifySummationOfLongs(longValues, 17458313843517749L);
+
+        // Double values precision
+        double[] doubleValues = new double[]{1, 17458313843517748d};
+        verifySummationOfDoubles(doubleValues, 17458313843517748d, 0d);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        long[] values;
+        int n = randomIntBetween(5, 10);
+        values = new long[n];
+        long sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(0L, Long.MIN_VALUE, Long.MAX_VALUE)
+                : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
+            sum += values[i];
+        }
+        verifySummationOfLongs(values, sum);
+    }
+
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
         testCase(new MatchAllDocsQuery(),
             iw -> {
@@ -173,6 +196,18 @@ public class SumAggregatorTests extends AggregatorTestCase {
             },
             result -> assertEquals(expected, result.getValue(), delta),
             NumberFieldMapper.NumberType.DOUBLE
+        );
+    }
+
+    private void verifySummationOfLongs(long[] values, long expected) throws IOException {
+        testCase(new MatchAllDocsQuery(),
+            iw -> {
+                for (long value : values) {
+                    iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, value)));
+                }
+            },
+            result -> assertEquals(expected, result.longValue()),
+            NumberFieldMapper.NumberType.LONG
         );
     }
 

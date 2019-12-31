@@ -81,6 +81,29 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
         verifySummationOfDoubles(largeValues, Double.NEGATIVE_INFINITY, 0d);
     }
 
+    public void testSummationAccuracyLong() {
+        // Summing up a normal array of long values
+        long[] longValues = new long[]{1, 17458313843517748L};
+        verifySummationOfLongs(longValues, 17458313843517749L);
+
+        // Double values precision
+        double[] doubleValues = new double[]{1, 17458313843517748d};
+        verifySummationOfDoubles(doubleValues, 17458313843517748d, 0d);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        long[] values;
+        int n = randomIntBetween(5, 10);
+        values = new long[n];
+        long sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(0L, Long.MIN_VALUE, Long.MAX_VALUE)
+                : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
+            sum += values[i];
+        }
+        verifySummationOfLongs(values, sum);
+    }
+
     private void verifySummationOfDoubles(double[] values, double expected, double delta) {
         List<InternalAggregation> aggregations = new ArrayList<>(values.length);
         for (double value : values) {
@@ -89,6 +112,16 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
         InternalSum internalSum = new InternalSum("dummy", 0, null, null, null);
         InternalSum reduced = internalSum.reduce(aggregations, null);
         assertEquals(expected, reduced.value(), delta);
+    }
+
+    private void verifySummationOfLongs(long[] values, long expected) {
+        List<InternalAggregation> aggregations = new ArrayList<>(values.length);
+        for (long value : values) {
+            aggregations.add(new InternalSum("long1", value, null, null, null));
+        }
+        InternalSum internalSum = new InternalSum("long", 0, null, null, null);
+        InternalSum reduced = internalSum.reduce(aggregations, null);
+        assertEquals(expected, reduced.longValue());
     }
 
     @Override

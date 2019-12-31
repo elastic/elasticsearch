@@ -231,8 +231,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 [[ml-put-job-example]]
 ==== {api-examples-title}
 
-The following example creates the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/total-requests

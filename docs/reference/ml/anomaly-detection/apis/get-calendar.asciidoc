@@ -62,9 +62,6 @@ properties:
 [[ml-get-calendar-example]]
 ==== {api-examples-title}
 
-The following example gets configuration information for the `planned-outages`
-calendar:
-
 [source,console]
 --------------------------------------------------
 GET _ml/calendars/planned-outages

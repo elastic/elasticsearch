@@ -162,8 +162,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 [[ml-update-job-example]]
 ==== {api-examples-title}
 
-The following example updates the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_update

@@ -557,7 +557,7 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final Result containerLogs = getContainerLogs();
 
-        assertThat("Container logs don't contain abbreviated class names", containerLogs.stdout, containsString("o.e.n.Node"));
+        assertThat("Container logs contain abbreviated class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
         assertThat("Container logs don't contain INFO level messages", containerLogs.stdout, containsString("INFO"));
     }
 

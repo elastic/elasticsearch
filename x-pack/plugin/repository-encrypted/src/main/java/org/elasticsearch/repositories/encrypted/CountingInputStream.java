@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
@@ -24,25 +23,26 @@ import java.util.Objects;
  * stream will also close the wrapped input stream. Apart from closing the wrapped
  * stream in this case, the {@code close} method does nothing else.
  */
-public final class CountingInputStream extends FilterInputStream {
+public final class CountingInputStream extends InputStream {
 
+    private final InputStream source;
+    private final boolean closeSource;
     long count; // package-protected for tests
     long mark; // package-protected for tests
     boolean closed; // package-protected for tests
-    private final boolean closeSource;
 
     /**
      * Wraps another input stream, counting the number of bytes read.
      *
-     * @param in the input stream to be wrapped
+     * @param source the input stream to be wrapped
      * @param closeSource {@code true} if closing this stream will also close the wrapped stream
      */
-    public CountingInputStream(InputStream in, boolean closeSource) {
-        super(Objects.requireNonNull(in));
+    public CountingInputStream(InputStream source, boolean closeSource) {
+        this.source = Objects.requireNonNull(source);
+        this.closeSource = closeSource;
         this.count = 0L;
         this.mark = -1L;
         this.closed = false;
-        this.closeSource = closeSource;
     }
 
     /** Returns the number of bytes read. */
@@ -52,7 +52,7 @@ public final class CountingInputStream extends FilterInputStream {
 
     @Override
     public int read() throws IOException {
-        int result = in.read();
+        int result = source.read();
         if (result != -1) {
             count++;
         }
@@ -61,7 +61,7 @@ public final class CountingInputStream extends FilterInputStream {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        int result = in.read(b, off, len);
+        int result = source.read(b, off, len);
         if (result != -1) {
             count += result;
         }
@@ -70,27 +70,37 @@ public final class CountingInputStream extends FilterInputStream {
 
     @Override
     public long skip(long n) throws IOException {
-        long result = in.skip(n);
+        long result = source.skip(n);
         count += result;
         return result;
     }
 
     @Override
+    public int available() throws IOException {
+        return source.available();
+    }
+
+    @Override
+    public boolean markSupported() {
+        return source.markSupported();
+    }
+
+    @Override
     public synchronized void mark(int readlimit) {
-        in.mark(readlimit);
+        source.mark(readlimit);
         mark = count;
     }
 
     @Override
     public synchronized void reset() throws IOException {
-        if (false == in.markSupported()) {
+        if (false == source.markSupported()) {
             throw new IOException("Mark not supported");
         }
         if (mark == -1L) {
             throw new IOException("Mark not set");
         }
         count = mark;
-        in.reset();
+        source.reset();
     }
 
     @Override
@@ -98,7 +108,7 @@ public final class CountingInputStream extends FilterInputStream {
         if (false == closed) {
             closed = true;
             if (closeSource) {
-                in.close();
+                source.close();
             }
         }
     }

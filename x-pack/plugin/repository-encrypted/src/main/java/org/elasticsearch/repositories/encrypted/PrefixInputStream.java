@@ -6,7 +6,6 @@
 
 package org.elasticsearch.repositories.encrypted;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
@@ -23,8 +22,9 @@ import java.util.Objects;
  * Any subsequent {@code read}, {@code skip} and {@code available} calls
  * will throw {@code IOException}s.
  */
-public final class PrefixInputStream extends FilterInputStream {
+public final class PrefixInputStream extends InputStream {
 
+    private final InputStream source;
     /**
      * The length in bytes of the prefix.
      * This is the maximum number of bytes that can be read from this stream,
@@ -45,11 +45,11 @@ public final class PrefixInputStream extends FilterInputStream {
      */
     private boolean closed;
 
-    public PrefixInputStream(InputStream in, int prefixLength, boolean closeSource) {
-        super(Objects.requireNonNull(in));
+    public PrefixInputStream(InputStream source, int prefixLength, boolean closeSource) {
         if (prefixLength < 0) {
             throw new IllegalArgumentException("The prefixLength constructor argument must be a positive integer");
         }
+        this.source = source;
         this.prefixLength = prefixLength;
         this.count = 0;
         this.closeSource = closeSource;
@@ -62,7 +62,7 @@ public final class PrefixInputStream extends FilterInputStream {
         if (remainingPrefixByteCount() <= 0) {
             return -1;
         }
-        int byteVal = in.read();
+        int byteVal = source.read();
         if (byteVal == -1) {
             return -1;
         }
@@ -81,7 +81,7 @@ public final class PrefixInputStream extends FilterInputStream {
             return -1;
         }
         int readSize = Math.min(len, remainingPrefixByteCount());
-        int bytesRead = in.read(b, off, readSize);
+        int bytesRead = source.read(b, off, readSize);
         if (bytesRead == -1) {
             return -1;
         }
@@ -97,7 +97,7 @@ public final class PrefixInputStream extends FilterInputStream {
         }
         long bytesToSkip = Math.min(n, remainingPrefixByteCount());
         assert bytesToSkip > 0;
-        long bytesSkipped = in.skip(bytesToSkip);
+        long bytesSkipped = source.skip(bytesToSkip);
         count += bytesSkipped;
         return bytesSkipped;
     }
@@ -105,7 +105,7 @@ public final class PrefixInputStream extends FilterInputStream {
     @Override
     public int available() throws IOException {
         ensureOpen();
-        return Math.min(remainingPrefixByteCount(), in.available());
+        return Math.min(remainingPrefixByteCount(), source.available());
     }
 
     @Override
@@ -130,7 +130,7 @@ public final class PrefixInputStream extends FilterInputStream {
         }
         closed = true;
         if (closeSource) {
-            in.close();
+            source.close();
         }
     }
 

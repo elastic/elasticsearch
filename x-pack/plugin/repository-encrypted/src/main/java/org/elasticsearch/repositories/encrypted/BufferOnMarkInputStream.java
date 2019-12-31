@@ -363,10 +363,10 @@ public final class BufferOnMarkInputStream extends InputStream {
         }
 
         /**
-         * Reads up to {@code len} bytes from the ring buffer and places them in the {@code b} array starting at offset {@code off}.
+         * Copies up to {@code len} bytes from the ring buffer and places them in the {@code b} array starting at offset {@code off}.
          * This advances the internal pointer of the ring buffer so that a subsequent call will return the following bytes, not the
          * same ones (see {@link #reset()}).
-         * Exactly {@code len} bytes are read and placed in the array, but no more than {@link #getAvailableToReadByteCount()}; i.e.
+         * Exactly {@code len} bytes are copied from the ring buffer, but no more than {@link #getAvailableToReadByteCount()}; i.e.
          * if {@code len} is greater than the value returned by {@link #getAvailableToReadByteCount()} this reads all the remaining
          * available bytes (which could be {@code 0}).
          * This returns the exact count of bytes read (the minimum of {@code len} and the value of {@code #getAvailableToReadByteCount}).
@@ -402,6 +402,17 @@ public final class BufferOnMarkInputStream extends InputStream {
             return readLength;
         }
 
+        /**
+         * Copies <b>exactly</b> {@code len} bytes from the array {@code b}, starting at offset {@code off}, into the ring buffer.
+         * The bytes are appended after the ones written in the same way by a previous call, and are available to
+         * {@link #read(byte[], int, int)} immediately.
+         * This throws {@code IllegalArgumentException} if the ring buffer does not have enough space left.
+         * To get the available capacity left call {@link #getAvailableToWriteByteCount()}.
+         *
+         * @param b the array from which to copy the bytes into the ring buffer
+         * @param off the offset of the first element to copy
+         * @param len the number of elements to copy
+         */
         void write(byte[] b, int off, int len) {
             Objects.requireNonNull(b);
             Objects.checkFromIndexSize(off, len, b.length);

@@ -24,6 +24,9 @@ import java.util.Objects;
  */
 public final class PrefixInputStream extends InputStream {
 
+    /**
+     * The underlying stream of which only a prefix is returned
+     */
     private final InputStream source;
     /**
      * The length in bytes of the prefix.

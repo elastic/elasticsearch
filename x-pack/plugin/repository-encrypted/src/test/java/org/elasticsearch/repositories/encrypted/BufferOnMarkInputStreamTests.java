@@ -135,7 +135,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert byte is buffered
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - 1));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(1));
-        assertThat(test.resetCalled, Matchers.is(false));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // read more bytes, up to buffer size bytes
         bytesReadBefore = bytesRead.get();
         readLen = 1 + Randomness.get().nextInt(bufferSize - 1);
@@ -150,7 +150,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert byte is buffered
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - 1 - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(1 + readLen));
-        assertThat(test.resetCalled, Matchers.is(false));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
     }
 
     public void testInvalidateMark() throws Exception {
@@ -176,7 +176,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert byte is buffered
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(0));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(bufferSize));
-        assertThat(test.resetCalled, Matchers.is(false));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // read another one byte
         bytesReadBefore = bytesRead.get();
         assertThat(test.read(), Matchers.not(-1));
@@ -186,7 +186,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert mark is invalidated
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
-        assertThat(test.markCalled, Matchers.is(false));
+        assertThat(test.storeToBuffer, Matchers.is(false));
         // read more bytes
         bytesReadBefore = bytesRead.get();
         readLen = 1 + Randomness.get().nextInt(2 * bufferSize);
@@ -201,7 +201,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert byte is NOT buffered
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
-        assertThat(test.markCalled, Matchers.is(false));
+        assertThat(test.storeToBuffer, Matchers.is(false));
         // assert reset does not work any more
         IOException e = expectThrows(IOException.class, () -> {
             test.reset();
@@ -232,10 +232,10 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert buffer is populated
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
-        assertThat(test.markCalled, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         // reset
         test.reset();
-        assertThat(test.resetCalled, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(true));
         // read again, from buffer this time
         bytesReadBefore = bytesRead.get();
         int readLen2 = 1 + Randomness.get().nextInt(readLen);
@@ -250,8 +250,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert buffer is consumed
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - readLen2));
-        assertThat(test.markCalled, Matchers.is(true));
-        assertThat(test.resetCalled, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(true));
     }
 
     public void testInvalidateMarkAfterReset() throws Exception {
@@ -277,10 +277,10 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert buffer is populated
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
-        assertThat(test.markCalled, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         // reset
         test.reset();
-        assertThat(test.resetCalled, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(true));
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
         // read again, from buffer this time
@@ -297,8 +297,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert buffer is consumed
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
-        assertThat(test.markCalled, Matchers.is(true));
-        assertThat(test.resetCalled, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(true));
         // read on, from the stream, until the mark buffer is full
         bytesReadBefore = bytesRead.get();
         int readLen3 = bufferSize - readLen;
@@ -311,11 +311,11 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert bytes are "read" and not returned from the buffer
         assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(readLen3));
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(0));
-        assertThat(test.markCalled, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         if (readLen3 > 0) {
-            assertThat(test.resetCalled, Matchers.is(false));
+            assertThat(test.replayFromBuffer, Matchers.is(false));
         } else {
-            assertThat(test.resetCalled, Matchers.is(true));
+            assertThat(test.replayFromBuffer, Matchers.is(true));
         }
         // read more bytes
         bytesReadBefore = bytesRead.get();
@@ -331,7 +331,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert mark reset
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
-        assertThat(test.markCalled, Matchers.is(false));
+        assertThat(test.storeToBuffer, Matchers.is(false));
         // assert reset does not work anymore
         IOException e = expectThrows(IOException.class, () -> {
             test.reset();
@@ -362,11 +362,11 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert buffer is populated
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
-        assertThat(test.markCalled, Matchers.is(true));
-        assertThat(test.resetCalled, Matchers.is(false));
+        assertThat(test.storeToBuffer, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // reset
         test.reset();
-        assertThat(test.resetCalled, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(true));
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
         for (int readLen2 = 1; readLen2 <= readLen; readLen2++) {
@@ -387,14 +387,14 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             // assert buffer is consumed
             assertThat(cloneTest.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
             assertThat(cloneTest.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - readLen2));
-            assertThat(cloneTest.markCalled, Matchers.is(true));
-            assertThat(cloneTest.resetCalled, Matchers.is(true));
+            assertThat(cloneTest.storeToBuffer, Matchers.is(true));
+            assertThat(cloneTest.replayFromBuffer, Matchers.is(true));
             // mark
             cloneTest.mark(1 + Randomness.get().nextInt(bufferSize));
             assertThat(cloneTest.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen + readLen2));
             assertThat(cloneTest.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - readLen2));
-            assertThat(cloneTest.markCalled, Matchers.is(true));
-            assertThat(cloneTest.resetCalled, Matchers.is(true));
+            assertThat(cloneTest.storeToBuffer, Matchers.is(true));
+            assertThat(cloneTest.replayFromBuffer, Matchers.is(true));
             // read until the buffer is filled
             for (int readLen3 = 1; readLen3 <= readLen - readLen2; readLen3++) {
                 Tuple<AtomicInteger, InputStream> mockSourceTuple3 = getMockInfiniteInputStream();
@@ -414,8 +414,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                 // assert buffer is consumed completely
                 assertThat(cloneTest3.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen + readLen2));
                 assertThat(cloneTest3.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - readLen2 - readLen3));
-                assertThat(cloneTest3.markCalled, Matchers.is(true));
-                assertThat(cloneTest3.resetCalled, Matchers.is(true));
+                assertThat(cloneTest3.storeToBuffer, Matchers.is(true));
+                assertThat(cloneTest3.replayFromBuffer, Matchers.is(true));
             }
             // read beyond the buffer can supply, but not more than it can accommodate
             for (int readLen3 = readLen - readLen2 + 1; readLen3 <= bufferSize - readLen2; readLen3++) {
@@ -435,8 +435,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                 assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(readLen3 + readLen2 - readLen));
                 // assert buffer is appended and fully replayed
                 assertThat(cloneTest3.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen3));
-                assertThat(cloneTest3.markCalled, Matchers.is(true));
-                assertThat(cloneTest3.resetCalled, Matchers.is(false));
+                assertThat(cloneTest3.storeToBuffer, Matchers.is(true));
+                assertThat(cloneTest3.replayFromBuffer, Matchers.is(false));
             }
         }
     }
@@ -464,13 +464,13 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert buffer is populated
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
-        assertThat(test.markCalled, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         // reset
         test.reset();
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
-        assertThat(test.markCalled, Matchers.is(true));
-        assertThat(test.resetCalled, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(true));
         for (int readLen2 = readLen + 1; readLen2 <= bufferSize; readLen2++) {
             Tuple<AtomicInteger, InputStream> mockSourceTuple2 = getMockInfiniteInputStream();
             BufferOnMarkInputStream test2 = new BufferOnMarkInputStream(mockSourceTuple2.v2(), bufferSize);
@@ -484,14 +484,14 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(read2.length - readLen));
             // assert buffer is appended and fully replayed
             assertThat(test2.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - read2.length));
-            assertThat(test2.markCalled, Matchers.is(true));
-            assertThat(test2.resetCalled, Matchers.is(false));
+            assertThat(test2.storeToBuffer, Matchers.is(true));
+            assertThat(test2.replayFromBuffer, Matchers.is(false));
             // mark
             test2.mark(1 + Randomness.get().nextInt(bufferSize));
             assertThat(test2.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
             assertThat(test2.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
-            assertThat(test2.markCalled, Matchers.is(true));
-            assertThat(test2.resetCalled, Matchers.is(false));
+            assertThat(test2.storeToBuffer, Matchers.is(true));
+            assertThat(test2.replayFromBuffer, Matchers.is(false));
         }
     }
 
@@ -620,7 +620,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                             if (markLen <= readLen) {
                                 assertThat(in.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - markLen));
                             } else {
-                                assertThat(in.resetCalled, Matchers.is(false));
+                                assertThat(in.replayFromBuffer, Matchers.is(false));
                             }
                             assertArray(offset, test);
                             // second mark
@@ -636,15 +636,15 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                                 byte[] test2 = in.readNBytes(readLen2);
                                 if (markLen + readLen2 <= readLen) {
                                     assertThat(in.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(length - readLen + markLen));
-                                    assertThat(in.resetCalled, Matchers.is(true));
+                                    assertThat(in.replayFromBuffer, Matchers.is(true));
                                     assertThat(in.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - markLen - readLen2));
                                 } else {
                                     assertThat(in.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(length - readLen2));
-                                    assertThat(in.resetCalled, Matchers.is(false));
+                                    assertThat(in.replayFromBuffer, Matchers.is(false));
                                 }
                                 assertArray(offset + markLen, test2);
                                 in.reset();
-                                assertThat(in.resetCalled, Matchers.is(true));
+                                assertThat(in.replayFromBuffer, Matchers.is(true));
                                 if (markLen + readLen2 <= readLen) {
                                     assertThat(in.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(length - readLen + markLen));
                                     assertThat(in.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - markLen));
@@ -705,8 +705,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     }
 
     private BufferOnMarkInputStream cloneBufferOnMarkStream(BufferOnMarkInputStream orig) {
-        int origOffset = ((NoMarkByteArrayInputStream) orig.getWrapped()).getPos();
-        int origLen = ((NoMarkByteArrayInputStream) orig.getWrapped()).getCount();
+        int origOffset = ((NoMarkByteArrayInputStream) orig.source).getPos();
+        int origLen = ((NoMarkByteArrayInputStream) orig.source).getCount();
         BufferOnMarkInputStream cloneStream = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray,
                 origOffset, origLen - origOffset), orig.ringBuffer.getBufferSize());
         if (orig.ringBuffer.buffer != null) {
@@ -717,8 +717,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         cloneStream.ringBuffer.head = orig.ringBuffer.head;
         cloneStream.ringBuffer.tail = orig.ringBuffer.tail;
         cloneStream.ringBuffer.position = orig.ringBuffer.position;
-        cloneStream.markCalled = orig.markCalled;
-        cloneStream.resetCalled = orig.resetCalled;
+        cloneStream.storeToBuffer = orig.storeToBuffer;
+        cloneStream.replayFromBuffer = orig.replayFromBuffer;
         cloneStream.closed = orig.closed;
         return cloneStream;
     }
@@ -732,8 +732,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         clone.ringBuffer.head = orig.ringBuffer.head;
         clone.ringBuffer.tail = orig.ringBuffer.tail;
         clone.ringBuffer.position = orig.ringBuffer.position;
-        clone.markCalled = orig.markCalled;
-        clone.resetCalled = orig.resetCalled;
+        clone.storeToBuffer = orig.storeToBuffer;
+        clone.replayFromBuffer = orig.replayFromBuffer;
         clone.closed = orig.closed;
     }
 

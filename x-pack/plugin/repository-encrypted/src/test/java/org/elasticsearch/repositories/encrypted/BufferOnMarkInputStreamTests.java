@@ -39,7 +39,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), 1 + Randomness.get().nextInt(1024));
         // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
+        test.readNBytes(randomFrom(0, randomInt(31)));
         IOException e = expectThrows(IOException.class, () -> {
             test.reset();
         });
@@ -48,29 +48,29 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
 
     public void testMarkAndBufferReadLimitsCheck() throws Exception {
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
-        int bufferSize = 1 + Randomness.get().nextInt(1024);
+        int bufferSize = randomIntBetween(1, 1024);
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
         assertThat(test.getMaxMarkReadlimit(), Matchers.is(bufferSize));
         // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
-        int wrongReadLimit = bufferSize + 1 + Randomness.get().nextInt(8);
+        test.readNBytes(randomFrom(0, randomInt(32)));
+        int wrongLargeReadLimit = bufferSize + randomIntBetween(1, 8);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            test.mark(wrongReadLimit);
+            test.mark(wrongLargeReadLimit);
         });
-        assertThat(e.getMessage(), Matchers.is("Readlimit value [" + wrongReadLimit + "] exceeds the maximum value of ["
+        assertThat(e.getMessage(), Matchers.is("Readlimit value [" + wrongLargeReadLimit + "] exceeds the maximum value of ["
                 + bufferSize + "]"));
         e = expectThrows(IllegalArgumentException.class, () -> {
-            test.mark(-1 - Randomness.get().nextInt(2));
+            test.mark(-1 - randomInt(1));
         });
         assertThat(e.getMessage(), Matchers.containsString("cannot be negative"));
         e = expectThrows(IllegalArgumentException.class, () -> {
-            new BufferOnMarkInputStream(mock(InputStream.class), 0 - Randomness.get().nextInt(2));
+            new BufferOnMarkInputStream(mock(InputStream.class), 0 - randomInt(1));
         });
         assertThat(e.getMessage(), Matchers.is("The buffersize constructor argument must be a strictly positive value"));
     }
 
     public void testCloseRejectsSuccessiveCalls() throws Exception {
-        int bufferSize = 3 + Randomness.get().nextInt(32);
+        int bufferSize = 3 + Randomness.get().nextInt(128);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         AtomicInteger bytesRead = mockSourceTuple.v1();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
@@ -106,39 +106,45 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     }
 
     public void testBufferingUponMark() throws Exception {
-        int bufferSize = 3 + Randomness.get().nextInt(32);
+        int bufferSize = randomIntBetween(3, 128);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         AtomicInteger bytesRead = mockSourceTuple.v1();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
-        // read without mark
+        // read without mark, should be a simple pass-through with the same byte count
+        int bytesReadBefore = bytesRead.get();
         assertThat(test.read(), Matchers.not(-1));
-        int readLen = 1 + Randomness.get().nextInt(8);
+        int bytesReadAfter = bytesRead.get();
+        assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(1));
+        int readLen = randomIntBetween(1, 8);
+        bytesReadBefore = bytesRead.get();
         if (randomBoolean()) {
             test.readNBytes(readLen);
         } else {
             skipNBytes(test, readLen);
         }
-        assertThat(readLen, Matchers.not(0));
+        bytesReadAfter = bytesRead.get();
+        assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(readLen));
         // assert no buffering
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
         // mark
-        test.mark(1 + Randomness.get().nextInt(bufferSize));
+        test.mark(randomIntBetween(1, bufferSize));
         // read one byte
-        int bytesReadBefore = bytesRead.get();
+        bytesReadBefore = bytesRead.get();
         assertThat(test.read(), Matchers.not(-1));
-        int bytesReadAfter = bytesRead.get();
+        bytesReadAfter = bytesRead.get();
         // assert byte is "read" and not returned from the buffer
         assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(1));
         // assert byte is buffered
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - 1));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(1));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         assertThat(test.replayFromBuffer, Matchers.is(false));
         // read more bytes, up to buffer size bytes
+        readLen = randomIntBetween(1, bufferSize - 1);
         bytesReadBefore = bytesRead.get();
-        readLen = 1 + Randomness.get().nextInt(bufferSize - 1);
         if (randomBoolean()) {
             test.readNBytes(readLen);
         } else {
@@ -151,19 +157,23 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - 1 - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(1 + readLen));
         assertThat(test.replayFromBuffer, Matchers.is(false));
+        assertThat(test.storeToBuffer, Matchers.is(true));
     }
 
-    public void testInvalidateMark() throws Exception {
-        int bufferSize = 3 + Randomness.get().nextInt(32);
+    public void testMarkInvalidation() throws Exception {
+        int bufferSize = randomIntBetween(3, 128);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         AtomicInteger bytesRead = mockSourceTuple.v1();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
+        assertThat(test.storeToBuffer, Matchers.is(false));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // mark
         test.mark(randomIntBetween(1, bufferSize));
         // read all bytes to fill the mark buffer
         int bytesReadBefore = bytesRead.get();
+        // read enough to populate the full buffer space
         int readLen = bufferSize;
         if (randomBoolean()) {
             test.readNBytes(readLen);
@@ -177,19 +187,21 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(0));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(bufferSize));
         assertThat(test.replayFromBuffer, Matchers.is(false));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         // read another one byte
         bytesReadBefore = bytesRead.get();
         assertThat(test.read(), Matchers.not(-1));
         bytesReadAfter = bytesRead.get();
         // assert byte is "read" and not returned from the buffer
         assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(1));
-        // assert mark is invalidated
+        // assert mark is invalidated and no buffering is further performed
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         assertThat(test.storeToBuffer, Matchers.is(false));
         // read more bytes
         bytesReadBefore = bytesRead.get();
-        readLen = 1 + Randomness.get().nextInt(2 * bufferSize);
+        readLen = randomIntBetween(1, 2 * bufferSize);
         if (randomBoolean()) {
             test.readNBytes(readLen);
         } else {
@@ -198,10 +210,11 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         bytesReadAfter = bytesRead.get();
         // assert byte is "read" and not returned from the buffer
         assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(readLen));
-        // assert byte is NOT buffered
+        // assert byte again is NOT buffered
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
         assertThat(test.storeToBuffer, Matchers.is(false));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // assert reset does not work any more
         IOException e = expectThrows(IOException.class, () -> {
             test.reset();
@@ -210,17 +223,17 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     }
 
     public void testConsumeBufferUponReset() throws Exception {
-        int bufferSize = 3 + Randomness.get().nextInt(128);
+        int bufferSize = randomIntBetween(3, 128);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         AtomicInteger bytesRead = mockSourceTuple.v1();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
         // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
+        test.readNBytes(randomFrom(0, randomInt(32)));
         // mark
-        test.mark(1 + Randomness.get().nextInt(bufferSize));
+        test.mark(randomIntBetween(1, bufferSize));
         // read less than bufferSize bytes
         int bytesReadBefore = bytesRead.get();
-        int readLen = 1 + Randomness.get().nextInt(bufferSize);
+        int readLen = randomIntBetween(1, bufferSize);
         if (randomBoolean()) {
             test.readNBytes(readLen);
         } else {
@@ -233,12 +246,14 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
         assertThat(test.storeToBuffer, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // reset
         test.reset();
         assertThat(test.replayFromBuffer, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         // read again, from buffer this time
         bytesReadBefore = bytesRead.get();
-        int readLen2 = 1 + Randomness.get().nextInt(readLen);
+        int readLen2 = randomIntBetween(1, readLen);
         if (randomBoolean()) {
             test.readNBytes(readLen2);
         } else {
@@ -255,17 +270,17 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     }
 
     public void testInvalidateMarkAfterReset() throws Exception {
-        int bufferSize = 3 + Randomness.get().nextInt(128);
+        int bufferSize = randomIntBetween(3, 128);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         AtomicInteger bytesRead = mockSourceTuple.v1();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
         // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
+        test.readNBytes(randomFrom(0, randomInt(32)));
         // mark
-        test.mark(1 + Randomness.get().nextInt(bufferSize));
+        test.mark(randomIntBetween(1, bufferSize));
         // read less than bufferSize bytes
         int bytesReadBefore = bytesRead.get();
-        int readLen = 1 + Randomness.get().nextInt(bufferSize);
+        int readLen = randomIntBetween(1, bufferSize);
         if (randomBoolean()) {
             test.readNBytes(readLen);
         } else {
@@ -278,13 +293,18 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
         assertThat(test.storeToBuffer, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // reset
         test.reset();
+        // assert signal for replay from buffer is toggled
         assertThat(test.replayFromBuffer, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
+        // assert bytes are still buffered
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
         // read again, from buffer this time
         bytesReadBefore = bytesRead.get();
+        // read all bytes from the buffer
         int readLen2 = readLen;
         if (randomBoolean()) {
             test.readNBytes(readLen2);
@@ -301,6 +321,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.replayFromBuffer, Matchers.is(true));
         // read on, from the stream, until the mark buffer is full
         bytesReadBefore = bytesRead.get();
+        // read the remaining bytes to fill the buffer
         int readLen3 = bufferSize - readLen;
         if (randomBoolean()) {
             test.readNBytes(readLen3);
@@ -311,6 +332,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // assert bytes are "read" and not returned from the buffer
         assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(readLen3));
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(0));
+        assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen3));
         assertThat(test.storeToBuffer, Matchers.is(true));
         if (readLen3 > 0) {
             assertThat(test.replayFromBuffer, Matchers.is(false));
@@ -319,7 +341,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         }
         // read more bytes
         bytesReadBefore = bytesRead.get();
-        int readLen4 = 1 + Randomness.get().nextInt(2 * bufferSize);
+        int readLen4 = randomIntBetween(1, 2 * bufferSize);
         if (randomBoolean()) {
             test.readNBytes(readLen4);
         } else {
@@ -332,6 +354,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
         assertThat(test.storeToBuffer, Matchers.is(false));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // assert reset does not work anymore
         IOException e = expectThrows(IOException.class, () -> {
             test.reset();
@@ -340,17 +363,17 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     }
 
     public void testMarkAfterResetWhileReplayingBuffer() throws Exception {
-        int bufferSize = 8 + Randomness.get().nextInt(8);
+        int bufferSize = randomIntBetween(8, 16);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         AtomicInteger bytesRead = mockSourceTuple.v1();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
         // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
+        test.readNBytes(randomFrom(0, randomInt(32)));
         // mark
-        test.mark(1 + Randomness.get().nextInt(bufferSize));
+        test.mark(randomIntBetween(1, bufferSize));
         // read less than bufferSize bytes
         int bytesReadBefore = bytesRead.get();
-        int readLen = 1 + Randomness.get().nextInt(bufferSize);
+        int readLen = randomIntBetween(1, bufferSize);
         if (randomBoolean()) {
             test.readNBytes(readLen);
         } else {
@@ -367,8 +390,10 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // reset
         test.reset();
         assertThat(test.replayFromBuffer, Matchers.is(true));
+        assertThat(test.storeToBuffer, Matchers.is(true));
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
+        // read bytes after reset
         for (int readLen2 = 1; readLen2 <= readLen; readLen2++) {
             Tuple<AtomicInteger, InputStream> mockSourceTuple2 = getMockInfiniteInputStream();
             BufferOnMarkInputStream cloneTest = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
@@ -389,8 +414,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             assertThat(cloneTest.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - readLen2));
             assertThat(cloneTest.storeToBuffer, Matchers.is(true));
             assertThat(cloneTest.replayFromBuffer, Matchers.is(true));
-            // mark
-            cloneTest.mark(1 + Randomness.get().nextInt(bufferSize));
+            // mark inside the buffer after reset
+            cloneTest.mark(randomIntBetween(1, bufferSize));
             assertThat(cloneTest.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen + readLen2));
             assertThat(cloneTest.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen - readLen2));
             assertThat(cloneTest.storeToBuffer, Matchers.is(true));
@@ -435,6 +460,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                 assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(readLen3 + readLen2 - readLen));
                 // assert buffer is appended and fully replayed
                 assertThat(cloneTest3.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen3));
+                assertThat(cloneTest3.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen3 + readLen2 - readLen));
                 assertThat(cloneTest3.storeToBuffer, Matchers.is(true));
                 assertThat(cloneTest3.replayFromBuffer, Matchers.is(false));
             }
@@ -442,17 +468,17 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     }
 
     public void testMarkAfterResetAfterReplayingBuffer() throws Exception {
-        int bufferSize = 8 + Randomness.get().nextInt(8);
+        int bufferSize = randomIntBetween(8, 16);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
         AtomicInteger bytesRead = mockSourceTuple.v1();
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
         // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
+        test.readNBytes(randomFrom(0, randomInt(32)));
         // mark
-        test.mark(1 + Randomness.get().nextInt(bufferSize));
+        test.mark(randomIntBetween(1, bufferSize));
         // read less than bufferSize bytes
         int bytesReadBefore = bytesRead.get();
-        int readLen = 1 + Randomness.get().nextInt(bufferSize);
+        int readLen = randomIntBetween(1, bufferSize);
         if (randomBoolean()) {
             test.readNBytes(readLen);
         } else {
@@ -465,6 +491,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
         assertThat(test.ringBuffer.getAvailableToReadByteCount(), Matchers.is(readLen));
         assertThat(test.storeToBuffer, Matchers.is(true));
+        assertThat(test.replayFromBuffer, Matchers.is(false));
         // reset
         test.reset();
         assertThat(test.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen));
@@ -478,16 +505,20 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             AtomicInteger bytesRead2 = mockSourceTuple2.v1();
             // read again, more than before
             bytesReadBefore = bytesRead2.get();
-            byte[] read2 = test2.readNBytes(readLen2);
+            if (randomBoolean()) {
+                test2.readNBytes(readLen2);
+            } else {
+                skipNBytes(test2, readLen2);
+            }
             bytesReadAfter = bytesRead2.get();
             // assert bytes are PARTLY replayed, PARTLY read from the stream
-            assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(read2.length - readLen));
+            assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(readLen2 - readLen));
             // assert buffer is appended and fully replayed
-            assertThat(test2.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - read2.length));
+            assertThat(test2.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize - readLen2));
             assertThat(test2.storeToBuffer, Matchers.is(true));
             assertThat(test2.replayFromBuffer, Matchers.is(false));
             // mark
-            test2.mark(1 + Randomness.get().nextInt(bufferSize));
+            test2.mark(randomIntBetween(1, bufferSize));
             assertThat(test2.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(bufferSize));
             assertThat(test2.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
             assertThat(test2.storeToBuffer, Matchers.is(true));
@@ -678,8 +709,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     }
 
     public void testNoMockThreeMarkResetMarkSteps() throws Exception {
-        int length = 8 + Randomness.get().nextInt(8);
-        int stepLen = 4 + Randomness.get().nextInt(4);
+        int length = randomIntBetween(8, 16);
+        int stepLen = randomIntBetween(4, 8);
         BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), stepLen);
         testMarkResetMarkStep(in, 0, length, stepLen, 2);
     }

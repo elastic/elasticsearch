@@ -13,6 +13,7 @@ import org.hamcrest.Matchers;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
@@ -43,7 +44,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
     }
 
     public void testSuccessEncryptAndDecryptTypicalPacketLength() throws Exception {
-        int len = 512 + Randomness.get().nextInt(512);
+        int len = 1024 + Randomness.get().nextInt(512);
         byte[] plainBytes = new byte[len];
         Randomness.get().nextBytes(plainBytes);
         SecretKey secretKey = generateSecretKey();
@@ -75,7 +76,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             IOException e = expectThrows(IOException.class, () -> {
                 in.readAllBytes();
             });
-            assertThat(e.getMessage(), Matchers.is("Invalid packet IV"));
+            assertThat(e.getMessage(), Matchers.startsWith("Packet nonce mismatch."));
         }
     }
 
@@ -98,7 +99,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             IOException e = expectThrows(IOException.class, () -> {
                 in.readAllBytes();
             });
-            assertThat(e.getMessage(), Matchers.is("javax.crypto.AEADBadTagException: Tag mismatch!"));
+            assertThat(e.getMessage(), Matchers.is("Exception during packet decryption"));
         }
     }
 
@@ -126,7 +127,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                     IOException e = expectThrows(IOException.class, () -> {
                         in.readAllBytes();
                     });
-                    assertThat(e.getMessage(), Matchers.is("javax.crypto.AEADBadTagException: Tag mismatch!"));
+                    assertThat(e.getMessage(), Matchers.is("Exception during packet decryption"));
                 }
                 // flip bit back
                 encryptedBytes[i] ^= (1 << j);
@@ -158,7 +159,11 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                         IOException e = expectThrows(IOException.class, () -> {
                             in.readAllBytes();
                         });
-                        assertThat(e.getMessage(), Matchers.is("Invalid packet IV"));
+                        if (j < Integer.BYTES) {
+                            assertThat(e.getMessage(), Matchers.startsWith("Packet nonce mismatch"));
+                        } else {
+                            assertThat(e.getMessage(), Matchers.startsWith("Packet counter mismatch"));
+                        }
                     }
                     // flip bit back
                     encryptedBytes[i + j] ^= (1 << k);
@@ -176,8 +181,8 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             }
             assertThat((long) encryptedBytes.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionLength(len, packetLen)));
             byte[] decryptedBytes;
-            try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, nonce,
-                    packetLen)) {
+            try (InputStream in = new DecryptionPacketsInputStream(new ReadLessFilterInputStream(new ByteArrayInputStream(encryptedBytes)),
+                    secretKey, nonce, packetLen)) {
                 decryptedBytes = in.readAllBytes();
             }
             assertThat(decryptedBytes.length, Matchers.is(len));
@@ -186,6 +191,23 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
             for (int i = 0; i < len; i++) {
                 assertThat(decryptedBytes[i], Matchers.is(plainBytes[i]));
             }
+        }
+    }
+
+    // input stream that reads less bytes than asked to, testing that packet-wide reads don't rely on `read` calls for memory buffers which
+    // always return the same number of bytes they are asked to
+    private static class ReadLessFilterInputStream extends FilterInputStream {
+
+        protected ReadLessFilterInputStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (len == 0) {
+                return 0;
+            }
+            return super.read(b, off, randomIntBetween(1, len));
         }
     }
 

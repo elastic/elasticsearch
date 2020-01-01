@@ -11,11 +11,11 @@ import java.io.InputStream;
 import java.util.Objects;
 
 /**
- * A {@code BufferOnMarkInputStream} adds the mark and reset functionality to another input stream.
+ * A {@code BufferOnMarkInputStream} adds the {@code mark} and {@code reset} functionality to another input stream.
  * All the bytes read or skipped following a {@link #mark(int)} call are also stored in a fixed-size internal array
  * so they can be replayed following a {@link #reset()} call. The size of the internal buffer is specified at construction
  * time. It is an error (throws {@code IllegalArgumentException}) to specify a larger {@code readlimit} value as an argument
- * to a mark call.
+ * to a {@code mark} call.
  * <p>
  * Unlike the {@link java.io.BufferedInputStream} this only buffers upon a {@link #mark(int)} call,
  * i.e. if {@code mark} is never called this is equivalent to a bare pass-through {@link FilterInputStream}.
@@ -28,62 +28,48 @@ import java.util.Objects;
  * <p>
  * This is NOT thread-safe, multiple threads sharing a single instance must synchronize access.
  */
-public final class BufferOnMarkInputStream extends FilterInputStream {
+public final class BufferOnMarkInputStream extends InputStream {
 
-    // all protected for tests
-    protected final int bufferSize;
     /**
-     * The array used to store the bytes to be replayed upon a reset call.
-     * The buffer portion that stores valid bytes, which must be returned by the read calls after a reset call,
-     * is demarcated by a {@code head} (inclusive) and a {@code tail} offset (exclusive). The offsets wrap around,
-     * i.e. if the {@code tail} offset is smaller than the {@code head} offset, then the portion of valid bytes
-     * is that from the {@code head} offset until the end of the buffer array and from the start of the array
-     * until the {@code tail} offset. The buffer is empty when both the {@code head} and the {@code tail} offsets
-     * are equal. The buffer is full if it stores {@code bufferSize} elements.
-     * To avoid mixing up the two states, the actual allocated size of the array is {@code bufferSize + 1}.
+     * the underlying input stream supplying the actual bytes to read
      */
-    protected byte[] ringBuffer;
+    final InputStream source;
     /**
-     * The inclusive start offset of the bytes that must be replayed after a reset call.
+     * The fixed capacity buffer used to store the bytes following a {@code mark} call on the input stream,
+     * and which are then replayed after the {@code reset} call.
+     * The buffer permits appending bytes which can then be read, possibly multiple times, by also
+     * supporting the mark and reset operations on its own.
+     * Reading will <b>not</b> discard the bytes just read. Subsequent reads will return the
+     * next bytes, but the bytes can be replayed by reading after calling {@code reset}.
+     * The {@code mark} operation is used to adjust the position of the reset return position to the current
+     * read position and also discard the bytes read before.
      */
-    protected int head;
+    final RingBuffer ringBuffer; // package-protected for tests
     /**
-     * The exclusive end offset of the bytes that must be replayed after a reset call.
+     * {@code true} when the result of a read or a skip from the underlying source stream must also be stored in the buffer
      */
-    protected int tail;
+    boolean storeToBuffer; // package-protected for tests
     /**
-     * The current offset of the next byte to be returned from the buffer for the reads following a reset.
-     * This is defined only when {@code resetCalled} is {@code true}.
+     * {@code true} when the returned bytes must come from the buffer and not from the underlying source stream
      */
-    protected int position;
+    boolean replayFromBuffer; // package-protected for tests
     /**
-     * {@code true} when the result of a read or skip from the underlying stream must also be stored in the buffer
+     * {@code true} when this stream is closed and any further calls throw IOExceptions
      */
-    protected boolean markCalled;
-    /**
-     * {@code true} when the returned bytes must come from the buffer and not from the underlying stream
-     */
-    protected boolean resetCalled;
-    protected boolean closed;
+    boolean closed; // package-protected for tests
 
     /**
      * Creates a {@code BufferOnMarkInputStream} that buffers a maximum of {@code bufferSize} elements
-     * from the wrapped input stream {@code in} in order to support {@code mark} and {@code reset}.
-     * The {@code bufferSize} is the maximum value for the mark readlimit.
+     * from the wrapped input stream {@code source} in order to support {@code mark} and {@code reset}.
+     * The {@code bufferSize} is the maximum value for the {@code mark} readlimit argument.
      *
-     * @param in the underlying input buffer
+     * @param source the underlying input buffer
      * @param bufferSize the number of bytes that can be stored after a call to mark
      */
-    public BufferOnMarkInputStream(InputStream in, int bufferSize) {
-        super(Objects.requireNonNull(in));
-        if (bufferSize <= 0) {
-            throw new IllegalArgumentException("The buffersize constructor argument must be a strictly positive value");
-        }
-        this.bufferSize = bufferSize;
-        // the ring buffer is lazily allocated upon the first mark call
-        this.ringBuffer = null;
-        this.head = this.tail = this.position = -1;
-        this.markCalled = this.resetCalled = false;
+    public BufferOnMarkInputStream(InputStream source, int bufferSize) {
+        this.source = source;
+        this.ringBuffer = new RingBuffer(bufferSize);
+        this.storeToBuffer = this.replayFromBuffer = false;
         this.closed = false;
     }
 
@@ -91,9 +77,9 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
      * Reads up to {@code len} bytes of data into an array of bytes from this
      * input stream. If {@code len} is zero, then no bytes are read and {@code 0}
      * is returned; otherwise, there is an attempt to read at least one byte.
-     * The read will return buffered bytes, which have been returned in a previous
-     * call as well, if the contents of the stream must be replayed following a
-     * reset call; otherwise it forwards the call to the underlying stream.
+     * If the contents of the stream must be replayed following a {@code reset}
+     * call, the call will return buffered bytes which have been returned in a previous
+     * call. Otherwise it forwards the read call to the underlying source input stream.
      * If no byte is available because there are no more bytes to replay following
      * a reset (if a reset was called) and the underlying stream is exhausted, the
      * value {@code -1} is returned; otherwise, at least one byte is read and stored
@@ -120,27 +106,29 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             return 0;
         }
         // firstly try reading any buffered bytes in case this read call is part of a rewind following a reset call
-        if (resetCalled) {
-            int bytesRead = readFromBuffer(b, off, len);
+        if (replayFromBuffer) {
+            int bytesRead = ringBuffer.read(b, off, len);
             if (bytesRead == 0) {
                 // rewinding is complete, no more bytes to replay
-                resetCalled = false;
+                replayFromBuffer = false;
             } else {
                 return bytesRead;
             }
         }
-        int bytesRead = in.read(b, off, len);
+        int bytesRead = source.read(b, off, len);
         if (bytesRead <= 0) {
             return bytesRead;
         }
         // if mark has been previously called, buffer all the read bytes
-        if (markCalled) {
-            if (bytesRead > getRemainingBufferCapacity()) {
-                // could not fully write to buffer, invalidate mark
-                markCalled = false;
-                head = tail = position = 0;
+        if (storeToBuffer) {
+            if (bytesRead > ringBuffer.getAvailableToWriteByteCount()) {
+                // can not fully write to buffer
+                // invalidate mark
+                storeToBuffer = false;
+                // empty buffer
+                ringBuffer.clear();
             } else {
-                writeToBuffer(b, off, bytesRead);
+                ringBuffer.write(b, off, bytesRead);
             }
         }
         return bytesRead;
@@ -191,16 +179,20 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         if (n <= 0) {
             return 0;
         }
-        if (false == markCalled) {
-            if (resetCalled) {
+        if (false == storeToBuffer) {
+            // integrity check of the replayFromBuffer state variable
+            if (replayFromBuffer) {
                 throw new IllegalStateException("Reset cannot be called without a preceding mark invocation");
             }
-            return in.skip(n);
+            // if mark has not been called, no storing to the buffer is required
+            return source.skip(n);
         }
         long remaining = n;
         int size = (int)Math.min(2048, remaining);
         byte[] skipBuffer = new byte[size];
         while (remaining > 0) {
+            // skipping translates to a read so that the skipped bytes are stored in the buffer,
+            // so they can possibly be replayed after a reset
             int bytesRead = read(skipBuffer, 0, (int)Math.min(size, remaining));
             if (bytesRead < 0) {
                 break;
@@ -225,21 +217,28 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     public int available() throws IOException {
         ensureOpen();
         int bytesAvailable = 0;
-        if (resetCalled) {
-            if (position <= tail) {
-                bytesAvailable += tail - position;
-            } else {
-                bytesAvailable += ringBuffer.length - position + tail;
-            }
+        if (replayFromBuffer) {
+            bytesAvailable += ringBuffer.getAvailableToReadByteCount();
         }
-        bytesAvailable += in.available();
+        bytesAvailable += source.available();
         return bytesAvailable;
+    }
+
+    /**
+     * Tests if this input stream supports the {@code mark} and {@code reset} methods.
+     * This always returns {@code true}.
+     */
+    @Override
+    public boolean markSupported() {
+        return true;
     }
 
     /**
      * Marks the current position in this input stream. A subsequent call to
      * the {@code reset} method repositions this stream at the last marked
-     * position so that subsequent reads re-read the same bytes.
+     * position so that subsequent reads re-read the same bytes. The bytes
+     * read or skipped following a {@code mark} call will be buffered internally
+     * and any previously buffered bytes are discarded.
      * <p>
      * The {@code readlimit} arguments tells this input stream to
      * allow that many bytes to be read before the mark position can be
@@ -260,61 +259,49 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     @Override
     public void mark(int readlimit) {
         // readlimit is otherwise ignored but this defensively fails if the caller is expecting to be able to mark/reset more than this
-        // instance can accommodate in the ring mark buffer
-        if (readlimit > bufferSize) {
-            throw new IllegalArgumentException("Readlimit value [" + readlimit + "] exceeds the maximum value of [" + bufferSize + "]");
+        // instance can accommodate in the fixed ring buffer
+        if (readlimit > ringBuffer.getBufferSize()) {
+            throw new IllegalArgumentException("Readlimit value [" + readlimit + "] exceeds the maximum value of [" +
+                    ringBuffer.getBufferSize() + "]");
         } else if (readlimit < 0) {
             throw new IllegalArgumentException("Readlimit value [" + readlimit + "] cannot be negative");
         }
         if (closed) {
             return;
         }
-        markCalled = true;
-        // lazily allocate the mark ring buffer
-        if (ringBuffer == null) {
-            // "+ 1" for the full-buffer sentinel free element
-            ringBuffer = new byte[bufferSize + 1];
-            head = tail = position = 0;
+        // signal that further read or skipped bytes must be stored to the buffer
+        storeToBuffer = true;
+        if (replayFromBuffer) {
+            // the mark operation while replaying after a reset
+            // this only discards the previously buffered bytes before the current position
+            // as well as updates the mark position in the buffer
+            ringBuffer.mark();
         } else {
-            if (resetCalled) {
-                // mark after reset
-                head = position;
-            } else {
-                // discard any leftovers in buffer
-                head = tail = position = 0;
-            }
+            // any previously stored bytes are discarded because mark only has to retain bytes from this position on
+            ringBuffer.clear();
         }
     }
 
     /**
-     * Tests if this input stream supports the {@code mark} and
-     * {@code reset} methods. This always returns {@code true}.
-     */
-    @Override
-    public boolean markSupported() {
-        return true;
-    }
-
-    /**
-     * Repositions this stream to the position at the time the
-     * {@code mark} method was last called on this input stream.
-     * Subsequent read calls will return the same bytes in the same
-     * order since the point of the {@code mark} call. Naturally,
-     * {@code mark} can be invoked at any moment, even after a
-     * {@code reset}.
+     * Repositions this stream to the position at the time the {@code mark} method was last called on this input stream.
+     * It throws an {@code IOException} if {@code mark} has not yet been called on this instance.
+     * Internally, this resets the buffer to the last mark position and signals that further reads (and skips)
+     * on this input stream must return bytes from the buffer and not from the underlying source stream.
      *
-     * @throws IOException  if the stream has been closed or the number of bytes
-     * read since the last mark call exceeded {@link #getMaxMarkReadlimit()}
-     * @see     java.io.InputStream#mark(int)
+     * @throws IOException if the stream has been closed or the number of bytes
+     *                     read since the last mark call exceeded {@link #getMaxMarkReadlimit()}
+     * @see java.io.InputStream#mark(int)
      */
     @Override
     public void reset() throws IOException {
         ensureOpen();
-        if (false == markCalled) {
+        if (false == storeToBuffer) {
             throw new IOException("Mark not called or has been invalidated");
         }
-        resetCalled = true;
-        position = head;
+        // signal that further reads/skips must be satisfied from the buffer and not from the underlying source stream
+        replayFromBuffer = true;
+        // position the buffer's read pointer back to the last mark position
+        ringBuffer.reset();
     }
 
     /**
@@ -326,60 +313,17 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     public void close() throws IOException {
         if (false == closed) {
             closed = true;
-            ringBuffer = null;
-            in.close();
+            source.close();
         }
     }
 
     /**
      * Returns the maximum value for the {@code readlimit} argument of the {@link #mark(int)} method.
-     * This is the same as the {@code bufferSize} constructor argument.
+     * This is the value of the {@code bufferSize} constructor argument and represents the maximum number
+     * of bytes that can be internally buffered (so they can be replayed after the reset call).
      */
     public int getMaxMarkReadlimit() {
-        return bufferSize;
-    }
-
-    private int readFromBuffer(byte[] b, int off, int len) {
-        if (position == tail) {
-            return 0;
-        }
-        final int readLength;
-        if (position <= tail) {
-            readLength = Math.min(len, tail - position);
-        } else {
-            readLength = Math.min(len, ringBuffer.length - position);
-        }
-        System.arraycopy(ringBuffer, position, b, off, readLength);
-        position += readLength;
-        if (position == ringBuffer.length) {
-            position = 0;
-        }
-        return readLength;
-    }
-
-    private void writeToBuffer(byte[] b, int off, int len) {
-        while (len > 0) {
-            final int writeLength;
-            if (head <= tail) {
-                writeLength = Math.min(len, ringBuffer.length - tail - (head == 0 ? 1 : 0));
-            } else {
-                writeLength = Math.min(len, head - tail - 1);
-            }
-            if (writeLength <= 0) {
-                throw new IllegalStateException("No space left in the mark buffer");
-            }
-            System.arraycopy(b, off, ringBuffer, tail, writeLength);
-            tail += writeLength;
-            off += writeLength;
-            len -= writeLength;
-            if (tail == ringBuffer.length) {
-                tail = 0;
-                // tail wrap-around overwrites head
-                if (head == 0) {
-                    throw new IllegalStateException("Possible overflow of the mark buffer");
-                }
-            }
-        }
+        return ringBuffer.getBufferSize();
     }
 
     private void ensureOpen() throws IOException {
@@ -388,49 +332,215 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         }
     }
 
-    // protected for tests
-    protected int getRemainingBufferCapacity() {
-        if (ringBuffer == null) {
+    /**
+     * This buffer is used to store all the bytes read or skipped after the last {@link BufferOnMarkInputStream#mark(int)}
+     * invocation.
+     * <p>
+     * The latest bytes written to the ring buffer are appended following the previous ones.
+     * Reading back the bytes advances an internal pointer so that subsequent read calls return subsequent bytes.
+     * However, read bytes are not discarded. The same bytes can be re-read following the {@link #reset()} invocation.
+     * {@link #reset()} permits re-reading the bytes since the last {@link #mark()}} call, or since the buffer instance
+     * has been created or the {@link #clear()} method has been invoked.
+     * Calling {@link #mark()} will discard all bytes read before, and calling {@link #clear()} will discard all the
+     * bytes (new bytes must be written otherwise reading will return {@code 0} bytes).
+     */
+    static class RingBuffer {
+
+        /**
+         * This holds the size of the buffer which is lazily allocated on the first {@link #write(byte[], int, int)} invocation
+         */
+        private final int bufferSize;
+        /**
+         * The array used to store the bytes to be replayed upon a reset call.
+         */
+        byte[] buffer; // package-protected for tests
+        /**
+         * The start offset (inclusive) for the bytes that must be re-read after a reset call. This offset is advanced
+         * by invoking {@link #mark()}
+         */
+        int head; // package-protected for tests
+        /**
+         * The end offset (exclusive) for the bytes that must be re-read after a reset call. This offset is advanced
+         * by writing to the ring buffer.
+         */
+        int tail; // package-protected for tests
+        /**
+         * The offset of the bytes to return on the next read call. This offset is advanced by reading from the ring buffer.
+         */
+        int position; // package-protected for tests
+
+        /**
+         * Creates a new ring buffer instance that can store a maximum of {@code bufferSize} bytes.
+         * More bytes are stored by writing to the ring buffer, and bytes are discarded from the buffer by the
+         * {@code mark} and {@code reset} method invocations.
+         */
+        RingBuffer(int bufferSize) {
+            if (bufferSize <= 0) {
+                throw new IllegalArgumentException("The buffersize constructor argument must be a strictly positive value");
+            }
+            this.bufferSize = bufferSize;
+        }
+
+        /**
+         * Returns the maximum number of bytes that this buffer can store.
+         */
+        int getBufferSize() {
             return bufferSize;
         }
-        if (head == tail) {
-            return ringBuffer.length - 1;
-        } else if (head < tail) {
-            return ringBuffer.length - tail + head - 1;
-        } else {
-            return head - tail - 1;
-        }
-    }
 
-    //protected for tests
-    protected int getRemainingBufferToRead() {
-        if (ringBuffer == null) {
-            return 0;
+        /**
+         * Rewind back to the read position of the last {@link #mark()} or {@link #reset()}. The next
+         * {@link RingBuffer#read(byte[], int, int)} call will return the same bytes that the read
+         * call after the last {@link #mark()} did.
+         */
+        void reset() {
+            position = head;
         }
-        if (head <= tail) {
-            return tail - position;
-        } else if (position >= head) {
-            return ringBuffer.length - position + tail;
-        } else {
-            return tail - position;
-        }
-    }
 
-    // protected for tests
-    protected int getCurrentBufferCount() {
-        if (ringBuffer == null) {
-            return 0;
+        /**
+         * Mark the current read position. Any previously read bytes are discarded from the ring buffer,
+         * i.e. they cannot be re-read, but this frees up space for writing other bytes.
+         * All the following {@link RingBuffer#read(byte[], int, int)} calls will revert back to this position.
+         */
+        void mark() {
+            head = position;
         }
-        if (head <= tail) {
-            return tail - head;
-        } else {
-            return ringBuffer.length - head + tail;
-        }
-    }
 
-    // only for tests
-    protected InputStream getWrapped() {
-        return in;
+        /**
+         * Empties out the ring buffer, discarding all the bytes written to it, i.e. any following read calls don't
+         * return any bytes.
+         */
+        void clear() {
+            head = position = tail = 0;
+        }
+
+        /**
+         * Copies up to {@code len} bytes from the ring buffer and places them in the {@code b} array starting at offset {@code off}.
+         * This advances the internal pointer of the ring buffer so that a subsequent call will return the following bytes, not the
+         * same ones (see {@link #reset()}).
+         * Exactly {@code len} bytes are copied from the ring buffer, but no more than {@link #getAvailableToReadByteCount()}; i.e.
+         * if {@code len} is greater than the value returned by {@link #getAvailableToReadByteCount()} this reads all the remaining
+         * available bytes (which could be {@code 0}).
+         * This returns the exact count of bytes read (the minimum of {@code len} and the value of {@code #getAvailableToReadByteCount}).
+         *
+         * @param b   the array where to place the bytes read
+         * @param off the offset in the array where to start placing the bytes read (i.e. first byte is stored at b[off])
+         * @param len the maximum number of bytes to read
+         * @return the number of bytes actually read
+         */
+        int read(byte[] b, int off, int len) {
+            Objects.requireNonNull(b);
+            Objects.checkFromIndexSize(off, len, b.length);
+            if (position == tail || len == 0) {
+                return 0;
+            }
+            // the number of bytes to read
+            final int readLength;
+            if (position <= tail) {
+                readLength = Math.min(len, tail - position);
+            } else {
+                // the ring buffer contains elements that wrap around the end of the array
+                readLength = Math.min(len, buffer.length - position);
+            }
+            System.arraycopy(buffer, position, b, off, readLength);
+            // update the internal pointer with the bytes read
+            position += readLength;
+            if (position == buffer.length) {
+                // pointer wrap around
+                position = 0;
+                // also read the remaining bytes after the wrap around
+                return readLength + read(b, off + readLength, len - readLength);
+            }
+            return readLength;
+        }
+
+        /**
+         * Copies <b>exactly</b> {@code len} bytes from the array {@code b}, starting at offset {@code off}, into the ring buffer.
+         * The bytes are appended after the ones written in the same way by a previous call, and are available to
+         * {@link #read(byte[], int, int)} immediately.
+         * This throws {@code IllegalArgumentException} if the ring buffer does not have enough space left.
+         * To get the available capacity left call {@link #getAvailableToWriteByteCount()}.
+         *
+         * @param b the array from which to copy the bytes into the ring buffer
+         * @param off the offset of the first element to copy
+         * @param len the number of elements to copy
+         */
+        void write(byte[] b, int off, int len) {
+            Objects.requireNonNull(b);
+            Objects.checkFromIndexSize(off, len, b.length);
+            // allocate internal buffer lazily
+            if (buffer == null && len > 0) {
+                // "+ 1" for the full-buffer sentinel element
+                buffer = new byte[bufferSize + 1];
+                head = position = tail = 0;
+            }
+            if (len > getAvailableToWriteByteCount()) {
+                throw new IllegalArgumentException("Not enough remaining space in the ring buffer");
+            }
+            while (len > 0) {
+                final int writeLength;
+                if (head <= tail) {
+                    writeLength = Math.min(len, buffer.length - tail - (head == 0 ? 1 : 0));
+                } else {
+                    writeLength = Math.min(len, head - tail - 1);
+                }
+                if (writeLength <= 0) {
+                    throw new IllegalStateException("No space left in the ring buffer");
+                }
+                System.arraycopy(b, off, buffer, tail, writeLength);
+                tail += writeLength;
+                off += writeLength;
+                len -= writeLength;
+                if (tail == buffer.length) {
+                    tail = 0;
+                    // tail wrap-around overwrites head
+                    if (head == 0) {
+                        throw new IllegalStateException("Possible overflow of the ring buffer");
+                    }
+                }
+            }
+        }
+
+        /**
+         * Returns the number of bytes that can be written to this ring buffer before it becomes full
+         * and will not accept further writes. Be advised that reading (see {@link #read(byte[], int, int)})
+         * does not free up space because bytes can be re-read multiple times (see {@link #reset()});
+         * ring buffer space can be reclaimed by calling {@link #mark()} or {@link #clear()}
+         */
+        int getAvailableToWriteByteCount() {
+            if (buffer == null) {
+                return bufferSize;
+            }
+            if (head == tail) {
+                return buffer.length - 1;
+            } else if (head < tail) {
+                return buffer.length - tail + head - 1;
+            } else {
+                return head - tail - 1;
+            }
+        }
+
+        /**
+         * Returns the number of bytes that can be read from this ring buffer before it becomes empty
+         * and all subsequent {@link #read(byte[], int, int)} calls will return {@code 0}. Writing
+         * more bytes (see {@link #write(byte[], int, int)}) will obviously increase the number of
+         * bytes available to read. Calling {@link #reset()} will also increase the available byte
+         * count because the following reads will go over again the same bytes since the last
+         * {@code mark} call.
+         */
+        int getAvailableToReadByteCount() {
+            if (buffer == null) {
+                return 0;
+            }
+            if (head <= tail) {
+                return tail - position;
+            } else if (position >= head) {
+                return buffer.length - position + tail;
+            } else {
+                return tail - position;
+            }
+        }
+
     }
 
 }

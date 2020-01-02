@@ -35,7 +35,8 @@ For more information, see
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (Required, string) Identifier for the calendar.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-get-calendar-event-request-body]]
 ==== {api-request-body-title}
@@ -60,22 +61,22 @@ The API returns an array of scheduled event resources, which have the
 following properties:
 
 `calendar_id`::
-    (string) An identifier for the calendar that contains the scheduled
-    event. 
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `description`::
-    (string) A description of the scheduled event.
+(string) A description of the scheduled event.
 
 `end_time`::
-    (date) The timestamp for the end of the scheduled event
-    in milliseconds since the epoch or ISO 8601 format.
+(date) The timestamp for the end of the scheduled event in milliseconds since
+the epoch or ISO 8601 format.
 
 `event_id`::
-    (string) An automatically-generated identifier for the scheduled event.
+(string) An automatically-generated identifier for the scheduled event.
 
 `start_time`::
-   (date) The timestamp for the beginning of the scheduled event
-   in milliseconds since the epoch or ISO 8601 format.
+(date) The timestamp for the beginning of the scheduled event in milliseconds
+since the epoch or ISO 8601 format.
 
 [[ml-get-calendar-event-example]]
 ==== {api-examples-title}

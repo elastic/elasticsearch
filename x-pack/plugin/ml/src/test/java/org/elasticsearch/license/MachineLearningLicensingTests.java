@@ -177,7 +177,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).setMapping("{\"properties\":{\"time\":{\"type\":\"date\"}}}").get();
+        prepareCreate(datafeedIndex).setMapping("{\"_doc\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}").get();
 
         // put job
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
@@ -275,7 +275,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).setMapping("{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}").get();
+        prepareCreate(datafeedIndex).setMapping("{\"_doc\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}").get();
         // test that license restricted apis do now work
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);

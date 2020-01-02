@@ -57,7 +57,7 @@ properties:
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
   
-`items`:::
+`items`::
 (array of strings) An array of strings which is the filter item list.
 
 [[ml-get-filter-example]]

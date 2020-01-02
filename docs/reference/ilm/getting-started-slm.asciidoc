@@ -137,7 +137,7 @@ While snapshots taken by SLM policies can be viewed through the standard snapsho
 API, SLM also keeps track of policy successes and failures in ways that are a bit
 easier to use to make sure the policy is working.  Once a policy has executed at
 least once, when you view the policy using the <<slm-api-get,Get Policy API>>, 
-some metadata will be returned indicating whether the snapshot was sucessfully 
+some metadata will be returned indicating whether the snapshot was successfully 
 initiated or not.
 
 Instead of waiting for our policy to run, let's tell SLM to take a snapshot
@@ -219,7 +219,7 @@ field - it's included above only as an example. You should, however, see a
 `last_success` field and a snapshot name. If you do, you've successfully taken
 your first snapshot using SLM!
 
-While only the most recent sucess and failure are available through the Get Policy 
+While only the most recent success and failure are available through the Get Policy 
 API, all policy executions are recorded to a history index, which may be queried
 by searching the index pattern `.slm-history*`.
 

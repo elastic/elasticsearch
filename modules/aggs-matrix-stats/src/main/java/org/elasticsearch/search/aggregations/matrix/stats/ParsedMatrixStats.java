@@ -151,7 +151,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         return values.get(fieldName);
     }
 
-    private static ObjectParser<ParsedMatrixStats, Void> PARSER =
+    private static final ObjectParser<ParsedMatrixStats, Void> PARSER =
             new ObjectParser<>(ParsedMatrixStats.class.getSimpleName(), true, ParsedMatrixStats::new);
     static {
         declareAggregationFields(PARSER);

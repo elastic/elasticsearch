@@ -1,0 +1,83 @@
+{
+  "index_patterns": [
+    "ilm-history-${xpack.ilm_history.template.version}*"
+  ],
+  "order": 2147483647,
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 0,
+    "index.auto_expand_replicas": "0-1",
+    "index.lifecycle.name": "ilm-history-ilm-policy",
+    "index.lifecycle.rollover_alias": "ilm-history-${xpack.ilm_history.template.version}",
+    "index.format": 1
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_millis"
+        },
+        "policy": {
+          "type": "keyword"
+        },
+        "index": {
+          "type": "keyword"
+        },
+        "index_age":{
+          "type": "long"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "object",
+          "dynamic": true,
+          "properties": {
+            "phase": {
+              "type": "keyword"
+            },
+            "action": {
+              "type": "keyword"
+            },
+            "step": {
+              "type": "keyword"
+            },
+            "failed_step": {
+              "type": "keyword"
+            },
+            "is_auto-retryable_error": {
+              "type": "keyword"
+            },
+            "creation_date": {
+              "type": "date",
+              "format": "epoch_millis"
+            },
+            "phase_time": {
+              "type": "date",
+              "format": "epoch_millis"
+            },
+            "action_time": {
+              "type": "date",
+              "format": "epoch_millis"
+            },
+            "step_time": {
+              "type": "date",
+              "format": "epoch_millis"
+            },
+            "phase_definition": {
+              "type": "text"
+            },
+            "step_info": {
+              "type": "text"
+            }
+          }
+        },
+        "error_details": {
+          "type": "text"
+        }
+      }
+    }
+  }
+}

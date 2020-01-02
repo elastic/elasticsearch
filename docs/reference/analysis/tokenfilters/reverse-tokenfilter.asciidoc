@@ -1,4 +1,7 @@
 [[analysis-reverse-tokenfilter]]
-=== Reverse Token Filter
+=== Reverse token filter
+++++
+<titleabbrev>Reverse</titleabbrev>
+++++
 
 A token filter of type `reverse` that simply reverses each token.

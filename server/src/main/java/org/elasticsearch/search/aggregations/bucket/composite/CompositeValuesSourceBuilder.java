@@ -200,7 +200,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * If true an explicit `null bucket will represent documents with missing values.
+     * If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
      */
     @SuppressWarnings("unchecked")
     public AB missingBucket(boolean missingBucket) {

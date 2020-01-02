@@ -67,17 +67,21 @@ class SimulateExecutionService {
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
             final AtomicInteger counter = new AtomicInteger();
-            final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>();
+            final List<SimulateDocumentResult> responses =
+                new CopyOnWriteArrayList<>(new SimulateDocumentBaseResult[request.getDocuments().size()]);
+            int iter = 0;
             for (IngestDocument ingestDocument : request.getDocuments()) {
+                final int index = iter;
                 executeDocument(request.getPipeline(), ingestDocument, request.isVerbose(), (response, e) -> {
                     if (response != null) {
-                        responses.add(response);
+                        responses.set(index, response);
                     }
                     if (counter.incrementAndGet() == request.getDocuments().size()) {
                         l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
                             request.isVerbose(), responses));
                     }
                 });
+                iter++;
             }
         }));
     }

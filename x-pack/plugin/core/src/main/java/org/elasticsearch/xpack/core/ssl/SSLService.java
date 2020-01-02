@@ -123,6 +123,14 @@ public class SSLService {
     private final Environment env;
 
     /**
+     * Create a new SSLService using the {@code Settings} from {@link Environment#settings()}.
+     * @see #SSLService(Settings, Environment)
+     */
+    public SSLService(Environment environment) {
+        this(environment.settings(), environment);
+    }
+
+    /**
      * Create a new SSLService that parses the settings for the ssl contexts that need to be created, creates them, and then caches them
      * for use later
      */

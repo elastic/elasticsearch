@@ -6,11 +6,14 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.time.Instant;
+import java.util.Locale;
 import java.util.Objects;
 
 public class WaitForSnapshotStep extends ClusterStateWaitStep {
@@ -18,8 +21,10 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     static final String NAME = "wait-for-snapshot";
 
     private static final String MESSAGE_FIELD = "message";
-    private static final String POLICY_NOT_EXECUTED_MESSAGE = "waiting for policy '%s' to be executed";
+    private static final String POLICY_NOT_EXECUTED_MESSAGE = "waiting for policy '%s' to be executed since %s";
     private static final String POLICY_NOT_FOUND_MESSAGE = "policy '%s' not found, waiting for it to be created and executed";
+    private static final String NO_INDEX_METADATA_MESSAGE = "no index metadata found for index '%s'";
+    private static final String NO_PHASE_TIME_MESSAGE = "no information about ILM phase start in index metadata for index '%s'";
 
     private final String policy;
 
@@ -30,15 +35,24 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        long phaseTime = LifecycleExecutionState.fromIndexMetadata(clusterState.metaData().index(index)).getPhaseTime();
+        IndexMetaData indexMetaData = clusterState.metaData().index(index);
+        if (indexMetaData == null) {
+            throw new IllegalStateException(String.format(Locale.ROOT, NO_INDEX_METADATA_MESSAGE, index.getName()));
+        }
+
+        Long phaseTime = LifecycleExecutionState.fromIndexMetadata(indexMetaData).getPhaseTime();
+
+        if (phaseTime == null) {
+            throw new IllegalStateException(String.format(Locale.ROOT, NO_PHASE_TIME_MESSAGE, index.getName()));
+        }
 
         SnapshotLifecycleMetadata snapMeta = clusterState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
-            return new Result(false, info(POLICY_NOT_FOUND_MESSAGE));
+            throw new IllegalStateException(POLICY_NOT_FOUND_MESSAGE);
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
         if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getTimestamp() < phaseTime) {
-            return new Result(false, info(POLICY_NOT_EXECUTED_MESSAGE));
+            return new Result(false, notExecutedMessage(phaseTime));
         }
 
         return new Result(true, null);
@@ -48,10 +62,15 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
         return policy;
     }
 
-    private ToXContentObject info(String message) {
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    private ToXContentObject notExecutedMessage(long time) {
         return (builder, params) -> {
             builder.startObject();
-            builder.field(MESSAGE_FIELD, String.format(message, policy));
+            builder.field(MESSAGE_FIELD, String.format(Locale.ROOT, POLICY_NOT_EXECUTED_MESSAGE, policy, Instant.ofEpochMilli(time)));
             builder.endObject();
             return builder;
         };

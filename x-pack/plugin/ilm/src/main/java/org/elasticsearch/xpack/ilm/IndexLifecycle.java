@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.SnapshotAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
@@ -229,7 +229,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SnapshotAction.NAME), SnapshotAction::parse)
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME), WaitForSnapshotAction::parse)
         );
     }
 

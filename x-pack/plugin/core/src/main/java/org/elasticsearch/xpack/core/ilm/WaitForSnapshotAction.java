@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -19,13 +20,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class SnapshotAction implements LifecycleAction {
+public class WaitForSnapshotAction implements LifecycleAction {
 
     public static final String NAME = "snapshot";
     public static final ParseField POLICY_FIELD = new ParseField("policy");
 
-    private static final ConstructingObjectParser<SnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new SnapshotAction((String) a[0]));
+    private static final ConstructingObjectParser<WaitForSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
+        a -> new WaitForSnapshotAction((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_FIELD);
@@ -33,18 +34,18 @@ public class SnapshotAction implements LifecycleAction {
 
     private final String policy;
 
-    public static SnapshotAction parse(XContentParser parser) {
+    public static WaitForSnapshotAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public SnapshotAction(String policy) {
-        if (policy == null) {
-            throw new IllegalArgumentException("Policy name must be specified");
+    public WaitForSnapshotAction(String policy) {
+        if (Strings.hasText(policy) == false) {
+            throw new IllegalArgumentException("policy name must be specified");
         }
         this.policy = policy;
     }
 
-    public SnapshotAction(StreamInput in) throws IOException {
+    public WaitForSnapshotAction(StreamInput in) throws IOException {
         this(in.readString());
     }
 
@@ -81,7 +82,7 @@ public class SnapshotAction implements LifecycleAction {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SnapshotAction that = (SnapshotAction) o;
+        WaitForSnapshotAction that = (WaitForSnapshotAction) o;
         return policy.equals(that.policy);
     }
 

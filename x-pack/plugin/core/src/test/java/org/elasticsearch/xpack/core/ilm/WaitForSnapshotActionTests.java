@@ -11,11 +11,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-public class SnapshotActionTests extends AbstractActionTestCase<SnapshotAction> {
+public class WaitForSnapshotActionTests extends AbstractActionTestCase<WaitForSnapshotAction> {
 
     @Override
     public void testToSteps() {
-        SnapshotAction action = createTestInstance();
+        WaitForSnapshotAction action = createTestInstance();
         Step.StepKey nextStep = new Step.StepKey("", "", "");
         List<Step> steps = action.toSteps(null, "delete", nextStep);
         assertEquals(1, steps.size());
@@ -25,22 +25,27 @@ public class SnapshotActionTests extends AbstractActionTestCase<SnapshotAction> 
 
         Step.StepKey key = step.getKey();
         assertEquals("delete", key.getPhase());
-        assertEquals(SnapshotAction.NAME, key.getAction());
+        assertEquals(WaitForSnapshotAction.NAME, key.getAction());
         assertEquals(WaitForSnapshotStep.NAME, key.getName());
     }
 
     @Override
-    protected SnapshotAction doParseInstance(XContentParser parser) throws IOException {
-        return SnapshotAction.parse(parser);
+    protected WaitForSnapshotAction doParseInstance(XContentParser parser) throws IOException {
+        return WaitForSnapshotAction.parse(parser);
     }
 
     @Override
-    protected SnapshotAction createTestInstance() {
-        return new SnapshotAction("policy");
+    protected WaitForSnapshotAction createTestInstance() {
+        return new WaitForSnapshotAction(randomAlphaOfLengthBetween(5, 10));
     }
 
     @Override
-    protected Writeable.Reader<SnapshotAction> instanceReader() {
-        return SnapshotAction::new;
+    protected Writeable.Reader<WaitForSnapshotAction> instanceReader() {
+        return WaitForSnapshotAction::new;
+    }
+
+    @Override
+    protected WaitForSnapshotAction mutateInstance(WaitForSnapshotAction instance) throws IOException {
+        return new WaitForSnapshotAction(randomAlphaOfLengthBetween(5, 10));
     }
 }

@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
-import org.elasticsearch.xpack.core.ilm.SnapshotAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
@@ -324,10 +324,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy("delete", new SnapshotAction("slm"));
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction("slm"));
         updatePolicy(index, policy);
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
+        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo("wait-for-snapshot")));
 
         createSnapshotRepo();
         createSlmPolicy();
@@ -343,7 +344,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy("delete", new SnapshotAction("slm"));
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction("slm"));
 
         createSnapshotRepo();
         createSlmPolicy();

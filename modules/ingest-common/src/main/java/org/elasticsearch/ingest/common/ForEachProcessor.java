@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 import org.elasticsearch.ingest.WrappingProcessor;
@@ -78,41 +76,32 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
         } else {
-            final List<Object> newValues = new CopyOnWriteArrayList<>();
-            final IngestDocument document = ingestDocument;
-            final Semaphore oneByOneGate = new Semaphore(1);
-            final AtomicBoolean errorOrDrop = new AtomicBoolean(false);
-            for (Object value : values) {
-                if (errorOrDrop.get() == false) {
-                    try {
-                        oneByOneGate.acquire();
-                        Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
-                        processor.execute(document, (result, e) -> {
-                            try {
-                                if (e != null) {
-                                    newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                                    errorOrDrop.set(true);
-                                    handler.accept(null, e);
-                                } else if (result == null) {
-                                    errorOrDrop.set(true);
-                                    handler.accept(null, null);
-                                } else {
-                                    newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                                }
-                            } finally {
-                                oneByOneGate.release();
-                            }
-                        });
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
-            document.setFieldValue(field, new ArrayList<>(newValues));
-            if (errorOrDrop.get() == false) {
-                handler.accept(document, null);
-            }
+            List<Object> newValues = new CopyOnWriteArrayList<>();
+            innerExecute(0, values, newValues, ingestDocument, handler);
         }
+    }
+
+    void innerExecute(int index, List<?> values, List<Object> newValues, IngestDocument document,
+                      BiConsumer<IngestDocument, Exception> handler) {
+        if (index == values.size()) {
+            document.setFieldValue(field, new ArrayList<>(newValues));
+            handler.accept(document, null);
+            return;
+        }
+
+        Object value = values.get(index);
+        Object previousValue = document.getIngestMetadata().put("_value", value);
+        processor.execute(document, (result, e) -> {
+            if (e != null)  {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                handler.accept(null, e);
+            } else if (result == null) {
+                handler.accept(null, null);
+            } else {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                innerExecute(index + 1, values, newValues, document, handler);
+            }
+        });
     }
 
     @Override

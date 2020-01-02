@@ -95,8 +95,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 [[ml-start-datafeed-example]]
 ==== {api-examples-title}
 
-The following example starts the `datafeed-total-requests` {dfeed}:
-
 [source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-total-requests/_start

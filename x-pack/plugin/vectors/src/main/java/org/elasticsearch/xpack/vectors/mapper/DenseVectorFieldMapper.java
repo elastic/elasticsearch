@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -44,7 +46,14 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
-    private static final byte INT_BYTES = 4;
+
+    public static final byte INT_BYTES = 4;
+    public static final int MAX_PCENTROIDS_COUNT = 256; // number of product centroids in each product quantizer
+    public static final String KMEANS_ALGORITHM_LLOYDS = "lloyds";
+    public static final String KMEANS_ALGORITHM_SORT = "sort";
+    private static final int DEFAULT_PQ_COUNT = 8;
+    private static final int DEFAULT_KMEANS_ITER = 5;
+    private static final float DEFAULT_KMEANS_SAMPLE_FRACTION = 1.0f;
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new DenseVectorFieldType();
@@ -60,7 +69,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
     public static class Builder extends FieldMapper.Builder<Builder, DenseVectorFieldMapper> {
         private int dims = 0;
-
+        private String ann = null;
+        private int pqCount = DEFAULT_PQ_COUNT;
+        private int kmeansIters = DEFAULT_KMEANS_ITER;
+        private float kmeansSampleFraction = DEFAULT_KMEANS_SAMPLE_FRACTION;
+        private String kmeansAlgorithm = KMEANS_ALGORITHM_LLOYDS;
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
@@ -75,10 +88,57 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             return this;
         }
 
+        public Builder ann(String ann) {
+            if (ann.equals("pq") == false) {
+                throw new MapperParsingException("[ann] value for field [" + name + "] should be [pq]!");
+            }
+            this.ann = ann;
+            return this;
+        }
+
+        // TODO: check that dims is divided by pqCount without remainder
+        public Builder pqCount(int pqCount) {
+            this.pqCount = pqCount;
+            return this;
+        }
+
+        public Builder kmeansIters(int kmeansIters) {
+            this.kmeansIters = kmeansIters;
+            return this;
+        }
+
+        public Builder kmeansSampleFraction(float kmeansSampleFraction) {
+            this.kmeansSampleFraction = kmeansSampleFraction;
+            return this;
+        }
+
+        public Builder kmeansAlgorithm(String kmeansAlgorithm) {
+            if (kmeansAlgorithm.equals(KMEANS_ALGORITHM_LLOYDS) || kmeansAlgorithm.equals(KMEANS_ALGORITHM_SORT)) {
+                this.kmeansAlgorithm = kmeansAlgorithm;
+            } else {
+                throw new MapperParsingException("[kmeans_algorithm] value for field [" + name + "] should be [lloyds] or [sort]!");
+            }
+            return this;
+        }
+
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
             fieldType().setDims(dims);
+            if (ann != null) {
+                fieldType().setAnn(ann);
+                fieldType().setPqCount(pqCount);
+                fieldType().setKmeansIters(kmeansIters);
+                fieldType().setkmeansSampleFraction(kmeansSampleFraction);
+                fieldType().setKmeansAlgorithm(kmeansAlgorithm);
+                fieldType().putAttribute("ann", ann);
+                fieldType().putAttribute("dims", String.valueOf(dims));
+                fieldType().putAttribute("pqCount", String.valueOf(pqCount));
+                fieldType().putAttribute("kmeansIters", String.valueOf(kmeansIters));
+                fieldType().putAttribute("kmeansSampleFraction", String.valueOf(kmeansSampleFraction));
+                fieldType().putAttribute("kmeansAlgorithm", kmeansAlgorithm);
+                fieldType().setDocValuesType(DocValuesType.BINARY);
+            }
         }
 
         @Override
@@ -104,12 +164,48 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 throw new MapperParsingException("The [dims] property must be specified for field [" + name + "].");
             }
             int dims = XContentMapValues.nodeIntegerValue(dimsField);
-            return builder.dims(dims);
+            builder.dims(dims);
+
+            Object annField = node.remove("ann");
+            if (annField != null) {
+                String ann = XContentMapValues.nodeStringValue(annField, "pq");
+                builder.ann(ann);
+
+                Object pqCountField = node.remove("product_quantizers_count");
+                if (pqCountField != null) {
+                    int pqCount = XContentMapValues.nodeIntegerValue(pqCountField);
+                    builder.pqCount(pqCount);
+                }
+
+                Object kmeansItersField = node.remove("kmeans_iters");
+                if (kmeansItersField != null) {
+                    int kmeansIters = XContentMapValues.nodeIntegerValue(kmeansItersField);
+                    builder.kmeansIters(kmeansIters);
+                }
+
+                Object kmeansSampleFractionField = node.remove("kmeans_sample_fraction");
+                if (kmeansSampleFractionField != null) {
+                    float kmeansSampleFraction = XContentMapValues.nodeFloatValue(kmeansSampleFractionField);
+                    builder.kmeansSampleFraction(kmeansSampleFraction);
+                }
+
+                Object kmeandAlgorithmField = node.remove("kmeans_algorithm"); //lloyds or sort
+                if (kmeandAlgorithmField != null) {
+                    String algorithm = XContentMapValues.nodeStringValue(kmeandAlgorithmField, "lloyds");
+                    builder.kmeansAlgorithm(algorithm);
+                }
+            }
+            return builder;
         }
     }
 
     public static final class DenseVectorFieldType extends MappedFieldType {
         private int dims;
+        private String ann = null; // an <ann> indexing method
+        private int pqCount; // number of product quantizers
+        private int kmeansIters;
+        private float kmeansSampleFraction;
+        private String kmeansAlgorithm;
 
         public DenseVectorFieldType() {}
 
@@ -121,12 +217,48 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             return new DenseVectorFieldType(this);
         }
 
-        int dims() {
+        public int dims() {
             return dims;
+        }
+
+        public String ann() {
+            return ann;
+        }
+
+        int kmeansIters() {
+            return kmeansIters;
+        }
+
+        String kmeansAlgorithm() {
+            return kmeansAlgorithm;
+        }
+
+        public int pqCount() {
+            return pqCount;
         }
 
         void setDims(int dims) {
             this.dims = dims;
+        }
+
+        void setAnn(String ann) {
+            this.ann = ann;
+        }
+
+        void setKmeansIters(int kmeansIters) {
+            this.kmeansIters = kmeansIters;
+        }
+
+        void setkmeansSampleFraction(float kmeansSampleFraction) {
+            this.kmeansSampleFraction = kmeansSampleFraction;
+        }
+
+        void setKmeansAlgorithm(String kmeansAlgorithm) {
+            this.kmeansAlgorithm = kmeansAlgorithm;
+        }
+
+        void setPqCount(int pqCount) {
+            this.pqCount = pqCount;
         }
 
         @Override
@@ -210,7 +342,12 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
-        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
+        Field field;
+        if (fieldType().ann() == null) {
+            field = new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
+        } else {
+            field = new Field(fieldType().name(), new BytesRef(bytes), fieldType());
+        }
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                 "] doesn't not support indexing multiple values for the same field in the same document");
@@ -222,6 +359,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("dims", fieldType().dims());
+        if (fieldType().ann != null) {
+            builder.field("ann", fieldType().ann);
+            builder.field("product_quantizers_count", fieldType().pqCount);
+            builder.field("kmeans_iters", fieldType().kmeansIters);
+            builder.field("kmeans_sample_fraction", fieldType().kmeansSampleFraction);
+            builder.field("kmeans_algorithm", fieldType().kmeansAlgorithm);
+        }
     }
 
     @Override

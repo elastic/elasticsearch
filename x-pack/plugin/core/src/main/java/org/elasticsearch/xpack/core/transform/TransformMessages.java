@@ -21,9 +21,6 @@ public class TransformMessages {
             "Failed to validate configuration";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
-    public static final String REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
-    public static final String REST_PUT_TRANSFORM_DEST_IN_SOURCE = "Destination index [{0}] is included in source expression [{1}]";
-    public static final String REST_PUT_TRANSFORM_DEST_SINGLE_INDEX = "Destination index [{0}] should refer to a single index";
     public static final String REST_PUT_TRANSFORM_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
     public static final String TRANSFORM_CONFIG_INVALID = "Transform configuration is invalid [{0}]";

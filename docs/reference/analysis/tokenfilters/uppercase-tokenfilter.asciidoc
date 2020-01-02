@@ -5,7 +5,7 @@
 ++++
 
 Changes token text to uppercase. For example, you can use the `uppercase` filter
-to change `THE Lazy DoG` to `THE LAZY DOG`.
+to change `the Lazy DoG` to `THE LAZY DOG`.
 
 This filter uses Lucene's
 https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/core/UpperCaseFilter.html[UpperCaseFilter].
@@ -23,7 +23,7 @@ To avoid this loss but still have a consistent lettercase, use the <<analysis-lo
 ==== Example
 
 The following <<indices-analyze,analyze API>> request uses the default
-`uppercase` filter to change the `THE Quick FoX JUMPs` to uppercase:
+`uppercase` filter to change the `the Quick FoX JUMPs` to uppercase:
 
 [source,console]
 --------------------------------------------------
@@ -31,7 +31,7 @@ GET _analyze
 {
   "tokenizer" : "standard",
   "filter" : ["uppercase"],
-  "text" : "THE Quick FoX JUMPs"
+  "text" : "the Quick FoX JUMPs"
 }
 --------------------------------------------------
 

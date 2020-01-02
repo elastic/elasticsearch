@@ -140,7 +140,7 @@ unusual values in the context of the split.
 end::by-field-name[]
 
 tag::calendar-id[]
-A numerical character string that uniquely identifies a calendar.
+A string that uniquely identifies a calendar.
 end::calendar-id[]
 
 tag::categorization-analyzer[]

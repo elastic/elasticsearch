@@ -27,8 +27,11 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -53,6 +56,8 @@ public class SearchableSnapshotRepository extends FilterRepository {
         Setting.simpleString("index.store.snapshot.snapshot_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
     public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING =
         Setting.simpleString("index.store.snapshot.index_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+    public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING =
+        Setting.boolSetting("index.store.snapshot.cache.enabled", true, Setting.Property.IndexScope);
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
@@ -69,7 +74,7 @@ public class SearchableSnapshotRepository extends FilterRepository {
         blobStoreRepository = (BlobStoreRepository) in;
     }
 
-    private Directory makeDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+    private Directory makeDirectory(IndexSettings indexSettings, ShardPath shardPath, CacheService cacheService) throws IOException {
 
         IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
         BlobContainer blobContainer = blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id());
@@ -78,10 +83,14 @@ public class SearchableSnapshotRepository extends FilterRepository {
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()));
         BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
 
-        final SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(snapshot, blobContainer);
-        final InMemoryNoOpCommitDirectory inMemoryNoOpCommitDirectory = new InMemoryNoOpCommitDirectory(searchableSnapshotDirectory);
+        Directory directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
+        if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {
+            Path cacheDir = shardPath.resolveIndex().resolve("_snapshots").resolve(snapshotId.getUUID());
+            directory = new CacheDirectory(directory, cacheService, cacheDir);
+        }
+        directory = new InMemoryNoOpCommitDirectory(directory);
 
-        try (IndexWriter indexWriter = new IndexWriter(inMemoryNoOpCommitDirectory, new IndexWriterConfig())) {
+        try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
             final Map<String, String> userData = new HashMap<>();
             indexWriter.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
 
@@ -94,7 +103,7 @@ public class SearchableSnapshotRepository extends FilterRepository {
             indexWriter.commit();
         }
 
-        return inMemoryNoOpCommitDirectory;
+        return directory;
     }
 
     @Override
@@ -136,7 +145,8 @@ public class SearchableSnapshotRepository extends FilterRepository {
         };
     }
 
-    public static IndexStorePlugin.DirectoryFactory newDirectoryFactory(final Supplier<RepositoriesService> repositoriesService) {
+    public static IndexStorePlugin.DirectoryFactory newDirectoryFactory(final Supplier<RepositoriesService> repositoriesService,
+                                                                        final Supplier<CacheService> cacheService) {
         return (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesService.get();
             assert repositories != null;
@@ -146,7 +156,10 @@ public class SearchableSnapshotRepository extends FilterRepository {
                 throw new IllegalArgumentException("Repository [" + repository + "] is not searchable" );
             }
 
-            return ((SearchableSnapshotRepository)repository).makeDirectory(indexSettings, shardPath);
+            final CacheService cache = cacheService.get();
+            assert cache != null;
+
+            return ((SearchableSnapshotRepository)repository).makeDirectory(indexSettings, shardPath, cache);
         };
     }
 }

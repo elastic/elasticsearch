@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@Repeat (iterations = 10)
 public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
     @Override
@@ -95,7 +97,12 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster()
             .prepareRestoreSnapshot(searchableRepoName, snapshotName).setIndices(indexName)
-            .setRenamePattern(indexName).setRenameReplacement(restoredIndexName).setWaitForCompletion(true).get();
+            .setRenamePattern(indexName)
+            .setRenameReplacement(restoredIndexName)
+            .setIndexSettings(Settings.builder()
+                .put(SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
+                .build())
+            .setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         final Settings settings

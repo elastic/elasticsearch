@@ -35,8 +35,6 @@ calendar.
 [[ml-delete-calendar-example]]
 ==== {api-examples-title}
 
-The following example deletes the `planned-outages` calendar:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/calendars/planned-outages

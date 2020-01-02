@@ -99,7 +99,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     public MulticlassConfusionMatrix(StreamInput in) throws IOException {
         this.size = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             this.aggNamePrefix = in.readString();
         } else {
             this.aggNamePrefix = DEFAULT_AGG_NAME_PREFIX;
@@ -197,7 +197,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(size);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeString(aggNamePrefix);
         }
     }

@@ -230,6 +230,11 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
+        return Collections.emptyMap();
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return false;
     }

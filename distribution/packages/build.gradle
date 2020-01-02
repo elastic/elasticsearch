@@ -131,7 +131,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         with binFiles(type, oss, jdk)
       }
       from(rootProject.projectDir) {
-        include 'README.textile'
+        include 'README.asciidoc'
         fileMode 0644
       }
       into('lib') {

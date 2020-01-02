@@ -23,7 +23,7 @@ Predicts the future behavior of a time series by using its historical behavior.
 [[ml-forecast-desc]]
 ==== {api-description-title}
 
-See {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
+See {ml-docs}/ml-overview.html#ml-forecasting[Forecasting the future].
 
 [NOTE]
 ===============================
@@ -57,11 +57,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-forecast-example]]
 ==== {api-examples-title}
 
-The following example requests a 10 day forecast for the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_forecast
+POST _ml/anomaly_detectors/low_request_rate/_forecast
 {
   "duration": "10d"
 }
@@ -79,4 +77,3 @@ When the forecast is created, you receive the following results:
 // NOTCONSOLE
 
 You can subsequently see the forecast in the *Single Metric Viewer* in {kib}.
-

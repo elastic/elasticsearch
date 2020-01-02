@@ -922,6 +922,44 @@ Highest number of active threads in the thread pool.
 (integer)
 Number of tasks completed by the thread pool executor.
 
+[[cluster-nodes-stats-api-response-body-transport]]
+===== `transport` section
+
+`transport.server_open`::
+(integer)
+Number of open TCP connections used for internal communication between nodes.
+
+`transport.rx_count`::
+(integer)
+Total number of RX (receive) packets received by the node during internal
+cluster communication.
+
+`transport.rx_size_in_bytes`::
+(integer)
+Size, in bytes, of RX packets received by the node during internal cluster
+communication.
+
+`transport.tx_count`::
+(integer)
+Total number of TX (transmit) packets sent by the node during internal cluster
+communication.
+
+`transport.tx_size_in_bytes`::
+(integer)
+Size, in bytes, of TX packets sent by the node during internal cluster
+communication.
+
+[[cluster-nodes-stats-api-response-body-http]]
+===== `http` section
+
+`http.current_open`::
+(integer)
+Current number of open HTTP connections for the node.
+
+`http.total_opened`::
+(integer)
+Total number of HTTP connections opened for the node.
+
 [[cluster-nodes-stats-api-response-body-ingest]]
 ===== `ingest` section
 

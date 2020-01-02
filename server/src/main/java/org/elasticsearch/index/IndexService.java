@@ -820,9 +820,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void syncRetentionLeases() {
-        if (indexSettings.isSoftDeleteEnabled()) {
-            sync(IndexShard::syncRetentionLeases, "retention lease");
-        }
+        sync(IndexShard::syncRetentionLeases, "retention lease");
     }
 
     private void sync(final Consumer<IndexShard> sync, final String source) {

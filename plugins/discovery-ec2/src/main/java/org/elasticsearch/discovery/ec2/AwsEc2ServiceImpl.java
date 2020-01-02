@@ -31,11 +31,9 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
@@ -77,16 +75,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
         // Increase the number of retries in case of 5xx API responses
-        final Random rand = Randomness.get();
-        final RetryPolicy retryPolicy = new RetryPolicy(
-            null,
-            (originalRequest, exception, retriesAttempted) -> {
-               // with 10 retries the max delay time is 320s/320000ms (10 * 2^5 * 1 * 1000)
-               logger.warn("EC2 API request failed, retry again. Reason was:", exception);
-               return 1000L * (long) (10d * Math.pow(2, retriesAttempted / 2.0d) * (1.0d + rand.nextDouble()));
-            },
-            10,
-            false);
+        final RetryPolicy retryPolicy = new RetryPolicy(null, null, 10, false);
         clientConfiguration.setRetryPolicy(retryPolicy);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
         return clientConfiguration;

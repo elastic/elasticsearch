@@ -49,6 +49,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
+import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -117,7 +119,12 @@ public abstract class PackagingTestCase extends Assert {
 
     @BeforeClass
     public static void createShell() throws Exception {
-        sh = new Shell();
+        if (distribution().packaging == Distribution.Packaging.DOCKER) {
+            ensureImageIsLoaded(distribution);
+            sh = new Docker.DockerShell();
+        } else {
+            sh = new Shell();
+        }
     }
 
     @Before

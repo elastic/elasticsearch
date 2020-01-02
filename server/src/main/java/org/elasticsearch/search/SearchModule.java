@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -66,6 +65,7 @@ import org.elasticsearch.index.query.SpanContainingQueryBuilder;
 import org.elasticsearch.index.query.SpanFirstQueryBuilder;
 import org.elasticsearch.index.query.SpanMultiTermQueryBuilder;
 import org.elasticsearch.index.query.SpanNearQueryBuilder;
+import org.elasticsearch.index.query.SpanNearQueryBuilder.SpanGapQueryBuilder;
 import org.elasticsearch.index.query.SpanNotQueryBuilder;
 import org.elasticsearch.index.query.SpanOrQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
@@ -93,7 +93,7 @@ import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
-import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
+import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -150,7 +150,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Mutua
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -273,7 +272,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.index.query.SpanNearQueryBuilder.SpanGapQueryBuilder;
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
@@ -283,8 +281,6 @@ public class SearchModule {
             1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
     private final Map<String, Highlighter> highlighters;
-    private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
-            "significance_heuristic");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
 
@@ -331,13 +327,6 @@ public class SearchModule {
      */
     public Map<String, Highlighter> getHighlighters() {
         return highlighters;
-    }
-
-    /**
-     * The registry of {@link SignificanceHeuristic}s.
-     */
-    public ParseFieldRegistry<SignificanceHeuristicParser> getSignificanceHeuristicParserRegistry() {
-        return significanceHeuristicParserRegistry;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -399,12 +388,12 @@ public class SearchModule {
                     .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
                     .addResultReader(LongRareTerms.NAME, LongRareTerms::new));
         registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder.NAME, SignificantTermsAggregationBuilder::new,
-                SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry))
+                SignificantTermsAggregationBuilder::parse)
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
                     .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
                     .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new));
         registerAggregation(new AggregationSpec(SignificantTextAggregationBuilder.NAME, SignificantTextAggregationBuilder::new,
-                SignificantTextAggregationBuilder.getParser(significanceHeuristicParserRegistry)));
+                SignificantTextAggregationBuilder::parse));
         registerAggregation(new AggregationSpec(RangeAggregationBuilder.NAME, RangeAggregationBuilder::new,
                 RangeAggregationBuilder::parse).addResultReader(InternalRange::new));
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder.NAME, DateRangeAggregationBuilder::new,
@@ -680,20 +669,22 @@ public class SearchModule {
     }
 
     private void registerSignificanceHeuristics(List<SearchPlugin> plugins) {
-        registerSignificanceHeuristic(new SearchExtensionSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
-        registerSignificanceHeuristic(new SearchExtensionSpec<>(GND.NAME, GND::new, GND.PARSER));
-        registerSignificanceHeuristic(new SearchExtensionSpec<>(JLHScore.NAME, JLHScore::new, JLHScore::parse));
-        registerSignificanceHeuristic(new SearchExtensionSpec<>(MutualInformation.NAME, MutualInformation::new, MutualInformation.PARSER));
-        registerSignificanceHeuristic(new SearchExtensionSpec<>(PercentageScore.NAME, PercentageScore::new, PercentageScore::parse));
-        registerSignificanceHeuristic(new SearchExtensionSpec<>(ScriptHeuristic.NAME, ScriptHeuristic::new, ScriptHeuristic::parse));
+        registerSignificanceHeuristic(new SignificanceHeuristicSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
+        registerSignificanceHeuristic(new SignificanceHeuristicSpec<>(GND.NAME, GND::new, GND.PARSER));
+        registerSignificanceHeuristic(new SignificanceHeuristicSpec<>(JLHScore.NAME, JLHScore::new, JLHScore.PARSER));
+        registerSignificanceHeuristic(new SignificanceHeuristicSpec<>(
+            MutualInformation.NAME, MutualInformation::new, MutualInformation.PARSER));
+        registerSignificanceHeuristic(new SignificanceHeuristicSpec<>(PercentageScore.NAME, PercentageScore::new, PercentageScore.PARSER));
+        registerSignificanceHeuristic(new SignificanceHeuristicSpec<>(ScriptHeuristic.NAME, ScriptHeuristic::new, ScriptHeuristic.PARSER));
 
         registerFromPlugin(plugins, SearchPlugin::getSignificanceHeuristics, this::registerSignificanceHeuristic);
     }
 
-    private void registerSignificanceHeuristic(SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser> heuristic) {
-        significanceHeuristicParserRegistry.register(heuristic.getParser(), heuristic.getName());
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SignificanceHeuristic.class, heuristic.getName().getPreferredName(),
-                heuristic.getReader()));
+    private <T extends SignificanceHeuristic> void registerSignificanceHeuristic(SignificanceHeuristicSpec<?> spec) {
+        namedXContents.add(new NamedXContentRegistry.Entry(
+            SignificanceHeuristic.class, spec.getName(), p -> spec.getParser().apply(p, null)));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+            SignificanceHeuristic.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {

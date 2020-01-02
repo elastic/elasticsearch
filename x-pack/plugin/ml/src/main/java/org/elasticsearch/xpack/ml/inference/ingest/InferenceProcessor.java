@@ -28,7 +28,6 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -151,12 +150,8 @@ public class InferenceProcessor extends AbstractProcessor {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
-        InferenceResults inferenceResults = response.getInferenceResults().get(0);
-        if (inferenceResults instanceof WarningInferenceResults) {
-            inferenceResults.writeResult(ingestDocument, this.targetField);
-        } else {
-            response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
-        }
+        assert response.getInferenceResults().size() == 1;
+        response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
         ingestDocument.setFieldValue(targetField + "." + MODEL_ID, modelId);
     }
 

@@ -41,9 +41,6 @@ Updates the description of a filter, adds items, or removes items.
 [[ml-update-filter-example]]
 ==== {api-examples-title}
 
-You can change the description, add and remove items to the `safe_domains`
-filter as follows:
-
 [source,console]
 --------------------------------------------------
 POST _ml/filters/safe_domains/_update

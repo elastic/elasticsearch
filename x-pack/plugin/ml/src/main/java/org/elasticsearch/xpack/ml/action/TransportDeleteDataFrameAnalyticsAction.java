@@ -113,7 +113,7 @@ public class TransportDeleteDataFrameAnalyticsAction
 
     private void forceDelete(ParentTaskAssigningClient parentTaskClient, String id,
                              ActionListener<AcknowledgedResponse> listener) {
-        logger.debug("[] Force deleting data frame analytics job", id);
+        logger.debug("[{}] Force deleting data frame analytics job", id);
 
         ActionListener<StopDataFrameAnalyticsAction.Response> stopListener = ActionListener.wrap(
             stopResponse -> normalDelete(parentTaskClient, clusterService.state(), id, listener),

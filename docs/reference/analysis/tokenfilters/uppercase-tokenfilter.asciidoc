@@ -1,5 +1,8 @@
 [[analysis-uppercase-tokenfilter]]
-=== Uppercase Token Filter
+=== Uppercase token filter
+++++
+<titleabbrev>Uppercase</titleabbrev>
+++++
 
 A token filter of type `uppercase` that normalizes token text to upper
 case.

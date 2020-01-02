@@ -71,8 +71,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesAction extends AbstractCatAction {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestNodesAction.class));
-    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used, it has no effect the API call locality. " +
-        "Will be removed in 8.0";
+    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
+            "locally, and should not be used. It will be unsupported in version 8.0.";
 
     public RestNodesAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/nodes", this);
@@ -93,7 +93,7 @@ public class RestNodesAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         if (request.hasParam("local")) {
-            deprecationLogger.deprecatedAndMaybeLog("cat_nodes_local_deprecation", LOCAL_DEPRECATED_MESSAGE);
+            deprecationLogger.deprecated(LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));

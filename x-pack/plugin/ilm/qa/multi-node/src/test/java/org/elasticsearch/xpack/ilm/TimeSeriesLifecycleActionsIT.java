@@ -375,7 +375,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .startObject()
                 .field("schedule", "59 59 23 31 12 ? 2099")
                 .field("repository", "repo")
-                .field("name", "snap" + randomAlphaOfLengthBetween(5, 10).toLowerCase())
+                .field("name", "snap" + randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT))
                 .startObject("config")
                 .endObject()
                 .endObject()));

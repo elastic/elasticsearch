@@ -1,5 +1,8 @@
 [[analysis-stop-tokenfilter]]
-=== Stop Token Filter
+=== Stop token filter
+++++
+<titleabbrev>Stop</titleabbrev>
+++++
 
 A token filter of type `stop` that removes stop words from token
 streams.

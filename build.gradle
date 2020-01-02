@@ -434,6 +434,14 @@ class Run extends DefaultTask {
   public void setDebug(boolean enabled) {
     project.project(':distribution').run.debug = enabled
   }
+
+  @Option(
+    option = "data-dir",
+    description = "Override the base data directory used by the testcluster"
+  )
+  public void setDataDir(String dataDirStr) {
+    project.project(':distribution').run.dataDir = dataDirStr
+  }
 }
 
 task run(type: Run) {

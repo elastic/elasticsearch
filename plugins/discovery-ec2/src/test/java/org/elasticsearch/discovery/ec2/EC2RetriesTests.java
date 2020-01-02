@@ -82,10 +82,8 @@ public class EC2RetriesTests extends ESTestCase {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         threadPool = new TestThreadPool(EC2RetriesTests.class.getName());
-        final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
-            networkService,
-            PageCacheRecycler.NON_RECYCLING_INSTANCE,
-            new NamedWriteableRegistry(Collections.emptyList()),
+        final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool, networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(Collections.emptyList()),
             new NoneCircuitBreakerService());
         transportService =
             new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);

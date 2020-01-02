@@ -51,6 +51,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class ForEachProcessor extends AbstractProcessor implements WrappingProcessor {
 
     public static final String TYPE = "foreach";
+    static final int MAX_RECURSE_PER_THREAD = 10;
 
     private final String field;
     private final Processor processor;
@@ -103,8 +104,9 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, null);
             } else {
                 newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                if (thread == Thread.currentThread()) {
-                    // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
+                if (thread == Thread.currentThread() && (index + 1) % MAX_RECURSE_PER_THREAD == 0) {
+                    // we are on the same thread and we need to fork to another thread to avoid recursive stack overflow on a single thread
+                    // only fork after 10 recursive calls, then fork every 10 to keep the number of threads down
                     threadPool.generic().execute(() -> innerExecute(index + 1, values, newValues, document, handler));
                 } else {
                     // we are on a different thread (we went asynchronous), it's safe to recurse

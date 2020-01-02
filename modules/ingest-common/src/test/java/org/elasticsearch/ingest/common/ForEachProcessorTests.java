@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 
@@ -73,6 +74,7 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add("foo");
         values.add("bar");
         values.add("baz");
+        IntStream.range(0, ForEachProcessor.MAX_RECURSE_PER_THREAD).forEach(value -> values.add("a"));
         IngestDocument ingestDocument = new IngestDocument(
             "_index", "_id", null, null, null, Collections.singletonMap("values", values)
         );
@@ -83,7 +85,7 @@ public class ForEachProcessorTests extends ESTestCase {
         );
         processor.execute(ingestDocument, (result, e) -> {});
 
-        assertBusy(() -> assertEquals(values.size(), threadPoolExecutor.getCompletedTaskCount()));
+        assertBusy(() -> assertEquals(values.size() / ForEachProcessor.MAX_RECURSE_PER_THREAD, threadPoolExecutor.getCompletedTaskCount()));
         threadPoolExecutor.shutdown();
         threadPoolExecutor.awaitTermination(5, TimeUnit.SECONDS);
 
@@ -92,7 +94,8 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(result.get(0), equalTo("FOO"));
         assertThat(result.get(1), equalTo("BAR"));
         assertThat(result.get(2), equalTo("BAZ"));
-        verify(threadPool, times(values.size())).generic();
+        IntStream.range(3, ForEachProcessor.MAX_RECURSE_PER_THREAD + 3).forEach(i -> assertThat(result.get(i), equalTo("A")));
+        verify(threadPool, times(values.size() / ForEachProcessor.MAX_RECURSE_PER_THREAD)).generic();
     }
 
     public void testExecuteWithAsyncProcessor() throws Exception {
@@ -227,7 +230,7 @@ public class ForEachProcessorTests extends ESTestCase {
                     return null;
                 }
         };
-        int numValues = randomIntBetween(100, 10000);
+        int numValues = randomIntBetween(1, 10000);
         List<String> values = new ArrayList<>(numValues);
         for (int i = 0; i < numValues; i++) {
             values.add("");
@@ -239,7 +242,7 @@ public class ForEachProcessorTests extends ESTestCase {
         ForEachProcessor processor = new ForEachProcessor("_tag", "values", innerProcessor, false, threadPool);
         processor.execute(ingestDocument, (result, e) -> {});
 
-        assertBusy(() -> assertEquals(values.size(), threadPoolExecutor.getCompletedTaskCount()));
+        assertBusy(() -> assertEquals(values.size() / ForEachProcessor.MAX_RECURSE_PER_THREAD, threadPoolExecutor.getCompletedTaskCount()));
         threadPoolExecutor.shutdown();
         threadPoolExecutor.awaitTermination(5, TimeUnit.SECONDS);
 
@@ -249,6 +252,7 @@ public class ForEachProcessorTests extends ESTestCase {
         for (String r : result) {
             assertThat(r, equalTo("."));
         }
+        verify(threadPool, times(values.size() / ForEachProcessor.MAX_RECURSE_PER_THREAD)).generic();
     }
 
     public void testModifyFieldsOutsideArray() throws Exception {

@@ -56,8 +56,6 @@ wait until the job deletion completes. Defaults to `true`.
 [[ml-delete-job-example]]
 ==== {api-examples-title}
 
-The following example deletes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests

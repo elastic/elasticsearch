@@ -70,8 +70,6 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
 [[ml-set-upgrade-mode-example]]
 ==== {api-examples-title}
 
-The following example enables `upgrade_mode` for the cluster:
-
 [source,console]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=true&timeout=10m

@@ -57,8 +57,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-forecast-example]]
 ==== {api-examples-title}
 
-The following example requests a 10 day forecast for the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_forecast

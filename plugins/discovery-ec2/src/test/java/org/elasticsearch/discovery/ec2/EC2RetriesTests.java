@@ -75,13 +75,15 @@ public class EC2RetriesTests extends ESTestCase {
 
     private MockTransportService transportService;
 
+    private NetworkService networkService = new NetworkService(Collections.emptyList());
+
     @Before
     public void setUp() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         threadPool = new TestThreadPool(EC2RetriesTests.class.getName());
         final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
-            new NetworkService(Collections.emptyList()),
+            networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
             new NoneCircuitBreakerService());
@@ -139,8 +141,7 @@ public class EC2RetriesTests extends ESTestCase {
         mockSecure.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret");
         try (Ec2DiscoveryPlugin plugin = new Ec2DiscoveryPlugin(
             Settings.builder().put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), endpoint).setSecureSettings(mockSecure).build())) {
-            final SeedHostsProvider seedHostsProvider =
-                plugin.getSeedHostProviders(transportService, new NetworkService(Collections.emptyList())).get("ec2").get();
+            final SeedHostsProvider seedHostsProvider = plugin.getSeedHostProviders(transportService, networkService).get("ec2").get();
             final SeedHostsResolver resolver = new SeedHostsResolver("test", Settings.EMPTY, transportService, seedHostsProvider);
             resolver.start();
             final List<TransportAddress> addressList = seedHostsProvider.getSeedAddresses(resolver);

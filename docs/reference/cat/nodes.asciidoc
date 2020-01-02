@@ -290,7 +290,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 from the local cluster state. Defaults to `false`, which means the list of
 selected nodes is computed from the cluster state on the master node. In either
 case the coordinating node sends a request for further information to each
-selected node. deprecated::[7.6,This parameter does not cause this API to act
+selected node. deprecated:[7.6,This parameter does not cause this API to act
 locally. It will be removed in version 8.0.]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]

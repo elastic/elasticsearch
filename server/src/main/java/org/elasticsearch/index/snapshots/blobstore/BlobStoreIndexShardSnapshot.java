@@ -335,6 +335,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
     }
 
+    /**
+     * Snapshot name
+     */
     private final String snapshot;
 
     private final long indexVersion;
@@ -352,7 +355,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Constructs new shard snapshot metadata from snapshot metadata
      *
-     * @param snapshot              snapshot id
+     * @param snapshot              snapshot name
      * @param indexVersion          index version
      * @param indexFiles            list of files in the shard
      * @param startTime             snapshot start time
@@ -377,9 +380,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
-     * Returns snapshot id
+     * Returns snapshot name
      *
-     * @return snapshot id
+     * @return snapshot name
      */
     public String snapshot() {
         return snapshot;

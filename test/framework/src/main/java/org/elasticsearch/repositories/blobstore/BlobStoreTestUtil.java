@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.util.SameThreadExecutorService;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,6 +27,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -66,6 +72,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -89,8 +96,12 @@ public final class BlobStoreTestUtil {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
+    private static final byte[] SINK = new byte[1024];
+
     public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
-        try (InputStream ignored = container.readBlob(blobName)) {
+        try (InputStream input = container.readBlob(blobName)) {
+            // Drain input stream fully to avoid warnings from SDKs like S3 that don't like closing streams mid-way
+            while (input.read(SINK) >= 0);
             return true;
         } catch (NoSuchFileException e) {
             return false;
@@ -292,11 +303,29 @@ public final class BlobStoreTestUtil {
 
     /**
      * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
-     * functionality to make {@link BlobStoreRepository} work.
+     * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state as {@link ClusterState#EMPTY_STATE}.
      *
      * @return Mock ClusterService
      */
     public static ClusterService mockClusterService() {
+        return mockClusterService(ClusterState.EMPTY_STATE);
+    }
+
+    /**
+     * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
+     * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state with a {@link RepositoriesMetaData} instance
+     * that contains the given {@code metadata}.
+     *
+     * @param metaData RepositoryMetaData to initialize the cluster state with
+     * @return Mock ClusterService
+     */
+    public static ClusterService mockClusterService(RepositoryMetaData metaData) {
+        return mockClusterService(ClusterState.builder(ClusterState.EMPTY_STATE).metaData(
+            MetaData.builder().putCustom(RepositoriesMetaData.TYPE,
+                new RepositoriesMetaData(Collections.singletonList(metaData))).build()).build());
+    }
+
+    private static ClusterService mockClusterService(ClusterState initialState) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
         when(threadPool.generic()).thenReturn(new SameThreadExecutorService());
@@ -305,7 +334,11 @@ public final class BlobStoreTestUtil {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        final AtomicReference<ClusterState> currentState = new AtomicReference<>(ClusterState.EMPTY_STATE);
+        // Setting local node as master so it may update the repository metadata in the cluster state
+        final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
+        final AtomicReference<ClusterState> currentState = new AtomicReference<>(
+            ClusterState.builder(initialState).nodes(
+                DiscoveryNodes.builder().add(localNode).masterNodeId(localNode.getId()).localNodeId(localNode.getId()).build()).build());
         when(clusterService.state()).then(invocationOnMock -> currentState.get());
         final List<ClusterStateApplier> appliers = new CopyOnWriteArrayList<>();
         doAnswer(invocation -> {

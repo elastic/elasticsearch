@@ -86,105 +86,139 @@ single number. For example, in case of age ranges, you can model the values as
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Required, string) A numerical character string that uniquely identifies the 
-  {dfanalytics-job}. This identifier can contain lowercase alphanumeric
-  characters (a-z and 0-9), hyphens, and underscores. It must start and end with
-  alphanumeric characters.
-
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 `analysis`::
-  (Required, object) Defines the type of {dfanalytics} you want to perform on 
-  your source index. For example: `outlier_detection`. See 
-  <<dfanalytics-types>>.
+(Required, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analysis]
   
 `analyzed_fields`::
-  (Optional, object) Specify `includes` and/or `excludes` patterns to select
-  which fields will be included in the analysis. If `analyzed_fields` is not set,
-  only the relevant fields will be included. For example, all the numeric fields
-  for {oldetection}. For the supported field types, see <<ml-put-dfanalytics-supported-fields>>.
-  Also see the <<explain-dfanalytics>> which helps understand
-  field selection.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields]
 
-  `includes`:::
-    (Optional, array) An array of strings that defines the fields that will be 
-    included in the analysis.
-    
-  `excludes`:::
-    (Optional, array) An array of strings that defines the fields that will be 
-    excluded from the analysis. You do not need to add fields with unsupported 
-    data types to `excludes`, these fields are excluded from the analysis 
-    automatically.
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loganalytics
+{
+  "source": {
+    "index": "logdata"
+  },
+  "dest": {
+    "index": "logdata_out"
+  },
+  "analysis": {
+    "outlier_detection": {
+    }
+  },
+  "analyzed_fields": {
+        "includes": [ "request.bytes", "response.counts.error" ],
+        "excludes": [ "source.geo" ]
+  }
+}
+--------------------------------------------------
+// TEST[setup:setup_logdata]
+
 
 `description`::
-  (Optional, string) A description of the job.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
 `dest`::
-  (Required, object) The destination configuration, consisting of `index` and 
-  optionally `results_field` (`ml` by default).
-  
-    `index`:::
-      (Required, string) Defines the _destination index_ to store the results of 
-      the {dfanalytics-job}.
-    
-    `results_field`:::
-      (Optional, string) Defines the name of the field in which to store the 
-      results of the analysis. Default to `ml`.
+(Required, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dest]
   
 `model_memory_limit`::
-  (Optional, string) The approximate maximum amount of memory resources that are 
-  permitted for analytical processing. The default value for {dfanalytics-jobs} 
-  is `1gb`. If your `elasticsearch.yml` file contains an 
-  `xpack.ml.max_model_memory_limit` setting, an error occurs when you try to 
-  create {dfanalytics-jobs} that have `model_memory_limit` values greater than 
-  that setting. For more information, see <<ml-settings>>.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
   
 `source`::
-  (object) The configuration of how to source the analysis data. It requires an `index`.
-  Optionally, `query` and `_source` may be specified.
-  
-  `index`:::
-    (Required, string or array) Index or indices on which to perform the 
-    analysis. It can be a single index or index pattern as well as an array of 
-    indices or patterns.
-    
-  `query`:::
-    (Optional, object) The {es} query domain-specific language 
-    (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
-    search POST body. All the options that are supported by {es} can be used, 
-    as this object is passed verbatim to {es}. By default, this property has 
-    the following value: `{"match_all": {}}`.
-
-  `_source`:::
-    (Optional, object) Specify `includes` and/or `excludes` patterns to select
-    which fields will be present in the destination. Fields that are excluded
-    cannot be included in the analysis.
-        
-      `includes`::::
-        (array) An array of strings that defines the fields that will be included in 
-        the destination.
-          
-      `excludes`::::
-        (array) An array of strings that defines the fields that will be excluded 
-        from the destination.
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=source-put-dfa]
 
 `allow_lazy_start`::
-  (Optional, boolean) Whether this job should be allowed to start when there
-  is insufficient {ml} node capacity for it to be immediately assigned to a node.
-  The default is `false`, which means that the <<start-dfanalytics>>
-  will return an error if a {ml} node with capacity to run the
-  job cannot immediately be found. (However, this is also subject to
-  the cluster-wide `xpack.ml.max_lazy_ml_nodes` setting - see
-  <<advanced-ml-settings>>.) If this option is set to `true` then
-  the <<start-dfanalytics>> will not return an error, and the job will
-  wait in the `starting` state until sufficient {ml} node capacity
-  is available.
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-start]
 
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
+
+
+[[ml-put-dfanalytics-example-preprocess]]
+===== Preprocessing actions example
+
+The following example shows how to limit the scope of the analysis to certain 
+fields, specify excluded fields in the destination index, and use a query to 
+filter your data before analysis.
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/model-flight-delays-pre
+{
+  "source": {
+    "index": [
+      "kibana_sample_data_flights" <1>
+    ],
+    "query": { <2>
+      "range": {
+        "DistanceKilometers": { 
+          "gt": 0
+        }
+      }
+    },
+    "_source": { <3>
+      "includes": [],
+      "excludes": [
+        "FlightDelay",
+        "FlightDelayType"
+      ]
+    }
+  },
+  "dest": { <4>
+    "index": "df-flight-delays",
+    "results_field": "ml-results"
+  },
+  "analysis": {
+  "regression": {
+    "dependent_variable": "FlightDelayMin",
+    "training_percent": 90
+    }
+  },
+  "analyzed_fields": { <5>
+    "includes": [],
+    "excludes": [   
+      "FlightNum"
+    ]
+  },
+  "model_memory_limit": "100mb"
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> The source index to analyze.
+<2> This query filters out entire documents that will not be present in the 
+destination index.
+<3> The `_source` object defines fields in the dataset that will be included or 
+excluded in the destination index. In this case, `includes` does not specify any 
+fields, so the default behavior takes place: all the fields of the source index 
+will included except the ones that are explicitly specified in `excludes`.
+<4> Defines the destination index that contains the results of the analysis and 
+the fields of the source index specified in the `_source` object. Also defines 
+the name of the `results_field`.
+<5> Specifies fields to be included in or excluded from the analysis. This does 
+not affect whether the fields will be present in the destination index, only 
+affects whether they are used in the analysis.
+
+In this example, we can see that all the fields of the source index are included 
+in the destination index except `FlightDelay` and `FlightDelayType` because 
+these are defined as excluded fields by the `excludes` parameter of the 
+`_source` object. The `FlightNum` field is included in the destination index, 
+however it is not included in the analysis because it is explicitly specified as 
+excluded field by the `excludes` parameter of the `analyzed_fields` object.
 
 
 [[ml-put-dfanalytics-example-od]]
@@ -327,15 +361,18 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
    {
      "regression": {
        "dependent_variable": "G3",
-       "training_percent": 70  <1>
+       "training_percent": 70,  <1>
+       "randomize_seed": 19673948271  <2>
      }
    }
 }
 --------------------------------------------------
 // TEST[skip:TBD]
 
-<1> The `training_percent` defines the percentage of the data set that will be used 
-for training the model.
+<1> The `training_percent` defines the percentage of the data set that will be 
+used for training the model.
+<2> The `randomize_seed` is the seed used to randomly pick which data is used 
+for training.
 
 
 [[ml-put-dfanalytics-example-c]]

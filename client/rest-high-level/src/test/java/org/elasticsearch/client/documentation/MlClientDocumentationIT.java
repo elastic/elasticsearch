@@ -2975,7 +2975,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureBagFraction(0.4) // <6>
                 .setPredictionFieldName("my_prediction_field_name") // <7>
                 .setTrainingPercent(50.0) // <8>
-                .setNumTopClasses(1) // <9>
+                .setRandomizeSeed(1234L) // <9>
+                .setNumTopClasses(1) // <10>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -2988,6 +2989,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureBagFraction(0.4) // <6>
                 .setPredictionFieldName("my_prediction_field_name") // <7>
                 .setTrainingPercent(50.0) // <8>
+                .setRandomizeSeed(1234L) // <9>
                 .build();
             // end::put-data-frame-analytics-regression
 
@@ -3370,7 +3372,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     "predicted_class", // <3>
                     // Evaluation metrics // <4>
                     new AccuracyMetric(), // <5>
-                    new MulticlassConfusionMatrixMetric(3)); // <6>
+                    new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric(), // <6>
+                    new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric(), // <7>
+                    new MulticlassConfusionMatrixMetric(3)); // <8>
             // end::evaluate-data-frame-evaluation-classification
 
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(indexName, null, evaluation);
@@ -3380,15 +3384,33 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             AccuracyMetric.Result accuracyResult = response.getMetricByName(AccuracyMetric.NAME); // <1>
             double accuracy = accuracyResult.getOverallAccuracy(); // <2>
 
-            MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
-                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <3>
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.Result precisionResult =
+                response.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME); // <3>
+            double precision = precisionResult.getAvgPrecision(); // <4>
 
-            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <4>
-            long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <5>
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result recallResult =
+                response.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME); // <5>
+            double recall = recallResult.getAvgRecall(); // <6>
+
+            MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
+                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <7>
+
+            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <8>
+            long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <9>
             // end::evaluate-data-frame-results-classification
 
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
             assertThat(accuracy, equalTo(0.6));
+
+            assertThat(
+                precisionResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME));
+            assertThat(precision, equalTo(0.675));
+
+            assertThat(
+                recallResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME));
+            assertThat(recall, equalTo(0.45));
 
             assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
             assertThat(

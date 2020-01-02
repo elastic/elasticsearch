@@ -101,7 +101,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(QueryShardContext queryShardContext) {
-        SignificantTermsHeuristicScoreScript.Factory compiledScript = queryShardContext.getScriptService().compile(script,
+        SignificantTermsHeuristicScoreScript.Factory compiledScript = queryShardContext.compile(script,
                 SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }

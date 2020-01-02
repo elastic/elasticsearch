@@ -38,6 +38,8 @@ if (buildNumber) {
         fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
           include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
         }
+
+        fileset(dir: "${gradle.gradleUserHomeDir}/workers", followsymlinks: false)
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)

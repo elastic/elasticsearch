@@ -76,7 +76,6 @@ Valid rules include:
 * <<intervals-fuzzy,`fuzzy`>>
 * <<intervals-all_of,`all_of`>>
 * <<intervals-any_of,`any_of`>>
-* <<interval_filter,`filter`>>
 --
 
 [[intervals-match]]

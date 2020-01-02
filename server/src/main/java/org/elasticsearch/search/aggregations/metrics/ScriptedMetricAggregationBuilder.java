@@ -209,14 +209,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         ScriptedMetricAggContexts.InitScript.Factory compiledInitScript;
         Map<String, Object> initScriptParams;
         if (initScript != null) {
-            compiledInitScript = queryShardContext.getScriptService().compile(initScript, ScriptedMetricAggContexts.InitScript.CONTEXT);
+            compiledInitScript = queryShardContext.compile(initScript, ScriptedMetricAggContexts.InitScript.CONTEXT);
             initScriptParams = initScript.getParams();
         } else {
             compiledInitScript = (p, a) -> null;
             initScriptParams = Collections.emptyMap();
         }
 
-        ScriptedMetricAggContexts.MapScript.Factory compiledMapScript = queryShardContext.getScriptService().compile(mapScript,
+        ScriptedMetricAggContexts.MapScript.Factory compiledMapScript = queryShardContext.compile(mapScript,
             ScriptedMetricAggContexts.MapScript.CONTEXT);
         Map<String, Object> mapScriptParams = mapScript.getParams();
 
@@ -224,7 +224,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
         Map<String, Object> combineScriptParams;
 
-        compiledCombineScript = queryShardContext.getScriptService().compile(combineScript,
+        compiledCombineScript = queryShardContext.compile(combineScript,
             ScriptedMetricAggContexts.CombineScript.CONTEXT);
         combineScriptParams = combineScript.getParams();
 

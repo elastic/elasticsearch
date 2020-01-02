@@ -88,11 +88,9 @@ has closed. The default value is 30 minutes.
 [[ml-close-job-example]]
 ==== {api-examples-title}
 
-The following example closes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_close
+POST _ml/anomaly_detectors/low_request_rate/_close
 --------------------------------------------------
 // TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325 - on unmuting use setup:server_metrics_openjob-raw]
 

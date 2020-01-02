@@ -41,8 +41,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}
 
-The following example deletes the `datafeed-total-requests` {dfeed}:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/datafeeds/datafeed-total-requests

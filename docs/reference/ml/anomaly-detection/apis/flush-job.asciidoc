@@ -67,8 +67,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-flush-job-example]]
 ==== {api-examples-title}
 
-The following example flushes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_flush

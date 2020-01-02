@@ -105,9 +105,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 [[ml-update-datafeed-example]]
 ==== {api-examples-title}
 
-The following example updates the query for the `datafeed-total-requests`
-{dfeed} so that only log entries of error level are analyzed:
-
 [source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-total-requests/_update

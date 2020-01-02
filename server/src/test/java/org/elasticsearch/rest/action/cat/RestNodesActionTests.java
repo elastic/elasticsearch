@@ -73,7 +73,7 @@ public class RestNodesActionTests extends ESTestCase {
         TestThreadPool threadPool = new TestThreadPool(RestNodesActionTests.class.getName());
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         FakeRestRequest request = new FakeRestRequest();
-        request.params().put("local", "");
+        request.params().put("local", randomFrom("", "true", "false"));
 
         action.doCatRequest(request, client);
         assertWarnings(RestNodesAction.LOCAL_DEPRECATED_MESSAGE);

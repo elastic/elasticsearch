@@ -12,7 +12,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
-import java.time.Instant;
+import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -70,7 +70,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     private ToXContentObject notExecutedMessage(long time) {
         return (builder, params) -> {
             builder.startObject();
-            builder.field(MESSAGE_FIELD, String.format(Locale.ROOT, POLICY_NOT_EXECUTED_MESSAGE, policy, Instant.ofEpochMilli(time)));
+            builder.field(MESSAGE_FIELD, String.format(Locale.ROOT, POLICY_NOT_EXECUTED_MESSAGE, policy, new Date(time)));
             builder.endObject();
             return builder;
         };

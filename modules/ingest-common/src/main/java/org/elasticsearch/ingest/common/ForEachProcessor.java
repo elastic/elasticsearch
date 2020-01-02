@@ -33,6 +33,7 @@ import java.util.function.BiConsumer;
 
 import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -54,12 +55,14 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     private final String field;
     private final Processor processor;
     private final boolean ignoreMissing;
+    private final ThreadPool threadPool;
 
-    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing) {
+    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing, ThreadPool threadPool) {
         super(tag);
         this.field = field;
         this.processor = processor;
         this.ignoreMissing = ignoreMissing;
+        this.threadPool = threadPool;
     }
 
     boolean isIgnoreMissing() {
@@ -91,6 +94,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
 
         Object value = values.get(index);
         Object previousValue = document.getIngestMetadata().put("_value", value);
+        final Thread thread = Thread.currentThread();
         processor.execute(document, (result, e) -> {
             if (e != null)  {
                 newValues.add(document.getIngestMetadata().put("_value", previousValue));
@@ -99,7 +103,13 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, null);
             } else {
                 newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                innerExecute(index + 1, values, newValues, document, handler);
+                if (thread == Thread.currentThread()) {
+                    // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
+                    threadPool.generic().execute(() -> innerExecute(index + 1, values, newValues, document, handler));
+                } else {
+                    // we are on a different thread (we went asynchronous), it's safe to recurse
+                    innerExecute(index + 1, values, newValues, document, handler);
+                }
             }
         });
     }
@@ -125,9 +135,11 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     public static final class Factory implements Processor.Factory {
 
         private final ScriptService scriptService;
+        private final ThreadPool threadPool;
 
-        Factory(ScriptService scriptService) {
+        Factory(ScriptService scriptService, ThreadPool threadPool) {
             this.scriptService = scriptService;
+            this.threadPool = threadPool;
         }
 
         @Override
@@ -143,7 +155,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
             Processor processor =
                 ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
-            return new ForEachProcessor(tag, field, processor, ignoreMissing);
+            return new ForEachProcessor(tag, field, processor, ignoreMissing, threadPool);
         }
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -122,6 +123,8 @@ public interface Processor {
 
         public final IngestService ingestService;
 
+        public final ThreadPool threadPool;
+
         /**
          * Provides scheduler support
          */
@@ -134,7 +137,7 @@ public interface Processor {
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Client client) {
+                          IngestService ingestService, Client client, ThreadPool threadPool) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -143,6 +146,7 @@ public interface Processor {
             this.scheduler = scheduler;
             this.ingestService = ingestService;
             this.client = client;
+            this.threadPool = threadPool;
         }
 
     }

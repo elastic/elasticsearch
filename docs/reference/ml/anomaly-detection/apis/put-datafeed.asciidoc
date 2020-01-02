@@ -43,70 +43,52 @@ those same roles.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) A numerical character string that uniquely identifies the
-  {dfeed}. This identifier can contain lowercase alphanumeric characters (a-z
-  and 0-9), hyphens, and underscores. It must start and end with alphanumeric
-  characters.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-put-datafeed-request-body]]
 ==== {api-request-body-title}
 
 `aggregations`::
-  (Optional, object) If set, the {dfeed} performs aggregation searches. For more
-  information, see <<ml-datafeed-resource>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
-  (Optional, object) Specifies how data searches are split into time chunks. See
-  <<ml-datafeed-chunking-config>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
 
 `delayed_data_check_config`::
-  (Optional, object) Specifies whether the data feed checks for missing data and 
-  the size of the window. See <<ml-datafeed-delayed-data-check-config>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
 
 `frequency`::
-  (Optional, <<time-units, time units>>) The interval at which scheduled queries 
-  are made while the {dfeed} runs in real time. The default value is either the 
-  bucket span for short bucket spans, or, for longer bucket spans, a sensible 
-  fraction of the bucket span. For example: `150s`.
+(Optional, <<time-units, time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
 
 `indices`::
-  (Required, array) An array of index names. Wildcards are supported. For
-  example: `["it_ops_metrics", "server*"]`.
-+
---
-NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
-not be set to `false` on any ML node.
---
+(Required, array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
+
 
 `job_id`::
- (Required, string) A numerical character string that uniquely identifies the
- {anomaly-job}.
-
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+ 
 `query`::
-  (Optional, object) The {es} query domain-specific language (DSL). This value
-  corresponds to the query object in an {es} search POST body. All the options
-  that are supported by {Es} can be used, as this object is passed verbatim to
-  {es}. By default, this property has the following value:
-  `{"match_all": {"boost": 1}}`.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query]
 
 `query_delay`::
-  (Optional, <<time-units, time units>>) The number of seconds behind real time 
-  that data is queried. For example, if data from 10:04 a.m. might not be 
-  searchable in {es} until 10:06 a.m., set this property to 120 seconds. The 
-  default value is `60s`.
+(Optional, <<time-units, time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
 
 `script_fields`::
-  (Optional, object) Specifies scripts that evaluate custom expressions and
-  returns script fields to the {dfeed}. The detector configuration objects in a
-  job can contain functions that use these script fields. For more information,
-  see <<request-body-search-script-fields,Script fields>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
 
 `scroll_size`::
-  (Optional, unsigned integer) The `size` parameter that is used in {es}
-  searches. The default value is `1000`.
-
-For more information about these properties,
-see <<ml-datafeed-resource>>.
+(Optional, unsigned integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 [[ml-put-datafeed-example]]
 ==== {api-examples-title}

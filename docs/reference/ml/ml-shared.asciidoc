@@ -1,13 +1,48 @@
+tag::aggregations[]
+If set, the {dfeed} performs aggregation searches. Support for aggregations is
+limited and should only be used with low cardinality data. For more information,
+see
+{stack-ov}/ml-configuring-aggregation.html[Aggregating data for faster performance].
+end::aggregations[]
+
 tag::allow-lazy-open[]
 Advanced configuration option. Specifies whether this job can open when there is 
 insufficient {ml} node capacity for it to be immediately assigned to a node. The
-default value is `false`; if a {ml} node with capacity to run the job cannot immediately be found, the <<ml-open-job,open {anomaly-jobs} API>> returns an
+default value is `false`; if a {ml} node with capacity to run the job cannot 
+immediately be found, the <<ml-open-job,open {anomaly-jobs} API>> returns an 
 error. However, this is also subject to the cluster-wide 
 `xpack.ml.max_lazy_ml_nodes` setting; see <<advanced-ml-settings>>. If this
 option is set to `true`, the <<ml-open-job,open {anomaly-jobs} API>> does not
 return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
+
+
+tag::allow-lazy-start[]
+Whether this job should be allowed to start when there is insufficient {ml} node 
+capacity for it to be immediately assigned to a node. The default is `false`, 
+which means that the <<start-dfanalytics>> will return an error if a {ml} node 
+with capacity to run the job cannot immediately be found. (However, this is also 
+subject to the cluster-wide `xpack.ml.max_lazy_ml_nodes` setting - see 
+<<advanced-ml-settings>>.) If this option is set to `true` then the 
+<<start-dfanalytics>> will not return an error, and the job will wait in the 
+`starting` state until sufficient {ml} node capacity is available.
+end::allow-lazy-start[]
+
+tag::allow-no-datafeeds[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {dfeeds} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `datafeeds` array when
+there are no matches and the subset of results when there are partial matches.
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+end::allow-no-datafeeds[]
 
 tag::allow-no-jobs[]
 Specifies what to do when the request:
@@ -39,10 +74,16 @@ when there are no matches or only partial matches.
 --
 end::allow-no-match[]
 
+tag::analysis[]
+Defines the type of {dfanalytics} you want to perform on your source index. For 
+example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.
+end::analysis[]
+
 tag::analysis-config[]
 The analysis configuration, which specifies how to analyze the data.
 After you create a job, you cannot change the analysis configuration; all
-the properties are informational. An analysis configuration object has the following properties:
+the properties are informational. An analysis configuration object has the 
+following properties:
 
 `bucket_span`:::
 (<<time-units,time units>>)
@@ -105,6 +146,25 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
 (long or string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
 end::analysis-limits[]
+
+tag::analyzed-fields[]
+Specify `includes` and/or `excludes` patterns to select which fields will be 
+included in the analysis. If `analyzed_fields` is not set, only the relevant 
+fields will be included. For example, all the numeric fields for {oldetection}. 
+For the supported field types, see <<ml-put-dfanalytics-supported-fields>>. Also 
+see the <<explain-dfanalytics>> which helps understand field selection.
+
+`includes`:::
+  (Optional, array) An array of strings that defines the fields that will be 
+  included in the analysis.
+  
+`excludes`:::
+  (Optional, array) An array of strings that defines the fields that will be 
+  excluded from the analysis. You do not need to add fields with unsupported 
+  data types to `excludes`, these fields are excluded from the analysis 
+  automatically.
+end::analyzed-fields[]
+
 
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the 
@@ -186,7 +246,9 @@ tag::categorization-filters[]
 If `categorization_field_name` is specified, you can also define optional
 filters. This property expects an array of regular expressions. The expressions
 are used to filter out matching sequences from the categorization field values.
-You can use this functionality to fine tune the categorization by excluding sequences from consideration when categories are defined. For example, you can exclude SQL statements that appear in your log files. For more information, see
+You can use this functionality to fine tune the categorization by excluding 
+sequences from consideration when categories are defined. For example, you can 
+exclude SQL statements that appear in your log files. For more information, see 
 {stack-ov}/ml-configuring-categories.html[Categorizing log messages]. This
 property cannot be used at the same time as `categorization_analyzer`. If you
 only want to define simple regular expression filters that are applied prior to 
@@ -206,6 +268,27 @@ analyzer and you need to achieve the equivalent of `categorization_filters`
 add them here as
 <<analysis-pattern-replace-charfilter,pattern replace character filters>>.
 end::char-filter[]
+
+
+tag::compute-feature-influence[]
+If `true`, the feature influence calculation is enabled. Defaults to `true`.
+end::compute-feature-influence[]
+
+tag::chunking-config[]
+{dfeeds-cap} might be required to search over long time periods, for several months
+or years. This search is split into time chunks in order to ensure the load
+on {es} is managed. Chunking configuration controls how the size of these time
+chunks are calculated and is an advanced configuration option.
+A chunking configuration object has the following properties:
+
+`mode`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
+end::chunking-config[]
 
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
@@ -242,7 +325,8 @@ to an object with the following properties:
 
 `filter_type`:::
 (string) Either `include` (the rule applies for values in the filter) or
-`exclude` (the rule applies for values not in the filter). Defaults to `include`.
+`exclude` (the rule applies for values not in the filter). Defaults to 
+`include`.
 
 `conditions`::
 (array) An optional array of numeric conditions when the rule applies. A rule
@@ -301,14 +385,157 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
 --
 end::data-description[]
 
-tag::dependent_variable[]
-`dependent_variable`::
-(Required, string) Defines which field of the document is to be predicted. 
+tag::data-frame-analytics[]
+An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
+ascending order.
+
+`id`:::
+(string) The unique identifier of the {dfanalytics-job}.
+
+`source`:::
+(object) The configuration of how the analysis data is sourced. It has an 
+`index` parameter and optionally a `query` and a `_source`.
+  
+`index`::::
+(array) Index or indices on which to perform the analysis. It can be a single 
+index or index pattern as well as an array of indices or patterns.
+    
+`query`::::
+(object) The query that has been specified for the {dfanalytics-job}. The {es} 
+query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
+the query object in an {es} search POST body. By default, this property has the 
+following value: `{"match_all": {}}`.
+
+`_source`::::
+(object) Contains the specified `includes` and/or `excludes` patterns that 
+select which fields are present in the destination. Fields that are excluded 
+cannot be included in the analysis.
+        
+`includes`:::::
+(array) An array of strings that defines the fields that are included in the 
+destination.
+          
+`excludes`:::::
+(array) An array of strings that defines the fields that are excluded from the 
+destination.
+
+`dest`:::
+(string) The destination configuration of the analysis.
+
+`index`::::
+(string) The _destination index_ that stores the results of the 
+{dfanalytics-job}.
+
+`results_field`::::
+(string) The name of the field that stores the results of the analysis. Defaults 
+to `ml`.
+
+`analysis`:::
+(object) The type of analysis that is performed on the `source`.
+
+`analyzed_fields`:::
+(object) Contains `includes` and/or `excludes` patterns that select which fields 
+are included in the analysis.
+    
+`includes`::::
+(Optional, array) An array of strings that defines the fields that are included 
+in the analysis.
+      
+`excludes`::::
+(Optional, array) An array of strings that defines the fields that are excluded 
+from the analysis.
+
+`model_memory_limit`:::
+(string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+end::data-frame-analytics[]
+
+tag::data-frame-analytics-stats[]
+An array of statistics objects for {dfanalytics-jobs}, which are
+sorted by the `id` value in ascending order.
+
+`id`:::
+(string) The unique identifier of the {dfanalytics-job}.
+  
+`state`:::
+(string) Current state of the {dfanalytics-job}.
+  
+`progress`:::
+(array) The progress report of the {dfanalytics-job} by phase.
+  
+`phase`:::
+(string) Defines the phase of the {dfanalytics-job}. Possible phases: 
+`reindexing`, `loading_data`, `analyzing`, and `writing_results`.
+    
+`progress_percent`:::
+(integer) The progress that the {dfanalytics-job} has made expressed in 
+percentage.
+end::data-frame-analytics-stats[]
+
+tag::datafeed-id[]
+A numerical character string that uniquely identifies the
+{dfeed}. This identifier can contain lowercase alphanumeric characters (a-z
+and 0-9), hyphens, and underscores. It must start and end with alphanumeric
+characters.
+end::datafeed-id[]
+
+tag::datafeed-id-wildcard[]
+Identifier for the {dfeed}. It can be a {dfeed} identifier or a wildcard
+expression.
+end::datafeed-id-wildcard[]
+
+tag::delayed-data-check-config[]
+Specifies whether the {dfeed} checks for missing data and the size of the
+window. For example: `{"enabled": true, "check_window": "1h"}`.
++
+--
+The {dfeed} can optionally search over indices that have already been read in
+an effort to determine whether any data has subsequently been added to the index.
+If missing data is found, it is a good indication that the `query_delay` option
+is set too low and the data is being indexed after the {dfeed} has passed that
+moment in time. See 
+{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
+
+This check runs only on real-time {dfeeds}.
+
+The configuration object has the following properties:
+
+`enabled`::
+(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+Defaults to `true`.
+
+`check_window`::
+(<<time-units,time units>>) The window of time that is searched for late data.
+This window of time ends with the latest finalized bucket. It defaults to
+`null`, which causes an appropriate `check_window` to be calculated when the
+real-time {dfeed} runs. In particular, the default `check_window` span
+calculation is based on the maximum of `2h` or `8 * bucket_span`.
+--
+end::delayed-data-check-config[]
+
+tag::dependent-variable[]
+Defines which field of the document is to be predicted.
 This parameter is supplied by field name and must match one of the fields in 
 the index being used to train. If this field is missing from a document, then 
 that document will not be used for training, but a prediction with the trained 
 model will be generated for it. It is also known as continuous target variable.
-end::dependent_variable[]
+end::dependent-variable[]
+
+tag::description-dfa[]
+A description of the job.
+end::description-dfa[]
+
+tag::dest[]
+The destination configuration, consisting of `index` and 
+optionally `results_field` (`ml` by default).
+
+  `index`:::
+    (Required, string) Defines the _destination index_ to store the results of 
+    the {dfanalytics-job}.
+  
+  `results_field`:::
+    (Optional, string) Defines the name of the field in which to store the 
+    results of the analysis. Default to `ml`.
+end::dest[]
 
 tag::detector-description[]
 A description of the detector. For example, `Low event rate`.
@@ -376,8 +603,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
 end::detector[]
 
 tag::eta[]
-`eta`::
-(Optional, double) The shrinkage applied to the weights. Smaller values result 
+The shrinkage applied to the weights. Smaller values result 
 in larger forests which have better generalization error. However, the smaller 
 the value the longer the training will take. For more information, see 
 https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article] 
@@ -392,11 +618,39 @@ working with both over and by fields, then you can set `exclude_frequent` to
 `all` for both fields, or to `by` or `over` for those specific fields.
 end::exclude-frequent[]
 
-tag::feature_bag_fraction[]
-`feature_bag_fraction`::
-(Optional, double) Defines the fraction of features that will be used when 
+tag::feature-bag-fraction[]
+Defines the fraction of features that will be used when 
 selecting a random bag for each candidate split. 
-end::feature_bag_fraction[]
+end::feature-bag-fraction[]
+
+tag::feature-influence-threshold[]
+The minimum {olscore} that a document needs to have in order to calculate its 
+{fiscore}. Value range: 0-1 (`0.1` by default).
+end::feature-influence-threshold[]
+
+tag::field-selection[]
+An array of objects that explain selection for each field, sorted by 
+the field names. Each object in the array has the following properties:
+
+`name`:::
+(string) The field name.
+
+`mapping_types`:::
+(string) The mapping types of the field.
+
+`is_included`:::
+(boolean) Whether the field is selected to be included in the analysis.
+
+`is_required`:::
+(boolean) Whether the field is required.
+
+`feature_type`:::
+(string) The feature type of this field for the analysis. May be `categorical` 
+or `numerical`.
+
+`reason`:::
+(string) The reason a field is not selected to be included in the analysis.
+end::field-selection[]
 
 tag::filter[]
 One or more <<analysis-tokenfilters,token filters>>. In addition to the built-in 
@@ -405,6 +659,17 @@ optional. If it is not specified, no token filters are applied prior to
 categorization.
 end::filter[]
 
+tag::frequency[]
+The interval at which scheduled queries are made while the {dfeed} runs in real
+time. The default value is either the bucket span for short bucket spans, or,
+for longer bucket spans, a sensible fraction of the bucket span. For example:
+`150s`.
+end::frequency[]
+
+tag::from[]
+Skips the specified number of {dfanalytics-jobs}. The default value is `0`.
+end::from[]
+
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`, 
 `max`, and `sum`. For more information, see
@@ -412,8 +677,7 @@ The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
 end::function[]
 
 tag::gamma[]
-`gamma`::
-(Optional, double) Regularization parameter to prevent overfitting on the 
+Regularization parameter to prevent overfitting on the 
 training dataset. Multiplies a linear penalty associated with the size of 
 individual trees in the forest. The higher the value the more training will 
 prefer smaller trees. The smaller this parameter the larger individual trees 
@@ -423,6 +687,17 @@ end::gamma[]
 tag::groups[]
 A list of job groups. A job can belong to no groups or many.
 end::groups[]
+
+tag::indices[]
+An array of index names. Wildcards are supported. For example:
+`["it_ops_metrics", "server*"]`.
++
+--
+NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
+not be set to `false` on any {ml} nodes.
+
+--
+end::indices[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
@@ -441,7 +716,9 @@ Identifier for the {dfanalytics-job}.
 end::job-id-data-frame-analytics[]
 
 tag::job-id-anomaly-detection-default[]
-Identifier for the {anomaly-job}. It can be a job identifier, a group name, or a wildcard expression. If you do not specify one of these options, the API returns information for all {anomaly-jobs}.
+Identifier for the {anomaly-job}. It can be a job identifier, a group name, or a 
+wildcard expression. If you do not specify one of these options, the API returns 
+information for all {anomaly-jobs}.
 end::job-id-anomaly-detection-default[]
 
 tag::job-id-data-frame-analytics-default[]
@@ -455,7 +732,8 @@ identifier, a group name, or a comma-separated list of jobs or groups.
 end::job-id-anomaly-detection-list[]
 
 tag::job-id-anomaly-detection-wildcard[]
-Identifier for the {anomaly-job}. It can be a job identifier, a group name, or a wildcard expression.
+Identifier for the {anomaly-job}. It can be a job identifier, a group name, or a 
+wildcard expression.
 end::job-id-anomaly-detection-wildcard[]
 
 tag::job-id-anomaly-detection-wildcard-list[]
@@ -464,9 +742,9 @@ comma-separated list of jobs or groups, or a wildcard expression.
 end::job-id-anomaly-detection-wildcard-list[]
 
 tag::job-id-anomaly-detection-define[]
-Identifier for the {anomaly-job}. This identifier can contain lowercase alphanumeric
-characters (a-z and 0-9), hyphens, and underscores. It must start and end with
-alphanumeric characters.
+Identifier for the {anomaly-job}. This identifier can contain lowercase 
+alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start 
+and end with alphanumeric characters.
 end::job-id-anomaly-detection-define[]
 
 tag::job-id-data-frame-analytics-define[]
@@ -475,14 +753,12 @@ alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
 and end with alphanumeric characters.
 end::job-id-data-frame-analytics-define[]
 
-tag::jobs-stats-anomaly-detection[]
-An array of {anomaly-job} statistics objects.
-For more information, see <<ml-jobstats>>.
-end::jobs-stats-anomaly-detection[]
+tag::job-id-datafeed[]
+The unique identifier for the job to which the {dfeed} sends data.
+end::job-id-datafeed[]
 
 tag::lambda[]
-`lambda`::
-(Optional, double) Regularization parameter to prevent overfitting on the 
+Regularization parameter to prevent overfitting on the 
 training dataset. Multiplies an L2 regularisation term which applies to leaf 
 weights of the individual trees in the forest. The higher the value the more 
 training will attempt to keep leaf weights small. This makes the prediction  
@@ -493,7 +769,9 @@ end::lambda[]
 
 tag::latency[]
 The size of the window in which to expect data that is out of time order. The 
-default value is 0 (no latency). If you specify a non-zero value, it must be greater than or equal to one second. For more information about time units, see <<time-units>>.
+default value is 0 (no latency). If you specify a non-zero value, it must be 
+greater than or equal to one second. For more information about time units, see 
+<<time-units>>.
 +
 --
 NOTE: Latency is only applicable when you send data by using
@@ -502,11 +780,53 @@ the <<ml-post-data,post data>> API.
 --
 end::latency[]
 
-tag::maximum_number_trees[]
-`maximum_number_trees`::
-(Optional, integer) Defines the maximum number of trees the forest is allowed 
+tag::max-empty-searches[]
+If a real-time {dfeed} has never seen any data (including during any initial
+training period) then it will automatically stop itself and close its associated
+job after this many real-time searches that return no documents. In other words,
+it will stop after `frequency` times `max_empty_searches` of real-time operation.
+If not set then a {dfeed} with no end time that sees no data will remain started
+until it is explicitly stopped. By default this setting is not set.
+end::max-empty-searches[]
+
+tag::maximum-number-trees[]
+Defines the maximum number of trees the forest is allowed 
 to contain. The maximum value is 2000.
-end::maximum_number_trees[]
+end::maximum-number-trees[]
+
+tag::memory-estimation[]
+An object containing the memory estimates. The object has the 
+following properties:
+
+`expected_memory_without_disk`:::
+(string) Estimated memory usage under the assumption that the whole 
+{dfanalytics} should happen in memory (i.e. without overflowing to disk).
+
+`expected_memory_with_disk`:::
+(string) Estimated memory usage under the assumption that overflowing to disk is 
+allowed during {dfanalytics}. `expected_memory_with_disk` is usually smaller 
+than `expected_memory_without_disk` as using disk allows to limit the main 
+memory needed to perform {dfanalytics}.
+end::memory-estimation[]
+
+tag::method[]
+Sets the method that {oldetection} uses. If the method is not set {oldetection} 
+uses an ensemble of different methods and normalises and combines their 
+individual {olscores} to obtain the overall {olscore}. We recommend to use the 
+ensemble method. Available methods are `lof`, `ldof`, `distance_kth_nn`, 
+`distance_knn`.
+end::method[]
+
+tag::mode[]
+There are three available modes: 
++
+--
+* `auto`: The chunk size is dynamically calculated. This is the default and
+recommended value.
+* `manual`: Chunking is applied according to the specified `time_span`.
+* `off`: No chunking is applied.
+--
+end::mode[]
 
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for 
@@ -533,20 +853,30 @@ see <<ml-settings>>.
 --
 end::model-memory-limit[]
 
+tag::model-memory-limit-dfa[]
+The approximate maximum amount of memory resources that are permitted for 
+analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If 
+your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit` 
+setting, an error occurs when you try to create {dfanalytics-jobs} that have 
+`model_memory_limit` values greater than that setting. For more information, see 
+<<ml-settings>>.
+end::model-memory-limit-dfa[]
+
 tag::model-plot-config[]
 This advanced configuration option stores model information along with the
 results. It provides a more detailed view into {anomaly-detect}.
 +
 --
-WARNING: If you enable model plot it can add considerable overhead to the performance
-of the system; it is not feasible for jobs with many entities.
+WARNING: If you enable model plot it can add considerable overhead to the 
+performance of the system; it is not feasible for jobs with many entities.
 
-Model plot provides a simplified and indicative view of the model and its bounds.
-It does not display complex features such as multivariate correlations or multimodal data.
-As such, anomalies may occasionally be reported which cannot be seen in the model plot.
+Model plot provides a simplified and indicative view of the model and its 
+bounds. It does not display complex features such as multivariate correlations 
+or multimodal data. As such, anomalies may occasionally be reported which cannot 
+be seen in the model plot.
 
-Model plot config can be configured when the job is created or updated later. It must be
-disabled if performance issues are experienced.
+Model plot config can be configured when the job is created or updated later. It 
+must be disabled if performance issues are experienced.
 
 The `model_plot_config` object has the following properties:
 
@@ -565,8 +895,7 @@ end::model-plot-config[]
 
 tag::model-snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot. For 
-example, `1491007364`. For more information about model snapshots, see
-<<ml-snapshot-resource>>.
+example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
@@ -597,6 +926,21 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify
 --
 end::multivariate-by-fields[]
 
+tag::n-neighbors[]
+Defines the value for how many nearest neighbors each method of 
+{oldetection} will use to calculate its {olscore}. When the value is not set, 
+different values will be used for different ensemble members. This helps 
+improve diversity in the ensemble. Therefore, only override this if you are 
+confident that the value you choose is appropriate for the data set.
+end::n-neighbors[]
+
+tag::num-top-classes[]
+Defines the number of categories for which the predicted 
+probabilities are reported. It must be non-negative. If it is greater than the 
+total number of categories (in the {version} version of the {stack}, it's two) 
+to predict then we will report all category probabilities. Defaults to 2.
+end::num-top-classes[]
+
 tag::over-field-name[]
 The field used to split the data. In particular, this property is used for 
 analyzing the splits with respect to the history of all splits. It is used for 
@@ -604,16 +948,44 @@ finding unusual values in the population of all splits. For more information,
 see {stack-ov}/ml-configuring-pop.html[Performing population analysis].
 end::over-field-name[]
 
+tag::outlier-fraction[]
+Sets the proportion of the data set that is assumed to be outlying prior to 
+{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
+outliers and 95% are inliers.
+end::outlier-fraction[]
+
 tag::partition-field-name[]
 The field used to segment the analysis. When you use this property, you have 
 completely independent baselines for each value of this field.
 end::partition-field-name[]
 
-tag::prediction_field_name[]
-`prediction_field_name`::
-(Optional, string) Defines the name of the prediction field in the results. 
+tag::prediction-field-name[]
+Defines the name of the prediction field in the results. 
 Defaults to `<dependent_variable>_prediction`.
-end::prediction_field_name[]
+end::prediction-field-name[]
+
+tag::randomize-seed[]
+Defines the seed to the random generator that is used to pick which documents 
+will be used for training. By default it is randomly generated. Set it to a 
+specific value to ensure the same documents are used for training assuming other 
+related parameters (for example, `source`, `analyzed_fields`, etc.) are the 
+same.
+end::randomize-seed[]
+
+tag::query[]
+The {es} query domain-specific language (DSL). This value corresponds to the
+query object in an {es} search POST body. All the options that are supported by
+{es} can be used, as this object is passed verbatim to {es}. By default, this
+property has the following value: `{"match_all": {"boost": 1}}`.
+end::query[]
+
+tag::query-delay[]
+The number of seconds behind real time that data is queried. For example, if
+data from 10:04 a.m. might not be searchable in {es} until 10:06 a.m., set this
+property to 120 seconds. The default value is randomly selected between `60s`
+and `120s`. This randomness improves the query performance when there are
+multiple jobs running on the same node.
+end::query-delay[]
 
 tag::renormalization-window-days[]
 Advanced configuration option. The period over which adjustments to the score
@@ -633,6 +1005,70 @@ are deleted from {es}. The default value is null, which means results are
 retained.
 end::results-retention-days[]
 
+tag::retain[]
+If `true`, this snapshot will not be deleted during automatic cleanup of
+snapshots older than `model_snapshot_retention_days`. However, this snapshot
+will be deleted when the job is deleted. The default value is `false`.
+end::retain[]
+
+tag::script-fields[]
+Specifies scripts that evaluate custom expressions and returns script fields to
+the {dfeed}. The detector configuration objects in a job can contain functions
+that use these script fields. For more information, see
+{stack-ov}/ml-configuring-transform.html[Transforming data with script fields]
+and <<request-body-search-script-fields,Script fields>>.
+end::script-fields[]
+
+tag::scroll-size[]
+The `size` parameter that is used in {es} searches. The default value is `1000`.
+end::scroll-size[]
+
+tag::size[]
+Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value 
+is `100`.
+end::size[]
+
+tag::snapshot-id[]
+Identifier for the model snapshot.
+end::snapshot-id[]
+
+tag::source-put-dfa[]
+The configuration of how to source the analysis data. It requires an 
+`index`. Optionally, `query` and `_source` may be specified.
+
+`index`:::
+  (Required, string or array) Index or indices on which to perform the 
+  analysis. It can be a single index or index pattern as well as an array of 
+  indices or patterns.
+  
+`query`:::
+  (Optional, object) The {es} query domain-specific language 
+  (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
+  search POST body. All the options that are supported by {es} can be used, 
+  as this object is passed verbatim to {es}. By default, this property has 
+  the following value: `{"match_all": {}}`.
+
+`_source`:::
+  (Optional, object) Specify `includes` and/or `excludes` patterns to select
+  which fields will be present in the destination. Fields that are excluded
+  cannot be included in the analysis.
+      
+    `includes`::::
+      (array) An array of strings that defines the fields that will be 
+      included in the destination.
+        
+    `excludes`::::
+      (array) An array of strings that defines the fields that will be 
+      excluded from the destination.
+end::source-put-dfa[]
+
+tag::standardization-enabled[]
+If `true`, then the following operation is performed on the columns before 
+computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For 
+more information, see 
+https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[this wiki page about standardization].
+end::standardization-enabled[]
+
 tag::summary-count-field-name[]
 If this property is specified, the data that is fed to the job is expected to be
 pre-summarized. This property value is the name of the field that contains the 
@@ -646,6 +1082,16 @@ function.
 --
 end::summary-count-field-name[]
 
+tag::timeout-start[]
+Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults 
+to 20 seconds.
+end::timeout-start[]
+
+tag::timeout-stop[]
+Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults 
+to 20 seconds.
+end::timeout-stop[]
+
 tag::time-format[]
 The time format, which can be `epoch`, `epoch_ms`, or a custom pattern. The
 default value is `epoch`, which refers to UNIX or Epoch time (the number of 
@@ -657,11 +1103,16 @@ either integer or real values. +
 NOTE: Custom patterns must conform to the Java `DateTimeFormatter` class.
 When you use date-time formatting patterns, it is recommended that you provide
 the full date, time and time zone. For example: `yyyy-MM-dd'T'HH:mm:ssX`.
-If the pattern that you specify is not sufficient to produce a complete timestamp,
-job creation fails.
+If the pattern that you specify is not sufficient to produce a complete 
+timestamp, job creation fails.
 
 --
 end::time-format[]
+
+tag::time-span[]
+The time span that each search will be querying. This setting is only applicable
+when the mode is set to `manual`. For example: `3h`.
+end::time-span[]
 
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after 
@@ -673,22 +1124,12 @@ that tokenizer but change the character or token filters, specify
 `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
 end::tokenizer[]
 
-tag::training_percent[]
-`training_percent`::
-(Optional, integer) Defines what percentage of the eligible documents that will 
+tag::training-percent[]
+Defines what percentage of the eligible documents that will 
 be used for training. Documents that are ignored by the analysis (for example 
 those that contain arrays) won’t be included in the calculation for used 
 percentage. Defaults to `100`.
-end::training_percent[]
-
-tag::randomize_seed[]
-`randomize_seed`::
-(Optional, long) Defines the seed to the random generator that is used to pick
-which documents will be used for training. By default it is randomly generated.
-Set it to a specific value to ensure the same documents are used for training
-assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are the same.
-end::randomize_seed[]
-
+end::training-percent[]
 
 tag::use-null[]
 Defines whether a new series is used as the null series when there is no value 

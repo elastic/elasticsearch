@@ -67,13 +67,11 @@ public class Archives {
      *  errors to the console if they occur before the logging framework is initialized. */
     public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
 
-    public static Installation installArchive(Distribution distribution) throws Exception {
-        return installArchive(distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
+    public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
+        return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
     }
 
-    public static Installation installArchive(Distribution distribution, Path fullInstallPath, String version) throws Exception {
-        final Shell sh = new Shell();
-
+    public static Installation installArchive(Shell sh, Distribution distribution, Path fullInstallPath, String version) throws Exception {
         final Path distributionFile = getDistributionFile(distribution);
         final Path baseInstallPath = fullInstallPath.getParent();
         final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);
@@ -115,7 +113,7 @@ public class Archives {
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(distribution, fullInstallPath);
+        return Installation.ofArchive(sh, distribution, fullInstallPath);
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {

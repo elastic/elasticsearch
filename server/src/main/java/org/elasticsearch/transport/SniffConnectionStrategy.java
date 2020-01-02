@@ -36,15 +36,19 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -193,6 +197,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return Stream.of(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD);
     }
 
+    static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
+        return SniffModeInfo::new;
+    }
+
     @Override
     protected boolean shouldOpenMoreConnections() {
         return connectionManager.size() < maxNumRemoteConnections;
@@ -215,6 +223,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     @Override
     protected void connectImpl(ActionListener<Void> listener) {
         collectRemoteNodes(seedNodes.iterator(), listener);
+    }
+
+    @Override
+    protected RemoteConnectionInfo.ModeInfo getModeInfo() {
+        return new SniffModeInfo(configuredSeedNodes, maxNumRemoteConnections, connectionManager.size());
     }
 
     private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
@@ -468,5 +481,73 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
 
         return Objects.equals(oldProxy, newProxy) == false;
+    }
+
+    static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
+
+        final List<String> seedNodes;
+        final int maxConnectionsPerCluster;
+        final int numNodesConnected;
+
+        SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
+            this.seedNodes = seedNodes;
+            this.maxConnectionsPerCluster = maxConnectionsPerCluster;
+            this.numNodesConnected = numNodesConnected;
+        }
+
+        private SniffModeInfo(StreamInput input) throws IOException {
+            seedNodes = Arrays.asList(input.readStringArray());
+            maxConnectionsPerCluster = input.readVInt();
+            numNodesConnected = input.readVInt();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startArray("seeds");
+            for (String address : seedNodes) {
+                builder.value(address);
+            }
+            builder.endArray();
+            builder.field("num_nodes_connected", numNodesConnected);
+            builder.field("max_connections_per_cluster", maxConnectionsPerCluster);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringArray(seedNodes.toArray(new String[0]));
+            out.writeVInt(maxConnectionsPerCluster);
+            out.writeVInt(numNodesConnected);
+        }
+
+        @Override
+        public boolean isConnected() {
+            return numNodesConnected > 0;
+        }
+
+        @Override
+        public String modeName() {
+            return "sniff";
+        }
+
+        @Override
+        public RemoteConnectionStrategy.ConnectionStrategy modeType() {
+            return RemoteConnectionStrategy.ConnectionStrategy.SNIFF;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SniffModeInfo sniff = (SniffModeInfo) o;
+            return maxConnectionsPerCluster == sniff.maxConnectionsPerCluster &&
+                numNodesConnected == sniff.numNodesConnected &&
+                Objects.equals(seedNodes, sniff.seedNodes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected);
+        }
     }
 }

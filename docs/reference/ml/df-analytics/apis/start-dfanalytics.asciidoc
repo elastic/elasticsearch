@@ -36,8 +36,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 ==== {api-query-parms-title}
 
 `timeout`::
-  (Optional, time) Controls the amount of time to wait until the
-  {dfanalytics-job} starts. The default value is 20 seconds.
+(Optional, <<time-units,time units>>) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-start]
 
 [[ml-start-dfanalytics-example]]
 ==== {api-examples-title}

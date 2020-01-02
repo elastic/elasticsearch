@@ -209,4 +209,11 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             assertThat(json, containsString("randomize_seed"));
         }
     }
+
+    public void testGetStateDocId() {
+        Classification classification = createRandom();
+        assertThat(classification.persistsState(), is(true));
+        String randomId = randomAlphaOfLength(10);
+        assertThat(classification.getStateDocId(randomId), equalTo(randomId + "_classification_state#1"));
+    }
 }

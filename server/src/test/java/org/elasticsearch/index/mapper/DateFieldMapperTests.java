@@ -159,7 +159,14 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(1457654400000L, storedField.numericValue().longValue());
     }
 
-    public void testIgnoreMalformed() throws Exception {
+    public void testIgnoreMalformed() throws IOException {
+        testIgnoreMalfomedForValue("2016-03-99",
+                "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]");
+        testIgnoreMalfomedForValue("-2147483648",
+                "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
+    }
+
+    private void testIgnoreMalfomedForValue(String value, String expectedException) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
                 .endObject().endObject());
@@ -171,12 +178,11 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         ThrowingRunnable runnable = () -> mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
-                        .field("field", "2016-03-99")
+                        .field("field", value)
                         .endObject()),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(),
-            containsString("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"));
+        assertThat(e.getCause().getMessage(), containsString(expectedException));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")
@@ -188,7 +194,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument doc = mapper2.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
-                        .field("field", ":1")
+                        .field("field", value)
                         .endObject()),
                 XContentType.JSON));
 

@@ -233,6 +233,27 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         );
     }
 
+    public void testDetect_GivenFieldIsNotIncludedAndIsExcluded() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("foo", "float")
+            .addAggregatableField("bar", "float")
+            .build();
+        analyzedFields = new FetchSourceContext(true, new String[]  {"foo"}, new String[] {"bar"});
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toList()), contains("foo"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.excluded("bar", Collections.singleton("float"), "field not in includes list"),
+            FieldSelection.included("foo", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
+        );
+    }
+
     public void testDetect_GivenRegressionAndRequiredFieldHasInvalidType() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("some_float", "float")

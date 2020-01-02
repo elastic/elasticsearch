@@ -46,10 +46,11 @@ import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -105,7 +106,7 @@ public class Docker {
 
         waitForElasticsearchToStart();
 
-        return Installation.ofContainer(distribution);
+        return Installation.ofContainer(dockerShell, distribution);
     }
 
     /**
@@ -276,7 +277,7 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec " + "--user elasticsearch:root " + "--tty " + containerId + " " + script);
+            return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
         }
     }
 
@@ -438,7 +439,6 @@ public class Docker {
             "elasticsearch",
             "elasticsearch-cli",
             "elasticsearch-env",
-            "elasticsearch-enve",
             "elasticsearch-keystore",
             "elasticsearch-node",
             "elasticsearch-plugin",
@@ -446,6 +446,14 @@ public class Docker {
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.textile").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+
+        // These are installed to help users who are working with certificates.
+        Stream.of("zip", "unzip").forEach(cliPackage -> {
+            // We could run `yum list installed $pkg` but that causes yum to call out to the network.
+            // rpm does the job just as well.
+            final Shell.Result result = dockerShell.runIgnoreExitCode("rpm -q " + cliPackage);
+            assertTrue(cliPackage + " ought to be installed. " + result, result.isSuccess());
+        });
     }
 
     private static void verifyDefaultInstallation(Installation es) {

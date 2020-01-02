@@ -25,7 +25,6 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
@@ -63,13 +62,13 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test10Install() throws Exception {
-        installation = installArchive(distribution());
+        installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
     }
 
     public void test20PluginsListWithNoPlugins() throws Exception {
         final Installation.Executables bin = installation.executables();
-        final Result r = bin.elasticsearchPlugin.run(sh, "list");
+        final Result r = bin.pluginTool.run("list");
 
         assertThat(r.stdout, isEmptyString());
     }
@@ -109,26 +108,26 @@ public class ArchiveTests extends PackagingTestCase {
     public void test40CreateKeystoreManually() throws Exception {
         final Installation.Executables bin = installation.executables();
 
-        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
+        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.keystoreTool + " create"));
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
         Platforms.onWindows(() -> {
-            sh.run(bin.elasticsearchKeystore + " create");
+            sh.run(bin.keystoreTool + " create");
             sh.chown(installation.config("elasticsearch.keystore"));
         });
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
         Platforms.onLinux(() -> {
-            final Result r = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
+            final Result r = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.keystoreTool + " list");
             assertThat(r.stdout, containsString("keystore.seed"));
         });
 
         Platforms.onWindows(() -> {
-            final Result r = sh.run(bin.elasticsearchKeystore + " list");
+            final Result r = sh.run(bin.keystoreTool + " list");
             assertThat(r.stdout, containsString("keystore.seed"));
         });
     }
@@ -202,7 +201,6 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
-            final Shell sh = new Shell();
             String javaPath = "C:\\Program Files (x86)\\java";
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
@@ -228,7 +226,6 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         Platforms.onLinux(() -> {
-            final Shell sh = newShell();
             // Create temporary directory with a space and link to real java home
             String testJavaHome = Paths.get("/tmp", "java home").toString();
             try {
@@ -256,12 +253,12 @@ public class ArchiveTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         Platforms.onLinux(() -> {
-            final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
+            final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.keystoreTool + " list");
             assertThat(result.stdout, containsString("keystore.seed"));
         });
 
         Platforms.onWindows(() -> {
-            final Result result = sh.run(bin.elasticsearchKeystore + " list");
+            final Result result = sh.run(bin.keystoreTool + " list");
             assertThat(result.stdout, containsString("keystore.seed"));
         });
     }
@@ -339,11 +336,11 @@ public class ArchiveTests extends PackagingTestCase {
         if (distribution().isDefault()) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
             final Platforms.PlatformAction action = () -> {
-                Result result = sh.run(bin.elasticsearchCertutil + " --help");
+                Result result = sh.run(bin.certutilTool + " --help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
                 // Ensure that the exit code from the java command is passed back up through the shell script
-                result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
+                result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
                 assertThat(result.exitCode, is(not(0)));
                 assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
             };
@@ -358,7 +355,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
-            final Result result = sh.run(bin.elasticsearchShard + " -h");
+            final Result result = sh.run(bin.shardTool + " -h");
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
@@ -373,7 +370,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
-            final Result result = sh.run(bin.elasticsearchNode + " -h");
+            final Result result = sh.run(bin.nodeTool + " -h");
             assertThat(result.stdout,
                     containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
@@ -394,7 +391,7 @@ public class ArchiveTests extends PackagingTestCase {
         startElasticsearch();
         Archives.stopElasticsearch(installation);
 
-        Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
+        Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
 
@@ -404,16 +401,16 @@ public class ArchiveTests extends PackagingTestCase {
         sh.setWorkingDirectory(getTempDir());
 
         Platforms.PlatformAction action = () -> {
-            Result result = sh.run(bin.elasticsearchCertutil+ " -h");
+            Result result = sh.run(bin.certutilTool + " -h");
             assertThat(result.stdout,
                 containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            result = sh.run(bin.elasticsearchSyskeygen+ " -h");
+            result = sh.run(bin.syskeygenTool + " -h");
             assertThat(result.stdout,
                 containsString("system key tool"));
-            result = sh.run(bin.elasticsearchSetupPasswords+ " -h");
+            result = sh.run(bin.setupPasswordsTool + " -h");
             assertThat(result.stdout,
                 containsString("Sets the passwords for reserved users"));
-            result = sh.run(bin.elasticsearchUsers+ " -h");
+            result = sh.run(bin.usersTool + " -h");
             assertThat(result.stdout,
                 containsString("Manages elasticsearch file users"));
         };

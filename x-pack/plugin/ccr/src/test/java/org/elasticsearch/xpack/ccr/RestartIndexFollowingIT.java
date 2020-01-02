@@ -23,7 +23,6 @@ import java.util.Locale;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
@@ -96,7 +95,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         List<RemoteConnectionInfo> infos =
             followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
         assertThat(infos.size(), equalTo(1));
-        assertThat(infos.get(0).getNumNodesConnected(), greaterThanOrEqualTo(1));
+        assertTrue(infos.get(0).isConnected());
     }
 
     private void cleanRemoteCluster() throws Exception {

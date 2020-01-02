@@ -5,21 +5,14 @@
 These resource definitions are used in APIs related to {ml-features} and
 {security-features} and in {kib} advanced {ml} job configuration options.
 
-* <<ml-datafeed-resource,{dfeeds-cap}>>
-* <<ml-datafeed-counts,{dfeed-cap} counts>>
-* <<ml-dfanalytics-resources,{dfanalytics-cap}>>
-* <<ml-evaluate-dfanalytics-resources,Evaluate {dfanalytics}>>
-* <<ml-jobstats,{anomaly-jobs-cap} statistics>>
-* <<ml-snapshot-resource,{anomaly-detect-cap} model snapshots>>
+
+* <<ml-dfa-analysis-objects>>
 * <<ml-results-resource,{anomaly-detect-cap} results>>
 * <<role-mapping-resources,Role mappings>>
 * <<transform-resource,{transforms-cap}>>
 
-include::{es-repo-dir}/ml/anomaly-detection/apis/datafeedresource.asciidoc[]
-include::{es-repo-dir}/ml/df-analytics/apis/dfanalyticsresources.asciidoc[]
-include::{es-repo-dir}/ml/df-analytics/apis/evaluateresources.asciidoc[]
-include::{es-repo-dir}/ml/anomaly-detection/apis/jobcounts.asciidoc[]
-include::{es-repo-dir}/ml/anomaly-detection/apis/snapshotresource.asciidoc[]
+
+include::{es-repo-dir}/ml/df-analytics/apis/analysisobjects.asciidoc[]
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/resultsresource.asciidoc[]
 include::{es-repo-dir}/transform/apis/transformresource.asciidoc[]

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -20,11 +19,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,20 +41,26 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private static final Logger LOGGER = LogManager.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
-    private final Client client;
     private final Environment env;
     private final Settings settings;
     private final NativeController nativeController;
     private final ClusterService clusterService;
+    private final ResultsPersisterService resultsPersisterService;
+    private final AnomalyDetectionAuditor auditor;
     private volatile Duration processConnectTimeout;
 
-    public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client,
-                                          ClusterService clusterService) {
+    public NativeAutodetectProcessFactory(Environment env,
+                                          Settings settings,
+                                          NativeController nativeController,
+                                          ClusterService clusterService,
+                                          ResultsPersisterService resultsPersisterService,
+                                          AnomalyDetectionAuditor auditor) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
-        this.client = client;
         this.clusterService = clusterService;
+        this.resultsPersisterService = resultsPersisterService;
+        this.auditor = auditor;
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -78,7 +85,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
-        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(client, job.getId());
+        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(job.getId(), resultsPersisterService, auditor);
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
             NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(

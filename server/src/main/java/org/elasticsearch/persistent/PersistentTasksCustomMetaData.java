@@ -169,6 +169,10 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 .collect(Collectors.toList());
     }
 
+    public int count() {
+        return tasks.size();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

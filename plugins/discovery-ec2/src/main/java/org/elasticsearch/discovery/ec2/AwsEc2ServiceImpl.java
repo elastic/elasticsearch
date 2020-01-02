@@ -39,7 +39,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
-    
+
     private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
 
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
@@ -79,7 +79,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         // Increase the number of retries in case of 5xx API responses
         final Random rand = Randomness.get();
         final RetryPolicy retryPolicy = new RetryPolicy(
-            RetryPolicy.RetryCondition.NO_RETRY_CONDITION,
+            null,
             (originalRequest, exception, retriesAttempted) -> {
                // with 10 retries the max delay time is 320s/320000ms (10 * 2^5 * 1 * 1000)
                logger.warn("EC2 API request failed, retry again. Reason was:", exception);

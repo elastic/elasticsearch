@@ -773,11 +773,9 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testCompletionFieldsParam() throws Exception {
         assertAcked(prepareCreate("test1")
-                .addMapping(
-                        "_doc",
+                .setMapping(
                         "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}" +
-                            ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}",
-                    XContentType.JSON));
+                            ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"));
         ensureGreen();
 
         client().prepareIndex("test1").setId(Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}"
@@ -982,9 +980,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         indexRandom(false, true,
                 client().prepareIndex("index").setId("1").setSource("foo", "bar"),
                 client().prepareIndex("index").setId("2").setSource("foo", "baz"));
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
-        }
+        persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
         ensureGreen();
 
@@ -1019,17 +1015,15 @@ public class IndexStatsIT extends ESIntegTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            persistGlobalCheckpoint("index");
-            assertBusy(() -> {
-                for (final ShardStats shardStats : client().admin().indices().prepareStats("index").get().getIndex("index").getShards()) {
-                    final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
-                    assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
-                        .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
-                }
-            });
-            flush("index");
-        }
+        persistGlobalCheckpoint("index");
+        assertBusy(() -> {
+            for (final ShardStats shardStats : client().admin().indices().prepareStats("index").get().getIndex("index").getShards()) {
+                final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                    .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
+            }
+        });
+        flush("index");
         logger.info("--> force merging to a single segment");
         ForceMergeResponse forceMergeResponse =
             client().admin().indices().prepareForceMerge("index").setFlush(true).setMaxNumSegments(1).get();

@@ -19,6 +19,7 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -175,6 +176,16 @@ public abstract class Rounding implements Writeable {
 
     public static Builder builder(TimeValue interval) {
         return new Builder(interval);
+    }
+
+    /**
+     * Create a rounding that offsets values before passing them into another rounding
+     * and then un-offsets them after that rounding has done its job.
+     * @param delegate the other rounding to offset
+     * @param offset the offset, in milliseconds
+     */
+    public static Rounding offset(Rounding delegate, long offset) {
+        return new OffsetRounding(delegate, offset);
     }
 
     public static class Builder {
@@ -556,19 +567,73 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    static class OffsetRounding extends Rounding {
+        static final byte ID = 3;
+
+        private final Rounding delegate;
+        private final long offset;
+
+        OffsetRounding(Rounding delegate, long offset) {
+            this.delegate = delegate;
+            this.offset = offset;
+        }
+
+        OffsetRounding(StreamInput in) throws IOException {
+            delegate = Rounding.read(in);
+            offset = in.readLong();
+        }
+
+        @Override
+        public void innerWriteTo(StreamOutput out) throws IOException {
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                throw new IllegalArgumentException("Offset rounding not supported before 8.0.0");
+            }
+            delegate.writeTo(out);
+            out.writeLong(offset);
+        }
+
+        @Override
+        public byte id() {
+            return ID;
+        }
+
+        @Override
+        public long round(long value) {
+            return delegate.round(value - offset) + offset;
+        }
+
+        @Override
+        public long nextRoundingValue(long value) {
+            // This isn't needed by the current users. We'll implement it when we migrate other users to it.
+            throw new UnsupportedOperationException("not yet supported");
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(delegate, offset);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            OffsetRounding other = (OffsetRounding) obj;
+            return delegate.equals(other.delegate) && offset == other.offset;
+        }
+    }
+
     public static Rounding read(StreamInput in) throws IOException {
-        Rounding rounding;
         byte id = in.readByte();
         switch (id) {
             case TimeUnitRounding.ID:
-                rounding = new TimeUnitRounding(in);
-                break;
+                return new TimeUnitRounding(in);
             case TimeIntervalRounding.ID:
-                rounding = new TimeIntervalRounding(in);
-                break;
+                return new TimeIntervalRounding(in);
+            case OffsetRounding.ID:
+                return new OffsetRounding(in);
             default:
                 throw new ElasticsearchException("unknown rounding id [" + id + "]");
         }
-        return rounding;
     }
 }

@@ -285,7 +285,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         return offset(parseStringOffset(offset));
     }
 
-    static long parseStringOffset(String offset) {
+    /**
+     * Parse the string specification of an offset. 
+     */
+    public static long parseStringOffset(String offset) {
         if (offset.charAt(0) == '-') {
             return -TimeValue
                     .parseTimeValue(offset.substring(1), null, DateHistogramAggregationBuilder.class.getSimpleName() + ".parseOffset")

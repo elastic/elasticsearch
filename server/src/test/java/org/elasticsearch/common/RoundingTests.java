@@ -195,6 +195,16 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding_chg.round(time("2014-11-02T06:01:01", chg)), isDate(time("2014-11-02T06:00:00", chg), chg));
     }
 
+    public void testOffsetRounding() {
+        long twoHours = TimeUnit.HOURS.toMillis(2);
+        long oneDay = TimeUnit.DAYS.toMillis(1);
+        Rounding dayOfMonth = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build();
+        Rounding offsetRounding = Rounding.offset(dayOfMonth, twoHours);
+        assertThat(offsetRounding.round(0), equalTo(-oneDay + twoHours));
+
+        assertThat(offsetRounding.round(twoHours), equalTo(twoHours));
+    }
+
     /**
      * Randomized test on TimeUnitRounding. Test uses random
      * {@link DateTimeUnit} and {@link ZoneId} and often (50% of the time)

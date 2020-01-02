@@ -1195,6 +1195,59 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
     }
 
+    public void testDeduplicateIndexMetadata() throws Exception {
+        final String indexName = "test-blocks-1";
+        final String repositoryName = "repo-" + indexName;
+        final String snapshot0 = "snapshot-0";
+        final String snapshot1 = "snapshot-1";
+
+        createIndex(indexName);
+
+        int docs = between(10, 100);
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex(indexName).setSource("test", "init").execute().actionGet();
+        }
+
+        logger.info("--> register a repository");
+
+        final Path repoPath = randomRepoPath();
+        assertAcked(client().admin().cluster().preparePutRepository(repositoryName)
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", repoPath)));
+
+        logger.info("--> create a snapshot");
+        client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshot0)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        final List<Path> snapshot0IndexMetaFiles = findRepoMetaBlobs(repoPath);
+        assertThat(snapshot0IndexMetaFiles, hasSize(1)); // snapshotting a single index
+
+        // add few docs - less than initially
+        docs = between(1, 5);
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex(indexName).setSource("test", "test" + i).execute().actionGet();
+        }
+
+        logger.info("--> restart random data node and add new data node to change index allocation");
+        internalCluster().restartRandomDataNode();
+        internalCluster().startDataOnlyNode();
+        ensureGreen(indexName);
+
+        // create another snapshot
+        // total size has to grow and has to be equal to files on fs
+        assertThat(client().admin().cluster()
+                .prepareCreateSnapshot(repositoryName, snapshot1)
+                .setWaitForCompletion(true).get().status(),
+            equalTo(RestStatus.OK));
+
+        final List<Path> snapshot1IndexMetaFiles = findRepoMetaBlobs(repoPath);
+
+        // The IndexMetadata did not change between snapshots, verify that no new redundant IndexMetaData was written to the repository
+        assertThat(snapshot1IndexMetaFiles, is(snapshot0IndexMetaFiles));
+    }
+
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
         logger.info("-->  starting a master node and two data nodes");
         internalCluster().startMasterOnlyNode();

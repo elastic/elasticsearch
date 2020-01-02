@@ -130,10 +130,24 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         };
     }
 
+    private static <Value, Category, Context> UnknownFieldParser<Value, Context> unknownIsNamedXContent(
+        Class<Category> categoryClass,
+        BiConsumer<Value, ? super Category> consumer
+    ) {
+        return (parserName, field, location, parser, value, context) -> {
+            Category o;
+            try {
+                o = parser.namedObject(categoryClass, field, context);
+            } catch (NamedObjectNotFoundException e) {
+                throw new XContentParseException(location, "[" + parserName  + "] " + e.getBareMessage(), e);
+            }
+            consumer.accept(value, o);
+        };
+    }
+
     private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
     private final String name;
     private final Supplier<Value> valueSupplier;
-
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
 
     /**
@@ -164,13 +178,31 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     /**
-     * Creates a new ObjectParser instance with a name.
+     * Creates a new ObjectParser instance with a name that consumes unknown fields as generic Objects.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param unknownFieldConsumer how to consume parsed unknown fields
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
     public ObjectParser(String name, UnknownFieldConsumer<Value> unknownFieldConsumer, @Nullable Supplier<Value> valueSupplier) {
         this(name, consumeUnknownField(unknownFieldConsumer), valueSupplier);
+    }
+
+    /**
+     * Creates a new ObjectParser instance with a name that attempts to resolve unknown fields
+     * as {@link XContentParser#namedObject namedObjects}.
+     * @param <C> the type of named object that unknown fields are expected to be
+     * @param name the parsers name, used to reference the parser in exceptions and messages.
+     * @param categoryClass the type of named object that unknown fields are expected to be
+     * @param unknownFieldConsumer how to consume parsed unknown fields
+     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     */
+    public <C> ObjectParser(
+        String name,
+        Class<C> categoryClass,
+        BiConsumer<Value, C> unknownFieldConsumer,
+        @Nullable Supplier<Value> valueSupplier
+    ) {
+        this(name, unknownIsNamedXContent(categoryClass, unknownFieldConsumer), valueSupplier);
     }
 
     /**

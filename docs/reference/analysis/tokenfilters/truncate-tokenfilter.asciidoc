@@ -1,5 +1,8 @@
 [[analysis-truncate-tokenfilter]]
-=== Truncate Token Filter
+=== Truncate token filter
+++++
+<titleabbrev>Truncate</titleabbrev>
+++++
 
 The `truncate` token filter can be used to truncate tokens into a
 specific length.

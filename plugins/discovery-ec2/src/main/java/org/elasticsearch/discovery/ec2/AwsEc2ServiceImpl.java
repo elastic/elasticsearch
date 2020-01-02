@@ -25,7 +25,6 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.apache.logging.log4j.LogManager;
@@ -75,8 +74,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
         // Increase the number of retries in case of 5xx API responses
-        final RetryPolicy retryPolicy = new RetryPolicy(null, null, 10, false);
-        clientConfiguration.setRetryPolicy(retryPolicy);
+        clientConfiguration.setMaxErrorRetry(10);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
         return clientConfiguration;
     }

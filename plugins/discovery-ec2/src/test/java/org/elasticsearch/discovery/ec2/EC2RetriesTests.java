@@ -58,12 +58,13 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "use a http server")
@@ -102,7 +103,9 @@ public class EC2RetriesTests extends ESTestCase {
     public void testEC2DiscoveryRetriesOnRateLimiting() throws IOException {
         final String accessKey = "ec2_access";
         final List<String> hosts = List.of("127.0.0.1:9000");
-        final Set<String> failedRequests = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Map<String, Integer> failedRequests = new ConcurrentHashMap<>();
+        // retry the same request 5 times at most
+        final int maxRetries = randomIntBetween(1, 5);
         httpServer.createContext("/", exchange -> {
             if (exchange.getRequestMethod().equals(HttpMethodName.POST.name())) {
                 final String request = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
@@ -112,7 +115,8 @@ public class EC2RetriesTests extends ESTestCase {
                     if (auth == null || auth.contains(accessKey) == false) {
                         throw new IllegalArgumentException("wrong access key: " + auth);
                     }
-                    if (failedRequests.add(exchange.getRequestHeaders().getFirst("Amz-sdk-invocation-id"))) {
+                    if (failedRequests.compute(exchange.getRequestHeaders().getFirst("Amz-sdk-invocation-id"),
+                        (requestId, count) -> Objects.requireNonNullElse(count, 0) + 1) < maxRetries) {
                         exchange.sendResponseHeaders(HttpStatus.SC_SERVICE_UNAVAILABLE, -1);
                         return;
                     }
@@ -128,8 +132,10 @@ public class EC2RetriesTests extends ESTestCase {
                     exchange.getResponseHeaders().set("Content-Type", "text/xml; charset=UTF-8");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, responseBody.length);
                     exchange.getResponseBody().write(responseBody);
+                    return;
                 }
             }
+            fail("did not send response");
         });
 
         final InetSocketAddress address = httpServer.getAddress();
@@ -145,7 +151,8 @@ public class EC2RetriesTests extends ESTestCase {
             final List<TransportAddress> addressList = seedHostsProvider.getSeedAddresses(resolver);
             assertThat(addressList, Matchers.hasSize(1));
             assertThat(addressList.get(0).toString(), is(hosts.get(0)));
-            assertThat(failedRequests, hasSize(1));
+            assertThat(failedRequests, aMapWithSize(1));
+            assertThat(failedRequests.values().iterator().next(), is(maxRetries));
         }
     }
 

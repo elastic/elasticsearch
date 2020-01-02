@@ -80,9 +80,6 @@ following properties:
 [[ml-get-calendar-event-example]]
 ==== {api-examples-title}
 
-The following example gets information about the scheduled events in the
-`planned-outages` calendar:
-
 [source,console]
 --------------------------------------------------
 GET _ml/calendars/planned-outages/events

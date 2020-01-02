@@ -35,8 +35,6 @@ see <<ml-put-job-request-body>>.
 [[ml-valid-job-example]]
 ==== {api-examples-title}
 
-The following example validates job configuration information:
-
 [source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/_validate

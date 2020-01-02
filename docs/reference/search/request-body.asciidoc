@@ -58,7 +58,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 `ccs_minimize_roundtrips`::
   (Optional, boolean) If `true`, the network round-trips between the 
   coordinating node and the remote clusters ewill be minimized when executing 
-  {ccs} requests. See <<ccs-reduction>> for more. Defaults to `true`. 
+  {ccs} requests. See <<ccs-network-delays>>. Defaults to `true`. 
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 

@@ -33,9 +33,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-list]
 [[ml-delete-calendar-job-example]]
 ==== {api-examples-title}
 
-The following example removes the association between the `planned-outages`
-calendar and `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/calendars/planned-outages/jobs/total-requests

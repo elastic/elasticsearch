@@ -140,6 +140,10 @@ analyzing the splits with respect to their own history. It is used for finding
 unusual values in the context of the split.
 end::by-field-name[]
 
+tag::calendar-id[]
+A string that uniquely identifies a calendar.
+end::calendar-id[]
+
 tag::categorization-analyzer[]
 If `categorization_field_name` is specified, you can also define the analyzer
 that is used to interpret the categorization field. This property cannot be used
@@ -569,6 +573,10 @@ token filters, other plugins can provide more token filters. This property is
 optional. If it is not specified, no token filters are applied prior to
 categorization.
 end::filter[]
+
+tag::filter-id[]
+A string that uniquely identifies a filter.
+end::filter-id[]
 
 tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real

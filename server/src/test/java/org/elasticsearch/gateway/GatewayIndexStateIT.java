@@ -46,7 +46,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -424,16 +423,14 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder()
             .put("index.analysis.analyzer.test.tokenizer", "standard")
             .put("index.number_of_shards", "1"))
-            .addMapping("type1", "{\n" +
-                "    \"type1\": {\n" +
+            .setMapping("{\n" +
                 "      \"properties\": {\n" +
                 "        \"field1\": {\n" +
                 "          \"type\": \"text\",\n" +
                 "          \"analyzer\": \"test\"\n" +
                 "        }\n" +
                 "      }\n" +
-                "    }\n" +
-                "  }}", XContentType.JSON).get();
+                "  }}").get();
         logger.info("--> indexing a simple document");
         client().prepareIndex("test").setId("1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");

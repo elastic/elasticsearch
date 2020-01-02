@@ -25,21 +25,18 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
-    
+
     private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
 
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
@@ -77,17 +74,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
         // Increase the number of retries in case of 5xx API responses
-        final Random rand = Randomness.get();
-        final RetryPolicy retryPolicy = new RetryPolicy(
-            RetryPolicy.RetryCondition.NO_RETRY_CONDITION,
-            (originalRequest, exception, retriesAttempted) -> {
-               // with 10 retries the max delay time is 320s/320000ms (10 * 2^5 * 1 * 1000)
-               logger.warn("EC2 API request failed, retry again. Reason was:", exception);
-               return 1000L * (long) (10d * Math.pow(2, retriesAttempted / 2.0d) * (1.0d + rand.nextDouble()));
-            },
-            10,
-            false);
-        clientConfiguration.setRetryPolicy(retryPolicy);
+        clientConfiguration.setMaxErrorRetry(10);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
         return clientConfiguration;
     }

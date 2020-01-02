@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -65,11 +66,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 return "sniff";
             }
         },
-        SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings,
-            SimpleConnectionStrategy::infoReader) {
+        PROXY(ProxyConnectionStrategy.CHANNELS_PER_CONNECTION, ProxyConnectionStrategy::enablementSettings,
+            ProxyConnectionStrategy::infoReader) {
             @Override
             public String toString() {
-                return "simple";
+                return "proxy";
             }
         };
 
@@ -140,8 +141,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         switch (mode) {
             case SNIFF:
                 return new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            case SIMPLE:
-                return new SimpleConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+            case PROXY:
+                return new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
             default:
                 throw new AssertionError("Invalid connection strategy" + mode);
         }
@@ -159,9 +160,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return seeds.isEmpty() == false;
         } else {
-            List<String> addresses = SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias)
-                .get(settings);
-            return addresses.isEmpty() == false;
+            String address = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return Strings.isEmpty(address) == false;
         }
     }
 

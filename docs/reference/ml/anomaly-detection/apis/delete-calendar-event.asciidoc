@@ -40,9 +40,6 @@ events and delete the calendar, see the
 [[ml-delete-calendar-event-example]]
 ==== {api-examples-title}
 
-The following example deletes a scheduled event from the `planned-outages`
-calendar:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/calendars/planned-outages/events/LS8LJGEBMTCMA-qz49st

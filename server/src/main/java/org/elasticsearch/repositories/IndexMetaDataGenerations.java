@@ -21,9 +21,12 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
@@ -33,6 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -163,6 +167,8 @@ public final class IndexMetaDataGenerations {
      * @return hex encoded SHA-256
      */
     public static String hashIndexMetaData(IndexMetaData indexMetaData) {
+        final Map<String, Object> builderString =
+            deepSort(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(normalizeMetaData(indexMetaData)), true));
         MessageDigest digest = MessageDigests.sha256();
         try (StreamOutput hashOut = new OutputStreamStreamOutput(new OutputStream() {
             @Override
@@ -175,10 +181,27 @@ public final class IndexMetaDataGenerations {
                 digest.update(b, off, len);
             }
         })) {
-            indexMetaData.writeTo(hashOut);
+            hashOut.writeMap(builderString);
         } catch (IOException e) {
             throw new AssertionError("No actual IO happens here", e);
         }
         return MessageDigests.toHexString(digest.digest());
+    }
+
+    private static Map<String, Object> deepSort(Map<String, Object> map) {
+        final TreeMap<String, Object> result = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            result.put(entry.getKey(),
+                entry.getValue() instanceof Map ? deepSort((Map<String, Object>) entry.getValue()) : entry.getValue());
+        }
+        return result;
+    }
+
+    private static IndexMetaData normalizeMetaData(final IndexMetaData indexMetaData) {
+        final IndexMetaData.Builder normalized = IndexMetaData.builder(indexMetaData).version(1L);
+        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+            normalized.primaryTerm(i, 1L);
+        }
+        return normalized.build();
     }
 }

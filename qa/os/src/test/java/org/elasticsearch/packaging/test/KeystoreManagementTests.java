@@ -93,6 +93,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         installation = Docker.runContainer(distribution());
 
+        try {
+            waitForPathToExist(installation.config("elasticsearch.keystore"));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));

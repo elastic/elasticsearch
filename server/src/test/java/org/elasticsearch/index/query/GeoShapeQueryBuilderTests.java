@@ -204,7 +204,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
                 "  \"geo_shape\" : {\n" +
                 "    \"location\" : {\n" +
                 "      \"shape\" : {\n" +
-                "        \"type\" : \"envelope\",\n" +
+                "        \"type\" : \"Envelope\",\n" +
                 "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n" +
                 "      },\n" +
                 "      \"relation\" : \"intersects\"\n" +

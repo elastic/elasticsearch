@@ -583,7 +583,7 @@ public abstract class Rounding implements Writeable {
         OffsetRounding(StreamInput in) throws IOException {
             // Versions before 7.6.0 will never send this type of rounding.
             delegate = Rounding.read(in);
-            offset = in.readLong();
+            offset = in.readZLong();
         }
 
         @Override
@@ -592,7 +592,7 @@ public abstract class Rounding implements Writeable {
                 throw new IllegalArgumentException("Offset rounding not supported before 8.0.0");
             }
             delegate.writeTo(out);
-            out.writeLong(offset);
+            out.writeZLong(offset);
         }
 
         @Override

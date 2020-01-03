@@ -15,7 +15,11 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
@@ -260,6 +264,128 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ModelPlot.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testIdUniqueness() {
+        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 3600, 0);
+
+        String[] calledNumbers =  {
+            "730",
+            "132",
+            "358",
+            "552",
+            "888",
+            "236",
+            "224",
+            "674",
+            "438",
+            "128",
+            "722",
+            "560",
+            "228",
+            "628",
+            "226",
+            "656" };
+
+        String[] durationBins = {
+            "S000",
+            "S001",
+            "S002",
+            "S003",
+            "S004",
+            "S005",
+            "S006",
+            "S007",
+            "S008",
+            "S009",
+            "S010",
+            "S011",
+            "S012",
+            "S013",
+            "S014",
+            "S015",
+            "S016",
+            "S017",
+            "S018",
+            "S019",
+            "S020",
+            "S021",
+            "S022",
+            "S023",
+            "S024",
+            "S025",
+            "S026",
+            "S027",
+            "S028",
+            "S029",
+            "S057",
+            "S058",
+            "S059",
+            "M020",
+            "M021",
+            "M026",
+            "M027",
+            "M028",
+            "M029",
+            "M030",
+            "M031",
+            "M032",
+            "M033",
+            "M056",
+            "M057",
+            "M058",
+            "M059",
+            "M060",
+            "M061",
+            "M062",
+            "M063",
+            "M086",
+            "M087",
+            "M088",
+            "M089",
+            "M090",
+            "M091",
+            "M092",
+            "M093",
+            "M116",
+            "M117",
+            "M118",
+            "M119",
+            "L012",
+            "L013",
+            "L014",
+            "L017",
+            "L018",
+            "L019",
+            "L023",
+            "L024",
+            "L025",
+            "L029",
+            "L030",
+            "L031"
+        };
+
+        Map<String, List<String>> uniqueIds = new HashMap<>();
+
+        for (String calledNumber : calledNumbers) {
+            modelPlot.setPartitionFieldValue(calledNumber);
+            for (String durationBin : durationBins) {
+                modelPlot.setByFieldValue(durationBin);
+                String id = modelPlot.getId();
+                uniqueIds.compute(id, (k, v) -> {
+                   if (v == null) {
+                       v = new ArrayList<>();
+                   }
+                   v.add(calledNumber + "/" + durationBin);
+                   if (v.size() > 1) {
+                       logger.error("Duplicates for ID [" + id + "]: " + v);
+                   }
+                   return v;
+                });
+            }
+        }
+
+        assertEquals(calledNumbers.length * durationBins.length, uniqueIds.size());
     }
 
     private ModelPlot createFullyPopulated() {

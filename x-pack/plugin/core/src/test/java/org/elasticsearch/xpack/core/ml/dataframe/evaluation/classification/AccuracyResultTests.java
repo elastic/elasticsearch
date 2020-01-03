@@ -8,37 +8,41 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.ActualClass;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.PerClassResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class AccuracyResultTests extends AbstractWireSerializingTestCase<Accuracy.Result> {
+public class AccuracyResultTests extends AbstractWireSerializingTestCase<Result> {
+
+    public static Result createRandom() {
+        int numClasses = randomIntBetween(2, 100);
+        List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
+        List<PerClassResult> classes = new ArrayList<>(numClasses);
+        for (int i = 0; i < numClasses; i++) {
+            double accuracy = randomDoubleBetween(0.0, 1.0, true);
+            classes.add(new PerClassResult(classNames.get(i), accuracy));
+        }
+        double overallAccuracy = randomDoubleBetween(0.0, 1.0, true);
+        return new Result(classes, overallAccuracy);
+    }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlEvaluationNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
     }
 
     @Override
-    protected Accuracy.Result createTestInstance() {
-        int numClasses = randomIntBetween(2, 100);
-        List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
-        List<ActualClass> actualClasses = new ArrayList<>(numClasses);
-        for (int i = 0; i < numClasses; i++) {
-            double accuracy = randomDoubleBetween(0.0, 1.0, true);
-            actualClasses.add(new ActualClass(classNames.get(i), randomNonNegativeLong(), accuracy));
-        }
-        double overallAccuracy = randomDoubleBetween(0.0, 1.0, true);
-        return new Result(actualClasses, overallAccuracy);
+    protected Result createTestInstance() {
+        return createRandom();
     }
 
     @Override
-    protected Writeable.Reader<Accuracy.Result> instanceReader() {
-        return Accuracy.Result::new;
+    protected Writeable.Reader<Result> instanceReader() {
+        return Result::new;
     }
 }

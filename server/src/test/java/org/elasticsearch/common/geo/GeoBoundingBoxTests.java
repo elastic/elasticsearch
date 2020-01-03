@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 
 /**
- * Tests for {@code GeoJSONShapeParser}
+ * Tests for {@link GeoBoundingBox}
  */
 public class GeoBoundingBoxTests extends ESTestCase {
 
@@ -134,7 +134,6 @@ public class GeoBoundingBoxTests extends ESTestCase {
             GeoBoundingBox.parseBoundingBox(parser);
         }
     }
-
 
     public void testPointInBounds() {
         for (int iter = 0; iter < 1000; iter++) {

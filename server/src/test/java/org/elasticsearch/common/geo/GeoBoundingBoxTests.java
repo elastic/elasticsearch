@@ -147,32 +147,19 @@ public class GeoBoundingBoxTests extends ESTestCase {
                     : randomDoubleBetween(-180.0, bbox.right(), true);
                 double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
                 double lonOutside = randomDoubleBetween(bbox.left(), bbox.right(), true);
-                double latOutside = randomDoubleBetween(bbox.top(), -90, false);
+                double latOutside = randomBoolean() ? randomDoubleBetween(Math.max(bbox.top(), bbox.bottom()), 90, false)
+                    : randomDoubleBetween(-90, Math.min(bbox.bottom(), bbox.top()), false);
 
-                latWithin = quantizeLat(latWithin);
-                lonWithin = quantizeLon(lonWithin);
-                latOutside = quantizeLat(latOutside);
-                lonOutside = quantizeLon(lonOutside);
-
-                try {
-                    assertTrue(geoBoundingBox.pointInBounds(lonWithin, latWithin));
-                } catch (AssertionError e) {
-                    System.out.println(geoBoundingBox);
-                }
-                //assertFalse(bbox.pointInBounds(lonOutside, latOutside));
+                assertTrue(bbox.pointInBounds(lonWithin, latWithin));
+                    assertFalse(bbox.pointInBounds(lonOutside, latOutside));
             } else {
                 double lonWithin = randomDoubleBetween(bbox.left(), bbox.right(), true);
                 double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
-                double lonOutside = GeoUtils.normalizeLon(randomDoubleBetween(bbox.right(), 180.001, false));
-                double latOutside = GeoUtils.normalizeLat(randomDoubleBetween(bbox.top(), 90.001, false));
+                double lonOutside = GeoUtils.normalizeLon(randomDoubleBetween(bbox.right(), 180, false));
+                double latOutside = GeoUtils.normalizeLat(randomDoubleBetween(bbox.top(), 90, false));
 
-                latWithin = quantizeLat(latWithin);
-                lonWithin = quantizeLon(lonWithin);
-                latOutside = quantizeLat(latOutside);
-                lonOutside = quantizeLon(lonOutside);
-
-                //assertTrue(bbox.pointInBounds(lonWithin, latWithin));
-                //assertFalse(bbox.pointInBounds(lonOutside, latOutside));
+                assertTrue(bbox.pointInBounds(lonWithin, latWithin));
+                assertFalse(bbox.pointInBounds(lonOutside, latOutside));
             }
         }
     }
@@ -185,15 +172,9 @@ public class GeoBoundingBoxTests extends ESTestCase {
     }
 
     public static GeoBoundingBox randomBBox() {
-        // avoid bounding boxes with a pole as a corner
-        return randomValueOtherThanMany(bbox ->
-                (Math.abs(bbox.top()) == 90 && Math.abs(bbox.left()) == 180)
-                    || (Math.abs(bbox.bottom()) == 90 && Math.abs(bbox.right()) == 180)
-            , () -> {
-                Rectangle rectangle = GeometryTestUtils.randomRectangle();
-                return new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
-            });
+        Rectangle rectangle = GeometryTestUtils.randomRectangle();
+        return new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
     }
 
     private static double quantizeLat(double lat) {

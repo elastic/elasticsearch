@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -28,10 +29,10 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     protected AbstractNativeAnalyticsProcess(String name, ConstructingObjectParser<Result, Void> resultParser, String jobId,
                                              NativeController nativeController, InputStream logStream, OutputStream processInStream,
                                              InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
-                                             List<Path> filesToDelete, Consumer<String> onProcessCrash,
+                                             List<Path> filesToDelete, Consumer<String> onProcessCrash, Duration processConnectTimeout,
                                              NamedXContentRegistry namedXContentRegistry) {
         super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash);
+            onProcessCrash, processConnectTimeout);
         this.name = Objects.requireNonNull(name);
         this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser), namedXContentRegistry);
     }

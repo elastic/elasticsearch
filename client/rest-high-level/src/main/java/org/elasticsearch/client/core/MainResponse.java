@@ -27,8 +27,7 @@ import java.util.Objects;
 
 public class MainResponse {
 
-    @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<MainResponse, Void> PARSER =
+    private static final ConstructingObjectParser<MainResponse, Void> PARSER =
         new ConstructingObjectParser<>(MainResponse.class.getName(), true,
             args -> {
                  return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]);

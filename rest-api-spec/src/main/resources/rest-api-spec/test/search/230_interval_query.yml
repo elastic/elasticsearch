@@ -424,3 +424,24 @@ setup:
                         pattern: out?ide
   - match: { hits.total.value: 3 }
 
+---
+"Test fuzzy match":
+  - skip:
+      version: " - 8.0.0"
+      reason: "TODO: change to 7.6 in backport"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - fuzzy:
+                        query: cald
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }
+
+

@@ -1,5 +1,5 @@
 ---
-"Add transient remote cluster in simple mode with invalid sniff settings":
+"Add transient remote cluster in proxy mode with invalid sniff settings":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -12,14 +12,14 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.mode: "simple"
-            cluster.remote.test_remote_cluster.sniff.node_connections: "5"
-            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
+            cluster.remote.test_remote_cluster.mode: "proxy"
+            cluster.remote.test_remote_cluster.node_connections: "5"
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.sniff.node_connections\" cannot be
-  used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=SIMPLE]" }
+  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.node_connections\" cannot be
+  used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=PROXY]" }
 
   - do:
       catch: bad_request
@@ -27,17 +27,17 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.mode: "simple"
-            cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip
-            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
+            cluster.remote.test_remote_cluster.mode: "proxy"
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.sniff.seeds\" cannot be
-   used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=SIMPLE]" }
+  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.seeds\" cannot be
+   used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=PROXY]" }
 
 ---
-"Add transient remote cluster in sniff mode with invalid simple settings":
+"Add transient remote cluster in sniff mode with invalid proxy settings":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -50,13 +50,13 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.simple.socket_connections: "20"
-            cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_socket_connections: "20"
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.simple.socket_connections\" cannot be
-  used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SIMPLE, configured=SNIFF]" }
+  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.proxy_socket_connections\" cannot be
+  used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=PROXY, configured=SNIFF]" }
 
   - do:
       catch: bad_request
@@ -64,16 +64,16 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
-            cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.simple.addresses\" cannot be
-   used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SIMPLE, configured=SNIFF]" }
+  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.proxy_address\" cannot be
+   used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=PROXY, configured=SNIFF]" }
 
 ---
-"Add transient remote cluster using simple connection mode using valid settings":
+"Add transient remote cluster using proxy connection mode using valid settings":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -85,13 +85,13 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.mode: "simple"
-            cluster.remote.test_remote_cluster.simple.socket_connections: "3"
-            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
+            cluster.remote.test_remote_cluster.mode: "proxy"
+            cluster.remote.test_remote_cluster.proxy_socket_connections: "3"
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "simple"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.simple\.socket_connections: "3"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.simple\.addresses: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "3"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       search:
@@ -120,12 +120,12 @@
         body:
           transient:
             cluster.remote.test_remote_cluster.mode: "sniff"
-            cluster.remote.test_remote_cluster.sniff.node_connections: "3"
-            cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.node_connections: "3"
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.sniff\.node_connections: "3"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.sniff\.seeds: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.node_connections: "3"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 
   - do:
       search:
@@ -154,10 +154,10 @@
         body:
           transient:
             cluster.remote.test_remote_cluster.mode: "sniff"
-            cluster.remote.test_remote_cluster.sniff.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
 
   - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.sniff\.seeds: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 
   - do:
       search:
@@ -178,25 +178,25 @@
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.mode: "simple"
-            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
+            cluster.remote.test_remote_cluster.mode: "proxy"
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.sniff.seeds\" cannot be
-  used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=SIMPLE]" }
+  - match: { error.root_cause.0.reason: "Setting \"cluster.remote.test_remote_cluster.seeds\" cannot be
+  used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=PROXY]" }
 
   - do:
       cluster.put_settings:
         flat_settings: true
         body:
           transient:
-            cluster.remote.test_remote_cluster.mode: "simple"
-            cluster.remote.test_remote_cluster.sniff.seeds: null
-            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
+            cluster.remote.test_remote_cluster.mode: "proxy"
+            cluster.remote.test_remote_cluster.seeds: null
+            cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "simple"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.simple\.addresses: $remote_ip}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       search:

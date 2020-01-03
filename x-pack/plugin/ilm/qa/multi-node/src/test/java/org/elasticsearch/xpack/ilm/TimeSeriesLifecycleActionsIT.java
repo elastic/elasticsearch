@@ -1077,9 +1077,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithSuccess() throws Exception {
-        String index = "index";
+        String index = "success-index";
 
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
@@ -1121,9 +1120,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithFailure() throws Exception {
-        String index = "index";
+        String index = "failure-index";
 
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
@@ -1150,9 +1148,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", false, "ERROR"), 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithDeletion() throws Exception {
-        String index = "index";
+        String index = "delete-index";
 
         createNewSingletonPolicy("delete", new DeleteAction());
         Request createIndexTemplate = new Request("PUT", "_template/delete_indexes");
@@ -1231,8 +1228,37 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 historyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             logger.info("--> history response: {}", historyResponseMap);
-            assertThat((int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value"),
-                greaterThanOrEqualTo(1));
+            int hits = (int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value");
+
+            // For a failure, print out whatever history we *do* have for the index
+            if (hits == 0) {
+                final Request allResults = new Request("GET", "ilm-history*/_search");
+                allResults.setJsonEntity("{\n" +
+                    "  \"query\": {\n" +
+                    "    \"bool\": {\n" +
+                    "      \"must\": [\n" +
+                    "        {\n" +
+                    "          \"term\": {\n" +
+                    "            \"policy\": \"" + policyName + "\"\n" +
+                    "          }\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "          \"term\": {\n" +
+                    "            \"index\": \"" + indexName + "\"\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      ]\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}");
+                final Response allResultsResp = client().performRequest(historySearchRequest);
+                Map<String, Object> allResultsMap;
+                try (InputStream is = allResultsResp.getEntity().getContent()) {
+                    allResultsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                logger.info("--> expected at least 1 hit, got 0. All history for index [{}]: {}", index, allResultsMap);
+            }
+            assertThat(hits, greaterThanOrEqualTo(1));
         } catch (ResponseException e) {
             // Throw AssertionError instead of an exception if the search fails so that assertBusy works as expected
             logger.error(e);

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -50,6 +52,8 @@ import java.util.stream.Collectors;
 public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportCloseJobAction.class);
+
     private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
@@ -83,7 +87,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
             // Delegates close job to elected master node, so it becomes the coordinating node.
             // See comment in OpenJobAction.Transport class for more information.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(nodes.getMasterNode(), actionName, request,
                         new ActionListenerResponseHandler<>(listener, CloseJobAction.Response::new));

@@ -442,7 +442,7 @@ setup:
                 all_of:
                   intervals:
                     - fuzzy:
-                        query: cald
+                        term: cald
                     - prefix:
                         prefix: out
   - match: { hits.total.value: 3 }

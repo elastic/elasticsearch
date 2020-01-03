@@ -69,12 +69,10 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
          This does not work in Joda as it reports 2016-11-30T01:00:00Z
          because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
          assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-         However ES java.time implementation does not suffer from this
-         */
-        ZonedDateTime zonedDateTime = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time")
-                                                                       .parse("2016-11-30T+01"));
-        assertEquals(ZonedDateTime.of(2016,11,29,23,00,00,00,ZoneOffset.UTC),
-            zonedDateTime.withZoneSameInstant(ZoneOffset.UTC));
+         ES java.time implementation does not suffer from this,
+         but we intentionally not allow parsing timezone without an time part as it is not allowed in iso8601
+  */
+        assertJavaTimeParseException("2016-11-30T+01","strict_date_optional_time");
 
         assertSameDateAs("2016-11-30T12+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00+01", "strict_date_optional_time", "strict_date_optional_time");
@@ -88,6 +86,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDateAs("2016-11-30T12:00:00", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00:00.000", "strict_date_optional_time", "strict_date_optional_time");
     }
+
     // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
     // means that date part can be partially parsed.
     public void testPartialDateParsing() {

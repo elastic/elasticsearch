@@ -17,6 +17,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
+/**
+ * {@link CacheDirectory} uses a {@link CacheService} to cache Lucene files provided by another {@link Directory}.
+ */
 public class CacheDirectory extends FilterDirectory {
 
     private final CacheService cacheService;
@@ -30,55 +33,83 @@ public class CacheDirectory extends FilterDirectory {
 
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
+        ensureOpen();
         return new CacheBufferedIndexInput(name, fileLength(name), context);
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        cacheService.removeFromCache(key -> key.startsWith(cacheDir.toString()));
     }
 
     private class CacheBufferedIndexInput extends BufferedIndexInput {
 
-        private final String name;
-        private final long length;
-        private final IOContext context;
+        private final String fileName;
+        private final long fileLength;
+        private final IOContext ioContext;
+        private final long offset;
+        private final long end;
 
-        public CacheBufferedIndexInput(String name, long length, IOContext context) {
-            super("CachedBufferedIndexInput(" + name + ")", context);
-            this.name = name;
-            this.length = length;
-            this.context = context;
+        CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext) {
+            this(fileName, fileLength, ioContext, "CachedBufferedIndexInput(" + fileName + ")", 0L, fileLength);
+        }
+
+        private CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext, String desc, long offset, long length) {
+            super(desc, ioContext);
+            this.fileName = fileName;
+            this.fileLength = fileLength;
+            this.ioContext = ioContext;
+            this.offset = offset;
+            this.end = offset + length;
         }
 
         @Override
-        protected void readInternal(byte[] b, int offset, int length) throws IOException {
-            try (IndexInput input = in.openInput(name, context)) {
-                input.seek(getFilePointer());
-                input.readBytes(b, offset, length);
-            }
+        public long length() {
+            return end - offset;
+        }
+
+        @Override
+        protected void readInternal(byte[] b, int off, int len) throws IOException {
+            final Path cacheFile = cacheDir.resolve(fileName);
+            final long pos = getFilePointer() + offset;
+            cacheService.readFromCache(cacheFile, fileLength, () -> in.openInput(fileName, ioContext), pos, b, off, len);
         }
 
         @Override
         protected void seekInternal(long pos) throws IOException {
-            if (pos > length) {
-                throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length + "] for " + toString());
+            if (pos > length()) {
+                throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length() + "] for " + toString());
             } else if (pos < 0L) {
                 throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
             }
         }
 
         @Override
-        public void close() throws IOException {
-
+        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+            if (offset < 0 || length < 0 || offset + length > this.length()) {
+                throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
+                    + ",length=" + length + ",fileLength=" + this.length() + ": " + this);
+            }
+            String sliceDesc = getFullSliceDescription(sliceDescription);
+            return new CacheBufferedIndexInput(fileName, fileLength, ioContext, sliceDesc, this.offset + offset, length);
         }
 
         @Override
-        public long length() {
-            return length;
+        public void close() {
         }
 
         @Override
         public String toString() {
-            return "CacheBufferedIndexInput{"
-                + "name='" + name + '\''
-                + ", length=" + length
-                + '}';
+            return "CacheBufferedIndexInput{" +
+                "desc='" + super.toString() + '\'' +
+                ", fileName='" + fileName + '\'' +
+                ", fileLength=" + fileLength +
+                ", ioContext=" + ioContext +
+                ", offset=" + offset +
+                ", end=" + end +
+                ", length=" + length() +
+                '}';
         }
     }
 }

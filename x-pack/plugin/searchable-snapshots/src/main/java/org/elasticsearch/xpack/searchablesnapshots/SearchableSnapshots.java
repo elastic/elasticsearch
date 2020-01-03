@@ -60,7 +60,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING,
             SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING,
-            SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING);
+            SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING,
+            CacheService.SNAPSHOT_CACHE_INVALIDATE_ON_SHUTDOWN,
+            CacheService.SNAPSHOT_CACHE_SIZE_SETTING
+        );
     }
 
     @Override
@@ -75,7 +78,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
 
-        CacheService cacheService = new CacheService(settings);
+        CacheService cacheService = new CacheService(settings, clusterService.getClusterSettings(), threadPool);
         this.cacheService.set(cacheService);
         return List.of(cacheService);
     }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@Repeat (iterations = 10)
 public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
     @Override
@@ -66,7 +65,7 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
         createIndex(indexName);
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 50); i >= 0; i--) {
+        for (int i = between(10, 10_000); i >= 0; i--) {
             indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
         }
         // TODO NORELEASE no dummy docs since that includes deletes, yet we always copy the .liv file in peer recovery
@@ -75,9 +74,10 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareForceMerge(indexName)
             .setOnlyExpungeDeletes(true).setFlush(true) .get().getFailedShards(), equalTo(0));
 
-        final TotalHits originalAllHits = internalCluster().client().prepareSearch(indexName).get().getHits().getTotalHits();
+        final TotalHits originalAllHits = internalCluster().client().prepareSearch(indexName)
+            .setTrackTotalHits(true).get().getHits().getTotalHits();
         final TotalHits originalBarHits = internalCluster().client().prepareSearch(indexName)
-            .setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits();
+            .setTrackTotalHits(true).setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits();
         logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
 
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(fsRepoName, snapshotName)
@@ -101,6 +101,7 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
             .setRenameReplacement(restoredIndexName)
             .setIndexSettings(Settings.builder()
                 .put(SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
                 .build())
             .setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
@@ -138,8 +139,8 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
     private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) {
         ensureGreen(indexName);
 
-        final TotalHits newAllHits = client().prepareSearch(indexName).get().getHits().getTotalHits();
-        final TotalHits newBarHits = client().prepareSearch(indexName)
+        final TotalHits newAllHits = client().prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits();
+        final TotalHits newBarHits = client().prepareSearch(indexName).setTrackTotalHits(true)
             .setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits();
 
         logger.info("--> [{}] in total, of which [{}] match the query", newAllHits, newBarHits);

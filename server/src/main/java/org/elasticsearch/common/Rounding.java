@@ -585,7 +585,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 throw new IllegalArgumentException("Offset rounding not supported before 8.0.0");
             }
             delegate.writeTo(out);

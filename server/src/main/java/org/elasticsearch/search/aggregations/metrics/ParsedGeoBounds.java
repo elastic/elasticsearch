@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -30,14 +31,17 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.geo.GeoBoundingBox.BOTTOM_RIGHT_FIELD;
 import static org.elasticsearch.common.geo.GeoBoundingBox.BOUNDS_FIELD;
 import static org.elasticsearch.common.geo.GeoBoundingBox.LAT_FIELD;
 import static org.elasticsearch.common.geo.GeoBoundingBox.LON_FIELD;
 import static org.elasticsearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
+
+    // A top of Double.NEGATIVE_INFINITY yields an empty xContent, so the bounding box is null
+    @Nullable
     private GeoBoundingBox geoBoundingBox;
 
     @Override
@@ -54,13 +58,15 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
     }
 
     @Override
+    @Nullable
     public GeoPoint topLeft() {
-        return geoBoundingBox.topLeft();
+        return geoBoundingBox != null ? geoBoundingBox.topLeft() : null;
     }
 
     @Override
+    @Nullable
     public GeoPoint bottomRight() {
-        return geoBoundingBox.bottomRight();
+        return geoBoundingBox != null ? geoBoundingBox.bottomRight() : null;
     }
 
     private static final ObjectParser<ParsedGeoBounds, Void> PARSER = new ObjectParser<>(ParsedGeoBounds.class.getSimpleName(), true,

@@ -22,9 +22,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.logging.log4j.core.impl.MementoMessage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
@@ -61,27 +58,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
-
-    public static class MockAppender extends AbstractAppender {
-        private LogEvent lastEvent;
-
-        public MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            lastEvent = event.toImmutable();
-        }
-
-        public MementoMessage lastMementoMessage() {
-            return (MementoMessage) lastEvent.getMessage();
-        }
-
-        public String getLoggerMaker() {
-            return lastEvent.getMarker().getName();
-        }
-    }
 
     public void testGet() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);

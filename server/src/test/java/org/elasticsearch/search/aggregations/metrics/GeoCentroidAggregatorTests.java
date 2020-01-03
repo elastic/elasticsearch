@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -164,7 +165,11 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 GeometryTestUtils::randomMultiPolygon
             );
             Geometry geometry = geometryGenerator.apply(false);
-            geometries.add(indexer.prepareForIndexing(geometry));
+            try {
+                geometries.add(indexer.prepareForIndexing(geometry));
+            } catch (InvalidShapeException e) {
+                // do not include geometry
+            }
             targetShapeType = DimensionalShapeType.max(targetShapeType, DimensionalShapeType.forGeometry(geometry));
         }
         try (Directory dir = newDirectory();

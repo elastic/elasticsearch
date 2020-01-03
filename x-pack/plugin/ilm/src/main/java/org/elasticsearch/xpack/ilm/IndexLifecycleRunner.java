@@ -203,6 +203,20 @@ class IndexLifecycleRunner {
                     logger.error(new ParameterizedMessage("retry execution of step [{}] for index [{}] failed",
                         failedStep.getKey().getName(), index), e);
                 }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (oldState.equals(newState) == false) {
+                        IndexMetaData newIndexMeta = newState.metaData().index(index);
+                        Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
+                        StepKey stepKey = indexMetaCurrentStep.getKey();
+                        if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
+                            logger.trace("policy [{}] for index [{}] was moved back on the failed step for as part of an automatic " +
+                                "retry. Attempting to execute the failed step [{}] if it's an async action", policy, index, stepKey);
+                            maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
+                        }
+                    }
+                }
             });
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);

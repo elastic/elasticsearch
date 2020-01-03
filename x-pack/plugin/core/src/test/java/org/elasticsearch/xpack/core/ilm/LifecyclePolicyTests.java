@@ -160,6 +160,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             switch (action) {
                 case AllocateAction.NAME:
                     return AllocateActionTests.randomInstance();
+                case WaitForSnapshotAction.NAME:
+                    return new WaitForSnapshotAction("policy");
                 case DeleteAction.NAME:
                     return new DeleteAction();
                 case ForceMergeAction.NAME:

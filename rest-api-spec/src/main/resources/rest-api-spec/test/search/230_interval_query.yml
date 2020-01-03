@@ -387,8 +387,8 @@ setup:
 ---
 "Test prefix":
   - skip:
-      version: " - 8.0.0"
-      reason: "TODO: change to 7.3 in backport"
+      version: " - 7.2.99"
+      reason: "Implemented in 7.3"
   - do:
       search:
         index: test
@@ -407,8 +407,8 @@ setup:
 ---
 "Test wildcard":
   - skip:
-      version: " - 8.0.0"
-      reason: "TODO: change to 7.3 in backport"
+      version: " - 7.2.99"
+      reason: "Implemented in 7.3"
   - do:
       search:
         index: test
@@ -427,8 +427,8 @@ setup:
 ---
 "Test fuzzy match":
   - skip:
-      version: " - 8.0.0"
-      reason: "TODO: change to 7.6 in backport"
+      version: " - 7.5.99"
+      reason: "Implemented in 7.6"
   - do:
       search:
         index: test
@@ -439,7 +439,7 @@ setup:
                 all_of:
                   intervals:
                     - fuzzy:
-                        query: cald
+                        term: cald
                     - prefix:
                         prefix: out
   - match: { hits.total.value: 3 }

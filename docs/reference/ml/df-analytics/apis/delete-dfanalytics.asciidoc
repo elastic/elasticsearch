@@ -36,7 +36,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 ==== {api-query-parms-title}
 
 `force`::
-  (Optional, boolean) Use to forcefully delete a job that is not stopped; this method is
+  (Optional, boolean) If `true`, it deletes a job that is not stopped; this method is
   quicker than stopping and deleting the job.
 
 

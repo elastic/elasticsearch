@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -80,7 +81,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
     private volatile ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath;
-    private volatile ImmutableOpenMap<String, Long> shardSizes;
+    private volatile ImmutableOpenMap<ShardId, Long> shardSizes;
     private volatile boolean isMaster = false;
     private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
@@ -320,7 +321,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             @Override
             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                 ShardStats[] stats = indicesStatsResponse.getShards();
-                ImmutableOpenMap.Builder<String, Long> newShardSizes = ImmutableOpenMap.builder();
+                ImmutableOpenMap.Builder<ShardId, Long> newShardSizes = ImmutableOpenMap.builder();
                 ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath = ImmutableOpenMap.builder();
                 buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
                 shardSizes = newShardSizes.build();
@@ -381,16 +382,17 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         listeners.add(clusterInfoConsumer);
     }
 
-    static void buildShardLevelInfo(Logger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
-                                    ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath) {
-        for (ShardStats s : stats) {
-            newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
-            long size = s.getStats().getStore().sizeInBytes();
-            String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
-            if (logger.isTraceEnabled()) {
-                logger.trace("shard: {} size: {}", sid, size);
-            }
-            newShardSizes.put(sid, size);
+    static void buildShardLevelInfo(Logger logger, ShardStats[] shardStatses,
+                                    ImmutableOpenMap.Builder<ShardId, Long> shardSizes,
+                                    ImmutableOpenMap.Builder<ShardRouting, String> shardRoutingToDataPath) {
+        for (ShardStats shardStats : shardStatses) {
+            shardRoutingToDataPath.put(shardStats.getShardRouting(), shardStats.getDataPath());
+            final ShardId shardId = shardStats.getShardRouting().shardId();
+            final Long oldShardSize = shardSizes.get(shardId);
+            final long newShardSize = shardStats.getStats().getStore().sizeInBytes();
+            logger.trace("shard: {} size: {}", shardStats.getShardRouting(), newShardSize);
+            final long maxShardSize = oldShardSize == null ? newShardSize : Math.max(oldShardSize, newShardSize);
+            shardSizes.put(shardId, maxShardSize);
         }
     }
 

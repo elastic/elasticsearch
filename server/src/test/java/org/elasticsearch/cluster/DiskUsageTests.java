@@ -116,15 +116,15 @@ public class DiskUsageTests extends ESTestCase {
                 new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0 , null, null, null),
                 new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null, null, null)
         };
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizes = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();
         ClusterState state = ClusterState.builder(new ClusterName("blarg")).version(0).build();
         InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath);
         assertEquals(2, shardSizes.size());
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_1)));
-        assertEquals(100L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_0)).longValue());
-        assertEquals(1000L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_1)).longValue());
+        assertTrue(shardSizes.containsKey(test_0.shardId()));
+        assertTrue(shardSizes.containsKey(test_1.shardId()));
+        assertEquals(100L, shardSizes.get(test_0.shardId()).longValue());
+        assertEquals(1000L, shardSizes.get(test_1.shardId()).longValue());
 
         assertEquals(2, routingToPath.size());
         assertTrue(routingToPath.containsKey(test_0));

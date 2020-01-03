@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -71,8 +72,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
-    DiskThresholdDecider makeDecider(Settings settings) {
+    private DiskThresholdDecider makeDecider(Settings settings) {
         return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    private static ShardId shardId(String index, int shardNum) {
+        return new ShardId(index, index, shardNum);
     }
 
     public void testDiskThreshold() {
@@ -89,10 +94,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usagesBuilder.put("node4", new DiskUsage("node4", "node4", "/dev/null", 100, 80)); // 20% used
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        shardSizesBuilder.put("[test][0][r]", 10L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put(shardId("test", 0), 10L); // 10 bytes
+        ImmutableOpenMap<ShardId, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -109,7 +113,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .put(indexMetaData("test", 1, 1))
                 .build();
 
         final RoutingTable initialRoutingTable = RoutingTable.builder()
@@ -264,10 +268,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usagesBuilder.put("node5", new DiskUsage("node5", "n5", "/dev/null", 100, 85)); // 15% used
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        shardSizesBuilder.put("[test][0][r]", 10L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put(shardId("test", 0), 10L); // 10 bytes
+        ImmutableOpenMap<ShardId, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -285,7 +288,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+                .put(indexMetaData("test", 1, 2))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
@@ -496,9 +499,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 1));  // 99% used
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put(shardId("test", 0), 10L); // 10 bytes
+        ImmutableOpenMap<ShardId, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(
@@ -517,7 +520,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                .put(indexMetaData("test", 1, 0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -555,10 +558,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usagesBuilder.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 0));  // 100% used
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        shardSizesBuilder.put("[test][0][r]", 10L); // 10 bytes
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put(shardId("test", 0), 10L); // 10 bytes
+        ImmutableOpenMap<ShardId, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(
@@ -577,7 +579,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                .put(indexMetaData("test", 1, 0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -647,12 +649,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 40)); // 60% used
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 14L); // 14 bytes
-        shardSizesBuilder.put("[test][0][r]", 14L);
-        shardSizesBuilder.put("[test2][0][p]", 1L); // 1 bytes
-        shardSizesBuilder.put("[test2][0][r]", 1L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put(shardId("test", 0), 14L); // 14 bytes
+        shardSizesBuilder.put(shardId("test2", 0), 1L); // 1 bytes
+        ImmutableOpenMap<ShardId, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         DiskThresholdDecider decider = makeDecider(diskSettings);
@@ -671,8 +671,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .put(indexMetaData("test", 1, 1))
+                .put(indexMetaData("test2", 1, 1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
@@ -720,12 +720,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         overfullUsagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
         final ImmutableOpenMap<String, DiskUsage> overfullUsages = overfullUsagesBuilder.build();
 
-        final ImmutableOpenMap.Builder<String, Long> largerShardSizesBuilder = ImmutableOpenMap.builder();
-        largerShardSizesBuilder.put("[test][0][p]", 14L);
-        largerShardSizesBuilder.put("[test][0][r]", 14L);
-        largerShardSizesBuilder.put("[test2][0][p]", 2L);
-        largerShardSizesBuilder.put("[test2][0][r]", 2L);
-        final ImmutableOpenMap<String, Long> largerShardSizes = largerShardSizesBuilder.build();
+        final ImmutableOpenMap.Builder<ShardId, Long> largerShardSizesBuilder = ImmutableOpenMap.builder();
+        largerShardSizesBuilder.put(shardId("test", 0), 14L); // 14 bytes
+        largerShardSizesBuilder.put(shardId("test2", 0), 2L); // 2 bytes
+        final ImmutableOpenMap<ShardId, Long> largerShardSizes = largerShardSizesBuilder.build();
 
         final ClusterInfo overfullClusterInfo = new DevNullClusterInfo(overfullUsages, overfullUsages, largerShardSizes);
 
@@ -776,18 +774,18 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 100)); // 0% used
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 40L);
-        shardSizesBuilder.put("[test][1][p]", 40L);
-        shardSizesBuilder.put("[foo][0][p]", 10L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put(shardId("test", 0), 40L);
+        shardSizesBuilder.put(shardId("test", 1), 40L);
+        shardSizesBuilder.put(shardId("foo", 0), 10L);
+        ImmutableOpenMap<ShardId, Long> shardSizes = shardSizesBuilder.build();
 
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .put(IndexMetaData.builder("foo").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                .put(indexMetaData("test", 2, 0))
+                .put(indexMetaData("foo", 1, 0))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
@@ -808,8 +806,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .build();
 
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting(shardId("test", 0), "node1", null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting(shardId("test", 1), "node1", null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -834,9 +832,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             "actual free: [20.0%]"));
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
-        firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
-        secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", true, ShardRoutingState.RELOCATING);
-        ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, null, true, ShardRoutingState.UNASSIGNED);
+        firstRouting = TestShardRouting.newShardRouting(shardId("test", 0), "node1", null, true, ShardRoutingState.STARTED);
+        secondRouting = TestShardRouting.newShardRouting(shardId("test", 1), "node1", "node2", true, ShardRoutingState.RELOCATING);
+        ShardRouting fooRouting = TestShardRouting.newShardRouting(shardId("foo", 0), null, true, ShardRoutingState.UNASSIGNED);
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -906,14 +904,14 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
         // We have an index with 1 primary shards each taking 40 bytes. Each node has 100 bytes available
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
-        shardSizes.put("[test][0][p]", 40L);
-        shardSizes.put("[test][1][p]", 40L);
+        ImmutableOpenMap.Builder<ShardId, Long> shardSizes = ImmutableOpenMap.builder();
+        shardSizes.put(shardId("test", 0), 40L);
+        shardSizes.put(shardId("test", 1), 40L);
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes.build());
 
         DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+                .put(indexMetaData("test", 2, 0))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
@@ -934,8 +932,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .build();
 
         // Two shards consumes 80% of disk space in data node, but we have only one data node, shards should remain.
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", null, true, ShardRoutingState.STARTED);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting(shardId("test", 0), "node2", null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting(shardId("test", 1), "node2", null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = new RoutingNode("node2", discoveryNode2, firstRouting, secondRouting);
 
         RoutingTable.Builder builder = RoutingTable.builder().add(
@@ -988,8 +986,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ClusterState updateClusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(discoveryNode3)).build();
 
-        firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, true, ShardRoutingState.STARTED);
-        secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", "node3", true, ShardRoutingState.RELOCATING);
+        firstRouting = TestShardRouting.newShardRouting(shardId("test", 0), "node2", null, true, ShardRoutingState.STARTED);
+        secondRouting = TestShardRouting.newShardRouting(shardId("test", 1), "node2", "node3", true, ShardRoutingState.RELOCATING);
         firstRoutingNode = new RoutingNode("node2", discoveryNode2, firstRouting, secondRouting);
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -1020,6 +1018,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().relocatingNodeId(), equalTo("node3"));
     }
 
+    private IndexMetaData.Builder indexMetaData(String indexName, int numberOfShards, int numberOfReplicas) {
+        return IndexMetaData.builder(indexName).settings(settings(Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, shardId(indexName, 0).getIndex().getUUID()))
+            .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
+    }
+
     public void logShardStates(ClusterState state) {
         RoutingNodes rn = state.getRoutingNodes();
         logger.info("--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
@@ -1041,7 +1045,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     static class DevNullClusterInfo extends ClusterInfo {
         DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
                            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
-                           ImmutableOpenMap<String, Long> shardSizes) {
+                           ImmutableOpenMap<ShardId, Long> shardSizes) {
             super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null);
         }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -130,7 +131,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertNotNull("info should not be null", info);
         ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
         ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
-        ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
+        ImmutableOpenMap<ShardId, Long> shardSizes = info.shardSizes;
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
         assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
@@ -209,7 +210,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThanOrEqualTo(1));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), greaterThanOrEqualTo(1));
         // indices is guaranteed to time out on the latch, not updating anything.
-        assertThat(info.shardSizes.size(), greaterThan(1));
+        assertThat(info.shardSizes.size(), greaterThan(0));
 
         // now we cause an exception
         timeout.set(false);

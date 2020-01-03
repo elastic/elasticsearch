@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,13 +57,12 @@ public class ClusterInfoTests extends ESTestCase {
         return builder.build();
     }
 
-    private static ImmutableOpenMap<String, Long> randomShardSizes() {
+    private static ImmutableOpenMap<ShardId, Long> randomShardSizes() {
         int numEntries = randomIntBetween(0, 128);
-        ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.builder(numEntries);
+        ImmutableOpenMap.Builder<ShardId, Long> builder = ImmutableOpenMap.builder(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            String key = randomAlphaOfLength(32);
             long shardSize = randomIntBetween(0, Integer.MAX_VALUE);
-            builder.put(key, shardSize);
+            builder.put(new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random()), between(0, 100)), shardSize);
         }
         return builder.build();
     }

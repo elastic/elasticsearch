@@ -114,7 +114,7 @@ public class ReindexIndexClient {
         createIndexRequest.index(REINDEX_INDEX_7);
         createIndexRequest.alias(new Alias(REINDEX_ALIAS));
         createIndexRequest.cause("auto(reindex api)");
-        createIndexRequest.mapping("_doc", "{\"dynamic\": false}", XContentType.JSON);
+        createIndexRequest.mapping("{ \"_doc\" : {\"dynamic\": false} }");
 
         client.admin().indices().create(createIndexRequest, new ActionListener<>() {
             @Override

@@ -42,12 +42,6 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
 
     protected abstract T createTestInstance(boolean hasAlt);
 
-    @Override
-    protected Writeable.Reader<T> instanceReader() {
-        throw new IllegalStateException("shouldn't be called in this test");
-    }
-
-
     @SuppressWarnings("unchecked")
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {

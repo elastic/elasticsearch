@@ -434,7 +434,7 @@ public abstract class Rounding implements Writeable {
                 return false;
             }
             TimeUnitRounding other = (TimeUnitRounding) obj;
-            return unit == other.unit && timeZone.equals(other.timeZone);
+            return Objects.equals(unit, other.unit) && Objects.equals(timeZone, other.timeZone);
         }
 
         @Override
@@ -560,7 +560,7 @@ public abstract class Rounding implements Writeable {
                 return false;
             }
             TimeIntervalRounding other = (TimeIntervalRounding) obj;
-            return interval == other.interval && timeZone.equals(other.timeZone);
+            return Objects.equals(interval, other.interval) && Objects.equals(timeZone, other.timeZone);
         }
 
         @Override

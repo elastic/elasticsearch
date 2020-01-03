@@ -39,7 +39,7 @@ public class StartDatafeedRequest extends ActionRequest implements ToXContentObj
     public static final ParseField END = new ParseField("end");
     public static final ParseField TIMEOUT = new ParseField("timeout");
 
-    public static ConstructingObjectParser<StartDatafeedRequest, Void> PARSER =
+    public static final ConstructingObjectParser<StartDatafeedRequest, Void> PARSER =
         new ConstructingObjectParser<>("start_datafeed_request", a -> new StartDatafeedRequest((String)a[0]));
 
     static {

@@ -198,11 +198,13 @@ public class RoundingTests extends ESTestCase {
     public void testOffsetRounding() {
         long twoHours = TimeUnit.HOURS.toMillis(2);
         long oneDay = TimeUnit.DAYS.toMillis(1);
-        Rounding dayOfMonth = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build();
-        Rounding offsetRounding = Rounding.offset(dayOfMonth, twoHours);
-        assertThat(offsetRounding.round(0), equalTo(-oneDay + twoHours));
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(twoHours).build();
+        assertThat(rounding.round(0), equalTo(-oneDay + twoHours));
+        assertThat(rounding.round(twoHours), equalTo(twoHours));
 
-        assertThat(offsetRounding.round(twoHours), equalTo(twoHours));
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(-twoHours).build();
+        assertThat(rounding.round(0), equalTo(-twoHours));
+        assertThat(rounding.round(twoHours), equalTo(oneDay - twoHours));
     }
 
     /**

@@ -37,10 +37,12 @@ public abstract class MockScriptPlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        return new MockScriptEngine(pluginScriptLang(), pluginScripts(), pluginContextCompilers());
+        return new MockScriptEngine(pluginScriptLang(), pluginScripts(), nonDeterministicPluginScripts(), pluginContextCompilers());
     }
 
     protected abstract Map<String, Function<Map<String, Object>, Object>> pluginScripts();
+
+    protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() { return Collections.emptyMap(); }
 
     protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {
         return Collections.emptyMap();

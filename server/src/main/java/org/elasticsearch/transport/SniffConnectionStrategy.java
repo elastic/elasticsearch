@@ -425,11 +425,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
-            TransportAddress transportAddress = new TransportAddress(parseSeedAddress(address));
+            TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
             return new DiscoveryNode(clusterAlias + "#" + transportAddress.toString(), transportAddress,
                 Version.CURRENT.minimumCompatibilityVersion());
         } else {
-            TransportAddress transportAddress = new TransportAddress(parseSeedAddress(proxyAddress));
+            TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = address.substring(0, indexOfPortSeparator(address));
             return new DiscoveryNode("", clusterAlias + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
                 transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
@@ -460,7 +460,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return node;
         } else {
             // resolve proxy address lazy here
-            InetSocketAddress proxyInetAddress = parseSeedAddress(proxyAddress);
+            InetSocketAddress proxyInetAddress = parseConfiguredAddress(proxyAddress);
             return new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getHostName(), node
                 .getHostAddress(), new TransportAddress(proxyInetAddress), node.getAttributes(), node.getRoles(), node.getVersion());
         }

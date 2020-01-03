@@ -162,6 +162,32 @@ public class FactoryTests extends ScriptTestCase {
         assertEquals(false, factory.needsNothing());
     }
 
+    public void testDeterministic() {
+        FactoryTestScript.Factory factory =
+            scriptEngine.compile("deterministic_test", "Integer.parseInt('123')",
+                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertTrue(factory.isResultDeterministic());
+        assertEquals(123, factory.newInstance(Collections.emptyMap()).execute(0));
+    }
+
+    public void testNotDeterministic() {
+        FactoryTestScript.Factory factory =
+            scriptEngine.compile("not_deterministic_test", "Math.random()",
+                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertFalse(factory.isResultDeterministic());
+        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        assertTrue(d >= 0.0 && d <= 1.0);
+    }
+
+    public void testMixedDeterministicIsNotDeterministic() {
+        FactoryTestScript.Factory factory =
+            scriptEngine.compile("not_deterministic_test", "Integer.parseInt('123') + Math.random()",
+                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertFalse(factory.isResultDeterministic());
+        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        assertTrue(d >= 123.0 && d <= 124.0);
+    }
+
     public abstract static class EmptyTestScript {
         public static final String[] PARAMETERS = {};
         public abstract Object execute();

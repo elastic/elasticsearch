@@ -22,7 +22,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
 
     private static final String MESSAGE_FIELD = "message";
     private static final String POLICY_NOT_EXECUTED_MESSAGE = "waiting for policy '%s' to be executed since %s";
-    private static final String POLICY_NOT_FOUND_MESSAGE = "policy '%s' not found, waiting for it to be created and executed";
+    private static final String POLICY_NOT_FOUND_MESSAGE = "configured policy '%s' not found";
     private static final String NO_INDEX_METADATA_MESSAGE = "no index metadata found for index '%s'";
     private static final String NO_PHASE_TIME_MESSAGE = "no information about ILM phase start in index metadata for index '%s'";
 
@@ -37,18 +37,18 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetaData indexMetaData = clusterState.metaData().index(index);
         if (indexMetaData == null) {
-            throw new IllegalStateException(String.format(Locale.ROOT, NO_INDEX_METADATA_MESSAGE, index.getName()));
+            throw error(NO_INDEX_METADATA_MESSAGE, index.getName());
         }
 
         Long phaseTime = LifecycleExecutionState.fromIndexMetadata(indexMetaData).getPhaseTime();
 
         if (phaseTime == null) {
-            throw new IllegalStateException(String.format(Locale.ROOT, NO_PHASE_TIME_MESSAGE, index.getName()));
+            throw error(NO_PHASE_TIME_MESSAGE, index.getName());
         }
 
         SnapshotLifecycleMetadata snapMeta = clusterState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
-            throw new IllegalStateException(POLICY_NOT_FOUND_MESSAGE);
+            throw error(POLICY_NOT_FOUND_MESSAGE, policy);
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
         if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getTimestamp() < phaseTime) {
@@ -74,6 +74,10 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             builder.endObject();
             return builder;
         };
+    }
+
+    private IllegalStateException error(String message, Object... args) {
+        return new IllegalStateException(String.format(Locale.ROOT, message, args));
     }
 
     @Override

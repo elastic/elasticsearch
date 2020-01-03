@@ -55,7 +55,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         return new WaitForSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getPolicy());
     }
 
-    public void testNoSlmPolicies() throws IOException {
+    public void testNoSlmPolicies() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
@@ -65,9 +65,9 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         MetaData.Builder meta = MetaData.builder().indices(indices.build());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(meta).build();
         WaitForSnapshotStep instance = createRandomInstance();
-        ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetaData.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertTrue(getMessage(result).contains("not found"));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> instance.isConditionMet(indexMetaData.getIndex(),
+            clusterState));
+        assertTrue(e.getMessage().contains(instance.getPolicy()));
     }
 
     public void testSlmPolicyNotExecuted() throws IOException {

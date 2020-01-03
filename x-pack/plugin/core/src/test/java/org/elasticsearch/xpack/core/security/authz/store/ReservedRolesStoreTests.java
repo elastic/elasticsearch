@@ -375,6 +375,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(true));
         });
 
+        // APM service connections index
+        final String apmServiceConnectionIndex = "apm-service-connections";
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(apmServiceConnectionIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(apmServiceConnectionIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(apmServiceConnectionIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(apmServiceConnectionIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(apmServiceConnectionIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(apmServiceConnectionIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(apmServiceConnectionIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(apmServiceConnectionIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(apmServiceConnectionIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(apmServiceConnectionIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(apmServiceConnectionIndex), is(false));
+
         // Beats management index
         final String index = ".management-beats";
         assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));

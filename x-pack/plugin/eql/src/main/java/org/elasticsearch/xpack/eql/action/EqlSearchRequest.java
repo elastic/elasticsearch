@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,14 +21,20 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class EqlSearchRequest extends ActionRequest implements CompositeIndicesRequest, ToXContent {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-    private String index = "";
+public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
+
+    private String[] indices;
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false,
+        false, true, false);
+
     private QueryBuilder query = null;
     private String timestampField = "@timestamp";
     private String eventTypeField = "event.category";
@@ -60,7 +67,8 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
 
     public EqlSearchRequest(StreamInput in) throws IOException {
         super(in);
-        index = in.readString();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         query = in.readOptionalNamedWriteable(QueryBuilder.class);
         timestampField = in.readString();
         eventTypeField = in.readString();
@@ -70,10 +78,10 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
         rule = in.readString();
     }
 
-    public EqlSearchRequest(String index, QueryBuilder query,
+    public EqlSearchRequest(String[] indices, QueryBuilder query,
                             String timestampField, String eventTypeField, String implicitJoinKeyField,
                             int fetchSize, List<String> searchAfter, String rule) {
-        this.index = index;
+        this.indices = indices;
         this.query = query;
         this.timestampField = timestampField;
         this.eventTypeField = eventTypeField;
@@ -85,7 +93,40 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+
+        if (indices == null) {
+            validationException = addValidationError("indices is null", validationException);
+        } else {
+            for (String index : indices) {
+                if (index == null) {
+                    validationException = addValidationError("index is null", validationException);
+                    break;
+                }
+            }
+        }
+
+        if (timestampField == null || timestampField.isEmpty()) {
+            validationException = addValidationError("timestamp field is null or empty", validationException);
+        }
+
+        if (eventTypeField == null || eventTypeField.isEmpty()) {
+            validationException = addValidationError("event type field is null or empty", validationException);
+        }
+
+        if (implicitJoinKeyField == null || implicitJoinKeyField.isEmpty()) {
+            validationException = addValidationError("implicit join key field field is null or empty", validationException);
+        }
+
+        if (fetchSize <= 0) {
+            validationException = addValidationError("size must be more than 0.", validationException);
+        }
+
+        if (searchAfter == null) {
+            validationException = addValidationError("search after is null", validationException);
+        }
+
+        return validationException;
     }
 
     @Override
@@ -129,12 +170,8 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
         return parser;
     }
 
-    public String index() { return this.index; }
-
-    public EqlSearchRequest index(String index) {
-        if (!Strings.isNullOrEmpty(index)) {
-            this.index = index;
-        }
+    public EqlSearchRequest indices(String... indices) {
+        this.indices = indices;
         return this;
     }
 
@@ -187,7 +224,7 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
     }
 
     public EqlSearchRequest searchAfter(List<String> searchAfter) {
-        if (searchAfter != null && searchAfter.size() > 0) {
+        if (searchAfter != null && !searchAfter.isEmpty()) {
             this.searchAfter = searchAfter;
         }
         return this;
@@ -205,7 +242,8 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        out.writeStringArrayNullable(indices);
+        indicesOptions.writeIndicesOptions(out);
         out.writeOptionalNamedWriteable(query);
         out.writeString(timestampField);
         out.writeString(eventTypeField);
@@ -226,7 +264,8 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
         EqlSearchRequest that = (EqlSearchRequest) o;
         return
             fetchSize == that.fetchSize &&
-            Objects.equals(index, that.index) &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
             Objects.equals(query, that.query) &&
             Objects.equals(timestampField, that.timestampField) &&
             Objects.equals(eventTypeField, that.eventTypeField) &&
@@ -237,6 +276,25 @@ public class EqlSearchRequest extends ActionRequest implements CompositeIndicesR
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query, fetchSize, timestampField, eventTypeField, implicitJoinKeyField, searchAfter, rule);
+        return Objects.hash(
+            Arrays.hashCode(indices),
+            indicesOptions,
+            query,
+            fetchSize,
+            timestampField,
+            eventTypeField,
+            implicitJoinKeyField,
+            searchAfter,
+            rule);
+    }
+
+    @Override
+    public String[] indices() {
+        return indices;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 }

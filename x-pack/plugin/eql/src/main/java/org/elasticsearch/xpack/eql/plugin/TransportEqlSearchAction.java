@@ -56,7 +56,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(new EqlSearchResponse.Sequences(new EqlSearchResponse.Sequence[]{
             new EqlSearchResponse.Sequence(new String[]{"4021"}, events),
             new EqlSearchResponse.Sequence(new String[]{"2343"}, events)
-        }), new TotalHits(100,  TotalHits.Relation.EQUAL_TO));
-        return new EqlSearchResponse(hits, 5, false);
+        }), new TotalHits(0,  TotalHits.Relation.EQUAL_TO));
+        return new EqlSearchResponse(hits, 0, false);
     }
 }

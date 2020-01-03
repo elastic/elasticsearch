@@ -58,7 +58,7 @@ public class EqlRequestParserTests extends ESTestCase {
             + "\"size\" : \"101\","
             + "\"rule\" : \"file where user != 'SYSTEM' by file_path\""
             + "}", EqlSearchRequest::fromXContent);
-        assertEquals("endgame-*", request.index());
+        assertArrayEquals(new String[]{"endgame-*"}, request.indices());
         assertNotNull(request.query());
         assertTrue(request.query() instanceof MatchQueryBuilder);
         MatchQueryBuilder query = (MatchQueryBuilder)request.query();
@@ -76,7 +76,7 @@ public class EqlRequestParserTests extends ESTestCase {
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)
             throws IOException {
         XContentParser parser = parser(json);
-        return fromXContent.apply(parser).index(index);
+        return fromXContent.apply(parser).indices(new String[]{index});
     }
 
     private void assertParsingErrorMessage(String json, String errorMessage, Consumer<XContentParser> consumer) throws IOException {

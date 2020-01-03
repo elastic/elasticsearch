@@ -58,7 +58,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
-        return new EqlSearchRequest(defaultTestIndex, query,
+        return new EqlSearchRequest(new String[]{defaultTestIndex}, query,
                 randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
                 randomIntBetween(1, 50), randomSearchAfter(), randomAlphaOfLength(10));
     }
@@ -94,7 +94,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
 
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
-        return EqlSearchRequest.fromXContent(parser).index(defaultTestIndex);
+        return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
     }
 
     public void testSizeException() {

@@ -72,7 +72,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
-    private static DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
+    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),

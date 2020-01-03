@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireTestCase;
 
 import java.io.IOException;

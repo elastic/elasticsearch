@@ -21,7 +21,6 @@ package org.elasticsearch.geometry;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.AbstractWireTestCase;

@@ -36,6 +36,7 @@ import java.nio.file.StandardOpenOption;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -291,7 +292,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertThat("keystore should be password protected", r.exitCode, is(0));
     }
 
-    private void verifyKeystorePermissions() throws Exception {
+    private void verifyKeystorePermissions() {
         Path keystore = installation.config("elasticsearch.keystore");
         switch (distribution.packaging) {
             case TAR:
@@ -303,7 +304,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertThat(keystore, file(File, "root", "elasticsearch", p660));
                 break;
             case DOCKER:
-                // TODO #49469
+                assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

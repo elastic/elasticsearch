@@ -55,8 +55,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     // proxy for testing
     AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-        final AmazonEC2 client = new AmazonEC2Client(credentials, configuration);
-        return client;
+        return new AmazonEC2Client(credentials, configuration);
     }
 
     // pkg private for tests

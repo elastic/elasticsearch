@@ -19,9 +19,13 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
+import com.amazonaws.services.ec2.AbstractAmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -187,6 +191,39 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(882));
                 assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_2"));
             }
+        }
+    }
+
+    private static class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
+
+        Ec2DiscoveryPluginMock(Settings settings) {
+            super(settings, new AwsEc2ServiceImpl() {
+                @Override
+                AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
+                    return new AmazonEC2Mock(credentials, configuration);
+                }
+            });
+        }
+    }
+
+    private static class AmazonEC2Mock extends AbstractAmazonEC2 {
+
+        String endpoint;
+        final AWSCredentialsProvider credentials;
+        final ClientConfiguration configuration;
+
+        AmazonEC2Mock(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
+            this.credentials = credentials;
+            this.configuration = configuration;
+        }
+
+        @Override
+        public void setEndpoint(String endpoint) throws IllegalArgumentException {
+            this.endpoint = endpoint;
+        }
+
+        @Override
+        public void shutdown() {
         }
     }
 }

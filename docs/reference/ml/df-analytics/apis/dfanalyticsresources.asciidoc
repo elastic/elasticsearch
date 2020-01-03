@@ -225,7 +225,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 include::{docdir}/ml/ml-shared.asciidoc[tag=dependent_variable]
 +
 --
-The data type of the field must be numeric or boolean.
+The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
+categorical (`ip`, `keyword`, `text`), or boolean.
 --
   
 `num_top_classes`::

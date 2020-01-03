@@ -33,21 +33,47 @@ public class SparseFileTracker {
 
     private final String description;
 
-    public SparseFileTracker(String description) {
+    private final long length;
+
+    public SparseFileTracker(String description, long length) {
         this.description = description;
+        this.length = length;
+        if (length < 0) {
+            throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
+        }
+    }
+
+    public long getLength() {
+        return length;
+    }
+
+    public long getLengthOfRanges() {
+        synchronized (mutex) {
+            assert invariant();
+            return computeLengthOfRanges();
+        }
+    }
+
+    /**
+     * @return the sum of the length of the ranges
+     */
+    private long computeLengthOfRanges() {
+        assert Thread.holdsLock(mutex) : "sum of length of the ranges must be computed under mutex";
+        return ranges.stream().mapToLong(range -> range.end - range.start).sum();
     }
 
     /**
      * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill.
      *
-     * @param start The (inclusive) start of the desired range
-     * @param end The (exclusive) end of the desired range
+     * @param start    The (inclusive) start of the desired range
+     * @param end      The (exclusive) end of the desired range
      * @param listener Listener for when this range is fully available
      * @return A collection of gaps that the client should fill in to satisfy this range
+     * @throws IllegalArgumentException if invalid range is requested
      */
     public List<Gap> waitForRange(final long start, final long end, final ActionListener<Void> listener) {
-        if (end < start || start < 0L) {
-            throw new IllegalArgumentException("invalid range [" + start + "-" + end + "]");
+        if (end < start || start < 0L || length < end) {
+            throw new IllegalArgumentException("invalid range [start=" + start + ", end=" + end + ", length=" + length + "]");
         }
 
         final List<Gap> gaps = new ArrayList<>();
@@ -199,6 +225,7 @@ public class SparseFileTracker {
     }
 
     private boolean invariant() {
+        long lengthOfRanges = 0L;
         Range previousRange = null;
         for (final Range range : ranges) {
             if (previousRange != null) {
@@ -210,9 +237,21 @@ public class SparseFileTracker {
 
                 // contiguous, non-pending ranges are merged together
                 assert previousRange.isPending() || range.isPending() || previousRange.end < range.start : previousRange + " vs " + range;
+
             }
+
+            // range never exceed maximum length
+            assert range.end <= length;
+
+            lengthOfRanges += range.end - range.start;
             previousRange = range;
         }
+
+        // sum of ranges lengths never exceed maximum length
+        assert computeLengthOfRanges() <= length;
+
+        // computed length of ranges is equal to the sum of range lengths
+        assert computeLengthOfRanges() == lengthOfRanges;
 
         return true;
     }

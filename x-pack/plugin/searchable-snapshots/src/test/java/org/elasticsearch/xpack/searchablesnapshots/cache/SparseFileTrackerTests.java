@@ -20,9 +20,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SparseFileTrackerTests extends ESTestCase {
@@ -31,9 +33,43 @@ public class SparseFileTrackerTests extends ESTestCase {
     private static final byte UNAVAILABLE = (byte) 0x00;
     private static final byte AVAILABLE = (byte) 0xff;
 
+    public void testInvalidLength() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SparseFileTracker("test", -1L));
+        assertThat(e.getMessage(), containsString("Length [-1] must be equal to or greater than 0 for [test]"));
+    }
+
+    public void testInvalidRange() {
+        final byte[] fileContents = new byte[between(0, 1000)];
+        final long length = fileContents.length;
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", length);
+
+        final AtomicBoolean invoked = new AtomicBoolean(false);
+        final ActionListener<Void> listener = ActionListener.wrap(() -> invoked.set(true));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> sparseFileTracker.waitForRange(-1L, randomLongBetween(0L, length), listener));
+        assertThat("start must not be negative", e.getMessage(), containsString("invalid range"));
+        assertThat(invoked.get(), is(false));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> sparseFileTracker.waitForRange(randomLongBetween(0L, Math.max(0L, length - 1L)), length + 1L, listener));
+        assertThat("end must not be greater than length", e.getMessage(), containsString("invalid range"));
+        assertThat(invoked.get(), is(false));
+
+        if (length > 1L) {
+            e = expectThrows(IllegalArgumentException.class, () -> {
+                long start = randomLongBetween(1L, Math.max(1L, length - 1L));
+                long end = randomLongBetween(0L, start - 1L);
+                sparseFileTracker.waitForRange(start, end, listener);
+            });
+            assertThat("end must not be greater than length", e.getMessage(), containsString("invalid range"));
+            assertThat(invoked.get(), is(false));
+        }
+    }
+
     public void testCallsListenerWhenWholeRangeIsAvailable() {
         final byte[] fileContents = new byte[between(0, 1000)];
-        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test");
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
 
         final Set<AtomicBoolean> listenersCalled = new HashSet<>();
         for (int i = between(0, 10); i > 0; i--) {
@@ -89,7 +125,7 @@ public class SparseFileTrackerTests extends ESTestCase {
 
     public void testDeterministicSafety() {
         final byte[] fileContents = new byte[between(0, 1000)];
-        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test");
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
         final Set<AtomicBoolean> listenersCalled = new HashSet<>();
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(Settings.EMPTY, random());
@@ -108,7 +144,7 @@ public class SparseFileTrackerTests extends ESTestCase {
     public void testThreadSafety() throws InterruptedException {
         final byte[] fileContents = new byte[between(0, 1000)];
         final Thread[] threads = new Thread[between(1, 5)];
-        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test");
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
 
         final CountDownLatch startLatch = new CountDownLatch(1);
         final Semaphore countDown = new Semaphore(between(1, 1000));

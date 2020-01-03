@@ -1,8 +1,3 @@
-setup:
-  - skip:
-      version: "all"
-      reason:  "Until backport of https://github.com/elastic/elasticsearch/issues/50553"
-
 ---
 "Get old outlier_detection job":
 
@@ -148,3 +143,26 @@ setup:
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "mixed_cluster_outlier_detection_job" }
   - match: { data_frame_analytics.0.state: "stopped" }
+
+---
+"Put and delete a job":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "mixed_cluster_job_to_delete"
+        body: >
+          {
+            "source": {
+              "index": "bwc_ml_outlier_detection_job_source"
+            },
+            "dest": {
+              "index": "mixed_cluster_job_to_delete_results"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "mixed_cluster_job_to_delete" }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: mixed_cluster_job_to_delete
+  - match: { acknowledged: true }

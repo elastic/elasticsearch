@@ -86,8 +86,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
 [[ml-get-job-example]]
 ==== {api-examples-title}
 
-//The following example gets configuration information for the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/high_sum_total_sales

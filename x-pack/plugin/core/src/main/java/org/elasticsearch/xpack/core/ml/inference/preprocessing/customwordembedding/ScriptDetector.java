@@ -17,6 +17,8 @@ import static java.lang.Character.UnicodeBlock.KATAKANA;
 
 /**
  * Derived from https://github.com/google/cld3/blob/master/src/script_detector.h
+ *
+ * We take advantage of Java codepoints to determine the specific script value we care about
  */
 public final class ScriptDetector {
 

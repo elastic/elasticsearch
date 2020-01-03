@@ -30,6 +30,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * This is a pre-processor that embeds text into a numerical vector.
+ *
+ * It calculates a set of features based on script type, ngram hashes, and most common script values.
+ *
+ * The features are then concatenated with specific quantization scales and weights into a vector of length 80.
+ *
+ * This is a fork and a port of: https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/embedding_network.cc
+ */
 public class CustomWordEmbedding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CustomWordEmbedding.class);
@@ -173,7 +182,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
             int embeddingDim = EMBEDDING_DIMENSIONS[esIndex];
 
             FeatureValue[] featureVector = featureVectors.get(esIndex);
-            assert (offset < concat.length);
+            assert (offset + embeddingDim <= concat.length);
             for (FeatureValue featureValue : featureVector) {
                 // Multiplier for each embedding weight.
                 int row = featureValue.getRow();
@@ -181,7 +190,6 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
 
                 // Iterate across columns for this row
                 for (int i = 0; i < embeddingDim; ++i) {
-                    // 128 is bias for UINT8 quantization, only one we currently support.
                     double value = (getRowMajorData(embeddingWeight, embeddingDim, row, i)) * multiplier;
                     int concatIndex = offset + i;
                     concat[concatIndex] += value;

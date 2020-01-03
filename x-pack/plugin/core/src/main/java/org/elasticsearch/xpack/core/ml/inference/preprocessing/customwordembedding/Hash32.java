@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedd
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Custom Hash class necessary for hashing nGrams
+ */
 final class Hash32 {
 
     private static final int DEFAULT_SEED = 0xBEEF;

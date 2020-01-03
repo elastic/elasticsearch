@@ -46,18 +46,18 @@ public class NGramFeatureExtractorTests extends ESTestCase {
      *  - Hausa ("ha") removes many words final process text looks like " a cikin a kan sakamako daga sakwannin a kan kafar "
      *  - Hindi ("hi") removes " विज्ञापनों का अधिकतम लाभ " from the end of the text
      *  - Haitian Creole ("ht") The text " pitit leta fèt pou ba yo konkoul menm jan tou pou timoun " is removed
-     *  - Hungarian ("hu") more text removal
-     *  - Igbo ("ig") text removed
-     *  - Icelandic ("is") text removed
-     *  - Maori ("mi") text removed
+     *  - Hungarian ("hu") CLD3 removed language in text processing
+     *  - Igbo ("ig") CLD3 removed language in text processing
+     *  - Icelandic ("is") CLD3 removed language in text processing
+     *  - Maori ("mi") CLD3 removed language in text processing
      *  - Mongolian ("mn") text " журам боловсруулах орон нутгийн " removed
-     *  - Marathi ("mr") text removed
-     *  - Malay ("ms") text removed
-     *  - Nepali ("ne") text removed
-     *  - Punjabi ("pa") text removed
-     *  - Tajik ("tg") text removed
-     *  - Turkish ("tr") text removed
-     *  - Zulu ("zu") text removed
+     *  - Marathi ("mr") CLD3 removed language in text processing
+     *  - Malay ("ms") CLD3 removed language in text processing
+     *  - Nepali ("ne") CLD3 removed language in text processing
+     *  - Punjabi ("pa") CLD3 removed language in text processing
+     *  - Tajik ("tg") CLD3 removed language in text processing
+     *  - Turkish ("tr") CLD3 removed language in text processing
+     *  - Zulu ("zu") CLD3 removed language in text processing
      */
     private static final Map<String, String> KNOWN_PROCESSING_FAILURE_LANGUAGES = new HashMap<>();
     static {

@@ -13,6 +13,12 @@ import java.util.TreeMap;
 
 /**
  * Derived from: https://github.com/google/cld3/blob/master/src/relevant_script_feature.cc
+ *
+ * This extracts an array of {@link FeatureValue} from the given text.
+ *
+ * These values contain the particular script id for each code point (determined via {@link ScriptDetector})
+ * and their average occurrence in the text.
+ *
  */
 public class RelevantScriptFeatureExtractor implements FeatureExtractor {
 

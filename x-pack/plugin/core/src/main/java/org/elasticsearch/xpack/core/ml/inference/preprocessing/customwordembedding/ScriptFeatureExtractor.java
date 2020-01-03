@@ -11,6 +11,18 @@ import org.apache.lucene.util.Counter;
 
 import java.util.OptionalInt;
 
+/**
+ * This is the lone discrete feature.
+ *
+ * It returns an array of {@link FeatureValue} with length 1.
+ *
+ * The feature has a non-continuous weight (it is always 1.0). The "id" is the related {@link ScriptCode} for the first letter
+ * Java codepoint.
+ *
+ * The exception to this is if {@link ScriptCode#Hani} is returned. In that case the number of {@link Character.UnicodeScript#HANGUL}
+ * characters are counted. If more exist than not, {@link ScriptCode#MAX_SCRIPT_CODE} is returned.
+ * Otherwise its {@link ScriptCode#Hani}
+ */
 public final class ScriptFeatureExtractor implements FeatureExtractor {
 
     private static ScriptCode getScriptIdOfFirstLetter(String text) {

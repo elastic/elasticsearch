@@ -11,6 +11,12 @@ import org.apache.lucene.util.Counter;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * This provides an array of {@link FeatureValue} for the given nGram size and dimensionId
+ *
+ * Each feature value contains the average occurrence of an nGram and its "id". This id is determined via a custom hash ({@link Hash32})
+ * and the provided dimensionId
+ */
 public class NGramFeatureExtractor implements FeatureExtractor {
 
     private static final Hash32 hashing = new Hash32();

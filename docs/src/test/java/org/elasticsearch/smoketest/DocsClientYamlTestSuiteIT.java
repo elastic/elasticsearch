@@ -125,7 +125,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      * small number of tokens.
      */
     private static class CompareAnalyzers implements ExecutableSection {
-        private static ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
+        private static final ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
             new ConstructingObjectParser<>("test_analyzer", false, (a, location) -> {
                 String index = (String) a[0];
                 String first = (String) a[1];

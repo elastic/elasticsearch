@@ -1064,8 +1064,8 @@ end::tokenizer[]
 tag::training-percent[]
 Defines what percentage of the eligible documents that will 
 be used for training. Documents that are ignored by the analysis (for example 
-those that contain arrays) won’t be included in the calculation for used 
-percentage. Defaults to `100`.
+those that contain arrays with more than one value) won’t be included in the 
+calculation for used percentage. Defaults to `100`.
 end::training-percent[]
 
 tag::use-null[]

@@ -204,7 +204,7 @@ public class RoundingTests extends ESTestCase {
 
         rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(-twoHours).build();
         assertThat(rounding.round(0), equalTo(-twoHours));
-        assertThat(rounding.round(twoHours), equalTo(oneDay - twoHours));
+        assertThat(rounding.round(oneDay - twoHours), equalTo(oneDay - twoHours));
     }
 
     /**

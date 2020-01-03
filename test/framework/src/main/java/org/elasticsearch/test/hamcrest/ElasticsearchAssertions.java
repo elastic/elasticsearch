@@ -43,6 +43,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -149,7 +150,7 @@ public class ElasticsearchAssertions {
                     clusterBlockException);
             assertThat(clusterBlockException.blocks().size(), greaterThan(0));
 
-            RestStatus status = checkReadOnlyBlock(clusterBlockException.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
+            RestStatus status = checkRetryableBlock(clusterBlockException.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
             assertThat(clusterBlockException.status(), CoreMatchers.equalTo(status));
         }
     }
@@ -166,7 +167,7 @@ public class ElasticsearchAssertions {
             fail("Request executed with success but a ClusterBlockException was expected");
         } catch (ClusterBlockException e) {
             assertThat(e.blocks().size(), greaterThan(0));
-            RestStatus status = checkReadOnlyBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
+            RestStatus status = checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
             assertThat(e.status(), equalTo(status));
 
             if (expectedBlockId != null) {
@@ -192,13 +193,17 @@ public class ElasticsearchAssertions {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
-    private static boolean checkReadOnlyBlock(Set<ClusterBlock> clusterBlocks){
+    private static boolean checkRetryableBlock(Set<ClusterBlock> clusterBlocks){
+        boolean found = false;
+        // check only retryable blocks exist in the set
         for (ClusterBlock clusterBlock : clusterBlocks) {
-            if (clusterBlock.id() == 12) {
-                return true;
+            if (clusterBlock.id() == IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
+                found = true;
+            } else {
+                return false;
             }
         }
-        return false;
+        return found;
     }
 
     public static String formatShardStatus(BroadcastResponse response) {

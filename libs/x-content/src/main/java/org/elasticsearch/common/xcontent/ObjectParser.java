@@ -151,14 +151,15 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
 
     /**
-     * Creates a new ObjectParser instance with a name. This name is used to reference the parser in exceptions and messages.
+     * Creates a new ObjectParser.
+     * @param name the parsers name, used to reference the parser in exceptions and messages.
      */
     public ObjectParser(String name) {
         this(name, null);
     }
 
     /**
-     * Creates a new ObjectParser instance with a name.
+     * Creates a new ObjectParser.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
@@ -167,7 +168,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     /**
-     * Creates a new ObjectParser instance with a name.
+     * Creates a new ObjectParser.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing
      *      responses from external systems, never when parsing requests from users.
@@ -178,7 +179,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     /**
-     * Creates a new ObjectParser instance with a name that consumes unknown fields as generic Objects.
+     * Creates a new ObjectParser that consumes unknown fields as generic Objects.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param unknownFieldConsumer how to consume parsed unknown fields
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
@@ -188,8 +189,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     /**
-     * Creates a new ObjectParser instance with a name that attempts to resolve unknown fields
-     * as {@link XContentParser#namedObject namedObjects}.
+     * Creates a new ObjectParser that attempts to resolve unknown fields as {@link XContentParser#namedObject namedObjects}.
      * @param <C> the type of named object that unknown fields are expected to be
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param categoryClass the type of named object that unknown fields are expected to be

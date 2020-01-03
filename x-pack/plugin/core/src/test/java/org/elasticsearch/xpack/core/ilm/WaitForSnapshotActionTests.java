@@ -36,7 +36,7 @@ public class WaitForSnapshotActionTests extends AbstractActionTestCase<WaitForSn
 
     @Override
     protected WaitForSnapshotAction createTestInstance() {
-        return new WaitForSnapshotAction(randomAlphaOfLengthBetween(5, 10));
+        return randomInstance();
     }
 
     @Override
@@ -46,6 +46,11 @@ public class WaitForSnapshotActionTests extends AbstractActionTestCase<WaitForSn
 
     @Override
     protected WaitForSnapshotAction mutateInstance(WaitForSnapshotAction instance) throws IOException {
+        return randomInstance();
+    }
+
+    static WaitForSnapshotAction randomInstance() {
         return new WaitForSnapshotAction(randomAlphaOfLengthBetween(5, 10));
     }
+
 }

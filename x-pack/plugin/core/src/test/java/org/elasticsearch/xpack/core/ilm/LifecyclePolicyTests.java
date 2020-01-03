@@ -113,6 +113,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return AllocateActionTests.randomInstance();
                 case DeleteAction.NAME:
                     return new DeleteAction();
+                case WaitForSnapshotAction.NAME:
+                    return  WaitForSnapshotActionTests.randomInstance();
                 case ForceMergeAction.NAME:
                     return ForceMergeActionTests.randomInstance();
                 case ReadOnlyAction.NAME:
@@ -164,7 +166,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 case AllocateAction.NAME:
                     return AllocateActionTests.randomInstance();
                 case WaitForSnapshotAction.NAME:
-                    return new WaitForSnapshotAction("policy");
+                    return WaitForSnapshotActionTests.randomInstance();
                 case DeleteAction.NAME:
                     return new DeleteAction();
                 case ForceMergeAction.NAME:

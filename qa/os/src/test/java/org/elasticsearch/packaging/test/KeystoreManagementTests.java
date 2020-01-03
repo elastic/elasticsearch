@@ -55,7 +55,6 @@ import static org.junit.Assume.assumeTrue;
 public class KeystoreManagementTests extends PackagingTestCase {
 
     private static final String PASSWORD_ERROR_MESSAGE = "Provided keystore password was incorrect";
-    private Path tempDir;
 
     /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {

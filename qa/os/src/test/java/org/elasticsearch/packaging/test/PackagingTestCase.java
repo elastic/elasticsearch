@@ -35,6 +35,7 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -50,7 +51,7 @@ import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
+import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -126,6 +127,15 @@ public abstract class PackagingTestCase extends Assert {
             sh = new Shell();
         }
     }
+
+    @AfterClass
+    public static void cleanupDocker() {
+        if (distribution().packaging == Distribution.Packaging.DOCKER) {
+            // runContainer also calls this, so we don't need this method to be annotated as `@After`
+            removeContainer();
+        }
+    }
+
 
     @Before
     public void setup() throws Exception {

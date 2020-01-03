@@ -22,16 +22,13 @@ package org.elasticsearch.packaging.test;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker.DockerShell;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,13 +42,11 @@ import java.util.stream.Collectors;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
-import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -77,25 +72,15 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
-    protected DockerShell sh;
     private Path tempDir;
 
     @BeforeClass
     public static void filterDistros() {
         assumeTrue("only Docker", distribution.packaging == Distribution.Packaging.DOCKER);
-
-        ensureImageIsLoaded(distribution);
-    }
-
-    @AfterClass
-    public static void cleanup() {
-        // runContainer also calls this, so we don't need this method to be annotated as `@After`
-        removeContainer();
     }
 
     @Before
     public void setupTest() throws IOException {
-        sh = new DockerShell();
         installation = runContainer(distribution());
         tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
     }

@@ -124,7 +124,7 @@ health status index    uuid                   pri rep docs.count docs.deleted st
 yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0      72171         72171
 green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0        230          230
 --------------------------------------------------
-// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/72171/\\d+/ s/230/\\d+/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]
 
 If you want to change the <<time-units,time units>>, use `time` parameter.

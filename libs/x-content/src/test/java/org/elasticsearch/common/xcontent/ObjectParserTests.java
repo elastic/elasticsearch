@@ -754,4 +754,56 @@ public class ObjectParserTests extends ESTestCase {
         assertThat(o.fields.get("test_array"), instanceOf(List.class));
         assertThat(o.fields.get("test_nested"), instanceOf(Map.class));
     }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(Arrays.asList(
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text()),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("int"), p -> p.intValue()),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("float"), p -> p.floatValue()),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("bool"), p -> p.booleanValue())
+        ));
+    }
+
+    private static class TopLevelNamedXConent {
+        public static final ObjectParser<TopLevelNamedXConent, Void> PARSER = new ObjectParser<>(
+            "test", Object.class, TopLevelNamedXConent::setNamed, TopLevelNamedXConent::new
+        );
+
+        Object named;
+        void setNamed(Object named) {
+            if (this.named != null) {
+                throw new IllegalArgumentException("Only one [named] allowed!");
+            }
+            this.named = named;
+        }
+    }
+
+    public void testTopLevelNamedXContent() throws IOException {
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"str\": \"foo\"}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals("foo", o.named);
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"int\": 1}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals(1, o.named);
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"float\": 4.0}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals(4.0F, o.named);
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"bool\": false}");
+            TopLevelNamedXConent o = TopLevelNamedXConent.PARSER.parse(parser, null);
+            assertEquals(false, o.named);
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
+            XContentParseException ex = expectThrows(XContentParseException.class, () -> TopLevelNamedXConent.PARSER.parse(parser, null));
+            assertEquals("[1:2] [test] unable to parse Object with name [not_supported_field]: parser not found", ex.getMessage());
+        }
+    }
 }

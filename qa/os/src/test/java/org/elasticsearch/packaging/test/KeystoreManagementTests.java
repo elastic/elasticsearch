@@ -50,6 +50,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -83,6 +84,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
         assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password-protected"));
+        Shell.Result r2 = bin.keystoreTool.run("list");
+        assertThat(r2.stdout, containsString("keystore.seed"));
     }
 
     /** Test initial Docker state */
@@ -95,6 +98,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
         assertThat("has-passwd should fail", r.stdout, containsString("ERROR: Keystore is not password-protected"));
+        Shell.Result r2 = bin.keystoreTool.run("list");
+        assertThat(r2.stdout, containsString("keystore.seed"));
     }
 
     public void test20CreateKeystoreManually() throws Exception {
@@ -109,7 +114,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     public void test30AutoCreateKeystore() throws Exception {
-        assumeTrue("RPMs and Debs install a keystore file", distribution.isArchive());
+        assumeTrue("Packages and docker are installed with a keystore file", distribution.isArchive());
         rmKeystoreIfExists();
 
         startElasticsearch();

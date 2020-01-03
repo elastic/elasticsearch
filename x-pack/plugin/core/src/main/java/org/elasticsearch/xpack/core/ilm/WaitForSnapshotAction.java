@@ -20,6 +20,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A {@link LifecycleAction} which waits for snapshot to be taken (by configured SLM policy).
+ */
 public class WaitForSnapshotAction implements LifecycleAction {
 
     public static final String NAME = "snapshot";

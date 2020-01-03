@@ -16,6 +16,11 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
 
+/***
+ * A step that waits for snapshot to be taken by SLM to ensure we have backup before we delete the index.
+ * It will signal error if it can't get data needed to do the check (phase time from ILM and SLM metadata)
+ * and will only return success if execution of SLM policy took place after index entered deleted phase.
+ */
 public class WaitForSnapshotStep extends ClusterStateWaitStep {
 
     static final String NAME = "wait-for-snapshot";

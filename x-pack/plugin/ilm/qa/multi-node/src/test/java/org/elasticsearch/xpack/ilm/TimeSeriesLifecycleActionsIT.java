@@ -1086,6 +1086,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         String index = "index";
 
@@ -1128,6 +1129,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
     }
 
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithFailure() throws Exception {
         String index = "index";
 
@@ -1361,7 +1364,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     private String getFailedStepForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
-        if (indexResponse == null) return null;
+        if (indexResponse == null) {
+            return null;
+        }
 
         return (String) indexResponse.get("failed_step");
     }

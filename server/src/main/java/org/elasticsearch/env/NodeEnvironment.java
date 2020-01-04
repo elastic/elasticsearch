@@ -50,7 +50,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -384,11 +383,8 @@ public final class NodeEnvironment  implements Closeable {
                 final Set<String> folderNames = new HashSet<>();
                 final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
 
-                    // node state directory, also containing MetaDataStateFormat-based global metadata
+                    // node state directory, containing MetaDataStateFormat-based node metadata as well as cluster state
                     MetaDataStateFormat.STATE_DIR_NAME,
-
-                    // Lucene-based metadata folder
-                    PersistedClusterStateService.METADATA_DIRECTORY_NAME,
 
                     // indices
                     INDICES_FOLDER));

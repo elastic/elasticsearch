@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -201,9 +202,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
         }
 
-        for (Path dataPath : dataPaths2) {
-            IOUtils.rm(dataPath.resolve(MetaDataStateFormat.STATE_DIR_NAME));
-        }
+        NodeMetaData.FORMAT.cleanupOldFiles(Long.MAX_VALUE, dataPaths2);
 
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 

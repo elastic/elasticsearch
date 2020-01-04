@@ -54,6 +54,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -117,7 +118,7 @@ public class PersistedClusterStateService {
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
     private static final int COMMIT_DATA_SIZE = 4;
 
-    public static final String METADATA_DIRECTORY_NAME = "_metadata";
+    public static final String METADATA_DIRECTORY_NAME = MetaDataStateFormat.STATE_DIR_NAME;
 
     private final Path[] dataPaths;
     private final String nodeId;
@@ -175,6 +176,12 @@ public class PersistedClusterStateService {
             }
         }
         return new Writer(metaDataIndexWriters, nodeId, bigArrays);
+    }
+
+    public static void deleteAll(Path[] dataPaths) throws IOException {
+        for (Path dataPath : dataPaths) {
+            Lucene.cleanLuceneIndex(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));
+        }
     }
 
     // exposed for tests

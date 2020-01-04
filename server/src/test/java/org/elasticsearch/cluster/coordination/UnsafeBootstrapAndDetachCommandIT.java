@@ -25,7 +25,6 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
@@ -36,11 +35,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -175,9 +172,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths())
-            .map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
-            .toArray(Path[]::new));
+        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
     }
@@ -191,9 +186,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths())
-            .map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
-            .toArray(Path[]::new));
+        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
     }

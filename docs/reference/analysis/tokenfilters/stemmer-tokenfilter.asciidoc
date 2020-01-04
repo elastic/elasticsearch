@@ -1,5 +1,8 @@
 [[analysis-stemmer-tokenfilter]]
-=== Stemmer Token Filter
+=== Stemmer token filter
+++++
+<titleabbrev>Stemmer</titleabbrev>
+++++
 
 // Adds attribute for the 'minimal_portuguese' stemmer values link.
 // This link contains ~, which is converted to subscript.

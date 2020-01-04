@@ -465,13 +465,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return Objects.equals(oldProxy, newProxy) == false;
     }
 
-    static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
+    public static class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         final List<String> seedNodes;
         final int maxConnectionsPerCluster;
         final int numNodesConnected;
 
-        SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
+        public SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
             this.seedNodes = seedNodes;
             this.maxConnectionsPerCluster = maxConnectionsPerCluster;
             this.numNodesConnected = numNodesConnected;
@@ -510,6 +510,18 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public String modeName() {
             return "sniff";
+        }
+
+        public List<String> getSeedNodes() {
+            return seedNodes;
+        }
+
+        public int getMaxConnectionsPerCluster() {
+            return maxConnectionsPerCluster;
+        }
+
+        public int getNumNodesConnected() {
+            return numNodesConnected;
         }
 
         @Override

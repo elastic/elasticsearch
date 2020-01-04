@@ -889,6 +889,30 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public static Fuzzy fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
+
+        String getTerm() {
+            return term;
+        }
+
+        int getPrefixLength() {
+            return prefixLength;
+        }
+
+        boolean isTranspositions() {
+            return transpositions;
+        }
+
+        Fuzziness getFuzziness() {
+            return fuzziness;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
     }
 
     static class ScriptFilterSource extends FilteredIntervalsSource {

@@ -808,7 +808,9 @@ public class SearchModule {
             new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
                 IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new),
             new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-                IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new)
+                IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Fuzzy.NAME, IntervalsSourceProvider.Fuzzy::new)
         );
     }
 

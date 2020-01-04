@@ -5,21 +5,24 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -52,15 +55,21 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
 
     @Override
     protected EqlSearchRequest createTestInstance() {
-        QueryBuilder query = null;
         try {
-            query = parseQuery(defaultTestQuery);
+            QueryBuilder query = parseQuery(defaultTestQuery);
+            return new EqlSearchRequest()
+                .indices(new String[]{defaultTestIndex})
+                .query(query)
+                .timestampField(randomAlphaOfLength(10))
+                .eventTypeField(randomAlphaOfLength(10))
+                .implicitJoinKeyField(randomAlphaOfLength(10))
+                .fetchSize(randomIntBetween(1, 50))
+                .searchAfter(randomJsonSearchFromBuilder().getSortValues())
+                .rule(randomAlphaOfLength(10));
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
-        return new EqlSearchRequest(new String[]{defaultTestIndex}, query,
-                randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                randomIntBetween(1, 50), randomSearchAfter(), randomAlphaOfLength(10));
+        return null;
     }
 
     protected QueryBuilder parseQuery(String queryAsString) throws IOException {
@@ -74,16 +83,53 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         return parseInnerQueryBuilder;
     }
 
-    private List<String> randomSearchAfter() {
-        if (randomBoolean()) {
-            return Collections.emptyList();
-        } else {
-            int size = randomIntBetween(1, 50);
-            List<String> arr = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                arr.add(randomAlphaOfLength(randomIntBetween(1, 15)));
+    private SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
+        int numSearchAfter = randomIntBetween(1, 10);
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        jsonBuilder.startObject();
+        jsonBuilder.startArray("search_after");
+        for (int i = 0; i < numSearchAfter; i++) {
+            int branch = randomInt(9);
+            switch (branch) {
+                case 0:
+                    jsonBuilder.value(randomInt());
+                    break;
+                case 1:
+                    jsonBuilder.value(randomFloat());
+                    break;
+                case 2:
+                    jsonBuilder.value(randomLong());
+                    break;
+                case 3:
+                    jsonBuilder.value(randomDouble());
+                    break;
+                case 4:
+                    jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
+                    break;
+                case 5:
+                    jsonBuilder.value(randomBoolean());
+                    break;
+                case 6:
+                    jsonBuilder.value(randomByte());
+                    break;
+                case 7:
+                    jsonBuilder.value(randomShort());
+                    break;
+                case 8:
+                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
+                    break;
+                case 9:
+                    jsonBuilder.nullValue();
+                    break;
             }
-            return Collections.unmodifiableList(arr);
+        }
+        jsonBuilder.endArray();
+        jsonBuilder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(jsonBuilder))) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            return SearchAfterBuilder.fromXContent(parser);
         }
     }
 

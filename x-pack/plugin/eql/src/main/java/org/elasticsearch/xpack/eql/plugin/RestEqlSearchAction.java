@@ -29,10 +29,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestEqlSearchAction extends BaseRestHandler {
     public RestEqlSearchAction(RestController controller) {
-        // Not sure yet if we will always have index in the path or not
-        // TODO: finalize the endpoints
-        controller.registerHandler(GET, "/{index}/_eql/search", this);
-        controller.registerHandler(POST, "/{index}/_eql/search", this);
+        final String path = "/{index}/_eql/search";
+        controller.registerHandler(GET, path, this);
+        controller.registerHandler(POST, path, this);
 
     }
 

@@ -247,27 +247,27 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return PARSER.apply(parser, null);
         }
 
-        public String getQuery() {
+        String getQuery() {
             return query;
         }
 
-        public int getMaxGaps() {
+        int getMaxGaps() {
             return maxGaps;
         }
 
-        public boolean isOrdered() {
+        boolean isOrdered() {
             return ordered;
         }
 
-        public String getAnalyzer() {
+        String getAnalyzer() {
             return analyzer;
         }
 
-        public IntervalFilter getFilter() {
+        IntervalFilter getFilter() {
             return filter;
         }
 
-        public String getUseField() {
+        String getUseField() {
             return useField;
         }
     }
@@ -368,11 +368,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return PARSER.parse(parser, null);
         }
 
-        public List<IntervalsSourceProvider> getSubSources() {
+        List<IntervalsSourceProvider> getSubSources() {
             return subSources;
         }
 
-        public IntervalFilter getFilter() {
+        IntervalFilter getFilter() {
             return filter;
         }
     }

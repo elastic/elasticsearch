@@ -46,7 +46,7 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
         String useField = instance.getUseField();
         switch (between(0, 5)) {
             case 0:
-                query = randomAlphaOfLength(3);
+                query = randomAlphaOfLength(query.length() + 3);
                 break;
             case 1:
                 maxGaps++;

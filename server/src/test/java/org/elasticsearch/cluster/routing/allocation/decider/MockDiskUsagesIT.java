@@ -292,13 +292,13 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     public void testCancelExistingRecoveriesOnDiskPassingHighWatermark() throws Exception {
         // start two data node
         String masterNode = internalCluster().startMasterOnlyNode(Settings.builder()
-                                                                      .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+                                  .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
         String node0Name = internalCluster().startDataOnlyNode(Settings.builder()
-                                                                   .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+                                  .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
         String node1Name = internalCluster().startDataOnlyNode(Settings.builder()
-                                                                   .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+                                  .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
         final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
-                                                              .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
+                                  .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
         String node1Id = nodeIds.get(1);
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
@@ -313,10 +313,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final boolean watermarkBytes = randomBoolean(); // we have to consistently use bytes or percentage for the disk watermark settings
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-                                                                                                 .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
-                                                                                                 .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
-                                                                                                 .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), watermarkBytes ? "0b" : "100%")
-                                                                                                 .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1s")));
+                             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
+                             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
+                             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), watermarkBytes ? "0b" : "100%")
+                             .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1s")));
         /*
          * firstly test INDEX_CREATED scenario
          */

@@ -180,67 +180,6 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
         }
 
-        private byte[] encryptMetadata(BlobEncryptionMetadata metadata, SecretKey keyEncryptionKey,
-                                       SecureRandom secureRandom) throws IOException {
-            // serialize metadata to byte[]
-            final byte[] plaintextMetadata;
-            try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                try (StreamOutput out = new OutputStreamStreamOutput(baos)) {
-                    metadata.writeTo(out);
-                }
-                plaintextMetadata = baos.toByteArray();
-            }
-            // create cipher for metadata encryption
-            byte[] iv = new byte[GCM_IV_LENGTH_IN_BYTES];
-            secureRandom.nextBytes(iv);
-            GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, iv);
-            final Cipher cipher;
-            try {
-                cipher = Cipher.getInstance(KEK_ENCRYPTION_SCHEME);
-                cipher.init(Cipher.ENCRYPT_MODE, keyEncryptionKey, gcmParameterSpec);
-            } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException e) {
-                throw new IOException("Exception while initializing KEK encryption cipher", e);
-            }
-            // encrypt metadata
-            final byte[] encryptedMetadata;
-            try {
-                encryptedMetadata = cipher.doFinal(plaintextMetadata);
-            } catch (IllegalBlockSizeException | BadPaddingException e) {
-                throw new IOException("Exception while encrypting metadata and DEK", e);
-            }
-            // concatenate iv and metadata cipher text
-            byte[] resultCiphertext = new byte[iv.length + encryptedMetadata.length];
-            // prepend IV
-            System.arraycopy(iv, 0, resultCiphertext, 0, iv.length);
-            System.arraycopy(encryptedMetadata, 0, resultCiphertext, iv.length, encryptedMetadata.length);
-            return resultCiphertext;
-        }
-
-        private BlobEncryptionMetadata decryptMetadata(byte[] encryptedMetadata, SecretKey keyEncryptionKey) throws IOException {
-            // first bytes are IV
-            GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, encryptedMetadata, 0,
-                    GCM_IV_LENGTH_IN_BYTES);
-            // initialize cipher
-            final Cipher cipher;
-            try {
-                cipher = Cipher.getInstance(KEK_ENCRYPTION_SCHEME);
-                cipher.init(Cipher.DECRYPT_MODE, keyEncryptionKey, gcmParameterSpec);
-            } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException e) {
-                throw new IOException("Exception while initializing KEK decryption cipher", e);
-            }
-            // decrypt metadata (use cipher)
-            final byte[] decryptedMetadata;
-            try {
-                decryptedMetadata = cipher.doFinal(encryptedMetadata, GCM_IV_LENGTH_IN_BYTES,
-                        encryptedMetadata.length - GCM_IV_LENGTH_IN_BYTES);
-            } catch (IllegalBlockSizeException | BadPaddingException e) {
-                throw new IOException("Exception while decrypting metadata and DEK", e);
-            }
-            try (ByteArrayInputStream decryptedMetadataInputStream = new ByteArrayInputStream(decryptedMetadata)) {
-                return new BlobEncryptionMetadata(decryptedMetadataInputStream);
-            }
-        }
-
         @Override
         public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
@@ -273,6 +212,69 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
             return this.delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
+        }
+    }
+
+    // protected for tests
+    protected static byte[] encryptMetadata(BlobEncryptionMetadata metadata, SecretKey keyEncryptionKey,
+                                            SecureRandom secureRandom) throws IOException {
+        // serialize metadata to byte[]
+        final byte[] plaintextMetadata;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            try (StreamOutput out = new OutputStreamStreamOutput(baos)) {
+                metadata.writeTo(out);
+            }
+            plaintextMetadata = baos.toByteArray();
+        }
+        // create cipher for metadata encryption
+        byte[] iv = new byte[GCM_IV_LENGTH_IN_BYTES];
+        secureRandom.nextBytes(iv);
+        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, iv);
+        final Cipher cipher;
+        try {
+            cipher = Cipher.getInstance(KEK_ENCRYPTION_SCHEME);
+            cipher.init(Cipher.ENCRYPT_MODE, keyEncryptionKey, gcmParameterSpec);
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException e) {
+            throw new IOException("Exception while initializing KEK encryption cipher", e);
+        }
+        // encrypt metadata
+        final byte[] encryptedMetadata;
+        try {
+            encryptedMetadata = cipher.doFinal(plaintextMetadata);
+        } catch (IllegalBlockSizeException | BadPaddingException e) {
+            throw new IOException("Exception while encrypting metadata and DEK", e);
+        }
+        // concatenate iv and metadata cipher text
+        byte[] resultCiphertext = new byte[iv.length + encryptedMetadata.length];
+        // prepend IV
+        System.arraycopy(iv, 0, resultCiphertext, 0, iv.length);
+        System.arraycopy(encryptedMetadata, 0, resultCiphertext, iv.length, encryptedMetadata.length);
+        return resultCiphertext;
+    }
+
+    // protected for tests
+    protected static BlobEncryptionMetadata decryptMetadata(byte[] encryptedMetadata, SecretKey keyEncryptionKey) throws IOException {
+        // first bytes are IV
+        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, encryptedMetadata, 0,
+                GCM_IV_LENGTH_IN_BYTES);
+        // initialize cipher
+        final Cipher cipher;
+        try {
+            cipher = Cipher.getInstance(KEK_ENCRYPTION_SCHEME);
+            cipher.init(Cipher.DECRYPT_MODE, keyEncryptionKey, gcmParameterSpec);
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException e) {
+            throw new IOException("Exception while initializing KEK decryption cipher", e);
+        }
+        // decrypt metadata (use cipher)
+        final byte[] decryptedMetadata;
+        try {
+            decryptedMetadata = cipher.doFinal(encryptedMetadata, GCM_IV_LENGTH_IN_BYTES,
+                    encryptedMetadata.length - GCM_IV_LENGTH_IN_BYTES);
+        } catch (IllegalBlockSizeException | BadPaddingException e) {
+            throw new IOException("Exception while decrypting metadata and DEK", e);
+        }
+        try (ByteArrayInputStream decryptedMetadataInputStream = new ByteArrayInputStream(decryptedMetadata)) {
+            return new BlobEncryptionMetadata(decryptedMetadataInputStream);
         }
     }
 

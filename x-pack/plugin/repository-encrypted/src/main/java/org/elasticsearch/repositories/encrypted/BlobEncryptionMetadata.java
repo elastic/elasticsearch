@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Objects;
 
 public final class BlobEncryptionMetadata implements Writeable {
 
@@ -22,7 +24,7 @@ public final class BlobEncryptionMetadata implements Writeable {
     private final int packetLengthInBytes;
 
     public BlobEncryptionMetadata(byte[] dataEncryptionKeyMaterial, int nonce, int packetLengthInBytes) {
-        this.dataEncryptionKeyMaterial = dataEncryptionKeyMaterial;
+        this.dataEncryptionKeyMaterial = Objects.requireNonNull(dataEncryptionKeyMaterial);
         this.nonce = nonce;
         this.packetLengthInBytes = packetLengthInBytes;
     }
@@ -51,9 +53,26 @@ public final class BlobEncryptionMetadata implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.setVersion(Version.CURRENT);
+        Version.writeVersion(Version.CURRENT, out);
         out.writeByteArray(this.dataEncryptionKeyMaterial);
         out.writeInt(this.nonce);
         out.writeInt(this.packetLengthInBytes);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BlobEncryptionMetadata metadata = (BlobEncryptionMetadata) o;
+        return nonce == metadata.nonce &&
+                packetLengthInBytes == metadata.packetLengthInBytes &&
+                Arrays.equals(dataEncryptionKeyMaterial, metadata.dataEncryptionKeyMaterial);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(nonce, packetLengthInBytes);
+        result = 31 * result + Arrays.hashCode(dataEncryptionKeyMaterial);
+        return result;
     }
 }

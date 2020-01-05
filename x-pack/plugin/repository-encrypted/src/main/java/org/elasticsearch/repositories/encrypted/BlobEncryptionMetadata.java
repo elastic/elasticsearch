@@ -8,14 +8,12 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 public final class BlobEncryptionMetadata implements Writeable {
 

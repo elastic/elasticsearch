@@ -180,7 +180,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
         }
 
-        private byte[] encryptMetadata(BlobEncryptionMetadata metadata, SecretKey keyEncryptionKey, SecureRandom secureRandom) throws IOException {
+        private byte[] encryptMetadata(BlobEncryptionMetadata metadata, SecretKey keyEncryptionKey,
+                                       SecureRandom secureRandom) throws IOException {
             // serialize metadata to byte[]
             final byte[] plaintextMetadata;
             try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {

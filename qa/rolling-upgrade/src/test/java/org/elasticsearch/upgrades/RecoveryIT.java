@@ -789,7 +789,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String indexName = "test_soft_deletes_disabled_warning";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             boolean softDeletesEnabled = true;
-            Settings.Builder settings = Settings.builder();
+            Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
             if (randomBoolean()) {
                 softDeletesEnabled = randomBoolean();
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);

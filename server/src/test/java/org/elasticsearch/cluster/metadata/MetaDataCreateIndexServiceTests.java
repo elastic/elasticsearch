@@ -861,7 +861,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testSoftDeletesDisabledDeprecation() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Collections.emptyList(), Collections.emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
             + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test].");
@@ -869,7 +869,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         if (randomBoolean()) {
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         }
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Collections.emptyList(), Collections.emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 

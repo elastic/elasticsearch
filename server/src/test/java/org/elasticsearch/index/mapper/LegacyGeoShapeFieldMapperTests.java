@@ -710,7 +710,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
             () -> createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(trueMapping)));
-        assertThat(e.getMessage(), equalTo("geo_shape fields indexed using prefix-trees do not support doc_values"));
+        assertThat(e.getMessage(), equalTo("geo_shape field [location] indexed using prefix-trees do not support doc_values"));
 
         // explicit false doc_values
         String falseMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")

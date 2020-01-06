@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -281,7 +282,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    public void testRecoveryWithSoftDeletes() throws Exception {
+    public void testRecovery() throws Exception {
         final String index = "recover_with_soft_deletes";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
@@ -294,7 +295,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
             int numDocs = randomInt(10);
@@ -325,7 +326,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             createIndex(index, settings.build());
             int numDocs = randomInt(10);
             indexDocs(index, 0, numDocs);
@@ -348,7 +349,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
                 createIndex(index, settings.build());
                 int numDocs = randomInt(10);
                 indexDocs(index, 0, numDocs);
@@ -509,28 +510,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final Response response = client().performRequest(request);
         return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
-    }
-
-    /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    private static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
-
-        final Response response = client().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
-
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
-        }
-        assertNotNull(minVersion);
-        return minVersion;
     }
 
     /**
@@ -695,7 +674,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureGreen(index);
             indexDocs(index, 0, randomIntBetween(100, 200));
             flush(index, randomBoolean());
-            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, false);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
             // uncommitted docs must be less than 10% of committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
         } else {
@@ -705,9 +684,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 || nodeName.startsWith(CLUSTER_NAME + "-0")
                 || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
-            if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, true);
-            }
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
     }
 
@@ -762,6 +739,26 @@ public class RecoveryIT extends AbstractRollingTestCase {
         } else {
             assertEquals(nodes.size() - 1, numberOfReplicas);
         }
+    }
+
+    public void testSoftDeletesDisabledWarning() throws Exception {
+        final String indexName = "test_soft_deletes_disabled_warning";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            boolean softDeletesEnabled = true;
+            Settings.Builder settings = Settings.builder();
+            if (randomBoolean()) {
+                softDeletesEnabled = randomBoolean();
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
+            }
+            Request request = new Request("PUT", "/" + indexName);
+            request.setJsonEntity("{\"settings\": " + Strings.toString(settings.build()) + "}");
+            if (softDeletesEnabled == false) {
+                expectSoftDeletesWarning(request, indexName);
+            }
+            client().performRequest(request);
+        }
+        ensureGreen(indexName);
+        indexDocs(indexName, randomInt(100), randomInt(100));
     }
 
     @SuppressWarnings("unchecked")

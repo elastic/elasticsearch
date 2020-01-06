@@ -63,6 +63,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -105,7 +106,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  */
 public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -160,7 +161,7 @@ public class MetaDataCreateIndexService {
             .collect(toList());
         if (index.charAt(0) == '.') {
             if (matchingDescriptors.isEmpty()) {
-                deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
+                DEPRECATION_LOGGER.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
                     "names starting with a dot will fail as these names are reserved for system indices", index);
             } else if (matchingDescriptors.size() > 1) {
                 // TODO: Actually supply the name here
@@ -454,6 +455,11 @@ public class MetaDataCreateIndexService {
          * that will be used to create this index.
          */
         MetaDataCreateIndexService.checkShardLimit(indexSettings, currentState);
+        if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("soft_deletes_disabled",
+                "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
+                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
+        }
         return indexSettings;
     }
 

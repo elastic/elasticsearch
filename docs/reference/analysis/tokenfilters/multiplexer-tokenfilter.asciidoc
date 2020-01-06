@@ -1,5 +1,8 @@
 [[analysis-multiplexer-tokenfilter]]
-=== Multiplexer Token Filter
+=== Multiplexer token filter
+++++
+<titleabbrev>Multiplexer</titleabbrev>
+++++
 
 A token filter of type `multiplexer` will emit multiple tokens at the same position,
 each version of the token having been run through a different filter.  Identical

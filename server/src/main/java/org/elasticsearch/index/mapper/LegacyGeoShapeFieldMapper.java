@@ -199,7 +199,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
 
         public Builder docValues(boolean hasDocValues) {
             if (hasDocValues) {
-                throw new ElasticsearchParseException("geo_shape field [" + name + "] indexed using prefix-trees do not support doc_values");
+                throw new ElasticsearchParseException("geo_shape field [" + name
+                    + "] indexed using prefix-trees do not support doc_values");
             }
             // doc-values already set to `false`
             return this;

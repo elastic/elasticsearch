@@ -48,7 +48,6 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -66,8 +65,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
-        assertThat("has-passwd should fail", r.exitCode, not(is(0)));
-        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
+        assertFalse("has-passwd should fail", r.isSuccess());
+        assertThat("has-passwd should indicate missing keystore",
+            r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
     }
 
     /** Test initial package state */
@@ -81,8 +81,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
-        assertThat("has-passwd should fail", r.exitCode, not(is(0)));
-        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password-protected"));
+        assertFalse("has-passwd should fail", r.isSuccess());
+        assertThat("has-passwd should indicate unprotected keystore",
+            r.stderr, containsString("ERROR: Keystore is not password-protected"));
         Shell.Result r2 = bin.keystoreTool.run("list");
         assertThat(r2.stdout, containsString("keystore.seed"));
     }
@@ -101,8 +102,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
-        assertThat("has-passwd should fail", r.exitCode, not(is(0)));
-        assertThat("has-passwd should fail", r.stdout, containsString("ERROR: Keystore is not password-protected"));
+        assertFalse("has-passwd should fail", r.isSuccess());
+        assertThat("has-passwd should indicate unprotected keystore",
+            r.stdout, containsString("ERROR: Keystore is not password-protected"));
         Shell.Result r2 = bin.keystoreTool.run("list");
         assertThat(r2.stdout, containsString("keystore.seed"));
     }

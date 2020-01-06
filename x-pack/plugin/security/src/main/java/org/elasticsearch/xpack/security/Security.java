@@ -392,7 +392,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
                 anonymousUser, securityIndex.get(), threadPool);
-        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(client, threadPool, clusterService,
+        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(env, client, clusterService,
             resourceWatcherService, nativeRoleMappingStore);
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex.get()));

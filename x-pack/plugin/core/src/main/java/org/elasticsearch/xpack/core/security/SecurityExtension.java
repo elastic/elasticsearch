@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -37,6 +38,10 @@ public interface SecurityExtension {
      * within custom realms and role providers.
      */
     interface SecurityComponents {
+        /** Global settings for the current node */
+        Settings settings();
+        /** Provides access to key filesystem paths */
+        Environment environment();
         /** An internal client for retrieving information/data from this cluster */
         Client client();
         /** The Elasticsearch thread pools */

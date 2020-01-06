@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
@@ -16,20 +18,30 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 /**
  * Immutable implementation of {@link SecurityExtension.SecurityComponents}.
  */
-public class ExtensionComponents implements SecurityExtension.SecurityComponents {
+public final class ExtensionComponents implements SecurityExtension.SecurityComponents {
+    private final Environment environment;
     private final Client client;
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final ResourceWatcherService resourceWatcherService;
     private final UserRoleMapper roleMapper;
 
-    public ExtensionComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
+    public ExtensionComponents(Environment environment, Client client, ClusterService clusterService,
                                ResourceWatcherService resourceWatcherService, UserRoleMapper roleMapper) {
+        this.environment = environment;
         this.client = client;
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.resourceWatcherService = resourceWatcherService;
         this.roleMapper = roleMapper;
+    }
+
+    @Override
+    public Settings settings() {
+        return environment.settings();
+    }
+
+    @Override
+    public Environment environment() {
+        return environment;
     }
 
     @Override
@@ -39,7 +51,7 @@ public class ExtensionComponents implements SecurityExtension.SecurityComponents
 
     @Override
     public ThreadPool threadPool() {
-        return threadPool;
+        return client.threadPool();
     }
 
     @Override

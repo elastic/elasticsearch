@@ -19,11 +19,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -40,7 +39,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String eventTypeField = "event.category";
     private String implicitJoinKeyField = "agent.id";
     private int fetchSize = 50;
-    private List<String> searchAfter = Collections.emptyList();
+    private SearchAfterBuilder searchAfterBuilder;
     private String rule;
 
     static final String KEY_QUERY = "query";
@@ -74,21 +73,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         eventTypeField = in.readString();
         implicitJoinKeyField = in.readString();
         fetchSize = in.readVInt();
-        searchAfter = in.readList(StreamInput::readString);
+        searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         rule = in.readString();
-    }
-
-    public EqlSearchRequest(String[] indices, QueryBuilder query,
-                            String timestampField, String eventTypeField, String implicitJoinKeyField,
-                            int fetchSize, List<String> searchAfter, String rule) {
-        this.indices = indices;
-        this.query = query;
-        this.timestampField = timestampField;
-        this.eventTypeField = eventTypeField;
-        this.implicitJoinKeyField = implicitJoinKeyField;
-        this.fetchSize = fetchSize;
-        this.searchAfter = searchAfter;
-        this.rule = rule;
     }
 
     @Override
@@ -122,10 +108,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("size must be more than 0.", validationException);
         }
 
-        if (searchAfter == null) {
-            validationException = addValidationError("search after is null", validationException);
-        }
-
         return validationException;
     }
 
@@ -141,13 +123,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         builder.field(KEY_SIZE, fetchSize());
 
-        if (this.searchAfter != null && !this.searchAfter.isEmpty()) {
-            builder.startArray(KEY_SEARCH_AFTER);
-            for (String val : this.searchAfter) {
-                builder.value(val);
-            }
-            builder.endArray();
+        if (searchAfterBuilder != null) {
+            builder.array(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
         }
+
         builder.field(KEY_RULE, rule);
 
         return builder;
@@ -165,11 +144,13 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareString(EqlSearchRequest::eventTypeField, EVENT_TYPE_FIELD);
         parser.declareString(EqlSearchRequest::implicitJoinKeyField, IMPLICIT_JOIN_KEY_FIELD);
         parser.declareInt(EqlSearchRequest::fetchSize, SIZE);
-        parser.declareStringArray(EqlSearchRequest::searchAfter, SEARCH_AFTER);
+        parser.declareField(EqlSearchRequest::setSearchAfter, SearchAfterBuilder::fromXContent, SEARCH_AFTER,
+            ObjectParser.ValueType.OBJECT_ARRAY);
         parser.declareString(EqlSearchRequest::rule, RULE);
         return parser;
     }
 
+    @Override
     public EqlSearchRequest indices(String... indices) {
         this.indices = indices;
         return this;
@@ -219,22 +200,26 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public List<String> searchAfter() {
-        return searchAfter;
+    public Object[] searchAfter() {
+        if (searchAfterBuilder == null) {
+            return null;
+        }
+        return searchAfterBuilder.getSortValues();
     }
 
-    public EqlSearchRequest searchAfter(List<String> searchAfter) {
-        if (searchAfter != null && !searchAfter.isEmpty()) {
-            this.searchAfter = searchAfter;
-        }
+    public EqlSearchRequest searchAfter(Object[] values) {
+        this.searchAfterBuilder = new SearchAfterBuilder().setSortValues(values);
         return this;
     }
 
+    private EqlSearchRequest setSearchAfter(SearchAfterBuilder builder) {
+        this.searchAfterBuilder = builder;
+        return this;
+    }
 
     public String rule() { return this.rule; }
 
     public EqlSearchRequest rule(String rule) {
-        // TODO: possibly attempt to parse the rule here
         this.rule = rule;
         return this;
     }
@@ -249,7 +234,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeString(eventTypeField);
         out.writeString(implicitJoinKeyField);
         out.writeVInt(fetchSize);
-        out.writeStringCollection(searchAfter);
+        out.writeOptionalWriteable(searchAfterBuilder);
         out.writeString(rule);
     }
 
@@ -270,7 +255,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             Objects.equals(timestampField, that.timestampField) &&
             Objects.equals(eventTypeField, that.eventTypeField) &&
             Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
-            Objects.equals(searchAfter, that.searchAfter) &&
+            Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
             Objects.equals(rule, that.rule);
     }
 
@@ -284,7 +269,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             timestampField,
             eventTypeField,
             implicitJoinKeyField,
-            searchAfter,
+            searchAfterBuilder,
             rule);
     }
 

@@ -24,11 +24,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.enrich.rest.RestExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -63,8 +65,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_NAME_BASE;
 
-public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING = Setting.intSetting(
         "enrich.fetch_size",
@@ -239,5 +242,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS
         );
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Arrays.asList(new SystemIndexDescriptor(ENRICH_INDEX_NAME_BASE + "*", EnrichPlugin.class.getSimpleName()));
     }
 }

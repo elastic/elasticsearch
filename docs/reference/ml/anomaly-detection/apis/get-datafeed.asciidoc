@@ -73,9 +73,6 @@ see <<ml-put-datafeed-request-body,create {dfeeds} API>>.
 [[ml-get-datafeed-example]]
 ==== {api-examples-title}
 
-The following example gets configuration information for the
-`datafeed-high_sum_total_sales` {dfeed}:
-
 [source,console]
 --------------------------------------------------
 GET _ml/datafeeds/datafeed-high_sum_total_sales

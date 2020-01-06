@@ -119,3 +119,20 @@
             properties:
               "":
                 type:     keyword
+
+---
+"Create index without soft deletes":
+  - skip:
+      version:  " - 7.9.99"
+      reason:   "indices without soft deletes are deprecated in 8.0"
+      features: "warnings"
+
+  - do:
+      warnings:
+        - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
+          Please do not specify value for setting [index.soft_deletes.enabled] of index [test_index].
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            soft_deletes.enabled: false

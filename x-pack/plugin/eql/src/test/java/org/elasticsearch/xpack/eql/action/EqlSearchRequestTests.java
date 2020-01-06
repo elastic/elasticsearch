@@ -60,15 +60,19 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
     protected EqlSearchRequest createTestInstance() {
         try {
             QueryBuilder query = parseQuery(defaultTestQuery);
-            return new EqlSearchRequest()
+            EqlSearchRequest request = new EqlSearchRequest()
                 .indices(new String[]{defaultTestIndex})
                 .query(query)
                 .timestampField(randomAlphaOfLength(10))
                 .eventTypeField(randomAlphaOfLength(10))
                 .implicitJoinKeyField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
-                .searchAfter(randomJsonSearchFromBuilder().getSortValues())
                 .rule(randomAlphaOfLength(10));
+
+            if (randomBoolean()) {
+                request.searchAfter(randomJsonSearchFromBuilder());
+            }
+            return request;
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
@@ -101,7 +105,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         return value.get();
     }
 
-    private SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
+    private Object[] randomJsonSearchFromBuilder() throws IOException {
         int numSearchAfter = randomIntBetween(1, 10);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
@@ -115,7 +119,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            return SearchAfterBuilder.fromXContent(parser);
+            return SearchAfterBuilder.fromXContent(parser).getSortValues();
         }
     }
 

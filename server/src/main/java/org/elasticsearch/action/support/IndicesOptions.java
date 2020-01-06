@@ -119,83 +119,6 @@ public class IndicesOptions implements ToXContentFragment {
             expandWildcards.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(expandWildcards));
     }
 
-    // Package visible for testing
-    static IndicesOptions fromByte(final byte id) {
-        // IGNORE_UNAVAILABLE = 1;
-        // ALLOW_NO_INDICES = 2;
-        // EXPAND_WILDCARDS_OPEN = 4;
-        // EXPAND_WILDCARDS_CLOSED = 8;
-        // FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
-        // FORBID_CLOSED_INDICES = 32;
-        // IGNORE_ALIASES = 64;
-
-        Set<Option> opts = new HashSet<>();
-        Set<WildcardStates> wildcards = new HashSet<>();
-        if ((id & 1) != 0) {
-            opts.add(Option.IGNORE_UNAVAILABLE);
-        }
-        if ((id & 2) != 0) {
-            opts.add(Option.ALLOW_NO_INDICES);
-        }
-        if ((id & 4) != 0) {
-            wildcards.add(WildcardStates.OPEN);
-        }
-        if ((id & 8) != 0) {
-            wildcards.add(WildcardStates.CLOSED);
-        }
-        if ((id & 16) != 0) {
-            opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
-        }
-        if ((id & 32) != 0) {
-            opts.add(Option.FORBID_CLOSED_INDICES);
-        }
-        if ((id & 64) != 0) {
-            opts.add(Option.IGNORE_ALIASES);
-        }
-        return new IndicesOptions(opts, wildcards);
-    }
-
-    /**
-     * See: {@link #fromByte(byte)}
-     */
-    private static byte toByte(IndicesOptions options) {
-        byte id = 0;
-        if (options.ignoreUnavailable()) {
-            id |= 1;
-        }
-        if (options.allowNoIndices()) {
-            id |= 2;
-        }
-        if (options.expandWildcardsOpen()) {
-            id |= 4;
-        }
-        if (options.expandWildcardsClosed()) {
-            id |= 8;
-        }
-        // true is default here, for bw comp we keep the first 16 values
-        // in the array same as before + the default value for the new flag
-        if (options.allowAliasesToMultipleIndices() == false) {
-            id |= 16;
-        }
-        if (options.forbidClosedIndices()) {
-            id |= 32;
-        }
-        if (options.ignoreAliases()) {
-            id |= 64;
-        }
-        return id;
-    }
-
-    private static final IndicesOptions[] OLD_VALUES;
-
-    static {
-        short max = 1 << 7;
-        OLD_VALUES = new IndicesOptions[max];
-        for (short id = 0; id < max; id++) {
-            OLD_VALUES[id] = IndicesOptions.fromByte((byte)id);
-        }
-    }
-
     /**
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
@@ -265,24 +188,12 @@ public class IndicesOptions implements ToXContentFragment {
             options = EnumSet.copyOf(options);
             options.remove(Option.IGNORE_THROTTLED);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeEnumSet(options);
-            out.writeEnumSet(expandWildcards);
-        } else {
-            out.write(IndicesOptions.toByte(this));
-        }
+        out.writeEnumSet(options);
+        out.writeEnumSet(expandWildcards);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            return new IndicesOptions(in.readEnumSet(Option.class), in.readEnumSet(WildcardStates.class));
-        } else {
-            byte id = in.readByte();
-            if (id >= OLD_VALUES.length) {
-                throw new IllegalArgumentException("No valid missing index type id: " + id);
-            }
-            return OLD_VALUES[id];
-        }
+        return new IndicesOptions(in.readEnumSet(Option.class), in.readEnumSet(WildcardStates.class));
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,

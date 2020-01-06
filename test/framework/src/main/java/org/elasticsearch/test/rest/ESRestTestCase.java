@@ -1010,7 +1010,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> expectedWarnings = List.of(
+        final List<String> expectedWarnings = Collections.singletonList(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
             "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();

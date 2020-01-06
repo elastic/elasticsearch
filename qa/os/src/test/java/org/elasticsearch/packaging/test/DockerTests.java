@@ -74,7 +74,7 @@ public class DockerTests extends PackagingTestCase {
 
     @BeforeClass
     public static void filterDistros() {
-        assumeTrue("only Docker", distribution.packaging == Distribution.Packaging.DOCKER);
+        assumeTrue("only Docker", distribution().isDocker());
     }
 
     @Before
@@ -287,7 +287,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that environment variables cannot be used with _FILE environment variables.
      */
-    public void test081CannotUseEnvVarsAndFiles() throws Exception {
+    public void test082CannotUseEnvVarsAndFiles() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE
@@ -318,7 +318,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when populating environment variables by setting variables with the suffix "_FILE",
      * the files' permissions are checked.
      */
-    public void test082EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+    public void test083EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE
@@ -344,7 +344,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
-    public void test83EnvironmentVariablesAreRespectedUnderDockerExec() {
+    public void test084EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());

@@ -120,7 +120,7 @@ public abstract class PackagingTestCase extends Assert {
 
     @BeforeClass
     public static void createShell() throws Exception {
-        if (distribution().packaging == Distribution.Packaging.DOCKER) {
+        if (distribution().isDocker()) {
             ensureImageIsLoaded(distribution);
             sh = new Docker.DockerShell();
         } else {
@@ -130,7 +130,7 @@ public abstract class PackagingTestCase extends Assert {
 
     @AfterClass
     public static void cleanupDocker() {
-        if (distribution().packaging == Distribution.Packaging.DOCKER) {
+        if (distribution().isDocker()) {
             // runContainer also calls this, so we don't need this method to be annotated as `@After`
             removeContainer();
         }

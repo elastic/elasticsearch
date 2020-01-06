@@ -89,7 +89,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     /** Test initial Docker state */
     public void test12InstallDockerDistribution() throws Exception {
-        assumeTrue(distribution().packaging == Distribution.Packaging.DOCKER);
+        assumeTrue(distribution().isDocker());
 
         installation = Docker.runContainer(distribution());
 
@@ -263,11 +263,19 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Platforms.onWindows(() -> {
             sh.chown(keystore);
         });
+
+        if (distribution().isDocker()) {
+            try {
+                waitForPathToExist(keystore);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     private void rmKeystoreIfExists() {
         Path keystore = installation.config("elasticsearch.keystore");
-        if (distribution().packaging == Distribution.Packaging.DOCKER) {
+        if (distribution().isDocker()) {
             try {
                 waitForPathToExist(keystore);
             } catch (InterruptedException e) {

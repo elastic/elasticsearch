@@ -67,8 +67,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-delete-forecast-example]]
 ==== {api-examples-title}
 
-The following example deletes all forecasts from the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests/_forecast/_all

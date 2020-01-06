@@ -34,36 +34,36 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
     }
 
     @Override
-    protected Object doProcess(Object left, Object right) {
-        return process(left, right, zoneId());
+    protected Object doProcess(Object part, Object timestamp) {
+        return process(part, timestamp, zoneId());
     }
 
     /**
      * Used in Painless scripting
      */
-    public static Object process(Object source1, Object source2, ZoneId zoneId) {
-        if (source1 == null || source2 == null) {
+    public static Object process(Object part, Object timestamp, ZoneId zoneId) {
+        if (part == null || timestamp == null) {
             return null;
         }
-        if (source1 instanceof String == false) {
-            throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
+        if (part instanceof String == false) {
+            throw new SqlIllegalArgumentException("A string is required; received [{}]", part);
         }
-        Part datePartField = Part.resolve((String) source1);
+        Part datePartField = Part.resolve((String) part);
         if (datePartField == null) {
-            List<String> similar = Part.findSimilar((String) source1);
+            List<String> similar = Part.findSimilar((String) part);
             if (similar.isEmpty()) {
                 throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    Part.values(), source1);
+                    Part.values(), part);
             } else {
                 throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for extraction; " +
-                    "did you mean {}?", source1, similar);
+                    "did you mean {}?", part, similar);
             }
         }
 
-        if (source2 instanceof ZonedDateTime == false) {
-            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", source2);
+        if (timestamp instanceof ZonedDateTime == false) {
+            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
         }
 
-        return datePartField.extract(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
+        return datePartField.extract(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId));
     }
 }

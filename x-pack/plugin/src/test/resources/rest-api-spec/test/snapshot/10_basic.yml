@@ -28,7 +28,6 @@ setup:
   - do:
       index:
           index:  test_index
-          type:   _doc
           id:     1
           body:   { foo: bar }
   - do:
@@ -40,6 +39,8 @@ setup:
         repository: test_repo_restore_1
         snapshot: test_snapshot
         wait_for_completion: true
+        body: |
+          { "indices": "test_index" }
 
   - match: { snapshot.snapshot: test_snapshot }
   - match: { snapshot.state : SUCCESS }

@@ -20,9 +20,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -36,17 +34,13 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since
     // the to hits are returned per bucket.
     private static final int DEFAULT_SIZE = 3;
-
-    private final QueryShardContext queryShardContext;
 
     private int from;
     private int size = DEFAULT_SIZE;
@@ -66,7 +60,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private FetchSourceContext fetchSourceContext;
     private DocValueFieldsContext docValueFieldsContext;
     private SearchContextHighlight highlight;
-    private Map<String, InnerHitContextBuilder> innerHits = Collections.emptyMap();
 
     private boolean explain;
     private boolean trackScores;
@@ -77,9 +70,6 @@ public class SubSearchContext extends FilteredSearchContext {
         super(context);
         this.fetchSearchResult = new FetchSearchResult();
         this.querySearchResult = new QuerySearchResult();
-        // we clone the query shard context in the sub context because the original one
-        // might be frozen at this point.
-        this.queryShardContext = new QueryShardContext(context.getQueryShardContext());
     }
 
     @Override
@@ -88,11 +78,6 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public void preProcess(boolean rewrite) {
-    }
-
-    @Override
-    public QueryShardContext getQueryShardContext() {
-        return queryShardContext;
     }
 
     @Override
@@ -370,15 +355,5 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public Map<String, InnerHitContextBuilder> innerHits() {
-        return innerHits;
-    }
-
-    @Override
-    public void innerHits(Map<String, InnerHitContextBuilder> innerHits) {
-        this.innerHits = innerHits;
     }
 }

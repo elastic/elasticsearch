@@ -21,15 +21,14 @@ public class TransformMessages {
             "Failed to validate configuration";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
-    public static final String REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
-    public static final String REST_PUT_TRANSFORM_DEST_IN_SOURCE = "Destination index [{0}] is included in source expression [{1}]";
-    public static final String REST_PUT_TRANSFORM_DEST_SINGLE_INDEX = "Destination index [{0}] should refer to a single index";
     public static final String REST_PUT_TRANSFORM_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
     public static final String TRANSFORM_CONFIG_INVALID = "Transform configuration is invalid [{0}]";
     public static final String REST_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
     public static final String TRANSFORM_FAILED_TO_PERSIST_STATS = "Failed to persist transform statistics for transform [{0}]";
     public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
+
+    public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
 
     public static final String CANNOT_STOP_FAILED_TRANSFORM =
         "Unable to stop transform [{0}] as it is in a failed state with reason [{1}]." +
@@ -75,6 +74,8 @@ public class TransformMessages {
     public static final String LOG_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE =
             "Insufficient memory for search after repeated page size reductions to [{0}], unable to continue pivot, "
             + "please simplify job or increase heap size on data nodes.";
+    public static final String LOG_TRANSFORM_PIVOT_SCRIPT_ERROR =
+            "Failed to execute script with error: [{0}], stack trace: {1}";
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
             "Failed to parse transform checkpoints for [{0}]";

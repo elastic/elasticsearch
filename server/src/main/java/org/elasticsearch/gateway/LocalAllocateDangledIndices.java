@@ -80,7 +80,7 @@ public class LocalAllocateDangledIndices {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
+            listener.onFailure(new MasterNotDiscoveredException());
             return;
         }
         AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(),
@@ -115,6 +115,13 @@ public class LocalAllocateDangledIndices {
                                 " since it's created version [{}] is not supported by at least one node in the cluster minVersion [{}]",
                                 indexMetaData.getIndex(), request.fromNode, indexMetaData.getCreationVersion(),
                                 minIndexCompatibilityVersion);
+                            continue;
+                        }
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetaData.getCreationVersion())) {
+                            logger.warn("ignoring dangled index [{}] on node [{}]" +
+                                " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                indexMetaData.getIndex(), request.fromNode, indexMetaData.getCreationVersion(),
+                                currentState.getNodes().getMasterNode().getVersion());
                             continue;
                         }
                         if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {

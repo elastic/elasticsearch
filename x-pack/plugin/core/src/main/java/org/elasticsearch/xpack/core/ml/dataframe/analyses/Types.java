@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -21,17 +23,20 @@ public final class Types {
 
     private Types() {}
 
-    private static final Set<String> CATEGORICAL_TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList("text", "keyword", "ip")));
+    private static final Set<String> CATEGORICAL_TYPES =
+        Stream.of(TextFieldMapper.CONTENT_TYPE, KeywordFieldMapper.CONTENT_TYPE, IpFieldMapper.CONTENT_TYPE)
+            .collect(Collectors.toUnmodifiableSet());
 
-    private static final Set<String> NUMERICAL_TYPES;
+    private static final Set<String> NUMERICAL_TYPES =
+        Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float"))
+            .collect(Collectors.toUnmodifiableSet());
 
-    static {
-        Set<String> numericalTypes = Stream.of(NumberFieldMapper.NumberType.values())
-            .map(NumberFieldMapper.NumberType::typeName)
-            .collect(Collectors.toSet());
-        numericalTypes.add("scaled_float");
-        NUMERICAL_TYPES = Collections.unmodifiableSet(numericalTypes);
-    }
+    private static final Set<String> DISCRETE_NUMERICAL_TYPES =
+        Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG)
+            .map(NumberType::typeName)
+            .collect(Collectors.toUnmodifiableSet());
+
+    private static final Set<String> BOOL_TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
 
     public static Set<String> categorical() {
         return CATEGORICAL_TYPES;
@@ -39,5 +44,13 @@ public final class Types {
 
     public static Set<String> numerical() {
         return NUMERICAL_TYPES;
+    }
+
+    public static Set<String> discreteNumerical() {
+        return DISCRETE_NUMERICAL_TYPES;
+    }
+
+    public static Set<String> bool() {
+        return BOOL_TYPES;
     }
 }

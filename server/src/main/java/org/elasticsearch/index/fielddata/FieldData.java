@@ -25,6 +25,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -86,7 +87,7 @@ public enum FieldData {
 
             @Override
             public ValuesSourceType valuesSourceType() {
-                return ValuesSourceType.GEO;
+                return CoreValuesSourceType.GEO;
             }
 
             @Override

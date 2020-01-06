@@ -1,11 +1,8 @@
 [[search-rank-eval]]
 === Ranking Evaluation API
 
-experimental["The ranking evaluation API is experimental and may be changed or removed completely in a future release, as well as change in non-backwards compatible ways on minor versions updates. Elastic will take a best effort approach to fix any issues, but experimental features are not subject to the support SLA of official GA features."]
-
 Allows you to evaluate the quality of ranked search results over a set of 
 typical search queries.
-
 
 [[search-rank-eval-api-request]]
 ==== {api-request-title}

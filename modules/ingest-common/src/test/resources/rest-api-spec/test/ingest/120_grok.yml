@@ -134,7 +134,6 @@ teardown:
             "docs": [
               {
                 "_index": "index",
-                "_type": "type",
                 "_id": "id",
                 "_source": {
                   "field": "abc2xyz"

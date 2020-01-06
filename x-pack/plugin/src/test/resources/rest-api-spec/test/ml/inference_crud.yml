@@ -1,0 +1,113 @@
+---
+"Test get-all given no trained models exist":
+
+  - do:
+      ml.get_trained_models:
+        model_id: "_all"
+  - match: { count: 0 }
+  - match: { trained_model_configs: [] }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+  - match: { count: 0 }
+  - match: { trained_model_configs: [] }
+
+---
+"Test get given missing trained model":
+
+  - do:
+      catch: missing
+      ml.get_trained_models:
+        model_id: "missing-trained-model"
+---
+"Test get given expression without matches and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_trained_models:
+        model_id: "missing-trained-model*"
+        allow_no_match: false
+
+---
+"Test get given expression without matches and allow_no_match is true":
+
+  - do:
+      ml.get_trained_models:
+        model_id: "missing-trained-model*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { trained_model_configs: [] }
+---
+"Test delete given unused trained model":
+
+  - do:
+      index:
+        id: trained_model_config-unused-regression-model-0
+        index: .ml-inference-000001
+        body: >
+          {
+            "model_id": "unused-regression-model",
+            "created_by": "ml_tests",
+            "version": "8.0.0",
+            "description": "empty model for tests",
+            "create_time": 0,
+            "model_version": 0,
+            "model_type": "local"
+          }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      ml.delete_trained_model:
+        model_id: "unused-regression-model"
+  - match: { acknowledged: true }
+
+---
+"Test delete with missing model":
+  - do:
+      catch: missing
+      ml.delete_trained_model:
+        model_id: "missing-trained-model"
+
+---
+"Test delete given used trained model":
+  - do:
+      index:
+        id: trained_model_config-used-regression-model-0
+        index: .ml-inference-000001
+        body: >
+          {
+            "model_id": "used-regression-model",
+            "created_by": "ml_tests",
+            "version": "8.0.0",
+            "description": "empty model for tests",
+            "create_time": 0,
+            "model_version": 0,
+            "model_type": "local"
+          }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      ingest.put_pipeline:
+        id: "regression-model-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "used-regression-model",
+                  "inference_config": {"regression": {}},
+                  "target_field": "regression_field",
+                  "field_mappings": {}
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: conflict
+      ml.delete_trained_model:
+        model_id: "used-regression-model"

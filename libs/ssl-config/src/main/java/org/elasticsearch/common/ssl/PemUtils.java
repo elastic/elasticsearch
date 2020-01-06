@@ -41,7 +41,6 @@ import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -452,7 +451,7 @@ final class PemUtils {
      */
     private static byte[] generateOpenSslKey(char[] password, byte[] salt, int keyLength) {
         byte[] passwordBytes = CharArrays.toUtf8Bytes(password);
-        MessageDigest md5 = messageDigest("md5");
+        MessageDigest md5 = SslUtil.messageDigest("md5");
         byte[] key = new byte[keyLength];
         int copied = 0;
         int remaining;
@@ -603,11 +602,4 @@ final class PemUtils {
         return certificates;
     }
 
-    private static MessageDigest messageDigest(String digestAlgorithm) {
-        try {
-            return MessageDigest.getInstance(digestAlgorithm);
-        } catch (NoSuchAlgorithmException e) {
-            throw new SslConfigException("unexpected exception creating MessageDigest instance for [" + digestAlgorithm + "]", e);
-        }
-    }
 }

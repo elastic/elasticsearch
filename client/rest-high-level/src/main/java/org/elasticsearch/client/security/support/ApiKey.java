@@ -21,6 +21,7 @@ package org.elasticsearch.client.security.support;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -126,12 +127,13 @@ public final class ApiKey {
                 && Objects.equals(realm, other.realm);
     }
 
-    static ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
+    static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
         return new ApiKey((String) args[0], (String) args[1], Instant.ofEpochMilli((Long) args[2]),
                 (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6]);
     });
     static {
-        PARSER.declareString(constructorArg(), new ParseField("name"));
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.textOrNull(), new ParseField("name"),
+            ObjectParser.ValueType.STRING_OR_NULL);
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareLong(constructorArg(), new ParseField("creation"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));

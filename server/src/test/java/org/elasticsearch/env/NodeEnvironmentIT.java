@@ -86,7 +86,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().startNode(dataPathSettings);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         logger.info("--> restarting the node with node.data=false");
         ex = expectThrows(IllegalStateException.class,
@@ -139,7 +139,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
     public void testUpgradeDataFolder() throws IOException, InterruptedException {
         String node = internalCluster().startNode();
         prepareCreate("test").get();
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("{}", XContentType.JSON));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
         String nodeId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
 
         final Settings dataPathSettings = internalCluster().dataPathSettings(node);

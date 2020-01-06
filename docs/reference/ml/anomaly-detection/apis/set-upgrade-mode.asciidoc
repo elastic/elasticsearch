@@ -29,7 +29,7 @@ POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-set-upgrade-mode-desc]]
 ==== {api-description-title}

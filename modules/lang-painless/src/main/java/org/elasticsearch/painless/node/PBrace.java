@@ -20,14 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.List;
 import java.util.Map;
@@ -50,22 +49,16 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        prefix.storeSettings(settings);
-        index.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         prefix.extractVariables(variables);
         index.extractVariables(variables);
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        prefix.analyze(functions, locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        prefix.analyze(scriptRoot, locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(functions, locals);
+        prefix = prefix.cast(scriptRoot, locals);
 
         if (prefix.actual.isArray()) {
             sub = new PSubBrace(location, prefix.actual, index);
@@ -84,7 +77,7 @@ public final class PBrace extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(functions, locals);
+        sub.analyze(scriptRoot, locals);
         actual = sub.actual;
     }
 

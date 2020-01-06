@@ -29,6 +29,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.geo.CentroidCalculator;
+import org.elasticsearch.common.geo.GeoTestUtils;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
@@ -90,7 +93,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         }, new GeoPointFieldMapper.GeoPointFieldType());
 
         testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), iw -> {
-            iw.addDocument(Collections.singleton(new BinaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D))));
+            iw.addDocument(Collections.singleton(
+                new BinaryGeoShapeDocValuesField(FIELD_NAME, GeoTestUtils.toDecodedTriangles(new Point(10D, 10D)),
+                    new CentroidCalculator(new Point(10D, 10D)))));
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
         }, new GeoShapeFieldMapper.GeoShapeFieldType());
@@ -165,7 +170,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 }
                 distinctHashesPerDoc.add(hash);
                 if (usually()) {
-                    document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME, new MultiPoint(new ArrayList<>(shapes))));
+                    Geometry geometry = new MultiPoint(new ArrayList<>(shapes));
+                    document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
+                        GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
                     iw.addDocument(document);
                     shapes.clear();
                     distinctHashesPerDoc.clear();
@@ -173,7 +180,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 }
             }
             if (shapes.size() != 0) {
-                document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME, new MultiPoint(new ArrayList<>(shapes))));
+                Geometry geometry = new MultiPoint(new ArrayList<>(shapes));
+                document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
+                    GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
                 iw.addDocument(document);
             }
         }, geoHashGrid -> {

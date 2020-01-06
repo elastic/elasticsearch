@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Set;
 
@@ -44,13 +43,6 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        if (expression != null) {
-            expression.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         if (expression != null) {
             expression.extractVariables(variables);
@@ -58,7 +50,7 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (expression == null) {
             if (locals.getReturnType() != void.class) {
                 throw location.createError(new ClassCastException("Cannot cast from " +
@@ -68,8 +60,8 @@ public final class SReturn extends AStatement {
         } else {
             expression.expected = locals.getReturnType();
             expression.internal = true;
-            expression.analyze(functions, locals);
-            expression = expression.cast(functions, locals);
+            expression.analyze(scriptRoot, locals);
+            expression = expression.cast(scriptRoot, locals);
         }
 
         methodEscape = true;

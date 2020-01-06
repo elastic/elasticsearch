@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,14 +50,15 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
 
     public void testProcessWithFieldPresent() {
         String field = "categorical";
-        List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Function.identity(),
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
+        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
             v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = "encoded";
         Double defaultvalue = randomDouble();
         TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue);
-        String fieldValue = randomFrom(values);
-        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName, equalTo(valueMap.get(fieldValue)));
+        Object fieldValue = randomFrom(values);
+        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName,
+            equalTo(valueMap.get(fieldValue.toString())));
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
         testProcess(encoding, fieldValues, matchers);
 
@@ -66,6 +66,26 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         fieldValues = randomFieldValues(field, "unknownValue");
         matchers = Collections.singletonMap(encodedFeatureName, equalTo(defaultvalue));
         testProcess(encoding, fieldValues, matchers);
+    }
+
+    public void testProcessWithNestedField() {
+        String field = "categorical.child";
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
+        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
+            v -> randomDoubleBetween(0.0, 1.0, false)));
+        String encodedFeatureName = "encoded";
+        Double defaultvalue = randomDouble();
+        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue);
+
+        Map<String, Object> fieldValues = new HashMap<>() {{
+            put("categorical", new HashMap<>(){{
+                put("child", "farequote");
+            }});
+        }};
+
+        encoding.process(fieldValues);
+
+        assertThat(fieldValues.get("encoded"), equalTo(valueMap.get("farequote")));
     }
 
 }

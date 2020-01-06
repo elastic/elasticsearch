@@ -79,6 +79,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void setReindexingTaskId(Long reindexingTaskId) {
+        LOGGER.debug("[{}] Setting reindexing task id to [{}] from [{}]", taskParams.getId(), reindexingTaskId, this.reindexingTaskId);
         this.reindexingTaskId = reindexingTaskId;
     }
 
@@ -162,7 +163,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
         // There is a chance that the task is finished by the time we cancel it in which case we'll get
         // a ResourceNotFoundException which we can ignore.
-        if (firstError != null && firstError instanceof ResourceNotFoundException == false) {
+        if (firstError != null && ExceptionsHelper.unwrapCause(firstError) instanceof ResourceNotFoundException == false) {
             throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
         } else {
             LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
@@ -215,7 +216,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 listener.onResponse(progress);
             },
             error -> {
-                if (error instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
                     // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
                     listener.onResponse(isReindexingFinished ? 100 : 0);
@@ -243,7 +244,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             statsResponse -> {
                 GetDataFrameAnalyticsStatsAction.Response.Stats stats = statsResponse.getResponse().results().get(0);
                 IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
-                indexRequest.id(progressDocId(taskParams.getId()));
+                indexRequest.id(StoredProgress.documentId(taskParams.getId()));
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                     new StoredProgress(stats.getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
@@ -307,10 +308,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 LOGGER.warn("[{}] Unexpected progress phase [{}]", jobId, lastIncompletePhase.getPhase());
                 return StartingState.FIRST_TIME;
         }
-    }
-
-    public static String progressDocId(String id) {
-        return "data_frame_analytics-" + id + "-progress";
     }
 
     public static class ProgressTracker {

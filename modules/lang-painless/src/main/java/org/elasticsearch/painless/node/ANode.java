@@ -20,12 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,11 +56,6 @@ public abstract class ANode {
     }
 
     /**
-     * Store settings required for future compiler passes.
-     */
-    abstract void storeSettings(CompilerSettings settings);
-
-    /**
      * Adds all variable names referenced to the variable set.
      * <p>
      * This can be called at any time, e.g. to support lambda capture.
@@ -72,7 +66,7 @@ public abstract class ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    abstract void analyze(FunctionTable functions, Locals locals);
+    abstract void analyze(ScriptRoot scriptRoot, Locals locals);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.

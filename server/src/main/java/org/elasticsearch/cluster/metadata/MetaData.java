@@ -367,61 +367,36 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Finds all mappings for types and concrete indices. Types are expanded to include all types that match the glob
-     * patterns in the types array. Empty types array, null or {"_all"} will be expanded to all types available for
-     * the given indices. Only fields that match the provided field filter will be returned (default is a predicate
-     * that always returns true, which can be overridden via plugins)
+     * Finds all mappings for concrete indices. Only fields that match the provided field
+     * filter will be returned (default is a predicate that always returns true, which can be
+     * overridden via plugins)
      *
      * @see MapperPlugin#getFieldFilter()
      *
      */
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
-                                                                                            final String[] types,
-                                                                                            Function<String, Predicate<String>> fieldFilter)
+    public ImmutableOpenMap<String, MappingMetaData> findMappings(String[] concreteIndices,
+                                                                  Function<String, Predicate<String>> fieldFilter)
             throws IOException {
-        assert types != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
 
-        boolean isAllTypes = isAllTypes(types);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
-            if (isAllTypes) {
-                indexMapBuilder.put(index, filterFields(indexMetaData.getMappings(), fieldPredicate));
-            } else {
-                ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings = ImmutableOpenMap.builder();
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
-                    if (Regex.simpleMatch(types, cursor.key)) {
-                        filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
-                    }
-                }
-                if (!filteredMappings.isEmpty()) {
-                    indexMapBuilder.put(index, filteredMappings.build());
-                }
-            }
+            indexMapBuilder.put(index, filterFields(indexMetaData.mapping(), fieldPredicate));
         }
         return indexMapBuilder.build();
     }
 
-    private static ImmutableOpenMap<String, MappingMetaData> filterFields(ImmutableOpenMap<String, MappingMetaData> mappings,
-                                                                          Predicate<String> fieldPredicate) throws IOException {
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
-            return mappings;
-        }
-        ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
-            builder.put(cursor.key, filterFields(cursor.value, fieldPredicate));
-        }
-        return builder.build(); // No types specified means return them all
-    }
-
     @SuppressWarnings("unchecked")
-    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) throws IOException {
+    private static MappingMetaData filterFields(MappingMetaData mappingMetaData, Predicate<String> fieldPredicate) {
+        if (mappingMetaData == null) {
+            return MappingMetaData.EMPTY_MAPPINGS;
+        }
         if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappingMetaData;
         }
@@ -667,6 +642,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return custom(IndexGraveyard.TYPE);
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
     }
@@ -721,7 +697,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         if (indexMetaData != null) {
             MappingMetaData mappingMetaData = indexMetaData.mapping();
             if (mappingMetaData != null) {
-                return mappingMetaData.routing().required();
+                return mappingMetaData.routingRequired();
             }
         }
         return false;
@@ -779,7 +755,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public static MetaData fromXContent(XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser);
+        return Builder.fromXContent(parser, false);
     }
 
     @Override
@@ -1301,7 +1277,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.endObject();
         }
 
-        public static MetaData fromXContent(XContentParser parser) throws IOException {
+        public static MetaData fromXContent(XContentParser parser, boolean preserveUnknownCustoms) throws IOException {
             Builder builder = new Builder();
 
             // we might get here after the meta-data element, or on a fresh parser
@@ -1351,8 +1327,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                             Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
                             builder.putCustom(custom.getWriteableName(), custom);
                         } catch (NamedObjectNotFoundException ex) {
-                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                            parser.skipChildren();
+                            if (preserveUnknownCustoms) {
+                                logger.warn("Adding unknown custom object with type {}", currentFieldName);
+                                builder.putCustom(currentFieldName, new UnknownGatewayOnlyCustom(parser.mapOrdered()));
+                            } else {
+                                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                                parser.skipChildren();
+                            }
                         }
                     }
                 } else if (token.isValue()) {
@@ -1373,6 +1354,45 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
     }
 
+    public static class UnknownGatewayOnlyCustom implements Custom {
+
+        private final Map<String, Object> contents;
+
+        UnknownGatewayOnlyCustom(Map<String, Object> contents) {
+            this.contents = contents;
+        }
+
+        @Override
+        public EnumSet<XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.GATEWAY);
+        }
+
+        @Override
+        public Diff<Custom> diff(Custom previousState) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.mapContents(contents);
+        }
+    }
+
     private static final ToXContent.Params FORMAT_PARAMS;
     static {
         Map<String, String> params = new HashMap<>(2);
@@ -1384,16 +1404,25 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     /**
      * State format for {@link MetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
+    public static final MetaDataStateFormat<MetaData> FORMAT = createMetaDataStateFormat(false);
 
-        @Override
-        public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
-            Builder.toXContent(state, builder, FORMAT_PARAMS);
-        }
+    /**
+     * Special state format for {@link MetaData} to write to and load from disk, preserving unknown customs
+     */
+    public static final MetaDataStateFormat<MetaData> FORMAT_PRESERVE_CUSTOMS = createMetaDataStateFormat(true);
 
-        @Override
-        public MetaData fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
-        }
-    };
+    private static MetaDataStateFormat<MetaData> createMetaDataStateFormat(boolean preserveUnknownCustoms) {
+        return new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
+
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                Builder.toXContent(state, builder, FORMAT_PARAMS);
+            }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return Builder.fromXContent(parser, preserveUnknownCustoms);
+            }
+        };
+    }
 }

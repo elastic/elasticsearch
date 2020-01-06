@@ -249,8 +249,11 @@ public class MetaDataIndexTemplateService {
                 }
                 mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
             }
-
-            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE);
+            if (mappingsForValidation.isEmpty() == false) {
+                assert mappingsForValidation.size() == 1;
+                String type = mappingsForValidation.keySet().iterator().next();
+                dummyIndexService.mapperService().merge(type, mappingsForValidation.get(type), MergeReason.MAPPING_UPDATE);
+            }
 
         } finally {
             if (createdIndex != null) {

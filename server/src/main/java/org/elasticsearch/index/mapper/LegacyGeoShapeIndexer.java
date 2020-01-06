@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.locationtech.spatial4j.shape.Point;
@@ -71,7 +73,7 @@ public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     }
 
     @Override
-    public void indexDocValueField(ParseContext context, Shape shape) {
+    public void indexDocValueField(ParseContext context, ShapeField.DecodedTriangle[] triangles, CentroidCalculator centroidCalculator) {
         throw new UnsupportedOperationException("doc values not supported for legacy shape indexer");
     }
 }

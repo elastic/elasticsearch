@@ -70,7 +70,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         }
 
         for (int i = 0; i < 5; i++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(
+            builders.add(client().prepareIndex("idx").setSource(
                     jsonBuilder().startObject()
                         .field(STRING_FIELD, randomFrom(randomStrings))
                         .field(NUMBER_FIELD, randomIntBetween(0, 9))

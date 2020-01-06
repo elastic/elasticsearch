@@ -67,7 +67,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -79,7 +79,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource("missing"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -94,7 +94,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource("missing*"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -109,7 +109,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("source-1", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -124,7 +124,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource("source-*"))
             .setDest(new DataFrameAnalyticsDest(SOURCE_2, null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -139,7 +139,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource("source-1,source-*"))
             .setDest(new DataFrameAnalyticsDest(SOURCE_2, null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -154,7 +154,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource(SOURCE_1))
             .setDest(new DataFrameAnalyticsDest("dest-alias", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -170,7 +170,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             .setId("test")
             .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("source-1-alias", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .build();
 
         SourceDestValidator validator = new SourceDestValidator(CLUSTER_STATE, new IndexNameExpressionResolver());
@@ -183,6 +183,6 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     private static DataFrameAnalyticsSource createSource(String... index) {
-        return new DataFrameAnalyticsSource(index, null);
+        return new DataFrameAnalyticsSource(index, null, null);
     }
 }

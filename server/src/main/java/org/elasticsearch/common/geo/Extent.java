@@ -18,26 +18,39 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Object representing the extent of a geometry object within a
- * {@link GeometryTreeWriter} and {@link EdgeTreeWriter}.
+ * Object representing the extent of a geometry object within a {@link TriangleTreeWriter}.
  */
-public class Extent implements Writeable {
-    static final int WRITEABLE_SIZE_IN_BYTES = 24;
+public class Extent {
 
-    public final int top;
-    public final int bottom;
-    public final int negLeft;
-    public final int negRight;
-    public final int posLeft;
-    public final int posRight;
+    public int top;
+    public int bottom;
+    public int negLeft;
+    public int negRight;
+    public int posLeft;
+    public int posRight;
+
+    private static final byte NONE_SET = 0;
+    private static final byte POSITIVE_SET = 1;
+    private static final byte NEGATIVE_SET = 2;
+    private static final byte CROSSES_LAT_AXIS = 3;
+    private static final byte ALL_SET = 4;
+
+
+    public Extent() {
+        this.top = Integer.MIN_VALUE;
+        this.bottom = Integer.MAX_VALUE;
+        this.negLeft = Integer.MAX_VALUE;
+        this.negRight = Integer.MIN_VALUE;
+        this.posLeft = Integer.MAX_VALUE;
+        this.posRight = Integer.MIN_VALUE;
+    }
 
     public Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
@@ -48,8 +61,128 @@ public class Extent implements Writeable {
         this.posRight = posRight;
     }
 
-    Extent(StreamInput input) throws IOException {
-        this(input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt());
+    public void reset(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
+        this.top = top;
+        this.bottom = bottom;
+        this.negLeft = negLeft;
+        this.negRight = negRight;
+        this.posLeft = posLeft;
+        this.posRight = posRight;
+    }
+
+    /**
+     * Adds the extent of two points representing a bounding box's bottom-left
+     * and top-right points. The bounding box must not cross the dateline.
+     *
+     * @param bottomLeftX the bottom-left x-coordinate
+     * @param bottomLeftY the bottom-left y-coordinate
+     * @param topRightX   the top-right x-coordinate
+     * @param topRightY   the top-right y-coordinate
+     */
+    public void addRectangle(int bottomLeftX, int bottomLeftY, int topRightX, int topRightY) {
+        assert bottomLeftX <= topRightX;
+        assert bottomLeftY <= topRightY;
+        this.bottom = Math.min(this.bottom, bottomLeftY);
+        this.top = Math.max(this.top, topRightY);
+        if (bottomLeftX < 0 && topRightX < 0) {
+            this.negLeft = Math.min(this.negLeft, bottomLeftX);
+            this.negRight = Math.max(this.negRight, topRightX);
+        } else if (bottomLeftX < 0) {
+            this.negLeft = Math.min(this.negLeft, bottomLeftX);
+            this.posRight = Math.max(this.posRight, topRightX);
+            // this signal the extent cannot be wrapped around the dateline
+            this.negRight = 0;
+            this.posLeft = 0;
+        } else {
+            this.posLeft = Math.min(this.posLeft, bottomLeftX);
+            this.posRight = Math.max(this.posRight, topRightX);
+        }
+    }
+
+    static void readFromCompressed(ByteArrayDataInput input, Extent extent) {
+        final int top = input.readInt();
+        final int bottom = Math.toIntExact(top - input.readVLong());
+        final int negLeft;
+        final int negRight;
+        final int posLeft;
+        final int posRight;
+        byte type = input.readByte();
+        switch (type) {
+            case NONE_SET:
+                negLeft = Integer.MAX_VALUE;
+                negRight = Integer.MIN_VALUE;
+                posLeft = Integer.MAX_VALUE;
+                posRight = Integer.MIN_VALUE;
+                break;
+            case POSITIVE_SET:
+                posRight = input.readVInt();
+                posLeft =  Math.toIntExact(posRight - input.readVLong());
+                negLeft = Integer.MAX_VALUE;
+                negRight = Integer.MIN_VALUE;
+                break;
+            case NEGATIVE_SET:
+                negRight = input.readInt();
+                negLeft = Math.toIntExact(negRight - input.readVLong());
+                posLeft = Integer.MAX_VALUE;
+                posRight = Integer.MIN_VALUE;
+                break;
+            case CROSSES_LAT_AXIS:
+                posRight = input.readInt();
+                negLeft = Math.toIntExact(posRight - input.readVLong());
+                posLeft = 0;
+                negRight = 0;
+                break;
+            default:
+                posRight = input.readVInt();
+                posLeft =  Math.toIntExact(posRight - input.readVLong());
+                negRight = input.readInt();
+                negLeft = Math.toIntExact(negRight - input.readVLong());
+                break;
+        }
+        extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
+    }
+
+    void writeCompressed(ByteBuffersDataOutput output) throws IOException {
+        output.writeInt(this.top);
+        output.writeVLong((long) this.top - this.bottom);
+        byte type;
+        if (this.negLeft == Integer.MAX_VALUE && this.negRight == Integer.MIN_VALUE) {
+            if (this.posLeft == Integer.MAX_VALUE && this.posRight == Integer.MIN_VALUE) {
+                type = NONE_SET;
+            } else {
+                type = POSITIVE_SET;
+            }
+        } else if (this.posLeft == Integer.MAX_VALUE && this.posRight == Integer.MIN_VALUE) {
+            type = NEGATIVE_SET;
+        } else {
+            if (posLeft == 0 && negRight == 0) {
+                type = CROSSES_LAT_AXIS;
+            } else {
+                type = ALL_SET;
+            }
+        }
+        output.writeByte(type);
+        switch (type) {
+            case NONE_SET : break;
+            case POSITIVE_SET:
+                output.writeVInt(this.posRight);
+                output.writeVLong((long) this.posRight - this.posLeft);
+                break;
+            case NEGATIVE_SET:
+                output.writeInt(this.negRight);
+                output.writeVLong((long) this.negRight - this.negLeft);
+                break;
+            case CROSSES_LAT_AXIS:
+                output.writeInt(this.posRight);
+                output.writeVLong((long) this.posRight - this.negLeft);
+                break;
+            default:
+                output.writeVInt(this.posRight);
+                output.writeVLong((long) this.posRight - this.posLeft);
+                output.writeInt(this.negRight);
+                output.writeVLong((long) this.negRight - this.negLeft);
+                break;
+        }
     }
 
     /**
@@ -86,8 +219,11 @@ public class Extent implements Writeable {
             negLeft = bottomLeftX;
             negRight = topRightX;
         } else if (bottomLeftX < 0) {
-            negLeft = negRight = bottomLeftX;
-            posLeft = posRight = topRightX;
+            negLeft = bottomLeftX;
+            posRight = topRightX;
+            // this signal the extent cannot be wrapped around the dateline
+            negRight = 0;
+            posLeft = 0;
         } else {
             posLeft = bottomLeftX;
             posRight = topRightX;
@@ -123,17 +259,6 @@ public class Extent implements Writeable {
         return Math.max(negRight, posRight);
     }
 
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(top);
-        out.writeInt(bottom);
-        out.writeInt(negLeft);
-        out.writeInt(negRight);
-        out.writeInt(posLeft);
-        out.writeInt(posRight);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -150,5 +275,17 @@ public class Extent implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(top, bottom, negLeft, negRight, posLeft, posRight);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("[");
+        builder.append("top = " + top + ", ");
+        builder.append("bottom = " + bottom + ", ");
+        builder.append("negLeft = " + negLeft + ", ");
+        builder.append("negRight = " + negRight + ", ");
+        builder.append("posLeft = " + posLeft + ", ");
+        builder.append("posRight = " + posRight + "]");
+        return builder.toString();
     }
 }

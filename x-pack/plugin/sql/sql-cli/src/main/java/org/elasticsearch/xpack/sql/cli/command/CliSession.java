@@ -21,6 +21,7 @@ public class CliSession {
     private int fetchSize = Protocol.FETCH_SIZE;
     private String fetchSeparator = "";
     private boolean debug;
+    private boolean binary;
 
     public CliSession(HttpClient httpClient) {
         this.httpClient = httpClient;
@@ -55,6 +56,14 @@ public class CliSession {
 
     public boolean isDebug() {
         return debug;
+    }
+    
+    public void setBinary(boolean binary) {
+        this.binary = binary;
+    }
+
+    public boolean isBinary() {
+        return binary;
     }
 
     public void checkConnection() throws ClientException {

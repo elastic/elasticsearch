@@ -25,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -102,7 +103,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         List<SnapshotsInProgress.Entry> currentSnapshots =
             snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots()));
         if (currentSnapshots.isEmpty()) {
-            listener.onResponse(buildResponse(request, currentSnapshots, null));
+            buildResponse(request, currentSnapshots, null, listener);
             return;
         }
 
@@ -124,20 +125,22 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             client.executeLocally(TransportNodesSnapshotsStatus.TYPE,
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout()),
-                ActionListener.wrap(
-                    nodeSnapshotStatuses -> threadPool.executor(ThreadPool.Names.GENERIC).execute(
-                        ActionRunnable.wrap(listener, l -> l.onResponse(buildResponse(request, snapshotsService.currentSnapshots(
-                            request.repository(), Arrays.asList(request.snapshots())), nodeSnapshotStatuses)))), listener::onFailure));
+                ActionListener.wrap(nodeSnapshotStatuses -> threadPool.generic().execute(
+                    ActionRunnable.wrap(listener,
+                        l -> buildResponse(
+                            request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
+                            nodeSnapshotStatuses, l))
+                ), listener::onFailure));
         } else {
             // We don't have any in-progress shards, just return current stats
-            listener.onResponse(buildResponse(request, currentSnapshots, null));
+            buildResponse(request, currentSnapshots, null, listener);
         }
 
     }
 
-    private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshotEntries,
-                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses)
-                                                  throws IOException {
+    private void buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshotEntries,
+                               TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
+                               ActionListener<SnapshotsStatusResponse> listener) {
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
         Set<String> currentSnapshotNames = new HashSet<>();
@@ -197,8 +200,18 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
         if (Strings.hasText(repositoryName) && request.snapshots() != null && request.snapshots().length > 0) {
-            final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
-            final RepositoryData repositoryData = snapshotsService.getRepositoryData(repositoryName);
+            loadRepositoryData(request, builder, currentSnapshotNames, repositoryName, listener);
+        } else {
+            listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
+        }
+    }
+
+    private void loadRepositoryData(SnapshotsStatusRequest request, List<SnapshotStatus> builder, Set<String> currentSnapshotNames,
+                                    String repositoryName, ActionListener<SnapshotsStatusResponse> listener) {
+        final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
+        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        snapshotsService.getRepositoryData(repositoryName, repositoryDataListener);
+        repositoryDataListener.whenComplete(repositoryData -> {
             final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
@@ -253,9 +266,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime));
                 }
             }
-        }
-
-        return new SnapshotsStatusResponse(Collections.unmodifiableList(builder));
+            listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
+        }, listener::onFailure);
     }
 
 }

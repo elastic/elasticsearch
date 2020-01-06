@@ -26,7 +26,6 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
 
@@ -66,7 +65,6 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
     }
 
     @Input
-    @SkipWhenEmpty
     public Set<String> getResources() {
         return Collections.unmodifiableSet(resources);
     }
@@ -78,8 +76,8 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         return System.getProperty("java.class.path");
     }
 
-    public void setOutputDir(DirectoryProperty outputDir) {
-        this.outputDir = outputDir;
+    public void setOutputDir(File outputDir) {
+        this.outputDir.set(outputDir);
     }
 
     public File copy(String resource) {
@@ -95,6 +93,7 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
     @TaskAction
     public void doExport() {
         if (resources.isEmpty()) {
+            setDidWork(false);
             throw new StopExecutionException();
         }
         resources.stream().parallel()

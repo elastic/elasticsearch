@@ -19,15 +19,12 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -41,11 +38,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestDeleteAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
-        "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
-        "or /{index}/_create/{id}).";
 
     private final ClusterService clusterService;
 
@@ -60,13 +52,6 @@ public class RestIndexAction extends BaseRestHandler {
         CreateHandler createHandler = new CreateHandler();
         controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
         controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(POST, "/{index}/{type}", autoIdHandler); // auto id creation
-        controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
     @Override
@@ -119,15 +104,8 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndexRequest indexRequest;
-        final String type = request.param("type");
-        if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-            deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
-            indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
-        } else {
-            indexRequest = new IndexRequest(request.param("index"));
-            indexRequest.id(request.param("id"));
-        }
+        IndexRequest indexRequest = new IndexRequest(request.param("index"));
+        indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.requiredContent(), request.getXContentType());

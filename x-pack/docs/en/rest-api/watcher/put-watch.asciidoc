@@ -16,7 +16,7 @@ Either registers a new watch in {watcher} or updates an existing one.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[watcher-api-put-watch-desc]]
 ==== {api-description-title}

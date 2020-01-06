@@ -22,16 +22,15 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,15 +65,6 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        lhs.storeSettings(settings);
-
-        if (rhs != null) {
-            rhs.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         lhs.extractVariables(variables);
 
@@ -84,26 +74,26 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        analyzeLHS(functions, locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        analyzeLHS(scriptRoot, locals);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(functions, locals);
+            analyzeCompound(scriptRoot, locals);
         } else if (rhs != null) {
-            analyzeSimple(functions, locals);
+            analyzeSimple(scriptRoot, locals);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
     }
 
-    private void analyzeLHS(FunctionTable functions, Locals locals) {
+    private void analyzeLHS(ScriptRoot scriptRoot, Locals locals) {
         if (lhs instanceof AStoreable) {
             AStoreable lhs = (AStoreable)this.lhs;
 
             lhs.read = read;
             lhs.write = true;
-            lhs.analyze(functions, locals);
+            lhs.analyze(scriptRoot, locals);
         } else {
             throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
         }
@@ -147,9 +137,8 @@ public final class EAssignment extends AExpression {
         }
     }
 
-    private void analyzeCompound(FunctionTable functions, Locals locals) {
-        rhs.analyze(functions, locals);
-
+    private void analyzeCompound(ScriptRoot scriptRoot, Locals locals) {
+        rhs.analyze(scriptRoot, locals);
         boolean shift = false;
 
         if (operation == Operation.MUL) {
@@ -211,7 +200,7 @@ public final class EAssignment extends AExpression {
             rhs.expected = promote;
         }
 
-        rhs = rhs.cast(functions, locals);
+        rhs = rhs.cast(scriptRoot, locals);
 
         there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
         back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
@@ -220,12 +209,12 @@ public final class EAssignment extends AExpression {
         this.actual = read ? lhs.actual : void.class;
     }
 
-    private void analyzeSimple(FunctionTable functions, Locals locals) {
+    private void analyzeSimple(ScriptRoot scriptRoot, Locals locals) {
         AStoreable lhs = (AStoreable)this.lhs;
 
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
         if (lhs.isDefOptimized()) {
-            rhs.analyze(functions, locals);
+            rhs.analyze(scriptRoot, locals);
 
             if (rhs.actual == void.class) {
                 throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -236,10 +225,10 @@ public final class EAssignment extends AExpression {
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
             rhs.expected = lhs.actual;
-            rhs.analyze(functions, locals);
+            rhs.analyze(scriptRoot, locals);
         }
 
-        rhs = rhs.cast(functions, locals);
+        rhs = rhs.cast(scriptRoot, locals);
 
         this.statement = true;
         this.actual = read ? lhs.actual : void.class;

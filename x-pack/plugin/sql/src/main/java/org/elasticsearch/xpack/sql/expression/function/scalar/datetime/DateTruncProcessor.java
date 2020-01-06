@@ -34,36 +34,36 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
     }
 
     @Override
-    protected Object doProcess(Object left, Object right) {
-        return process(left, right, zoneId());
+    protected Object doProcess(Object truncateTo, Object timestamp) {
+        return process(truncateTo, timestamp, zoneId());
     }
 
     /**
      * Used in Painless scripting
      */
-    public static Object process(Object source1, Object source2, ZoneId zoneId) {
-        if (source1 == null || source2 == null) {
+    public static Object process(Object truncateTo, Object timestamp, ZoneId zoneId) {
+        if (truncateTo == null || timestamp == null) {
             return null;
         }
-        if (source1 instanceof String == false) {
-            throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
+        if (truncateTo instanceof String == false) {
+            throw new SqlIllegalArgumentException("A string is required; received [{}]", truncateTo);
         }
-        Part truncateDateField = Part.resolve((String) source1);
+        Part truncateDateField = Part.resolve((String) truncateTo);
         if (truncateDateField == null) {
-            List<String> similar = Part.findSimilar((String) source1);
+            List<String> similar = Part.findSimilar((String) truncateTo);
             if (similar.isEmpty()) {
                 throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    Part.values(), source1);
+                    Part.values(), truncateTo);
             } else {
                 throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for truncation; " +
-                    "did you mean {}?", source1, similar);
+                    "did you mean {}?", truncateTo, similar);
             }
         }
 
-        if (source2 instanceof ZonedDateTime == false) {
-            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", source2);
+        if (timestamp instanceof ZonedDateTime == false) {
+            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
         }
 
-        return truncateDateField.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
+        return truncateDateField.truncate(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId));
     }
 }

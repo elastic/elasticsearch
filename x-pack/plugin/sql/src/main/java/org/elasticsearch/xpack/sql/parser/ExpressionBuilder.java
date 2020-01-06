@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -157,10 +158,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitSelectExpression(SelectExpressionContext ctx) {
         Expression exp = expression(ctx.expression());
         String alias = visitIdentifier(ctx.identifier());
-        if (alias != null) {
-            exp = new Alias(source(ctx), alias, exp);
-        }
-        return exp;
+        Source source = source(ctx);
+        return alias != null ? new Alias(source, alias, exp) : new UnresolvedAlias(source, exp);
     }
 
     @Override
@@ -528,7 +527,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         TimeUnit leading = visitIntervalField(interval.leading);
         TimeUnit trailing = visitIntervalField(interval.trailing);
-        
+
         // only YEAR TO MONTH or DAY TO HOUR/MINUTE/SECOND are valid declaration
         if (trailing != null) {
             if (leading == TimeUnit.YEAR && trailing != TimeUnit.MONTH) {
@@ -869,11 +868,28 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (parentCtx != null) {
             if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
                 parentCtx = parentCtx.getParent();
-                if (parentCtx != null && parentCtx instanceof SqlBaseParser.ConstantDefaultContext) {
+                if (parentCtx instanceof ConstantDefaultContext) {
                     parentCtx = parentCtx.getParent();
-                    if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
+                    if (parentCtx instanceof ValueExpressionDefaultContext) {
                         parentCtx = parentCtx.getParent();
-                        if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
+
+                        // Skip parentheses, e.g.: - (( (2.15) ) )
+                        while (parentCtx instanceof PredicatedContext) {
+                            parentCtx = parentCtx.getParent();
+                            if (parentCtx instanceof SqlBaseParser.BooleanDefaultContext) {
+                                parentCtx = parentCtx.getParent();
+                            }
+                            if (parentCtx instanceof SqlBaseParser.ExpressionContext) {
+                                parentCtx = parentCtx.getParent();
+                            }
+                            if (parentCtx instanceof SqlBaseParser.ParenthesizedExpressionContext) {
+                                parentCtx = parentCtx.getParent();
+                            }
+                            if (parentCtx instanceof ValueExpressionDefaultContext) {
+                                parentCtx = parentCtx.getParent();
+                            }
+                        }
+                        if (parentCtx instanceof ArithmeticUnaryContext) {
                             if (((ArithmeticUnaryContext) parentCtx).MINUS() != null) {
                                 return source(parentCtx);
                             }

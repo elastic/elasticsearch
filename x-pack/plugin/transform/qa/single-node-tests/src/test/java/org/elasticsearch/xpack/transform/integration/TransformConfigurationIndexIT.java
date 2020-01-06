@@ -50,7 +50,7 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
         // refresh the index
         assertOK(client().performRequest(new Request("POST", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_refresh")));
 
-        Request deleteRequest = new Request("DELETE", TRANSFORM_ENDPOINT + fakeTransformName);
+        Request deleteRequest = new Request("DELETE", getTransformEndpoint() + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertOK(deleteResponse);
         assertTrue((boolean)XContentMapValues.extractValue("acknowledged", entityAsMap(deleteResponse)));

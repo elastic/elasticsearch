@@ -1,0 +1,60 @@
+{
+  "ml.get_trained_models":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html"
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/inference/{model_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the trained models to fetch"
+            }
+          }
+        },
+        {
+          "path":"/_ml/inference",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no trained models. (This includes `_all` string or when no trained models have been specified)",
+        "default":true
+      },
+      "include_model_definition":{
+        "type":"boolean",
+        "required":false,
+        "description":"Should the full model definition be included in the results. These definitions can be large. So be cautious when including them. Defaults to false.",
+        "default":false
+      },
+      "decompress_definition": {
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "Should the model definition be decompressed into valid JSON or returned in a custom compressed format. Defaults to true."
+      },
+      "from":{
+        "type":"int",
+        "description":"skips a number of trained models",
+        "default":0
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of trained models to get",
+        "default":100
+      }
+    }
+  }
+}

@@ -43,7 +43,7 @@ Each seed hosts provider yields the IP addresses or hostnames of the seed
 nodes. If it returns any hostnames then these are resolved to IP addresses
 using a DNS lookup. If a hostname resolves to multiple IP addresses then {es}
 tries to find a seed node at all of these addresses. If the hosts provider does
-not explicitly give the TCP port of the node then by it will implicitly use the
+not explicitly give the TCP port of the node by then, it will implicitly use the
 first port in the port range given by `transport.profiles.default.port`, or by
 `transport.port` if `transport.profiles.default.port` is not set. The number of
 concurrent lookups is controlled by

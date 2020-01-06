@@ -23,7 +23,6 @@ import java.util.Locale;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
@@ -51,7 +50,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -63,7 +62,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
-            leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -79,7 +78,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
-            leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -93,13 +92,10 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         String address = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-        assertBusy(() -> {
-            List<RemoteConnectionInfo> infos =
-                followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
-            assertThat(infos.size(), equalTo(1));
-            assertThat(infos.get(0).getNumNodesConnected(), greaterThanOrEqualTo(1));
-        });
+        List<RemoteConnectionInfo> infos =
+            followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        assertThat(infos.size(), equalTo(1));
+        assertTrue(infos.get(0).isConnected());
     }
 
     private void cleanRemoteCluster() throws Exception {

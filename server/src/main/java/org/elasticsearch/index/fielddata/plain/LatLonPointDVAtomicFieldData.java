@@ -25,6 +25,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -76,7 +77,7 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
 
                 @Override
                 public ValuesSourceType valuesSourceType() {
-                    return ValuesSourceType.GEOPOINT;
+                    return CoreValuesSourceType.GEOPOINT;
                 }
 
                 @Override

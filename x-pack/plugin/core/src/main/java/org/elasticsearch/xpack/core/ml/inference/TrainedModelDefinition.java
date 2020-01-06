@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -24,13 +29,17 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-public class TrainedModelDefinition implements ToXContentObject, Writeable {
+public class TrainedModelDefinition implements ToXContentObject, Writeable, Accountable {
 
-    public static final String NAME = "trained_model_doc";
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TrainedModelDefinition.class);
+    public static final String NAME = "trained_model_definition";
 
     public static final ParseField TRAINED_MODEL = new ParseField("trained_model");
     public static final ParseField PREPROCESSORS = new ParseField("preprocessors");
@@ -42,7 +51,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
     private static ObjectParser<TrainedModelDefinition.Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<TrainedModelDefinition.Builder, Void> parser = new ObjectParser<>(NAME,
             ignoreUnknownFields,
-            TrainedModelDefinition.Builder::new);
+            TrainedModelDefinition.Builder::builderForParser);
         parser.declareNamedObjects(TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> ignoreUnknownFields ?
                 p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
@@ -65,8 +74,8 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
     private final TrainedModel trainedModel;
     private final List<PreProcessor> preProcessors;
 
-    TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors) {
-        this.trainedModel = trainedModel;
+    private TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors) {
+        this.trainedModel = ExceptionsHelper.requireNonNull(trainedModel, TRAINED_MODEL);
         this.preProcessors = preProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(preProcessors);
     }
 
@@ -106,6 +115,15 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
         return preProcessors;
     }
 
+    private void preProcess(Map<String, Object> fields) {
+        preProcessors.forEach(preProcessor -> preProcessor.process(fields));
+    }
+
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+        preProcess(fields);
+        return trainedModel.infer(fields, config);
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);
@@ -117,12 +135,30 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinition that = (TrainedModelDefinition) o;
         return Objects.equals(trainedModel, that.trainedModel) &&
-            Objects.equals(preProcessors, that.preProcessors) ;
+            Objects.equals(preProcessors, that.preProcessors);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(trainedModel, preProcessors);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(trainedModel);
+        size += RamUsageEstimator.sizeOfCollection(preProcessors);
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(preProcessors.size() + 2);
+        accountables.add(Accountables.namedAccountable("trained_model", trainedModel));
+        for(PreProcessor preProcessor : preProcessors) {
+            accountables.add(Accountables.namedAccountable("pre_processor_" + preProcessor.getName(), preProcessor));
+        }
+        return accountables;
     }
 
     public static class Builder {

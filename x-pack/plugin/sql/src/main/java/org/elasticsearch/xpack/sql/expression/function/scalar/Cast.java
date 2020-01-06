@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Objects;
 
@@ -64,10 +63,10 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public Nullability nullable() {
-        if (DataTypes.isNull(from())) {
+        if (from().isNull()) {
             return Nullability.TRUE;
         }
-        return field().nullable();
+        return Nullability.UNKNOWN;
     }
 
     @Override

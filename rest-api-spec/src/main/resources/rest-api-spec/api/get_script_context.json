@@ -1,0 +1,19 @@
+{
+  "get_script_context":{
+    "documentation":{
+      "description":"Returns all script contexts."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_script_context",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

@@ -32,7 +32,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
@@ -61,12 +60,10 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject().
-            startObject("type").
             startObject("properties").
             startObject("test")
             .field("type", "keyword")
             .endObject().
-                endObject().
                 endObject()
             .endObject());
         final double exceptionRate;
@@ -98,11 +95,11 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).get();
+                .setMapping(mapping).get();
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
-                client().prepareIndex("test", "type", "init" + i).setSource("test", "init").get();
+                client().prepareIndex("test").setId("init" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
             client().admin().indices().prepareFlush("test").execute().get();
@@ -121,7 +118,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).get();
+                .setMapping(mapping).get();
         }
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
             // it's OK to timeout here
@@ -145,7 +142,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i))
+                IndexResponse indexResponse = client().prepareIndex("test").setId(Integer.toString(i))
                         .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
                 if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;

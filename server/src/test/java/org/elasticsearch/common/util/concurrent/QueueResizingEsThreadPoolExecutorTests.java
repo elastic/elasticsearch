@@ -64,7 +64,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testAutoQueueSizingUp() throws Exception {
@@ -93,7 +92,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testAutoQueueSizingDown() throws Exception {
@@ -121,7 +119,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testAutoQueueSizingWithMin() throws Exception {
@@ -151,7 +148,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testAutoQueueSizingWithMax() throws Exception {
@@ -181,7 +177,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     public void testExecutionEWMACalculation() throws Exception {
@@ -222,7 +217,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
 
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     /** Use a runnable wrapper that simulates a task with unknown failures. */
@@ -244,7 +238,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         executeTask(executor, 1);
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
-        context.close();
     }
 
     private Function<Runnable, WrappedRunnable> fastWrapper() {

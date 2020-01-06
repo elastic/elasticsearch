@@ -71,10 +71,10 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
 
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("2")
+                indexRequest("test").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
 
         client().admin().indices().prepareRefresh().get();

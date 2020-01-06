@@ -113,7 +113,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     protected ClusterHealthResponse createTestInstance() {
         int indicesSize = randomInt(20);
         Map<String, ClusterIndexHealth> indices = new HashMap<>(indicesSize);
-        if ("indices".equals(level) || "shards".equals(level)) {
+        if (ClusterHealthRequest.Level.INDICES.equals(level) || ClusterHealthRequest.Level.SHARDS.equals(level)) {
             for (int i = 0; i < indicesSize; i++) {
                 String indexName = randomAlphaOfLengthBetween(1, 5) + i;
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));

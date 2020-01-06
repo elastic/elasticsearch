@@ -20,9 +20,11 @@
 package org.elasticsearch.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -34,6 +36,8 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -186,4 +190,135 @@ public class GeometryTestUtils {
         );
         return geometry.apply(hasAlt);
     }
+
+    /**
+     * Extracts all vertices of the supplied geometry
+     */
+    public static MultiPoint toMultiPoint(Geometry geometry) {
+        return geometry.visit(new GeometryVisitor<>() {
+            @Override
+            public MultiPoint visit(Circle circle) throws RuntimeException {
+                throw new UnsupportedOperationException("not supporting circles yet");
+            }
+
+            @Override
+            public MultiPoint visit(GeometryCollection<?> collection) throws RuntimeException {
+                List<Point> points = new ArrayList<>();
+                collection.forEach(geometry -> toMultiPoint(geometry).forEach(points::add));
+                return new MultiPoint(points);
+            }
+
+            @Override
+            public MultiPoint visit(Line line) throws RuntimeException {
+                List<Point> points = new ArrayList<>();
+                for (int i = 0; i < line.length(); i++) {
+                    points.add(new Point(line.getX(i), line.getY(i), line.getZ(i)));
+                }
+                return new MultiPoint(points);
+            }
+
+            @Override
+            public MultiPoint visit(LinearRing ring) throws RuntimeException {
+                return visit((Line) ring);
+            }
+
+            @Override
+            public MultiPoint visit(MultiLine multiLine) throws RuntimeException {
+                return visit((GeometryCollection<?>) multiLine);
+            }
+
+            @Override
+            public MultiPoint visit(MultiPoint multiPoint) throws RuntimeException {
+                return multiPoint;
+            }
+
+            @Override
+            public MultiPoint visit(MultiPolygon multiPolygon) throws RuntimeException {
+                return visit((GeometryCollection<?>) multiPolygon);
+            }
+
+            @Override
+            public MultiPoint visit(Point point) throws RuntimeException {
+                return new MultiPoint(Collections.singletonList(point));
+            }
+
+            @Override
+            public MultiPoint visit(Polygon polygon) throws RuntimeException {
+                List<Geometry> multiPoints = new ArrayList<>();
+                multiPoints.add(toMultiPoint(polygon.getPolygon()));
+                for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                    multiPoints.add(toMultiPoint(polygon.getHole(i)));
+                }
+                return toMultiPoint(new GeometryCollection<>(multiPoints));
+            }
+
+            @Override
+            public MultiPoint visit(Rectangle rectangle) throws RuntimeException {
+                return new MultiPoint(Arrays.asList(new Point(rectangle.getMinX(), rectangle.getMinY(), rectangle.getMinZ()),
+                    new Point(rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMaxZ())));
+            }
+        });
+    }
+
+    /**
+     * Preforms left fold operation on all primitive geometries (points, lines polygons, circles and rectangles).
+     * All collection geometries are iterated depth first.
+     */
+    public static <R, E extends Exception> R fold(Geometry geometry, R state, CheckedBiFunction<Geometry, R, R, E> operation) throws E {
+        return geometry.visit(new GeometryVisitor<R, E>() {
+            @Override
+            public R visit(Circle circle) throws E {
+                return operation.apply(geometry, state);
+            }
+
+            @Override
+            public R visit(GeometryCollection<?> collection) throws E {
+                R ret = state;
+                for (Geometry g : collection) {
+                    ret = fold(g, ret, operation);
+                }
+                return ret;
+            }
+
+            @Override
+            public R visit(Line line) throws E {
+                return operation.apply(line, state);
+            }
+
+            @Override
+            public R visit(LinearRing ring) throws E {
+                return operation.apply(ring, state);
+            }
+
+            @Override
+            public R visit(MultiLine multiLine) throws E {
+                return visit((GeometryCollection<?>) multiLine);
+            }
+
+            @Override
+            public R visit(MultiPoint multiPoint) throws E {
+                return visit((GeometryCollection<?>) multiPoint);            }
+
+            @Override
+            public R visit(MultiPolygon multiPolygon) throws E {
+                return visit((GeometryCollection<?>) multiPolygon);
+            }
+
+            @Override
+            public R visit(Point point) throws E {
+                return operation.apply(point, state);
+            }
+
+            @Override
+            public R visit(Polygon polygon) throws E {
+                return operation.apply(polygon, state);
+            }
+
+            @Override
+            public R visit(Rectangle rectangle) throws E {
+                return operation.apply(rectangle, state);
+            }
+        });
+    }
+
 }

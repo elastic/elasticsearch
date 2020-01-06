@@ -114,7 +114,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
             CellIdSource cellIdSource = new CellIdSource(geoValue, precision, GeoGridTiler.GeoTileGridTiler.INSTANCE);
-            return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(), missingBucket());
+            return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
+                missingBucket(), script() != null);
         } else {
             throw new IllegalArgumentException("invalid source, expected one of [geo_point, geo_shape], got "
                 + orig.getClass().getSimpleName());

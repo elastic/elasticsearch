@@ -114,12 +114,12 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                         .addMapping("my-type", createMappingSource("binary"))
                         .setSettings(indexSettings())
         );
-        client().prepareIndex("my-index", "my-type", "1")
+        client().prepareIndex("my-index").setId("1")
                 .setSource(jsonBuilder().startObject().field("binaryData",
                         Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject())
                 .get();
         flush();
-        client().prepareIndex("my-index", "my-type", "2")
+        client().prepareIndex("my-index").setId("2")
                 .setSource(jsonBuilder().startObject().field("binaryData",
                         Base64.getEncoder().encodeToString(randomBytesDoc2)).endObject())
                 .get();
@@ -158,15 +158,15 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     public void testCustomScriptBoost() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
                 .get();
         flush();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test").setId("2")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
                 .get();
         flush();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test").setId("3")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
                 .get();
         refresh();

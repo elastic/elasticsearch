@@ -10,7 +10,7 @@ These {ccr} settings can be dynamically updated on a live cluster with the
 ==== Remote recovery settings
 
 The following setting can be used to rate-limit the data transmitted during
-{stack-ov}/remote-recovery.html[remote recoveries]:
+<<remote-recovery,remote recoveries>>:
 
 `ccr.indices.recovery.max_bytes_per_sec` (<<cluster-update-settings,Dynamic>>)::
 Limits the total inbound and outbound remote recovery traffic on each node.

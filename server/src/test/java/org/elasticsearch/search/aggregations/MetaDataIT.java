@@ -46,7 +46,7 @@ public class MetaDataIT extends ESIntegTestCase {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                     .field("name", name)
                     .field("value", randomInt())

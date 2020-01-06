@@ -127,10 +127,12 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     public abstract DataType dataType();
 
     @Override
-    public abstract int hashCode();
+    public String toString() {
+        return sourceText();
+    }
 
     @Override
-    public String toString() {
-        return nodeName() + "[" + propertiesToString(false) + "]";
+    public String propertiesToString(boolean skipIfChild) {
+        return super.propertiesToString(false);
     }
 }

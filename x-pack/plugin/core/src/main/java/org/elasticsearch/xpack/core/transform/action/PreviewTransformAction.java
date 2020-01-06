@@ -22,9 +22,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
     public static final PreviewTransformAction INSTANCE = new PreviewTransformAction();
-    public static final String NAME = "cluster:admin/data_frame/preview";
+    public static final String NAME = "cluster:admin/transform/preview";
 
     private PreviewTransformAction() {
         super(NAME, PreviewTransformAction.Response::new);
@@ -66,7 +67,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             Object providedDestination = content.get(TransformField.DESTINATION.getPreferredName());
             if (providedDestination instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, String> destMap = (Map<String, String>)providedDestination;
+                Map<String, String> destMap = (Map<String, String>) providedDestination;
                 String pipeline = destMap.get(DestConfig.PIPELINE.getPreferredName());
                 if (pipeline != null) {
                     tempDestination.put(DestConfig.PIPELINE.getPreferredName(), pipeline);
@@ -74,12 +75,15 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             }
             content.put(TransformField.DESTINATION.getPreferredName(), tempDestination);
             content.put(TransformField.ID.getPreferredName(), "transform-preview");
-            try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
-                XContentParser newParser = XContentType.JSON
-                    .xContent()
-                    .createParser(parser.getXContentRegistry(),
+            try (
+                XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
+                XContentParser newParser = XContentType.JSON.xContent()
+                    .createParser(
+                        parser.getXContentRegistry(),
                         LoggingDeprecationHandler.INSTANCE,
-                        BytesReference.bytes(xContentBuilder).streamInput())) {
+                        BytesReference.bytes(xContentBuilder).streamInput()
+                    )
+            ) {
                 return new Request(TransformConfig.fromXContent(newParser, "transform-preview", false));
             }
         }
@@ -87,14 +91,19 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if(config.getPivotConfig() != null) {
-                for(String failure : config.getPivotConfig().aggFieldValidation()) {
+            if (config.getPivotConfig() != null) {
+                for (String failure : config.getPivotConfig().aggFieldValidation()) {
                     validationException = addValidationError(failure, validationException);
                 }
             }
+
+            validationException = SourceDestValidator.validateRequest(
+                validationException,
+                config.getDestination() != null ? config.getDestination().getIndex() : null
+            );
+
             return validationException;
         }
-
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -136,11 +145,12 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         public static ParseField PREVIEW = new ParseField("preview");
         public static ParseField MAPPINGS = new ParseField("mappings");
 
-        static ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
+        static final ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
         static {
             PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), PREVIEW);
             PARSER.declareObject(Response::setMappings, (p, c) -> p.mapOrdered(), MAPPINGS);
         }
+
         public Response() {}
 
         public Response(StreamInput in) throws IOException {

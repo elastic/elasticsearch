@@ -29,6 +29,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -46,9 +47,9 @@ public abstract class InnerHitContextBuilder {
         this.query = query;
     }
 
-    public final void validate(QueryShardContext queryShardContext) {
+    public final void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
         long innerResultWindow = innerHitBuilder.getFrom() + innerHitBuilder.getSize();
-        int maxInnerResultWindow = queryShardContext.getIndexSettings().getMaxInnerResultWindow();
+        int maxInnerResultWindow = parentSearchContext.mapperService().getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
                 "Inner result window is too large, the inner hit definition's [" + innerHitBuilder.getName() +
@@ -57,16 +58,14 @@ public abstract class InnerHitContextBuilder {
                     "] index level setting."
             );
         }
-        doValidate(queryShardContext);
+        doBuild(parentSearchContext, innerHitsContext);
     }
 
     public InnerHitBuilder innerHitBuilder() {
         return innerHitBuilder;
     }
 
-    protected abstract void doValidate(QueryShardContext queryShardContext);
-
-    public abstract void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;
+    protected abstract void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;
 
     public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitContextBuilder> innerHitBuilders) {
         if (query instanceof AbstractQueryBuilder) {
@@ -94,7 +93,7 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
-                FieldScript.Factory factory = innerContext.getScriptService().compile(field.script(), FieldScript.CONTEXT);
+                FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), fieldScript, field.ignoreFailure()));
@@ -114,6 +113,23 @@ public abstract class InnerHitContextBuilder {
         }
         ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(queryShardContext), queryShardContext.copyNamedQueries());
         innerHitsContext.parsedQuery(parsedQuery);
-        innerHitsContext.innerHits(children);
+        Map<String, InnerHitsContext.InnerHitSubContext> baseChildren =
+            buildChildInnerHits(innerHitsContext.parentSearchContext(), children);
+        innerHitsContext.setChildInnerHits(baseChildren);
+    }
+
+    private static Map<String, InnerHitsContext.InnerHitSubContext> buildChildInnerHits(SearchContext parentSearchContext,
+                                Map<String, InnerHitContextBuilder> children) throws IOException {
+
+        Map<String, InnerHitsContext.InnerHitSubContext> childrenInnerHits = new HashMap<>();
+        for (Map.Entry<String, InnerHitContextBuilder> entry : children.entrySet()) {
+            InnerHitsContext childInnerHitsContext = new InnerHitsContext();
+            entry.getValue().build(
+                parentSearchContext, childInnerHitsContext);
+            if (childInnerHitsContext.getInnerHits() != null) {
+                childrenInnerHits.putAll(childInnerHitsContext.getInnerHits());
+            }
+        }
+        return childrenInnerHits;
     }
 }

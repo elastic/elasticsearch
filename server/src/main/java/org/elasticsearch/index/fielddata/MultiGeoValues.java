@@ -18,20 +18,31 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.spatial.util.GeoRelationUtils;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.CoordinateEncoder;
+import org.elasticsearch.common.geo.DimensionalShapeType;
 import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoRelation;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeometryTreeReader;
-import org.elasticsearch.common.geo.GeometryTreeWriter;
+import org.elasticsearch.common.geo.TriangleTreeReader;
+import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A stateful lightweight per document set of geo values.
@@ -81,8 +92,10 @@ public abstract class MultiGeoValues {
 
     public static class GeoPointValue implements GeoValue {
         private final GeoPoint geoPoint;
+        private final BoundingBox boundingBox;
 
         public GeoPointValue(GeoPoint geoPoint) {
+            this.boundingBox = new BoundingBox();
             this.geoPoint = geoPoint;
         }
 
@@ -92,12 +105,22 @@ public abstract class MultiGeoValues {
 
         @Override
         public BoundingBox boundingBox() {
-            return new BoundingBox(geoPoint);
+            boundingBox.reset(geoPoint);
+            return boundingBox;
         }
 
         @Override
-        public boolean intersects(Rectangle rectangle) {
-            throw new UnsupportedOperationException("intersect is unsupported for geo_point doc values");
+        public GeoRelation relate(Rectangle rectangle) {
+            if (GeoRelationUtils.pointInRectPrecise(geoPoint.lat(), geoPoint.lon(),
+                rectangle.getMinLat(), rectangle.getMaxLat(), rectangle.getMinLon(), rectangle.getMaxLon())) {
+                return GeoRelation.QUERY_CROSSES;
+            }
+            return GeoRelation.QUERY_DISJOINT;
+        }
+
+        @Override
+        public DimensionalShapeType dimensionalShapeType() {
+            return DimensionalShapeType.POINT;
         }
 
         @Override
@@ -119,48 +142,40 @@ public abstract class MultiGeoValues {
     public static class GeoShapeValue implements GeoValue {
         private static final WellKnownText MISSING_GEOMETRY_PARSER = new WellKnownText(true, new GeographyValidator(true));
 
-        private final GeometryTreeReader reader;
-        private final Extent extent;
+        private final TriangleTreeReader reader;
+        private final BoundingBox boundingBox;
 
-        public GeoShapeValue(GeometryTreeReader reader) throws IOException {
+        public GeoShapeValue(TriangleTreeReader reader)  {
             this.reader = reader;
-            this.extent = reader.getExtent();
-        }
-
-        public GeoShapeValue(Extent extent) {
-            this.reader = null;
-            this.extent = extent;
+            this.boundingBox = new BoundingBox();
         }
 
         @Override
         public BoundingBox boundingBox() {
-            return new BoundingBox(extent, GeoShapeCoordinateEncoder.INSTANCE);
+            boundingBox.reset(reader.getExtent(), GeoShapeCoordinateEncoder.INSTANCE);
+            return boundingBox;
         }
 
         /**
          * @return the latitude of the centroid of the shape
          */
         @Override
-        public boolean intersects(Rectangle rectangle) {
+        public GeoRelation relate(Rectangle rectangle) {
             int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
             int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
             int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
             int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
-            Extent extent = new Extent(maxY, minY, minX, maxX, minX, maxX);
-            try {
-                return reader.intersects(extent);
-            } catch (IOException e) {
-                throw new IllegalStateException("unable to check intersection", e);
-            }
+            return reader.relate(minX, minY, maxX, maxY);
+        }
+
+        @Override
+        public DimensionalShapeType dimensionalShapeType() {
+            return reader.getDimensionalShapeType();
         }
 
         @Override
         public double lat() {
-            try {
-                return reader.getCentroidY();
-            } catch (IOException e) {
-                throw new IllegalStateException("unable to read centroid of shape", e);
-            }
+            return reader.getCentroidY();
         }
 
         /**
@@ -168,21 +183,39 @@ public abstract class MultiGeoValues {
          */
         @Override
         public double lon() {
-            try {
-                return reader.getCentroidX();
-            } catch (IOException e) {
-                throw new IllegalStateException("unable to read centroid of shape", e);
-            }
+            return reader.getCentroidX();
         }
 
         public static GeoShapeValue missing(String missing) {
             try {
                 Geometry geometry = MISSING_GEOMETRY_PARSER.fromWKT(missing);
-                GeometryTreeWriter writer = new GeometryTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-                return new GeoShapeValue(writer.extent());
+                ShapeField.DecodedTriangle[] triangles = toDecodedTriangles(geometry);
+                TriangleTreeWriter writer =
+                    new TriangleTreeWriter(Arrays.asList(triangles), GeoShapeCoordinateEncoder.INSTANCE,
+                        new CentroidCalculator(geometry));
+                ByteBuffersDataOutput output = new ByteBuffersDataOutput();
+                writer.writeTo(output);
+                TriangleTreeReader reader = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+                reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
+                return new GeoShapeValue(reader);
             } catch (IOException | ParseException e) {
                 throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
             }
+        }
+
+        private static ShapeField.DecodedTriangle[] toDecodedTriangles(Geometry geometry)  {
+            GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+            geometry = indexer.prepareForIndexing(geometry);
+            List<IndexableField> fields = indexer.indexShape(null, geometry);
+            ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
+            final byte[] scratch = new byte[7 * Integer.BYTES];
+            for (int i = 0; i < fields.size(); i++) {
+                BytesRef bytesRef = fields.get(i).binaryValue();
+                assert bytesRef.length == 7 * Integer.BYTES;
+                System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
+                ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
+            }
+            return triangles;
         }
     }
 
@@ -194,18 +227,22 @@ public abstract class MultiGeoValues {
         double lat();
         double lon();
         BoundingBox boundingBox();
-        boolean intersects(Rectangle rectangle);
+        GeoRelation relate(Rectangle rectangle);
+        DimensionalShapeType dimensionalShapeType();
     }
 
     public static class BoundingBox {
-        public final double top;
-        public final double bottom;
-        public final double negLeft;
-        public final double negRight;
-        public final double posLeft;
-        public final double posRight;
+        public double top;
+        public double bottom;
+        public double negLeft;
+        public double negRight;
+        public double posLeft;
+        public double posRight;
 
-        public BoundingBox(Extent extent, CoordinateEncoder coordinateEncoder) {
+        private BoundingBox() {
+        }
+
+        private void reset(Extent extent, CoordinateEncoder coordinateEncoder) {
             this.top = coordinateEncoder.decodeY(extent.top);
             this.bottom = coordinateEncoder.decodeY(extent.bottom);
             if (extent.negLeft == Integer.MAX_VALUE) {
@@ -230,7 +267,7 @@ public abstract class MultiGeoValues {
             }
         }
 
-        BoundingBox(GeoPoint point) {
+        private void reset(GeoPoint point) {
             this.top = point.lat();
             this.bottom = point.lat();
             if (point.lon() < 0) {
@@ -245,6 +282,7 @@ public abstract class MultiGeoValues {
                 this.posRight = point.lon();
             }
         }
+
         /**
          * @return the minimum y-coordinate of the extent
          */
@@ -272,7 +310,6 @@ public abstract class MultiGeoValues {
         public double maxX() {
             return Math.max(negRight, posRight);
         }
-
 
     }
 }

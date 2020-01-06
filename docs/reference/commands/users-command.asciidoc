@@ -33,7 +33,7 @@ Leading or trailing whitespace is not allowed.
 
 Passwords must be at least 6 characters long.
 
-For more information, see {xpack-ref}/file-realm.html[File-based User Authentication].
+For more information, see <<file-realm>>.
 
 TIP: To ensure that {es} can read the user and role information at startup, run
 `elasticsearch-users useradd` as the same user you use to run {es}. Running the

@@ -101,7 +101,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             .mapperService()
             .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "_doc", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("a_field", "new york city")
@@ -273,7 +273,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             }
 
             ParsedDocument doc = mapperService.documentMapper()
-                .parse(new SourceToParse("test", "_doc", "1",
+                .parse(new SourceToParse("test", "1",
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder()
                             .startObject()
@@ -740,7 +740,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         }
         builder.endObject();
         final ParsedDocument parsedDocument = defaultMapper.parse(
-            new SourceToParse("test", "_doc", "1", BytesReference.bytes(builder), XContentType.JSON));
+            new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON));
 
 
         final Set<Matcher<IndexableField>> rootFieldMatchers = values.stream()

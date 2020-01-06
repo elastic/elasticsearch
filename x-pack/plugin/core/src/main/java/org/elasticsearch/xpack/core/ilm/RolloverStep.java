@@ -31,6 +31,11 @@ public class RolloverStep extends AsyncActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetaData.getSettings());
@@ -46,6 +51,13 @@ public class RolloverStep extends AsyncActionStep {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                 indexMetaData.getIndex().getName())));
+            return;
+        }
+
+        if (indexMetaData.getRolloverInfos().get(rolloverAlias) != null) {
+            logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
+                indexMetaData.getIndex().getName(), rolloverAlias);
+            listener.onResponse(true);
             return;
         }
 

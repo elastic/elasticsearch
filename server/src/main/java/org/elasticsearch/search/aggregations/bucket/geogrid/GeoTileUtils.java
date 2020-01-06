@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.ESSloppyMath;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -40,6 +42,8 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  *   bits  0..28 -- Y tile index (0..2^zoom)
  */
 public final class GeoTileUtils {
+
+    private static final Double PI_DIV_2 = Math.PI / 2;
 
     private GeoTileUtils() {}
 
@@ -97,6 +101,11 @@ public final class GeoTileUtils {
      * @param tiles     the number of tiles per row for a pre-determined zoom-level
      */
     static int getXTile(double longitude, long tiles) {
+        // normalizeLon treats this as 180, which is not friendly for tile mapping
+        if (longitude == -180) {
+            return 0;
+        }
+
         int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
 
         // Edge values may generate invalid values, and need to be clipped.
@@ -119,7 +128,7 @@ public final class GeoTileUtils {
      * @param tiles     the number of tiles per column for a pre-determined zoom-level
      */
     static int getYTile(double latitude, long tiles) {
-        double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
+        double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
         int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         if (yTile < 0) {
@@ -145,7 +154,7 @@ public final class GeoTileUtils {
 
         long xTile = (long) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
 
-        double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
+        double latSin = SloppyMath.cos(PI_DIV_2 - (Math.toRadians(normalizeLat(latitude))));
         long yTile = (long) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         // Edge values may generate invalid values, and need to be clipped.
@@ -247,10 +256,9 @@ public final class GeoTileUtils {
         final double tiles = validateZXY(precision, xTile, yTile);
         final double minN = Math.PI - (2.0 * Math.PI * (yTile + 1)) / tiles;
         final double maxN = Math.PI - (2.0 * Math.PI * (yTile)) / tiles;
-        final double minY = Math.toDegrees(Math.atan(Math.sinh(minN)));
+        final double minY = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(minN)));
         final double minX = ((xTile) / tiles * 360.0) - 180;
-
-        final double maxY = Math.toDegrees(Math.atan(Math.sinh(maxN)));
+        final double maxY = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(maxN)));
         final double maxX = ((xTile + 1) / tiles * 360.0) - 180;
 
         return new Rectangle(minX, maxX, maxY, minY);
@@ -274,7 +282,7 @@ public final class GeoTileUtils {
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
         final int tiles = validateZXY(zoom, xTile, yTile);
         final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;
-        final double lat = Math.toDegrees(Math.atan(Math.sinh(n)));
+        final double lat = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
         final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
         return new GeoPoint(lat, lon);
     }

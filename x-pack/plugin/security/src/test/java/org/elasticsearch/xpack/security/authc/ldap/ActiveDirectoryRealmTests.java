@@ -143,7 +143,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         threadPool = new TestThreadPool("active directory realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         licenseState = new TestUtils.UpdatableLicenseState();
     }
 
@@ -168,7 +168,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     private RealmConfig setupRealm(RealmConfig.RealmIdentifier realmIdentifier, Settings localSettings) {
         final Settings mergedSettings = Settings.builder().put(globalSettings).put(localSettings).build();
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
-        this.sslService = new SSLService(mergedSettings, env);
+        this.sslService = new SSLService(env);
         return new RealmConfig(
             realmIdentifier,
             mergedSettings,
@@ -533,12 +533,12 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 .put(getFullSettingKey(realmIdentifier.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                         "ad.test.elasticsearch.com")
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true);
-        if (randomBoolean()) {
+        if (inFipsJvm()) {
             builder.put(getFullSettingKey(realmIdentifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
                     VerificationMode.CERTIFICATE);
         } else {
             builder.put(getFullSettingKey(realmIdentifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    VerificationMode.NONE);
+                    randomBoolean() ? VerificationMode.CERTIFICATE : VerificationMode.NONE);
         }
         return builder.put(extraSettings).build();
     }

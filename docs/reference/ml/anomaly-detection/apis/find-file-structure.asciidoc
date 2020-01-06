@@ -21,7 +21,7 @@ suitable to be ingested into {es}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml` or
 `monitor` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-find-file-structure-desc]]
 ==== {api-description-title}

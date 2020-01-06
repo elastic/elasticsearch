@@ -25,7 +25,7 @@ public class RestPutTransformAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "data_frame_put_transform_action";
+        return "transform_put_transform_action";
     }
 
     @Override

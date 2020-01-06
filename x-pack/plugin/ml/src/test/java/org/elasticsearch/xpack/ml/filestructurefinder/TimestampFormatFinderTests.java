@@ -661,9 +661,9 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
             "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b", "EEE MMM dd HH:mm:ss yyyy", 1526400896000L);
 
         validateTimestampMatch("May 15 17:14:56.725", "SYSLOGTIMESTAMP", "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd HH:mm:ss.SSS", "MMM  d HH:mm:ss.SSS"), 1526400896725L);
+            Arrays.asList("MMM dd HH:mm:ss.SSS", "MMM  d HH:mm:ss.SSS", "MMM d HH:mm:ss.SSS"), 1526400896725L);
         validateTimestampMatch("May 15 17:14:56", "SYSLOGTIMESTAMP", "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"), 1526400896000L);
+            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss", "MMM d HH:mm:ss"), 1526400896000L);
 
         validateTimestampMatch("15/May/2018:17:14:56 +0100", "HTTPDATE", "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
             "dd/MMM/yyyy:HH:mm:ss XX", 1526400896000L);
@@ -672,7 +672,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
             "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b", "MMM dd, yyyy h:mm:ss a", 1526400896000L);
 
         validateTimestampMatch("May 15 2018 17:14:56", "CISCOTIMESTAMP", "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"), 1526400896000L);
+            Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"), 1526400896000L);
 
         validateTimestampMatch("05/15/2018 17:14:56,374", "DATESTAMP",
             "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM/dd/yyyy HH:mm:ss,SSS", 1526400896374L);
@@ -799,7 +799,8 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         validateFindInFullMessage("Oct 19 17:04:44 esxi1.acme.com Vpxa: [3CB3FB90 verbose 'vpxavpxaInvtVm' " +
             "opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed", "", "SYSLOGTIMESTAMP",
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"));
+            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss", "MMM d HH:mm:ss"));
 
         validateFindInFullMessage("559550912540598297\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t" +
             "192.168.114.28\tAuthpriv\tInfo\tsshd\tsubsystem request for sftp", "559550912540598297\t", "TIMESTAMP_ISO8601",
@@ -807,7 +808,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         validateFindInFullMessage("Sep  8 11:55:35 dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving " +
             "'www.elastic.co/A/IN': 95.110.68.206#53", "", "SYSLOGTIMESTAMP", "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"));
+            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss", "MMM d HH:mm:ss"));
 
         validateFindInFullMessage("10-28-2016 16:22:47.636 +0200 ERROR Network - " +
             "Error encountered for connection from src=192.168.0.1:12345. Local side shutting down", "", "DATESTAMP",

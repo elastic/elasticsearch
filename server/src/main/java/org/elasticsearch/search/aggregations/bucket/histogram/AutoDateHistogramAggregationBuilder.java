@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -41,7 +42,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -134,12 +134,12 @@ public class AutoDateHistogramAggregationBuilder
 
     /** Create a new builder with the given name. */
     public AutoDateHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.DATE);
     }
 
     /** Read from a stream, for internal use only. */
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.DATE);
         numBuckets = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();

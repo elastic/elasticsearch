@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataTypes.compatibleInterval;
-import static org.elasticsearch.xpack.sql.type.DataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.DataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.DataTypes.metaSqlDateTimeSub;
 import static org.elasticsearch.xpack.sql.type.DataTypes.metaSqlMaximumScale;
@@ -77,7 +76,7 @@ public class DataTypesTests extends ESTestCase {
     // type checks
     public void testIsInterval() throws Exception {
         for (DataType dataType : EnumSet.range(INTERVAL_YEAR, INTERVAL_MINUTE_TO_SECOND)) {
-            assertTrue(isInterval(dataType));
+            assertTrue(dataType.isInterval());
         }
     }
 

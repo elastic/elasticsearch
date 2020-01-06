@@ -293,7 +293,6 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {

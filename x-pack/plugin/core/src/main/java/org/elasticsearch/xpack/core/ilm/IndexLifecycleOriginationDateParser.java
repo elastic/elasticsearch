@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_PARSE
 
 public class IndexLifecycleOriginationDateParser {
 
-    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy.MM.dd");
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     private static final String INDEX_NAME_REGEX = "^.*-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)?$";
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile(INDEX_NAME_REGEX);
 

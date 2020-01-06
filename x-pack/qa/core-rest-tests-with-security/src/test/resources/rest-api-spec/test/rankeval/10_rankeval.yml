@@ -12,14 +12,12 @@
   - do:
       index:
         index:   foo
-        type:    bar
         id:      doc1
         body:    { "text": "berlin" }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc2
         body:   { "text": "amsterdam" }
 

@@ -87,3 +87,5 @@ include::start-stop-ilm.asciidoc[]
 include::ilm-with-existing-indices.asciidoc[]
 
 include::getting-started-slm.asciidoc[]
+
+include::slm-retention.asciidoc[]

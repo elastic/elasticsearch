@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -28,9 +27,9 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
@@ -38,7 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a capturing function reference.
+ * Represents a capturing function reference.  For member functions that require a this reference, ie not static.
  */
 public final class ECapturingFunctionRef extends AExpression implements ILambda {
     private final String variable;
@@ -56,17 +55,12 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        // Do nothing.
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         variables.add(variable);
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         captured = locals.getVariable(location, variable);
         if (expected == null) {
             if (captured.clazz == def.class) {
@@ -81,7 +75,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             defPointer = null;
             // static case
             if (captured.clazz != def.class) {
-                ref = FunctionRef.create(locals.getPainlessLookup(), functions, location,
+                ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
                         expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
             }
             actual = expected;

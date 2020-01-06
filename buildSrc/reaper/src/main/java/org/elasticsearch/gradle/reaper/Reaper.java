@@ -37,7 +37,7 @@ import java.util.stream.Stream;
  * Since how to reap a given service is platform and service dependent, this tool
  * operates on system commands to execute. It takes a single argument, a directory
  * that will contain files with reaping commands. Each line in each file will be
- * executed with {@link Runtime#getRuntime()#exec}.
+ * executed with {@link Runtime#exec(String)}.
  *
  * The main method will wait indefinitely on the parent process (Gradle) by
  * reading from stdin. When Gradle shuts down, whether normally or abruptly, the

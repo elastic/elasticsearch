@@ -50,6 +50,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -327,6 +329,17 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         Store.MetadataSnapshot metadataSnapshot;
         try {
             metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+            // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene index.
+            try {
+                final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
+                final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
+                assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
+            } catch (IOException | TranslogCorruptedException e) {
+                logger.warn(new ParameterizedMessage("error while reading global checkpoint from translog, " +
+                    "resetting the starting sequence number from {} to unassigned and recovering as if there are none", startingSeqNo), e);
+                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+                startingSeqNo = UNASSIGNED_SEQ_NO;
+            }
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
             assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;

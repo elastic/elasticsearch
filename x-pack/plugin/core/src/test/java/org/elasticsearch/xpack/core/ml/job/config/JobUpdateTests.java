@@ -97,6 +97,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (useInternalParser) {
             update.setClearFinishTime(randomBoolean());
         }
+        if (randomBoolean()) {
+            update.setAllowLazyOpen(randomBoolean());
+        }
 
         return update.build();
     }

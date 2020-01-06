@@ -27,13 +27,16 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoTestUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
@@ -198,7 +201,9 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                         negRight = point.getLon();
                     }
                 }
-                doc.add(new BinaryGeoShapeDocValuesField("field", new MultiPoint(points)));
+                Geometry geometry = new MultiPoint(points);
+                doc.add(new BinaryGeoShapeDocValuesField("field", GeoTestUtils.toDecodedTriangles(geometry),
+                    new CentroidCalculator(geometry)));
                 w.addDocument(doc);
             }
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
@@ -337,7 +342,8 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            doc.add(new BinaryGeoShapeDocValuesField("fiji_shape", geometryForIndexing));
+            doc.add(new BinaryGeoShapeDocValuesField("fiji_shape",
+                GeoTestUtils.toDecodedTriangles(geometryForIndexing), new CentroidCalculator(geometryForIndexing)));
             for (Polygon poly : fiji) {
                 for (int i = 0; i < poly.getPolygon().length(); i++) {
                     doc.add(new LatLonDocValuesField("fiji_points", poly.getPolygon().getLat(i), poly.getPolygon().getLon(i)));

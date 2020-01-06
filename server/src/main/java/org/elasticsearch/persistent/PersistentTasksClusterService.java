@@ -219,7 +219,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                                           final long taskAllocationId,
                                           final PersistentTaskState taskState,
                                           final ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("update task state", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);

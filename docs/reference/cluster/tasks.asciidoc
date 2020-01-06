@@ -51,11 +51,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
-tag::tasks-api-404[]
+// tag::tasks-api-404[]
 `404` (Missing resources)::
 If `<task_id>` is specified but not found, this code indicates that there 
 are no resources that match the request.
-end::tasks-api-404[]
+// end::tasks-api-404[]
 
 [[tasks-api-examples]]
 ==== {api-examples-title}

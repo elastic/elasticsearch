@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -38,34 +37,25 @@ import java.util.Set;
  */
 public final class SCatch extends AStatement {
 
-    private final String type;
-    private final String name;
+    private final DType baseException;
+    private final SDeclaration declaration;
     private final SBlock block;
-
-    private Variable variable = null;
 
     Label begin = null;
     Label end = null;
     Label exception = null;
 
-    public SCatch(Location location, String type, String name, SBlock block) {
+    public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
         super(location);
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
+        this.baseException = Objects.requireNonNull(baseException);
+        this.declaration = Objects.requireNonNull(declaration);
         this.block = block;
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        if (block != null) {
-            block.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
-        variables.add(name);
+        declaration.extractVariables(variables);
 
         if (block != null) {
             block.extractVariables(variables);
@@ -73,25 +63,23 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        declaration.analyze(scriptRoot, locals);
 
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+        Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
+        Class<?> type = declaration.variable.clazz;
+
+        if (baseType.isAssignableFrom(type) == false) {
+            throw createError(new ClassCastException(
+                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
+                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
         }
-
-        if (!Exception.class.isAssignableFrom(clazz)) {
-            throw createError(new ClassCastException("Not an exception type [" + this.type + "]."));
-        }
-
-        variable = locals.addVariable(location, clazz, name, true);
 
         if (block != null) {
             block.lastSource = lastSource;
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
-
-            block.analyze(functions, locals);
+            block.analyze(scriptRoot, locals);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;
@@ -109,7 +97,8 @@ public final class SCatch extends AStatement {
         Label jump = new Label();
 
         methodWriter.mark(jump);
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        methodWriter.visitVarInsn(
+                MethodWriter.getType(declaration.variable.clazz).getOpcode(Opcodes.ISTORE), declaration.variable.getSlot());
 
         if (block != null) {
             block.continu = continu;
@@ -117,7 +106,7 @@ public final class SCatch extends AStatement {
             block.write(classWriter, methodWriter, globals);
         }
 
-        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());
+        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declaration.variable.clazz).getInternalName());
 
         if (exception != null && (block == null || !block.allEscape)) {
             methodWriter.goTo(exception);
@@ -126,6 +115,6 @@ public final class SCatch extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(type, name, block);
+        return singleLineToString(baseException, declaration, block);
     }
 }

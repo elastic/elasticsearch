@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
+
+import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-
-import java.util.List;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
@@ -72,6 +72,11 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     @Override
     public String unresolvedMessage() {
         return "Cannot determine columns for [" + message() + "]";
+    }
+
+    @Override
+    public String nodeString() {
+        return toString();
     }
 
     @Override

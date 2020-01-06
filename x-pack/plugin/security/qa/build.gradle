@@ -1,11 +1,11 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 subprojects {
-    project.tasks.withType(RestIntegTestTask) {
-        final File xPackResources = new File(xpackProject('plugin').projectDir, 'src/test/resources')
-        project.copyRestSpec.from(xPackResources) {
-            include 'rest-api-spec/api/**'
-        }
+  project.tasks.withType(RestIntegTestTask) {
+    final File xPackResources = new File(xpackProject('plugin').projectDir, 'src/test/resources')
+    project.copyRestSpec.from(xPackResources) {
+      include 'rest-api-spec/api/**'
     }
+  }
 }
 

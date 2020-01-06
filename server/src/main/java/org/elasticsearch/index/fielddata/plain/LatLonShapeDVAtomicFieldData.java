@@ -24,8 +24,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeometryTreeReader;
+import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -61,6 +62,8 @@ final class LatLonShapeDVAtomicFieldData extends AbstractAtomicGeoShapeFieldData
     public MultiGeoValues getGeoValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
+            final TriangleTreeReader reader = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+            final MultiGeoValues.GeoShapeValue geoShapeValue = new MultiGeoValues.GeoShapeValue(reader);
             return new MultiGeoValues() {
 
                 @Override
@@ -75,13 +78,14 @@ final class LatLonShapeDVAtomicFieldData extends AbstractAtomicGeoShapeFieldData
 
                 @Override
                 public ValuesSourceType valuesSourceType() {
-                    return ValuesSourceType.GEOSHAPE;
+                    return CoreValuesSourceType.GEOSHAPE;
                 }
 
                 @Override
                 public GeoValue nextValue() throws IOException {
                     final BytesRef encoded = binaryValues.binaryValue();
-                    return new GeoShapeValue(new GeometryTreeReader(encoded, GeoShapeCoordinateEncoder.INSTANCE));
+                    reader.reset(encoded);
+                    return geoShapeValue;
                 }
             };
         } catch (IOException e) {

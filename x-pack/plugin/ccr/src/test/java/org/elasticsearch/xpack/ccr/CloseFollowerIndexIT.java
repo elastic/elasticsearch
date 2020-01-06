@@ -90,7 +90,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
                 while (isRunning.get()) {
-                    leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+                    leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
                 }
             });
             threads[i].start();

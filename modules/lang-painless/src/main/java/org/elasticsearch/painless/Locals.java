@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.HashMap;
@@ -35,19 +34,6 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToJava
  * Tracks user defined variables across compilation phases.
  */
 public final class Locals {
-    private int syntheticCounter = 0;
-
-    /**
-     * Returns a unique identifier for generating the name of a synthetic method.
-     */
-    public String getNextSyntheticName() {
-        Locals locals = this;
-        while (locals.getParent() != null) {
-            locals = locals.getParent();
-        }
-
-        return "lambda$" + locals.syntheticCounter++;
-    }
 
     /** Reserved word: loop counter */
     public static final String LOOP   = "#loop";
@@ -59,9 +45,7 @@ public final class Locals {
 
     /** Creates a new local variable scope (e.g. loop) inside the current scope */
     public static Locals newLocalScope(Locals currentScope) {
-        Locals locals = new Locals(currentScope);
-
-        return locals;
+        return new Locals(currentScope);
     }
 
     /**
@@ -71,7 +55,7 @@ public final class Locals {
      */
     public static Locals newLambdaScope(Locals programScope, String name, Class<?> returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, returnType, KEYWORDS);
         List<Class<?>> typeParameters = parameters.stream().map(parameter -> typeToJavaType(parameter.clazz)).collect(Collectors.toList());
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
@@ -91,7 +75,7 @@ public final class Locals {
 
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Class<?> returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, returnType, KEYWORDS);
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.clazz, parameter.name, false);
         }
@@ -104,8 +88,7 @@ public final class Locals {
 
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.painlessLookup,
-                scriptClassInfo.getBaseClass(), scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
+        Locals locals = new Locals(programScope, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
         locals.defineVariable(null, Object.class, THIS, true);
 
@@ -122,8 +105,8 @@ public final class Locals {
     }
 
     /** Creates a new program scope as the root of all scopes */
-    public static Locals newProgramScope(ScriptClassInfo scriptClassInfo, PainlessLookup painlessLookup) {
-        return new Locals(null, painlessLookup, scriptClassInfo.getBaseClass(), null, null);
+    public static Locals newProgramScope() {
+        return new Locals(null, null, null);
     }
 
     /** Checks if a variable exists or not, in this scope or any parents. */
@@ -175,22 +158,8 @@ public final class Locals {
         return locals;
     }
 
-    /** Whitelist against which this script is being compiled. */
-    public PainlessLookup getPainlessLookup() {
-        return painlessLookup;
-    }
-
-    /** Base class for the compiled script. */
-    public Class<?> getBaseClass() {
-        return baseClass;
-    }
-
     ///// private impl
 
-    /** Whitelist against which this script is being compiled. */
-    private final PainlessLookup painlessLookup;
-    /** Base class for the compiled script. */
-    private final Class<?> baseClass;
     // parent scope
     private final Locals parent;
     // return type of this scope
@@ -206,16 +175,14 @@ public final class Locals {
      * Create a new Locals
      */
     private Locals(Locals parent) {
-        this(parent, parent.painlessLookup, parent.baseClass, parent.returnType, parent.keywords);
+        this(parent, parent.returnType, parent.keywords);
     }
 
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, PainlessLookup painlessLookup, Class<?> baseClass, Class<?> returnType, Set<String> keywords) {
+    private Locals(Locals parent, Class<?> returnType, Set<String> keywords) {
         this.parent = parent;
-        this.painlessLookup = painlessLookup;
-        this.baseClass = baseClass;
         this.returnType = returnType;
         this.keywords = keywords;
         if (parent == null) {

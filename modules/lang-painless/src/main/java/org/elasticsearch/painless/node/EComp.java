@@ -21,16 +21,15 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 
@@ -60,43 +59,37 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        left.storeSettings(settings);
-        right.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
         right.extractVariables(variables);
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (operation == Operation.EQ) {
-            analyzeEq(functions, locals);
+            analyzeEq(scriptRoot, locals);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(functions, locals);
+            analyzeEqR(scriptRoot, locals);
         } else if (operation == Operation.NE) {
-            analyzeNE(functions, locals);
+            analyzeNE(scriptRoot, locals);
         } else if (operation == Operation.NER) {
-            analyzeNER(functions, locals);
+            analyzeNER(scriptRoot, locals);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(functions, locals);
+            analyzeGTE(scriptRoot, locals);
         } else if (operation == Operation.GT) {
-            analyzeGT(functions, locals);
+            analyzeGT(scriptRoot, locals);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(functions, locals);
+            analyzeLTE(scriptRoot, locals);
         } else if (operation == Operation.LT) {
-            analyzeLT(functions, locals);
+            analyzeLT(scriptRoot, locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeEq(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -114,8 +107,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -144,9 +137,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeEqR(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeEqR(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -159,8 +152,8 @@ public final class EComp extends AExpression {
         left.expected = promotedType;
         right.expected = promotedType;
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -185,9 +178,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNE(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeNE(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -205,8 +198,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -235,9 +228,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeNER(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeNER(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -250,8 +243,8 @@ public final class EComp extends AExpression {
         left.expected = promotedType;
         right.expected = promotedType;
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
@@ -276,9 +269,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGTE(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeGTE(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -296,8 +289,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {
@@ -316,9 +309,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeGT(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeGT(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -336,8 +329,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {
@@ -356,9 +349,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLTE(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeLTE(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -376,8 +369,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {
@@ -396,9 +389,9 @@ public final class EComp extends AExpression {
         actual = boolean.class;
     }
 
-    private void analyzeLT(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeLT(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -416,8 +409,8 @@ public final class EComp extends AExpression {
             right.expected = promotedType;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promotedType == int.class) {

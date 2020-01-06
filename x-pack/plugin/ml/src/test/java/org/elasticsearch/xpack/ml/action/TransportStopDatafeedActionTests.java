@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 
 public class TransportStopDatafeedActionTests extends ESTestCase {
@@ -27,17 +26,21 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
+        List<String> notStoppedDatafeeds = new ArrayList<>();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
-                Collections.singleton("datafeed_1"), tasks, startedDatafeeds, stoppingDatafeeds);
+                Collections.singleton("datafeed_1"), tasks, startedDatafeeds, stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
+        assertEquals(Collections.singletonList("datafeed_1"), notStoppedDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
+        notStoppedDatafeeds.clear();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
-                Collections.singleton("datafeed_2"), tasks, startedDatafeeds, stoppingDatafeeds);
+                Collections.singleton("datafeed_2"), tasks, startedDatafeeds, stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
+        assertEquals(Collections.emptyList(), notStoppedDatafeeds);
     }
 
     public void testSortDatafeedIdsByTaskState_GivenAll() {
@@ -50,15 +53,17 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
+        List<String> notStoppedDatafeeds = new ArrayList<>();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
-                new HashSet<>(Arrays.asList("datafeed_1", "datafeed_2", "datafeed_3")), tasks, startedDatafeeds, stoppingDatafeeds);
+                Arrays.asList("datafeed_1", "datafeed_2", "datafeed_3"), tasks, startedDatafeeds, stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_3"), stoppingDatafeeds);
+        assertEquals(Arrays.asList("datafeed_1", "datafeed_3"), notStoppedDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
         TransportStopDatafeedAction.sortDatafeedIdsByTaskState(Collections.singleton("datafeed_2"), tasks, startedDatafeeds,
-                stoppingDatafeeds);
+                stoppingDatafeeds, notStoppedDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
     }

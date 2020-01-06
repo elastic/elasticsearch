@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -304,19 +303,17 @@ public class JobResultsProvider {
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
-                                if (e instanceof ResourceAlreadyExistsException) {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                     LOGGER.info("Index already exists");
                                     // Add the term field mappings and alias.  The complication is that the state at the
                                     // beginning of the operation doesn't have any knowledge of the index, as it's only
                                     // just been created.  So we need yet another operation to get the mappings for it.
                                     getLatestIndexMappings(indexName, ActionListener.wrap(
                                         response -> {
-                                            // Expect one index and one type.  If this is not the case then it means the
+                                            // Expect one index.  If this is not the case then it means the
                                             // index has been deleted almost immediately after being created, and this is
                                             // so unlikely that it's reasonable to fail the whole operation.
-                                            ImmutableOpenMap<String, MappingMetaData> indexMappings =
-                                                response.getMappings().iterator().next().value;
-                                            MappingMetaData typeMappings = indexMappings.iterator().next().value;
+                                            MappingMetaData typeMappings = response.getMappings().iterator().next().value;
                                             addTermsAndAliases(typeMappings, indexName, termFields, createAliasListener);
                                         },
                                         finalListener::onFailure
@@ -348,7 +345,7 @@ public class JobResultsProvider {
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
             listener.onFailure(new IllegalArgumentException(message));
         } else {
-            updateIndexMappingWithTermFields(indexName, mapping.type(), termFields, listener);
+            updateIndexMappingWithTermFields(indexName, termFields, listener);
         }
     }
 
@@ -378,12 +375,11 @@ public class JobResultsProvider {
         return count;
     }
 
-    private void updateIndexMappingWithTermFields(String indexName, String mappingType, Collection<String> termFields,
+    private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields,
                                                   ActionListener<Boolean> listener) {
         // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(mappingType, termFields)) {
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
-                    .setType(mappingType)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -1189,7 +1185,7 @@ public class JobResultsProvider {
                 .sortDescending(true).from(BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE - 1).size(1)
                 .includeInterim(false);
         bucketsViaInternalClient(jobId, bucketQuery, bucketHandler, e -> {
-            if (e instanceof ResourceNotFoundException) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 handler.accept(0L);
             } else {
                 errorHandler.accept(e);
@@ -1437,7 +1433,7 @@ public class JobResultsProvider {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
                 } else {
                     listener.onFailure(e);

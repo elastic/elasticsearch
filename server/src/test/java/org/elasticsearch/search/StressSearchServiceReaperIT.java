@@ -48,7 +48,7 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
         int num = randomIntBetween(100, 150);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type", "" + i).setSource("f", English.intToEnglish(i));
+            builders[i] = client().prepareIndex("test").setId("" + i).setSource("f", English.intToEnglish(i));
         }
         createIndex("test");
         indexRandom(true, builders);

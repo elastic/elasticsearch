@@ -1,5 +1,8 @@
 [[cluster-stats]]
-=== Cluster Stats
+=== Cluster stats API
+++++
+<titleabbrev>Cluster stats</titleabbrev>
+++++
 
 Returns cluster statistics.
 
@@ -224,6 +227,12 @@ The API returns the following response:
         },
         ...
       ],
+      "ingest": {
+        "number_of_pipelines" : 1,
+        "processor_stats": {
+          ...
+        }
+      },
       "network_types": {
         ...
       },
@@ -241,6 +250,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
 // TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
+// TESTRESPONSE[s/"processor_stats": \{[^\}]*\}/"processor_stats": $body.$_path/]
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/: true|false/: $body.$_path/]

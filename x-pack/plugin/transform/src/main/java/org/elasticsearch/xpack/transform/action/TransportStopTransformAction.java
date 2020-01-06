@@ -134,7 +134,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         if (nodes.isLocalNodeElectedMaster() == false) {
             // Delegates stop transform to elected master node so it becomes the coordinating node.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(
                     nodes.getMasterNode(),

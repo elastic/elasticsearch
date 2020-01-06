@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -54,7 +53,7 @@ public class EqlRequestParserTests extends ESTestCase {
             + "\"timestamp_field\" : \"tsf\", "
             + "\"event_type_field\" : \"etf\","
             + "\"implicit_join_key_field\" : \"imjf\","
-            + "\"search_after\" : [ \"device-20184\", \"/user/local/foo.exe\", \"2019-11-26T00:45:43.542\" ],"
+            + "\"search_after\" : [ 12345678, \"device-20184\", \"/user/local/foo.exe\", \"2019-11-26T00:45:43.542\" ],"
             + "\"size\" : \"101\","
             + "\"rule\" : \"file where user != 'SYSTEM' by file_path\""
             + "}", EqlSearchRequest::fromXContent);
@@ -67,8 +66,7 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals("tsf", request.timestampField());
         assertEquals("etf", request.eventTypeField());
         assertEquals("imjf", request.implicitJoinKeyField());
-        assertArrayEquals(Arrays.asList("device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542").toArray(),
-            request.searchAfter().toArray());
+        assertArrayEquals(new Object[]{12345678, "device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542"}, request.searchAfter());
         assertEquals(101, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.rule());
     }

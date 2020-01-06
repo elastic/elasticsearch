@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
@@ -271,6 +272,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     return buf;
                 }
             };
+            boolean skippedEmptyLine = false;
             while ((read = in.read()) != -1) {
                 out.reset();
                 boolean markAndContinue = false;
@@ -290,7 +292,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 } while ((read = in.read()) != -1);
                 final String bucketPrefix = "{\"bucket\":";
                 final String start = new String(out.toByteArray(), 0, Math.min(out.size(), bucketPrefix.length()), UTF_8);
-                if (start.length() == 0 || start.equals("\r\n") || start.startsWith("--")
+                if ((skippedEmptyLine == false && start.length() == 0) || start.startsWith("--")
                     || start.toLowerCase(Locale.ROOT).startsWith("content")) {
                     markAndContinue = true;
                 } else if (start.startsWith(bucketPrefix)) {
@@ -302,6 +304,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     }
                 }
                 if (markAndContinue) {
+                    skippedEmptyLine = start.length() == 0;
                     in.mark(Integer.MAX_VALUE);
                     continue;
                 }

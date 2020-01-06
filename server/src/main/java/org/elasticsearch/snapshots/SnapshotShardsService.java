@@ -298,8 +298,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
                     @Override
                     public void onFailure(Exception e) {
+                        final String failure = ExceptionsHelper.stackTrace(e);
+                        snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.stackTrace(e));
+                        notifyFailedSnapshotShard(snapshot, shardId, failure);
                     }
                 });
             }

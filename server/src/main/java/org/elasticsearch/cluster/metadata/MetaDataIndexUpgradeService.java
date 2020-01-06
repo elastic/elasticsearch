@@ -180,7 +180,7 @@ public class MetaDataIndexUpgradeService {
             try (IndexAnalyzers fakeIndexAnalzyers =
                      new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null);
+                        mapperRegistry, () -> null, () -> false);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {

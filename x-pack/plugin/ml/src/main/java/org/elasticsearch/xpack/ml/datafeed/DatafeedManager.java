@@ -361,7 +361,7 @@ public class DatafeedManager {
                     acquired = datafeedJobLock.tryLock(timeout.millis(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e1) {
                     Thread.currentThread().interrupt();
-                } finally {
+                } finally {  // It is crucial that none of the calls this "finally" block makes throws an exception for minor problems.
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeedId,
                             datafeedJob.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);

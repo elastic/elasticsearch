@@ -43,7 +43,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
     private static final byte INT_BYTES = 4;
 
     public static class Defaults {
@@ -147,7 +147,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder(true);
+            return new VectorDVIndexFieldData.Builder();
         }
 
         @Override

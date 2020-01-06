@@ -50,6 +50,56 @@ This is a possible response:
 {
   "defaults" : {
     "anomaly_detectors" : {
+      "categorization_analyzer" : {
+        "tokenizer" : "ml_classic",
+        "filter" : [
+          {
+            "type" : "stop",
+            "stopwords" : [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri",
+              "Sat",
+              "Sun",
+              "January",
+              "February",
+              "March",
+              "April",
+              "May",
+              "June",
+              "July",
+              "August",
+              "September",
+              "October",
+              "November",
+              "December",
+              "Jan",
+              "Feb",
+              "Mar",
+              "Apr",
+              "May",
+              "Jun",
+              "Jul",
+              "Aug",
+              "Sep",
+              "Oct",
+              "Nov",
+              "Dec",
+              "GMT",
+              "UTC"
+            ]
+          }
+        ]
+      },
       "model_memory_limit" : "1gb",
       "categorization_examples_limit" : 4,
       "model_snapshot_retention_days" : 1

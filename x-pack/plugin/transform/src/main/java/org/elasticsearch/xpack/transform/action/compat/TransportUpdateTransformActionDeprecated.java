@@ -16,20 +16,35 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TransportUpdateTransformActionDeprecated extends TransportUpdateTransformAction {
 
     @Inject
-    public TransportUpdateTransformActionDeprecated(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                    ClusterService clusterService, XPackLicenseState licenseState,
-                                                    TransformConfigManager transformConfigManager, Client client,
-                                                    TransformAuditor auditor) {
-        super(UpdateTransformActionDeprecated.NAME, settings, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-              clusterService, licenseState, transformConfigManager, client, auditor);
+    public TransportUpdateTransformActionDeprecated(
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        TransformServices transformServices,
+        Client client
+    ) {
+        super(
+            UpdateTransformActionDeprecated.NAME,
+            settings,
+            transportService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            clusterService,
+            licenseState,
+            transformServices,
+            client
+        );
     }
 
 }

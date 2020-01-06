@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -38,6 +39,7 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
     private final SchedulerEngine scheduler;
     private final SnapshotRetentionTask retentionTask;
     private final Clock clock;
+    private final AtomicBoolean running = new AtomicBoolean(true);
 
     private volatile String slmRetentionSchedule;
     private volatile boolean isMaster = false;
@@ -81,7 +83,7 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
 
     private void rescheduleRetentionJob() {
         final String schedule = this.slmRetentionSchedule;
-        if (this.isMaster && Strings.hasText(schedule)) {
+        if (this.running.get() && this.isMaster && Strings.hasText(schedule)) {
             final SchedulerEngine.Job retentionJob = new SchedulerEngine.Job(SLM_RETENTION_JOB_ID,
                 new CronSchedule(schedule));
             logger.debug("scheduling SLM retention job for [{}]", schedule);
@@ -113,6 +115,8 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
 
     @Override
     public void close() {
-        this.scheduler.stop();
+        if (this.running.compareAndSet(true, false)) {
+            this.scheduler.stop();
+        }
     }
 }

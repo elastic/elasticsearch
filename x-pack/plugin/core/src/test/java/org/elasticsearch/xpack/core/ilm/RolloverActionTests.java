@@ -27,7 +27,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         return randomInstance();
     }
 
-    static RolloverAction randomInstance() {
+    public static RolloverAction randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();

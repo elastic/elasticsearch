@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1479,7 +1480,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testDateProvidedAsNumber() throws InterruptedException {
         createIndex("test");
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+        assertAcked(client().admin().indices().preparePutMapping("test")
             .setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("field", 1000000000001L),
@@ -1568,8 +1569,18 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
     }
 
+    /**
+     * Test range with a custom locale, e.g. "de" in this case. Documents here mention the day of week
+     * as "Mi" for "Mittwoch (Wednesday" and "Do" for "Donnerstag (Thursday)" and the month in the query
+     * as "Dez" for "Dezember (December)".
+     * Note: this test currently needs the JVM arg `-Djava.locale.providers=SPI,COMPAT` to be set.
+     * When running with gradle this is done implicitly through the BuildPlugin, but when running from
+     * an IDE this might need to be set manually in the run configuration. See also CONTRIBUTING.md section
+     * on "Configuring IDEs And Running Tests".
+     */
     public void testRangeQueryWithLocaleMapping() throws Exception {
         assumeTrue("need java 9 for testing ",JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
+        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(prepareCreate("test")
             .addMapping("type1", jsonBuilder().startObject().startObject("properties").startObject("date_field")
@@ -1663,41 +1674,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    public void testRangeQueryTypeField_31476() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
-
-        client().prepareIndex("test").setId("1").setSource("field", "value").get();
-        refresh();
-
-        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-    }
-
     public void testNestedQueryWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("_doc")
@@ -1758,18 +1734,28 @@ public class SearchQueryIT extends ESIntegTestCase {
             .setRouting("custom")
             .setSource("field", "value");
         indexRandom(true, false, indexRequest);
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
+           .get();
+       try {
+           SearchResponse searchResponse = client().prepareSearch()
+               .setQuery(termQuery("routing-alias", "custom"))
+               .addDocValueField("id-alias")
+               .get();
+           assertHitCount(searchResponse, 1L);
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(termQuery("routing-alias", "custom"))
-            .addDocValueField("id-alias")
-            .get();
-        assertHitCount(searchResponse, 1L);
+           SearchHit hit = searchResponse.getHits().getAt(0);
+           assertEquals(2, hit.getFields().size());
+           assertTrue(hit.getFields().containsKey("id-alias"));
 
-        SearchHit hit = searchResponse.getHits().getAt(0);
-        assertEquals(2, hit.getFields().size());
-        assertTrue(hit.getFields().containsKey("id-alias"));
+           DocumentField field = hit.getFields().get("id-alias");
+           assertThat(field.getValue().toString(), equalTo("1"));
+       } finally {
+           // unset cluster setting
+           client().admin().cluster().prepareUpdateSettings()
+               .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
+               .get();
+       }
 
-        DocumentField field = hit.getFields().get("id-alias");
-        assertThat(field.getValue().toString(), equalTo("1"));
    }
 }

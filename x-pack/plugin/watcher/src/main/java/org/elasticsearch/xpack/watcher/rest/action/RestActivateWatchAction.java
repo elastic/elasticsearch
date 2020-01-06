@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -31,24 +29,13 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestActivateWatchAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestActivateWatchAction.class));
-
     public RestActivateWatchAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_activate", this,
-            POST, "/_xpack/watcher/watch/{id}/_activate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_activate", this,
-            PUT, "/_xpack/watcher/watch/{id}/_activate", deprecationLogger);
+        controller.registerHandler(POST, "/_watcher/watch/{id}/_activate", this);
+        controller.registerHandler(PUT, "/_watcher/watch/{id}/_activate", this);
 
         final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler();
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
-            POST, "/_xpack/watcher/watch/{id}/_deactivate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
-            PUT, "/_xpack/watcher/watch/{id}/_deactivate", deprecationLogger);
+        controller.registerHandler(POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler);
+        controller.registerHandler(PUT, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler);
     }
 
     @Override

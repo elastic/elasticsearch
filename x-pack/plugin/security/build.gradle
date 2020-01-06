@@ -3,49 +3,49 @@ evaluationDependsOn(xpackModule('core'))
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'nebula.maven-scm'
 esplugin {
-    name 'x-pack-security'
-    description 'Elasticsearch Expanded Pack Plugin - Security'
-    classname 'org.elasticsearch.xpack.security.Security'
-    requiresKeystore true
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-security'
+  description 'Elasticsearch Expanded Pack Plugin - Security'
+  classname 'org.elasticsearch.xpack.security.Security'
+  requiresKeystore true
+  extendedPlugins = ['x-pack-core']
 }
 
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
-    compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
+  compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
-    testCompile project(path: xpackModule('monitoring'))
-    testCompile project(path: xpackModule('sql:sql-action'))
+  testCompile project(path: xpackModule('monitoring'))
+  testCompile project(path: xpackModule('sql:sql-action'))
 
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
     compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
-    compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
-    compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'
 
     // the following are all SAML dependencies - might as well download the whole internet
-    compile "org.opensaml:opensaml-core:3.3.0"
-    compile "org.opensaml:opensaml-saml-api:3.3.0"
-    compile "org.opensaml:opensaml-saml-impl:3.3.0"
-    compile "org.opensaml:opensaml-messaging-api:3.3.0"
-    compile "org.opensaml:opensaml-messaging-impl:3.3.0"
-    compile "org.opensaml:opensaml-security-api:3.3.0"
-    compile "org.opensaml:opensaml-security-impl:3.3.0"
-    compile "org.opensaml:opensaml-profile-api:3.3.0"
-    compile "org.opensaml:opensaml-profile-impl:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-api:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-impl:3.3.0"
-    compile "org.opensaml:opensaml-soap-api:3.3.0"
-    compile "org.opensaml:opensaml-soap-impl:3.3.0"
-    compile "org.opensaml:opensaml-storage-api:3.3.0"
-    compile "org.opensaml:opensaml-storage-impl:3.3.0"
-    compile "net.shibboleth.utilities:java-support:7.3.0"
-    compile "org.apache.santuario:xmlsec:2.0.8"
+    compile "org.opensaml:opensaml-core:3.4.5"
+    compile "org.opensaml:opensaml-saml-api:3.4.5"
+    compile "org.opensaml:opensaml-saml-impl:3.4.5"
+    compile "org.opensaml:opensaml-messaging-api:3.4.5"
+    compile "org.opensaml:opensaml-messaging-impl:3.4.5"
+    compile "org.opensaml:opensaml-security-api:3.4.5"
+    compile "org.opensaml:opensaml-security-impl:3.4.5"
+    compile "org.opensaml:opensaml-profile-api:3.4.5"
+    compile "org.opensaml:opensaml-profile-impl:3.4.5"
+    compile "org.opensaml:opensaml-xmlsec-api:3.4.5"
+    compile "org.opensaml:opensaml-xmlsec-impl:3.4.5"
+    compile "org.opensaml:opensaml-soap-api:3.4.5"
+    compile "org.opensaml:opensaml-soap-impl:3.4.5"
+    compile "org.opensaml:opensaml-storage-api:3.4.5"
+    compile "org.opensaml:opensaml-storage-impl:3.4.5"
+    compile "net.shibboleth.utilities:java-support:7.5.1"
+    compile "org.apache.santuario:xmlsec:2.1.4"
     compile "io.dropwizard.metrics:metrics-core:3.2.2"
-    compile "org.cryptacular:cryptacular:1.2.0"
+    compile ("org.cryptacular:cryptacular:1.2.3") {
+        exclude group: 'org.bouncycastle'
+    }
     compile "org.slf4j:slf4j-api:${versions.slf4j}"
     compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
     compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -55,123 +55,123 @@ dependencies {
     compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
     compile 'com.google.guava:guava:19.0'
 
-    // Dependencies for oidc
-    compile "com.nimbusds:oauth2-oidc-sdk:6.5"
-    compile "com.nimbusds:nimbus-jose-jwt:4.41.2"
-    compile "com.nimbusds:lang-tag:1.4.4"
-    compile "com.sun.mail:jakarta.mail:1.6.3"
-    compile "net.jcip:jcip-annotations:1.0"
-    compile "net.minidev:json-smart:2.3"
-    compile "net.minidev:accessors-smart:1.2"
-    compile "org.ow2.asm:asm:7.1"
+  // Dependencies for oidc
+  compile "com.nimbusds:oauth2-oidc-sdk:6.16.5"
+  compile "com.nimbusds:nimbus-jose-jwt:8.2"
+  compile "com.nimbusds:lang-tag:1.4.4"
+  compile "com.sun.mail:jakarta.mail:1.6.3"
+  compile "net.jcip:jcip-annotations:1.0"
+  compile "net.minidev:json-smart:2.3"
+  compile "net.minidev:accessors-smart:1.2"
+  compile "org.ow2.asm:asm:7.1"
 
-    testCompile 'org.elasticsearch:securemock:1.2'
-    testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
-    //testCompile "org.yaml:snakeyaml:${versions.snakeyaml}"
+  testCompile 'org.elasticsearch:securemock:1.2'
+  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  //testCompile "org.yaml:snakeyaml:${versions.snakeyaml}"
 
-    // Test dependencies for Kerberos (MiniKdc)
-    testCompile('commons-io:commons-io:2.5')
-    testCompile('org.apache.kerby:kerb-simplekdc:1.1.1')
-    testCompile('org.apache.kerby:kerb-client:1.1.1')
-    testCompile('org.apache.kerby:kerby-config:1.1.1')
-    testCompile('org.apache.kerby:kerb-core:1.1.1')
-    testCompile('org.apache.kerby:kerby-pkix:1.1.1')
-    testCompile('org.apache.kerby:kerby-asn1:1.1.1')
-    testCompile('org.apache.kerby:kerby-util:1.1.1')
-    testCompile('org.apache.kerby:kerb-common:1.1.1')
-    testCompile('org.apache.kerby:kerb-crypto:1.1.1')
-    testCompile('org.apache.kerby:kerb-util:1.1.1')
-    testCompile('org.apache.kerby:token-provider:1.1.1')
-    testCompile('com.nimbusds:nimbus-jose-jwt:4.41.2')
-    testCompile('net.jcip:jcip-annotations:1.0')
-    testCompile('org.apache.kerby:kerb-admin:1.1.1')
-    testCompile('org.apache.kerby:kerb-server:1.1.1')
-    testCompile('org.apache.kerby:kerb-identity:1.1.1')
-    testCompile('org.apache.kerby:kerby-xdr:1.1.1')
+  // Test dependencies for Kerberos (MiniKdc)
+  testCompile('commons-io:commons-io:2.5')
+  testCompile('org.apache.kerby:kerb-simplekdc:1.1.1')
+  testCompile('org.apache.kerby:kerb-client:1.1.1')
+  testCompile('org.apache.kerby:kerby-config:1.1.1')
+  testCompile('org.apache.kerby:kerb-core:1.1.1')
+  testCompile('org.apache.kerby:kerby-pkix:1.1.1')
+  testCompile('org.apache.kerby:kerby-asn1:1.1.1')
+  testCompile('org.apache.kerby:kerby-util:1.1.1')
+  testCompile('org.apache.kerby:kerb-common:1.1.1')
+  testCompile('org.apache.kerby:kerb-crypto:1.1.1')
+  testCompile('org.apache.kerby:kerb-util:1.1.1')
+  testCompile('org.apache.kerby:token-provider:1.1.1')
+  testCompile('com.nimbusds:nimbus-jose-jwt:8.2')
+  testCompile('net.jcip:jcip-annotations:1.0')
+  testCompile('org.apache.kerby:kerb-admin:1.1.1')
+  testCompile('org.apache.kerby:kerb-server:1.1.1')
+  testCompile('org.apache.kerby:kerb-identity:1.1.1')
+  testCompile('org.apache.kerby:kerby-xdr:1.1.1')
 
-    // LDAP backend support for SimpleKdcServer
-    testCompile('org.apache.kerby:kerby-backend:1.1.1')
-    testCompile('org.apache.kerby:ldap-backend:1.1.1')
-    testCompile('org.apache.kerby:kerb-identity:1.1.1')
-    testCompile('org.apache.directory.api:api-ldap-client-api:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-schema-data:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-codec-core:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-extras-aci:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-extras-codec:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
-    testCompile('commons-pool:commons-pool:1.6')
-    testCompile('commons-collections:commons-collections:3.2')
-    testCompile('org.apache.mina:mina-core:2.0.17')
-    testCompile('org.apache.directory.api:api-util:1.0.1')
-    testCompile('org.apache.directory.api:api-i18n:1.0.1')
-    testCompile('org.apache.directory.api:api-ldap-model:1.0.1')
-    testCompile('org.apache.directory.api:api-asn1-api:1.0.1')
-    testCompile('org.apache.directory.api:api-asn1-ber:1.0.1')
-    testCompile('org.apache.servicemix.bundles:org.apache.servicemix.bundles.antlr:2.7.7_5')
-    testCompile('org.apache.directory.server:apacheds-core-api:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-i18n:2.0.0-M24')
-    testCompile('org.apache.directory.api:api-ldap-extras-util:1.0.0')
-    testCompile('net.sf.ehcache:ehcache:2.10.4')
-    testCompile('org.apache.directory.server:apacheds-kerberos-codec:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-protocol-ldap:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-protocol-shared:2.0.0-M24')
-    testCompile('org.apache.directory.jdbm:apacheds-jdbm1:2.0.0-M3')
-    testCompile('org.apache.directory.server:apacheds-jdbm-partition:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-xdbm-partition:2.0.0-M24')
-    testCompile('org.apache.directory.api:api-ldap-extras-sp:1.0.0')
-    testCompile('org.apache.directory.server:apacheds-test-framework:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-core-annotations:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-ldif-partition:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-mavibot-partition:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-protocol-kerberos:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-server-annotations:2.0.0-M24')
-    testCompile('org.apache.directory.api:api-ldap-codec-standalone:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-net-mina:1.0.0')
-    testCompile('org.apache.directory.server:ldap-client-test:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
-    testCompile('org.apache.directory.mavibot:mavibot:1.0.0-M8')
+  // LDAP backend support for SimpleKdcServer
+  testCompile('org.apache.kerby:kerby-backend:1.1.1')
+  testCompile('org.apache.kerby:ldap-backend:1.1.1')
+  testCompile('org.apache.kerby:kerb-identity:1.1.1')
+  testCompile('org.apache.directory.api:api-ldap-client-api:1.0.0')
+  testCompile('org.apache.directory.api:api-ldap-schema-data:1.0.0')
+  testCompile('org.apache.directory.api:api-ldap-codec-core:1.0.0')
+  testCompile('org.apache.directory.api:api-ldap-extras-aci:1.0.0')
+  testCompile('org.apache.directory.api:api-ldap-extras-codec:1.0.0')
+  testCompile('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
+  testCompile('commons-pool:commons-pool:1.6')
+  testCompile('commons-collections:commons-collections:3.2')
+  testCompile('org.apache.mina:mina-core:2.0.17')
+  testCompile('org.apache.directory.api:api-util:1.0.1')
+  testCompile('org.apache.directory.api:api-i18n:1.0.1')
+  testCompile('org.apache.directory.api:api-ldap-model:1.0.1')
+  testCompile('org.apache.directory.api:api-asn1-api:1.0.1')
+  testCompile('org.apache.directory.api:api-asn1-ber:1.0.1')
+  testCompile('org.apache.servicemix.bundles:org.apache.servicemix.bundles.antlr:2.7.7_5')
+  testCompile('org.apache.directory.server:apacheds-core-api:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-i18n:2.0.0-M24')
+  testCompile('org.apache.directory.api:api-ldap-extras-util:1.0.0')
+  testCompile('net.sf.ehcache:ehcache:2.10.4')
+  testCompile('org.apache.directory.server:apacheds-kerberos-codec:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-protocol-ldap:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-protocol-shared:2.0.0-M24')
+  testCompile('org.apache.directory.jdbm:apacheds-jdbm1:2.0.0-M3')
+  testCompile('org.apache.directory.server:apacheds-jdbm-partition:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-xdbm-partition:2.0.0-M24')
+  testCompile('org.apache.directory.api:api-ldap-extras-sp:1.0.0')
+  testCompile('org.apache.directory.server:apacheds-test-framework:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-core-annotations:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-ldif-partition:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-mavibot-partition:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-protocol-kerberos:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-server-annotations:2.0.0-M24')
+  testCompile('org.apache.directory.api:api-ldap-codec-standalone:1.0.0')
+  testCompile('org.apache.directory.api:api-ldap-net-mina:1.0.0')
+  testCompile('org.apache.directory.server:ldap-client-test:2.0.0-M24')
+  testCompile('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
+  testCompile('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 processTestResources {
-    from(project(xpackModule('core')).file('src/main/config'))
-    from(project(xpackModule('core')).file('src/test/resources'))
+  from(project(xpackModule('core')).file('src/main/config'))
+  from(project(xpackModule('core')).file('src/test/resources'))
 }
 
 configurations {
-    testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testRuntime
 }
 task testJar(type: Jar) {
-    appendix 'test'
-    from sourceSets.test.output
+  appendix 'test'
+  from sourceSets.test.output
 }
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for extensions
-    archives jar
-    testArtifacts testJar
+  // normal es plugins do not publish the jar but we need to since users need it for extensions
+  archives jar
+  testArtifacts testJar
 }
 
 dependencyLicenses {
-    mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
-    mapping from: /http.*/, to: 'httpclient'
+  mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
+  mapping from: /http.*/, to: 'httpclient'
 }
 
 licenseHeaders {
-    // This class was sourced from apache directory studio for some microsoft-specific logic
-    excludes << 'org/elasticsearch/xpack/security/authc/ldap/ActiveDirectorySIDUtil.java'
+  // This class was sourced from apache directory studio for some microsoft-specific logic
+  excludes << 'org/elasticsearch/xpack/security/authc/ldap/ActiveDirectorySIDUtil.java'
 }
 
 forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.p12'
-    exclude '**/*.der'
-    exclude '**/*.zip'
+  exclude '**/*.key'
+  exclude '**/*.p12'
+  exclude '**/*.der'
+  exclude '**/*.zip'
 }
 
 forbiddenApisMain {
-    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
+  signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -270,48 +270,215 @@ thirdPartyAudit {
         // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
         'org.slf4j.ext.EventData',
         // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
-        'org.cryptomator.siv.SivMode'
+        'org.cryptomator.siv.SivMode',
+        // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
+        'com.google.crypto.tink.subtle.Ed25519Sign',
+        'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+        'com.google.crypto.tink.subtle.Ed25519Verify',
+        'com.google.crypto.tink.subtle.X25519',
+        // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
+        // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
+        'org.bouncycastle.asn1.ASN1Encodable',
+        'org.bouncycastle.asn1.ASN1InputStream',
+        'org.bouncycastle.asn1.ASN1Integer',
+        'org.bouncycastle.asn1.ASN1ObjectIdentifier',
+        'org.bouncycastle.asn1.ASN1OctetString',
+        'org.bouncycastle.asn1.ASN1Primitive',
+        'org.bouncycastle.asn1.ASN1Sequence',
+        'org.bouncycastle.asn1.ASN1TaggedObject',
+        'org.bouncycastle.asn1.DEROctetString',
+        'org.bouncycastle.asn1.DERSequence',
+        'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
+        'org.bouncycastle.asn1.pkcs.EncryptionScheme',
+        'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
+        'org.bouncycastle.asn1.pkcs.PBEParameter',
+        'org.bouncycastle.asn1.pkcs.PBES2Parameters',
+        'org.bouncycastle.asn1.pkcs.PBKDF2Params',
+        'org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers',
+        'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+        'org.bouncycastle.asn1.x500.AttributeTypeAndValue',
+        'org.bouncycastle.asn1.x500.RDN',
+        'org.bouncycastle.asn1.x500.X500Name',
+        'org.bouncycastle.asn1.x509.AccessDescription',
+        'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+        'org.bouncycastle.asn1.x509.AuthorityKeyIdentifier',
+        'org.bouncycastle.asn1.x509.BasicConstraints',
+        'org.bouncycastle.asn1.x509.DistributionPoint',
+        'org.bouncycastle.asn1.x509.Extension',
+        'org.bouncycastle.asn1.x509.GeneralName',
+        'org.bouncycastle.asn1.x509.GeneralNames',
+        'org.bouncycastle.asn1.x509.GeneralNamesBuilder',
+        'org.bouncycastle.asn1.x509.KeyPurposeId',
+        'org.bouncycastle.asn1.x509.KeyUsage',
+        'org.bouncycastle.asn1.x509.PolicyInformation',
+        'org.bouncycastle.asn1.x509.SubjectKeyIdentifier',
+        'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+        'org.bouncycastle.asn1.x9.X9ECParameters',
+        'org.bouncycastle.cert.X509v3CertificateBuilder',
+        'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+        'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+        'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
+        'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+        'org.bouncycastle.crypto.BlockCipher',
+        'org.bouncycastle.crypto.BufferedBlockCipher',
+        'org.bouncycastle.crypto.CipherParameters',
+        'org.bouncycastle.crypto.Digest',
+        'org.bouncycastle.crypto.InvalidCipherTextException',
+        'org.bouncycastle.crypto.PBEParametersGenerator',
+        'org.bouncycastle.crypto.StreamCipher',
+        'org.bouncycastle.crypto.digests.GOST3411Digest',
+        'org.bouncycastle.crypto.digests.MD2Digest',
+        'org.bouncycastle.crypto.digests.MD4Digest',
+        'org.bouncycastle.crypto.digests.MD5Digest',
+        'org.bouncycastle.crypto.digests.RIPEMD128Digest',
+        'org.bouncycastle.crypto.digests.RIPEMD160Digest',
+        'org.bouncycastle.crypto.digests.RIPEMD256Digest',
+        'org.bouncycastle.crypto.digests.RIPEMD320Digest',
+        'org.bouncycastle.crypto.digests.SHA1Digest',
+        'org.bouncycastle.crypto.digests.SHA224Digest',
+        'org.bouncycastle.crypto.digests.SHA256Digest',
+        'org.bouncycastle.crypto.digests.SHA384Digest',
+        'org.bouncycastle.crypto.digests.SHA3Digest',
+        'org.bouncycastle.crypto.digests.SHA512Digest',
+        'org.bouncycastle.crypto.digests.TigerDigest',
+        'org.bouncycastle.crypto.digests.WhirlpoolDigest',
+        'org.bouncycastle.crypto.engines.AESEngine',
+        'org.bouncycastle.crypto.engines.BlowfishEngine',
+        'org.bouncycastle.crypto.engines.CAST5Engine',
+        'org.bouncycastle.crypto.engines.CAST6Engine',
+        'org.bouncycastle.crypto.engines.CamelliaEngine',
+        'org.bouncycastle.crypto.engines.DESEngine',
+        'org.bouncycastle.crypto.engines.DESedeEngine',
+        'org.bouncycastle.crypto.engines.GOST28147Engine',
+        'org.bouncycastle.crypto.engines.Grain128Engine',
+        'org.bouncycastle.crypto.engines.HC128Engine',
+        'org.bouncycastle.crypto.engines.HC256Engine',
+        'org.bouncycastle.crypto.engines.ISAACEngine',
+        'org.bouncycastle.crypto.engines.NoekeonEngine',
+        'org.bouncycastle.crypto.engines.RC2Engine',
+        'org.bouncycastle.crypto.engines.RC4Engine',
+        'org.bouncycastle.crypto.engines.RC532Engine',
+        'org.bouncycastle.crypto.engines.RC564Engine',
+        'org.bouncycastle.crypto.engines.RC6Engine',
+        'org.bouncycastle.crypto.engines.SEEDEngine',
+        'org.bouncycastle.crypto.engines.Salsa20Engine',
+        'org.bouncycastle.crypto.engines.SerpentEngine',
+        'org.bouncycastle.crypto.engines.SkipjackEngine',
+        'org.bouncycastle.crypto.engines.TEAEngine',
+        'org.bouncycastle.crypto.engines.TwofishEngine',
+        'org.bouncycastle.crypto.engines.VMPCEngine',
+        'org.bouncycastle.crypto.engines.XTEAEngine',
+        'org.bouncycastle.crypto.generators.BCrypt',
+        'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
+        'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
+        'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
+        'org.bouncycastle.crypto.io.CipherInputStream',
+        'org.bouncycastle.crypto.io.CipherOutputStream',
+        'org.bouncycastle.crypto.macs.HMac',
+        'org.bouncycastle.crypto.modes.AEADBlockCipher',
+        'org.bouncycastle.crypto.modes.CBCBlockCipher',
+        'org.bouncycastle.crypto.modes.CCMBlockCipher',
+        'org.bouncycastle.crypto.modes.CFBBlockCipher',
+        'org.bouncycastle.crypto.modes.EAXBlockCipher',
+        'org.bouncycastle.crypto.modes.GCMBlockCipher',
+        'org.bouncycastle.crypto.modes.OCBBlockCipher',
+        'org.bouncycastle.crypto.modes.OFBBlockCipher',
+        'org.bouncycastle.crypto.paddings.BlockCipherPadding',
+        'org.bouncycastle.crypto.paddings.ISO10126d2Padding',
+        'org.bouncycastle.crypto.paddings.ISO7816d4Padding',
+        'org.bouncycastle.crypto.paddings.PKCS7Padding',
+        'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
+        'org.bouncycastle.crypto.paddings.TBCPadding',
+        'org.bouncycastle.crypto.paddings.X923Padding',
+        'org.bouncycastle.crypto.paddings.ZeroBytePadding',
+        'org.bouncycastle.crypto.params.AEADParameters',
+        'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
+        'org.bouncycastle.crypto.params.DSAKeyParameters',
+        'org.bouncycastle.crypto.params.DSAParameters',
+        'org.bouncycastle.crypto.params.DSAPrivateKeyParameters',
+        'org.bouncycastle.crypto.params.DSAPublicKeyParameters',
+        'org.bouncycastle.crypto.params.ECDomainParameters',
+        'org.bouncycastle.crypto.params.ECKeyParameters',
+        'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
+        'org.bouncycastle.crypto.params.ECPublicKeyParameters',
+        'org.bouncycastle.crypto.params.KeyParameter',
+        'org.bouncycastle.crypto.params.ParametersWithIV',
+        'org.bouncycastle.crypto.params.RC2Parameters',
+        'org.bouncycastle.crypto.params.RC5Parameters',
+        'org.bouncycastle.crypto.params.RSAKeyParameters',
+        'org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters',
+        'org.bouncycastle.crypto.prng.EntropySource',
+        'org.bouncycastle.crypto.prng.SP800SecureRandom',
+        'org.bouncycastle.crypto.prng.SP800SecureRandomBuilder',
+        'org.bouncycastle.crypto.prng.drbg.HashSP800DRBG',
+        'org.bouncycastle.crypto.prng.drbg.SP80090DRBG',
+        'org.bouncycastle.crypto.signers.DSASigner',
+        'org.bouncycastle.crypto.signers.ECDSASigner',
+        'org.bouncycastle.crypto.signers.RSADigestSigner',
+        'org.bouncycastle.crypto.util.PrivateKeyFactory',
+        'org.bouncycastle.crypto.util.PrivateKeyInfoFactory',
+        'org.bouncycastle.crypto.util.PublicKeyFactory',
+        'org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory',
+        'org.bouncycastle.jcajce.provider.asymmetric.dsa.KeyPairGeneratorSpi',
+        'org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi$EC',
+        'org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi',
+        'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
+        'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
+        'org.bouncycastle.jce.provider.BouncyCastleProvider',
+        'org.bouncycastle.jce.spec.ECNamedCurveGenParameterSpec',
+        'org.bouncycastle.math.ec.ECFieldElement',
+        'org.bouncycastle.math.ec.ECPoint',
+        'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
+        'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+        'org.bouncycastle.util.Arrays',
+        'org.bouncycastle.util.Strings',
+        'org.bouncycastle.util.io.Streams',
+        'org.bouncycastle.x509.extension.X509ExtensionUtil',
+        'org.bouncycastle.cert.X509CertificateHolder',
+        'org.bouncycastle.openssl.PEMKeyPair',
+        'org.bouncycastle.openssl.PEMParser',
+        'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
     )
 
-    ignoreViolations (
-        // Guava uses internal java api: sun.misc.Unsafe
-        'com.google.common.cache.Striped64',
-        'com.google.common.cache.Striped64$1',
-        'com.google.common.cache.Striped64$Cell',
-        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    )
+  ignoreViolations(
+    // Guava uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  )
 }
 
 thirdPartyAudit.ignoreMissingClasses(
-    'javax.xml.bind.JAXBContext',
-    'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.JAXBException',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.UnmarshallerHandler',
-    'javax.activation.ActivationDataFlavor',
-    'javax.activation.DataContentHandler',
-    'javax.activation.DataHandler',
-    'javax.activation.DataSource',
-    'javax.activation.FileDataSource',
-    'javax.activation.FileTypeMap'
+  'javax.xml.bind.JAXBContext',
+  'javax.xml.bind.JAXBElement',
+  'javax.xml.bind.JAXBException',
+  'javax.xml.bind.Unmarshaller',
+  'javax.xml.bind.UnmarshallerHandler',
+  'javax.activation.ActivationDataFlavor',
+  'javax.activation.DataContentHandler',
+  'javax.activation.DataHandler',
+  'javax.activation.DataSource',
+  'javax.activation.FileDataSource',
+  'javax.activation.FileTypeMap'
 )
 
 
 test {
-    /*
-     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-     * other if we allow them to set the number of available processors as it's set-once in Netty.
-     */
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  /*
+   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+   * other if we allow them to set the number of available processors as it's set-once in Netty.
+   */
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
 
-    /*
-     * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
-     * to keep direct memory usage under control.
-     */
-    systemProperty 'es.transport.buffer.size', '256k'
+  /*
+   * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
+   * to keep direct memory usage under control.
+   */
+  systemProperty 'es.transport.buffer.size', '256k'
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so
@@ -321,9 +488,9 @@ integTest.enabled = false
 
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {
-    project.subprojects
-            .find { it.path == project.path + ":qa" }
-            .subprojects
-            .findAll { it.path.startsWith(project.path + ":qa") }
-            .each { check.dependsOn it.check }
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
 }

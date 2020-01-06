@@ -137,3 +137,7 @@ The following parameters are accepted by `date` fields:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

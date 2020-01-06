@@ -54,6 +54,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
@@ -90,7 +91,8 @@ public class FsRepositoryTests extends ESTestCase {
 
             int numDocs = indexDocs(directory);
             RepositoryMetaData metaData = new RepositoryMetaData("test", "fs", settings);
-            FsRepository repository = new FsRepository(metaData, new Environment(settings, null), NamedXContentRegistry.EMPTY, threadPool);
+            FsRepository repository = new FsRepository(metaData, new Environment(settings, null), NamedXContentRegistry.EMPTY,
+                BlobStoreTestUtil.mockClusterService());
             repository.start();
             final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
@@ -117,7 +119,9 @@ public class FsRepositoryTests extends ESTestCase {
                 new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, ""));
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);
-            runGeneric(threadPool, () -> repository.restoreShard(store, snapshotId, indexId, shardId, state));
+            final PlainActionFuture<Void> futureA = PlainActionFuture.newFuture();
+            runGeneric(threadPool, () -> repository.restoreShard(store, snapshotId, indexId, shardId, state, futureA));
+            futureA.actionGet();
             assertTrue(state.getIndex().recoveredBytes() > 0);
             assertEquals(0, state.getIndex().reusedFileCount());
             assertEquals(indexCommit.getFileNames().size(), state.getIndex().recoveredFileCount());
@@ -138,14 +142,16 @@ public class FsRepositoryTests extends ESTestCase {
 
             // roll back to the first snap and then incrementally restore
             RecoveryState firstState = new RecoveryState(routing, localNode, null);
-            runGeneric(threadPool, () ->
-                repository.restoreShard(store, snapshotId, indexId, shardId, firstState));
+            final PlainActionFuture<Void> futureB =  PlainActionFuture.newFuture();
+            runGeneric(threadPool, () -> repository.restoreShard(store, snapshotId, indexId, shardId, firstState, futureB));
+            futureB.actionGet();
             assertEquals("should reuse everything except of .liv and .si",
                 commitFileNames.size()-2, firstState.getIndex().reusedFileCount());
 
             RecoveryState secondState = new RecoveryState(routing, localNode, null);
-            runGeneric(threadPool, () ->
-                repository.restoreShard(store, incSnapshotId, indexId, shardId, secondState));
+            final PlainActionFuture<Void> futureC = PlainActionFuture.newFuture();
+            runGeneric(threadPool, () -> repository.restoreShard(store, incSnapshotId, indexId, shardId, secondState, futureC));
+            futureC.actionGet();
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size()-2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
             List<RecoveryState.File> recoveredFiles =

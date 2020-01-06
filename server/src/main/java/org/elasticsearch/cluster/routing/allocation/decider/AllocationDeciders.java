@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -139,6 +140,26 @@ public class AllocationDeciders extends AllocationDecider {
                 }
             } else if (decision != Decision.ALWAYS
                         && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public Decision shouldAutoExpandToNode(IndexMetaData indexMetaData, DiscoveryNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.shouldAutoExpandToNode(indexMetaData, node, allocation);
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }

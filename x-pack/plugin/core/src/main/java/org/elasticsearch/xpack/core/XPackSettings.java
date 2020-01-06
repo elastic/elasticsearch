@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -16,8 +17,10 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.SecretKeyFactory;
+import javax.net.ssl.SSLContext;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -183,7 +186,20 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2", "TLSv1.1");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
+
+    static {
+        boolean supportsTLSv13 = false;
+        try {
+            SSLContext.getInstance("TLSv1.3");
+            supportsTLSv13 = true;
+        } catch (NoSuchAlgorithmException e) {
+            // BCJSSE in FIPS mode doesn't support TLSv1.3 yet.
+            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
+        }
+        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ?
+            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
+    }
 
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;

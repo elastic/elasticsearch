@@ -428,13 +428,14 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     public void testNormalizerWithIndex() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request("index");
         request.normalizer("my_normalizer");
-        request.text("ABc");
+        // this should be lowercased and only emit a single token
+        request.text("Wi-fi");
         AnalyzeAction.Response analyze
             = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
 
         assertEquals(1, tokens.size());
-        assertEquals("abc", tokens.get(0).getTerm());
+        assertEquals("wi-fi", tokens.get(0).getTerm());
     }
 
     /**

@@ -60,8 +60,8 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && Objects.equals(currentStepKey, IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
-            return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
+                && Objects.equals(currentStepKey, LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+            return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In

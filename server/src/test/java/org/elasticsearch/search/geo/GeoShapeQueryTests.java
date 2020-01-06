@@ -77,21 +77,21 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     };
 
     private XContentBuilder createMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_shape");
         if (randomBoolean()) {
             xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
             .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
         }
-        xcb = xcb.endObject().endObject().endObject().endObject();
+        xcb = xcb.endObject().endObject().endObject();
 
         return xcb;
     }
 
     public void testNullShape() throws Exception {
         String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex("test").setId("aNullshape").setSource("{\"location\": null}", XContentType.JSON)
@@ -102,7 +102,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
@@ -143,12 +143,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testEdgeCases() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
-            .endObject().endObject().endObject().endObject();
+            .endObject().endObject().endObject();
         String mapping = Strings.toString(xcb);
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex("test").setId("blakely").setSource(jsonBuilder().startObject()
@@ -180,44 +180,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testIndexedShapeReference() throws Exception {
         String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
-        createIndex("shapes");
-        ensureGreen();
-
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
-
-        client().prepareIndex("shapes").setId("Big_Rectangle").setSource(jsonBuilder().startObject()
-                .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
-                .field("name", "Document 1")
-                .startObject("location")
-                .field("type", "point")
-                .startArray("coordinates").value(-30).value(-30).endArray()
-                .endObject()
-                .endObject()).setRefreshPolicy(IMMEDIATE).get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(geoIntersectionQuery("location", "Big_Rectangle"))
-                .get();
-
-        assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(geoShapeQuery("location", "Big_Rectangle"))
-                .get();
-
-        assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
-    }
-
-     public void testIndexedShapeReferenceWithTypes() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         createIndex("shapes");
         ensureGreen();
 
@@ -289,7 +252,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape").get();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", "location", "type=geo_shape").get();
 
         String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
@@ -484,10 +447,30 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     public void testContainsShapeQuery() throws Exception {
         // Create a random geometry collection.
         Rectangle mbr = xRandomRectangle(random(), xRandomPoint(random()), true);
-        GeometryCollectionBuilder gcb = createGeometryCollectionWithin(random(), mbr);
+        boolean usePrefixTrees = randomBoolean();
+        GeometryCollectionBuilder gcb;
+        if (usePrefixTrees) {
+            gcb = createGeometryCollectionWithin(random(), mbr);
+        } else {
+            // vector strategy does not yet support multipoint queries
+            gcb = new GeometryCollectionBuilder();
+            int numShapes = RandomNumbers.randomIntBetween(random(), 1, 4);
+            for (int i = 0; i < numShapes; ++i) {
+                ShapeBuilder shape;
+                do {
+                    shape = RandomShapeGenerator.createShapeWithin(random(), mbr);
+                } while (shape instanceof MultiPointBuilder);
+                gcb.shape(shape);
+            }
+        }
 
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree" )
-                .get();
+        if (usePrefixTrees) {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+                .execute().actionGet();
+        } else {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+                .execute().actionGet();
+        }
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -601,17 +584,17 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testPointsOnly() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
                 .field("tree_levels", "6")
                 .field("distance_error_pct", "0.01")
                 .field("points_only", true)
-                .endObject().endObject()
+                .endObject()
                 .endObject().endObject());
 
-        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random());
@@ -634,17 +617,17 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testPointsOnlyExplicit() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .field("tree", randomBoolean() ? "quadtree" : "geohash")
             .field("tree_levels", "6")
             .field("distance_error_pct", "0.01")
             .field("points_only", true)
-            .endObject().endObject()
+            .endObject()
             .endObject().endObject());
 
-        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         // MULTIPOINT
@@ -763,5 +746,78 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertEquals(2, response.getHits().getTotalHits().value);
         assertNotEquals("1", response.getHits().getAt(0).getId());
         assertNotEquals("1", response.getHits().getAt(1).getId());
+    }
+
+    public void testGeometryCollectionRelations() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("doc")
+            .startObject("properties")
+            .startObject("geo").field("type", "geo_shape").endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+
+        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
+
+        client().index(new IndexRequest("test")
+            .source(jsonBuilder().startObject().field("geo", envelopeBuilder).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        {
+            // A geometry collection that is fully within the indexed shape
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(1, 2));
+            builder.shape(new PointBuilder(-2, -1));
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+        }
+        // A geometry collection that is partially within the indexed shape
+        {
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(1, 2));
+            builder.shape(new PointBuilder(20, 30));
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+        }
+        {
+            // A geometry collection that is disjoint with the indexed shape
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(-20, -30));
+            builder.shape(new PointBuilder(20, 30));
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test")
+                .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+        }
     }
 }

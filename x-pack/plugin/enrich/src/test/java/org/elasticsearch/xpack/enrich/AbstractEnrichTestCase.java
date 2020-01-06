@@ -26,8 +26,8 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         return List.of(LocalStateEnrich.class);
     }
 
-    protected AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy,
-                                                          ClusterService clusterService) throws InterruptedException {
+    protected AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy, ClusterService clusterService)
+        throws InterruptedException {
         if (policy != null) {
             createSourceIndices(policy);
         }
@@ -50,7 +50,7 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
             latch.countDown();
         });
         latch.await();
-        if (error.get() != null){
+        if (error.get() != null) {
             throw error.get();
         }
     }

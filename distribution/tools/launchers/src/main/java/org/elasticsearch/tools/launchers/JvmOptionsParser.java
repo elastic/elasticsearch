@@ -31,6 +31,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -87,11 +89,21 @@ final class JvmOptionsParser {
                         .filter(Predicate.not(String::isBlank))
                         .collect(Collectors.toUnmodifiableList()));
             }
+            final Map<String, String> substitutions = new HashMap<>();
+            substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
+            if (null != System.getenv("ES_PATH_CONF")){
+                substitutions.put("ES_PATH_CONF", System.getenv("ES_PATH_CONF"));
+            }
             final List<String> substitutedJvmOptions =
-                substitutePlaceholders(jvmOptions, Map.of("ES_TMPDIR", System.getenv("ES_TMPDIR")));
+                substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-            substitutedJvmOptions.addAll(ergonomicJvmOptions);
-            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(substitutedJvmOptions);
+            final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+            final List<String> finalJvmOptions =
+                new ArrayList<>(systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size());
+            finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
+            finalJvmOptions.addAll(substitutedJvmOptions);
+            finalJvmOptions.addAll(ergonomicJvmOptions);
+            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(finalJvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
         } else {

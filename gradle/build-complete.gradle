@@ -1,59 +1,48 @@
 import java.nio.file.Files
-import org.elasticsearch.gradle.OS
 
 String buildNumber = System.getenv('BUILD_NUMBER')
 
 if (buildNumber) {
-    File uploadFile = file("build/${buildNumber}.tar.bz2")
-    project.gradle.buildFinished { result ->
-        println "build complete, generating: $uploadFile"
-        if (uploadFile.exists()) {
-            project.delete(uploadFile)
-        }
-
-        def isWindows = OS.current() == OS.WINDOWS
-        if (OS.current() == OS.LINUX) {
-            project.exec {
-                ignoreExitValue = true
-                workingDir projectDir
-                commandLine 'bash', '-c', 'journalctl --since "1 hour ago" 2>&1 > journalctl.log'
-            }
-        }
-
-        try {
-            ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
-                fileset(dir: projectDir) {
-                    fileTree(projectDir)
-                            .include("**/*.hprof")
-                            .include("**/reaper.log")
-                            .include("**/journalctl.log")
-                            .include("**/build/testclusters/**")
-                            .exclude("**/build/testclusters/**/data/**")
-                            .exclude("**/build/testclusters/**/distro/**")
-                            .exclude("**/build/testclusters/**/repo/**")
-                            .exclude("**/build/testclusters/**/extract/**")
-                            .filter { Files.isRegularFile(it.toPath()) }
-                            .each {
-                                include(name: projectDir.toPath().relativize(it.toPath()))
-                            }
-                }
-
-                fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
-                    include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
-                }
-
-                if (Files.isReadable(file("/var/log/").toPath())) {
-                    Files.list(file("/var/log/").toPath())
-                            .filter { it.fileName.endsWith(".log") }
-                            .filter { Files.isReadable(it) }
-                            .filter { Files.isRegularFile(it) }
-                            .forEach {
-                                fileset(file: it)
-                            }
-                }
-            }
-        } catch (Exception e) {
-            logger.lifecycle("Failed to archive additional logs", e)
-        }
+  File uploadFile = file("build/${buildNumber}.tar.bz2")
+  project.gradle.buildFinished { result ->
+    println "build complete, generating: $uploadFile"
+    if (uploadFile.exists()) {
+      project.delete(uploadFile)
     }
+
+    try {
+      ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
+        fileset(dir: projectDir) {
+          Set<File> fileSet = fileTree(projectDir) {
+            include("**/*.hprof")
+            include("**/reaper.log")
+            include("**/build/testclusters/**")
+            exclude("**/build/testclusters/**/data/**")
+            exclude("**/build/testclusters/**/distro/**")
+            exclude("**/build/testclusters/**/repo/**")
+            exclude("**/build/testclusters/**/extract/**")
+          }
+            .files
+            .findAll { Files.isRegularFile(it.toPath()) }
+
+          if (fileSet.empty) {
+            // In cases where we don't match any workspace files, exclude everything
+            ant.exclude(name: "**/*")
+          } else {
+            fileSet.each {
+              ant.include(name: projectDir.toPath().relativize(it.toPath()))
+            }
+          }
+        }
+
+        fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
+          include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
+        }
+
+        fileset(dir: "${gradle.gradleUserHomeDir}/workers", followsymlinks: false)
+      }
+    } catch (Exception e) {
+      logger.lifecycle("Failed to archive additional logs", e)
+    }
+  }
 }

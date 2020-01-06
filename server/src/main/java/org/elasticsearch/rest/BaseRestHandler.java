@@ -62,12 +62,6 @@ public abstract class BaseRestHandler implements RestHandler {
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: Support for this parameter will be removed after the transition period to typeless APIs.
-     */
-    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     public final long getUsageCount() {
         return usageCount.sum();

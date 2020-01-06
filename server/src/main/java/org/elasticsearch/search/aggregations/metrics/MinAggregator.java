@@ -181,7 +181,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (parent != null) {
             return null;
         }
-        if (config.fieldContext() != null && config.script() == null) {
+        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldContext().fieldType();
             if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
                 return null;

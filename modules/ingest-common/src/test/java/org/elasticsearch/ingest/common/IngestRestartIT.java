@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -109,15 +107,13 @@ public class IngestRestartIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> client().prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline(pipelineIdWithScript)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get());
-        assertThat(exception.getHeaderKeys(), equalTo(Sets.newHashSet("processor_type")));
-        assertThat(exception.getHeader("processor_type"), equalTo(Arrays.asList("unknown")));
-        assertThat(exception.getRootCause().getMessage(),
+        assertThat(exception.getMessage(),
             equalTo("pipeline with id [" + pipelineIdWithScript + "] could not be loaded, caused by " +
                 "[org.elasticsearch.ElasticsearchParseException: Error updating pipeline with id [" + pipelineIdWithScript + "]; " +
                 "org.elasticsearch.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; " +

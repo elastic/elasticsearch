@@ -18,8 +18,8 @@ Security configuration information resides in two places:
 `xpack.security` namespace>> inside the `elasticsearch.yml` and
 `elasticsearch.keystore` files. In addition there are several other
 <<security-files, extra configuration files>> inside the same `ES_PATH_CONF`
-directory. These files define roles and role mappings and
-<<configuring-file-realm, configure the file realm>>. Some of the
+directory. These files define roles and role mappings and configure the
+<<file-realm,file realm>>. Some of the
 settings specify file paths to security-sensitive data, such as TLS keys and
 certificates for the HTTP client and inter-node communication and private key files for
 <<ref-saml-settings, SAML>>, <<ref-oidc-settings, OIDC>> and the

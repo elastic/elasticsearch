@@ -52,6 +52,17 @@ public final class RepositoryData {
      * The generation value indicating the repository has no index generational files.
      */
     public static final long EMPTY_REPO_GEN = -1L;
+
+    /**
+     * The generation value indicating that the repository generation is unknown.
+     */
+    public static final long UNKNOWN_REPO_GEN = -2L;
+
+    /**
+     * The generation value indicating that the repository generation could not be determined.
+     */
+    public static final long CORRUPTED_REPO_GEN = -3L;
+
     /**
      * An instance initialized for an empty repository.
      */
@@ -315,9 +326,6 @@ public final class RepositoryData {
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final boolean shouldWriteShardGens) throws IOException {
-        assert shouldWriteShardGens || shardGenerations.indices().isEmpty() :
-            "Should not build shard generations in BwC mode but saw generations [" + shardGenerations + "]";
-
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);

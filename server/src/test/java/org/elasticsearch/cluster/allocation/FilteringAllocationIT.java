@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -95,6 +96,45 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery())
             .execute().actionGet().getHits().getTotalHits().value, equalTo(100L));
+    }
+
+    public void testAutoExpandReplicasToFilteredNodes() {
+        logger.info("--> starting 2 nodes");
+        List<String> nodesIds = internalCluster().startNodes(2);
+        final String node_0 = nodesIds.get(0);
+        final String node_1 = nodesIds.get(1);
+        assertThat(cluster().size(), equalTo(2));
+
+        logger.info("--> creating an index with auto-expand replicas");
+        createIndex("test", Settings.builder()
+            .put(AutoExpandReplicas.SETTING.getKey(), "0-all")
+            .build());
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(1));
+        ensureGreen("test");
+
+        logger.info("--> filter out the second node");
+        if (randomBoolean()) {
+            client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
+                .execute().actionGet();
+        } else {
+            client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_1))
+                .execute().actionGet();
+        }
+        ensureGreen("test");
+
+        logger.info("--> verify all are allocated on node1 now");
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(0));
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_0));
+                }
+            }
+        }
     }
 
     public void testDisablingAllocationFiltering() {

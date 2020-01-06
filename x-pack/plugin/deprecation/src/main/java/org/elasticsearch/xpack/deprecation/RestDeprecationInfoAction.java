@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -21,15 +20,10 @@ import java.io.IOException;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestDeprecationInfoAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestDeprecationInfoAction(RestController controller) {
-        controller.registerWithDeprecatedHandler(
-            RestRequest.Method.GET, "/_migration/deprecations", this,
-            RestRequest.Method.GET, "/_xpack/migration/deprecations", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            RestRequest.Method.GET, "/{index}/_migration/deprecations", this,
-            RestRequest.Method.GET, "/{index}/_xpack/migration/deprecations", deprecationLogger);
+        controller.registerHandler(RestRequest.Method.GET, "/_migration/deprecations", this);
+        controller.registerHandler(RestRequest.Method.GET, "/{index}/_migration/deprecations", this);
     }
 
     @Override

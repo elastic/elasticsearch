@@ -4,24 +4,7 @@
       reason: "get_all_contexts introduced in 7.6.0"
   - do:
       get_script_context: {}
-  - match: { contexts.aggregation_selector: {} }
-  - match: { contexts.aggs: {} }
-  - match: { contexts.aggs_combine: {} }
-  - match: { contexts.aggs_init: {} }
-  - match: { contexts.aggs_map: {} }
-  - match: { contexts.aggs_reduce: {} }
-  - match: { contexts.bucket_aggregation: {} }
-  - match: { contexts.field: {} }
-  - match: { contexts.filter: {} }
-  - match: { contexts.ingest: {} }
-  - match: { contexts.interval: {} }
-  - match: { contexts.number_sort: {} }
-  - match: { contexts.processor_conditional: {} }
-  - match: { contexts.score: {} }
-  - match: { contexts.script_heuristic: {} }
-  - match: { contexts.similarity: {} }
-  - match: { contexts.similarity_weight: {} }
-  - match: { contexts.string_sort: {} }
-  - match: { contexts.template: {} }
-  - match: { contexts.terms_set: {} }
-  - match: { contexts.update: {} }
+
+  - is_true: contexts.0.name
+  - is_true: contexts.0.methods.0.return_type
+  - match: { contexts.0.methods.0.name: "execute" }

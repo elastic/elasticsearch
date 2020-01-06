@@ -84,7 +84,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String TYPE = "_doc";
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
@@ -583,9 +583,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE)
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX)
                 .setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "text")
                 .startObject("fields")
@@ -771,9 +771,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .get();
         ensureGreen();
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE)
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX)
                 .setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion").field("analyzer", "simple")
                 .endObject()
@@ -1069,11 +1069,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startArray("input").value("The Beatles").endArray()
                 .endObject().endObject()
         ).get();
+        // we have 2 docs in a segment...
         client().prepareIndex(INDEX).setId("2").setSource(jsonBuilder()
                 .startObject()
                 .field("somefield", "somevalue")
                 .endObject()
-        ).get(); // we have 2 docs in a segment...
+        ).get();
         ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();

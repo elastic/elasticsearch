@@ -27,6 +27,7 @@ import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
 
 import java.nio.file.Files
 import java.nio.file.Path
+
 // need this so Zip/Tar tasks get basic defaults...
 apply plugin: 'base'
 
@@ -38,7 +39,7 @@ task createLogsDir(type: EmptyDirTask) {
   dir = "${logsDir}"
   dirMode = 0755
 }
-ext.pluginsDir= new File(buildDir, 'plugins-hack/plugins')
+ext.pluginsDir = new File(buildDir, 'plugins-hack/plugins')
 task createPluginsDir(type: EmptyDirTask) {
   dir = "${pluginsDir}"
   dirMode = 0755
@@ -59,7 +60,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         with binFiles(distributionType, oss, jdk)
       }
       if (jdk) {
-        into('jdk') {
+        into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
           with jdkFiles(project, platform)
         }
       }
@@ -76,7 +77,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         }
       }
       from(rootProject.projectDir) {
-        include 'README.textile'
+        include 'README.asciidoc'
       }
       from(rootProject.file('licenses')) {
         include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'

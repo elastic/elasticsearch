@@ -14,5 +14,5 @@ subprojects {
       include 'rest-api-spec/api/**'
     }
   }
-  
+
 }

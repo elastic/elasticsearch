@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
+
+import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-
-import java.util.List;
 
 public class UnresolvedAlias extends UnresolvedNamedExpression {
 
@@ -71,5 +71,10 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
     @Override
     public String toString() {
         return child + " AS ?";
+    }
+
+    @Override
+    public String nodeString() {
+        return toString();
     }
 }

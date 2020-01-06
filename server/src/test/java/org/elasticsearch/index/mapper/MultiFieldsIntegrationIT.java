@@ -74,7 +74,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         assertAcked(
-                client().admin().indices().preparePutMapping("my-index").setType("my-type")
+                client().admin().indices().preparePutMapping("my-index")
                         .setSource(createPutMappingSource())
         );
 
@@ -213,7 +213,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createPutMappingSource() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+        return XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("title")
                 .field("type", "text")
@@ -225,7 +225,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().endObject();
+                .endObject();
     }
 
 }

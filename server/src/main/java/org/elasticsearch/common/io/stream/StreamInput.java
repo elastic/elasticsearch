@@ -748,13 +748,12 @@ public abstract class StreamInput extends InputStream {
         return present ? readInstant() : null;
     }
 
-    @SuppressWarnings("unchecked")
-    private List readArrayList() throws IOException {
+    private List<Object> readArrayList() throws IOException {
         int size = readArraySize();
         if (size == 0) {
             return Collections.emptyList();
         }
-        List list = new ArrayList(size);
+        List<Object> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             list.add(readGenericValue());
         }
@@ -790,7 +789,7 @@ public abstract class StreamInput extends InputStream {
         if (size9 == 0) {
             return Collections.emptyMap();
         }
-        Map map9 = new LinkedHashMap(size9);
+        Map<String, Object> map9 = new LinkedHashMap<>(size9);
         for (int i = 0; i < size9; i++) {
             map9.put(readString(), readGenericValue());
         }
@@ -802,7 +801,7 @@ public abstract class StreamInput extends InputStream {
         if (size10 == 0) {
             return Collections.emptyMap();
         }
-        Map map10 = new HashMap(size10);
+        Map<String, Object> map10 = new HashMap<>(size10);
         for (int i = 0; i < size10; i++) {
             map10.put(readString(), readGenericValue());
         }
@@ -985,6 +984,7 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
         if (readBoolean()) {
             int key = readVInt();

@@ -33,7 +33,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.SIMPLE);
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
             .build();
@@ -44,9 +44,9 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.SIMPLE);
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "simple")
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy")
             .build();
         assertFalse(first.shouldRebuildConnection(newSettings));
     }
@@ -57,12 +57,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.SIMPLE);
-
-        ConnectionProfile profile = connectionManager.getConnectionProfile();
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
 
         Settings.Builder newBuilder = Settings.builder();
-        newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "simple");
+        newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
         if (randomBoolean()) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5));
@@ -70,6 +68,18 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), true);
         }
         assertTrue(first.shouldRebuildConnection(newBuilder.build()));
+    }
+
+    public void testCorrectChannelNumber() {
+        String clusterAlias = "cluster-alias";
+
+        for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
+            String settingKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+            Settings proxySettings = Settings.builder().put(settingKey, strategy.name()).build();
+            ConnectionProfile proxyProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, proxySettings);
+            assertEquals("Incorrect number of channels for " + strategy.name(),
+                strategy.getNumberOfChannels(), proxyProfile.getNumConnections());
+        }
     }
 
     private static class FakeConnectionStrategy extends RemoteConnectionStrategy {
@@ -100,6 +110,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         @Override
         protected void connectImpl(ActionListener<Void> listener) {
 
+        }
+
+        @Override
+        protected RemoteConnectionInfo.ModeInfo getModeInfo() {
+            return null;
         }
     }
 }

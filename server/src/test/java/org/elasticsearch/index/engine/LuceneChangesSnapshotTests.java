@@ -46,7 +46,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
     @Before
     public void createMapper() throws Exception {
-        mapperService = createMapperService("test");
+        mapperService = createMapperService();
     }
 
     @Override

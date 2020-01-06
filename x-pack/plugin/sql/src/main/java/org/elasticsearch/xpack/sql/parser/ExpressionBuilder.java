@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -157,10 +158,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitSelectExpression(SelectExpressionContext ctx) {
         Expression exp = expression(ctx.expression());
         String alias = visitIdentifier(ctx.identifier());
-        if (alias != null) {
-            exp = new Alias(source(ctx), alias, exp);
-        }
-        return exp;
+        Source source = source(ctx);
+        return alias != null ? new Alias(source, alias, exp) : new UnresolvedAlias(source, exp);
     }
 
     @Override

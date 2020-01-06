@@ -6,7 +6,7 @@
 <titleabbrev>Get enrich policy</titleabbrev>
 ++++
 
-Returns information about an enrich policy.
+Returns information about an <<enrich-policy,enrich policy>>.
 
 ////
 [source,console]

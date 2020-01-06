@@ -81,7 +81,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().transform().stopTransform(
-                    new StopTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
+                    new StopTransformRequest(transformId, true, TimeValue.timeValueSeconds(20), false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {

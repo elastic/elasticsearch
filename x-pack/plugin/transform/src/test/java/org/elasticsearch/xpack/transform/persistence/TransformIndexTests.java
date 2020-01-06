@@ -65,7 +65,7 @@ public class TransformIndexTests extends ESTestCase {
         verifyNoMoreInteractions(client);
 
         CreateIndexRequest createIndexRequest = createIndexRequestCaptor.getValue();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings().get("_doc"))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings())) {
             Map<String, Object> map = parser.map();
             assertThat(extractValue("_doc._meta._transform.transform", map), equalTo(TRANSFORM_ID));
             assertThat(extractValue("_doc._meta._transform.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));

@@ -497,11 +497,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
         client().admin().cluster().prepareCleanupRepository("test-repo").get();
 
-        // Subtract four files that will remain in the repository:
+        // Expect two files to remain in the repository:
         //   (1) index-(N+1)
-        //   (2) index-N (because we keep the previous version) and
-        //   (3) index-latest
-        assertFileCount(repo, 3);
+        //   (2) index-latest
+        assertFileCount(repo, 2);
         logger.info("--> done");
     }
 
@@ -1219,6 +1218,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+
+        logger.info("-->  wait for shard snapshots to show as failed");
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get().getSnapshots()
+                .get(0).getShardsStats().getFailedShards(), greaterThanOrEqualTo(1)), 60L, TimeUnit.SECONDS);
+
         unblockNode("test-repo", dataNode);
         disruption.stopDisrupting();
         // check that snapshot completes

@@ -279,9 +279,9 @@ public class SecurityIndexManager implements ClusterStateListener {
         Set<Version> versions = new HashSet<>();
         IndexMetaData indexMetaData = resolveConcreteIndex(aliasName, clusterState.metaData());
         if (indexMetaData != null) {
-            for (Object object : indexMetaData.getMappings().values().toArray()) {
-                MappingMetaData mappingMetaData = (MappingMetaData) object;
-                versions.add(readMappingVersion(aliasName, mappingMetaData, logger));
+            MappingMetaData mmd = indexMetaData.mapping();
+            if (mmd != null) {
+                versions.add(readMappingVersion(aliasName, mmd, logger));
             }
         }
         return versions;
@@ -360,7 +360,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
                 CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
                         .alias(new Alias(this.aliasName))
-                        .mapping(MapperService.SINGLE_MAPPING_NAME, mappingAndSettings.v1(), XContentType.JSON)
+                        .mapping("{\"_doc\":" + mappingAndSettings.v1() + "}")
                         .waitForActiveShards(ActiveShardCount.ALL)
                         .settings(mappingAndSettings.v2());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -391,8 +391,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 final byte[] mappingSource = mappingSourceSupplier.get();
                 final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
                 PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName)
-                        .source(mappingAndSettings.v1(), XContentType.JSON)
-                        .type(MapperService.SINGLE_MAPPING_NAME);
+                        .source(mappingAndSettings.v1(), XContentType.JSON);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                         ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                             if (putMappingResponse.isAcknowledged()) {

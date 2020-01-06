@@ -5476,10 +5476,14 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         Path translogPath = createTempDir();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData())
+            .settings(Settings.builder().put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false))
+            .build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
             final List<DocIdSeqNoAndSource> docs;
-            try (InternalEngine hardDeletesEngine = createEngine(defaultSettings, store, translogPath, newMergePolicy(),
+            try (InternalEngine hardDeletesEngine = createEngine(indexSettings, store, translogPath, newMergePolicy(),
                 hardDeletesWriter, null, globalCheckpoint::get)) {
                 for (Engine.Operation op : operations) {
                     applyOperation(hardDeletesEngine, op);

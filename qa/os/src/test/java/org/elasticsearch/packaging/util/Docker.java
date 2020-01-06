@@ -180,7 +180,7 @@ public class Docker {
 
                 psOutput = dockerShell.run("ps -ww ax").stdout;
 
-                if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java")) {
+                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;
                     break;
                 }

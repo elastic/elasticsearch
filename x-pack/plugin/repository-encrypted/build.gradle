@@ -1,0 +1,11 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'repository-encrypted'
+    description 'Elasticsearch Expanded Pack Plugin - client-side encrypted repositories.'
+    classname 'org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+
+integTest.enabled = false

@@ -68,6 +68,9 @@ public class IndicesOptions implements ToXContentFragment {
                     case "closed":
                         states.add(CLOSED);
                         break;
+                    case "hidden":
+                        states.add(HIDDEN);
+                        break;
                     case "none":
                         states.clear();
                         break;

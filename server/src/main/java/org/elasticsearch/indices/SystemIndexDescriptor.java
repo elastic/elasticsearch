@@ -22,7 +22,10 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.regex.Regex;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Describes a system index. Provides the information required to create and maintain the system index.
@@ -79,6 +82,32 @@ public class SystemIndexDescriptor {
      */
     public String getSourcePluginName() {
         return sourcePluginName;
+    }
+
+    @Override
+    public String toString() {
+        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], sourcePlugin=[" + sourcePluginName + "]]";
+    }
+
+    /**
+     * Given a list of {@link SystemIndexDescriptor}s, makes a best-effort check to see if the index patterns of the listed
+     * descriptors overlap. Currently, checks to see if any index patterns  If any do, throws an exception.
+     * @param descriptors The list of descriptors to check for overlapping patterns.
+     * @throws IllegalStateException Thrown if any of the index patterns detectably overlaps with
+     */
+    public static void checkForOverlappingPatterns(Collection<SystemIndexDescriptor> descriptors) {
+        descriptors.stream()
+            .forEach(descriptorToCheck -> {
+                List<SystemIndexDescriptor> descriptorsMatchingThisPattern = descriptors.stream()
+                    .filter(d -> descriptorToCheck != d) // Exclude the pattern currently being checked
+                    .filter(d -> descriptorToCheck.matchesIndexPattern(d.getIndexPattern()))
+                    .collect(Collectors.toList());
+                if (descriptorsMatchingThisPattern.isEmpty() == false) {
+                    String errorMessage = "a system index descriptor [" + descriptorToCheck +
+                        "] overlaps with other system index descriptors: " + descriptorsMatchingThisPattern;
+                    throw new IllegalStateException(errorMessage);
+                }
+            });
     }
 
     // TODO: Index settings and mapping

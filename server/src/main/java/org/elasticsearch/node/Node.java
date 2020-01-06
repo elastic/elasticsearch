@@ -428,6 +428,7 @@ public class Node implements Closeable {
                 .stream()
                 .flatMap(plugin -> plugin.getSystemIndexDescriptors().stream())
                 .collect(Collectors.toList());
+            SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptors);
 
             final IndicesService indicesService =
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),

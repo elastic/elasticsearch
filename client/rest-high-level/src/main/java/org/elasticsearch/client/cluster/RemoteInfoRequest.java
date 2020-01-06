@@ -16,19 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.cluster;
 
-
-package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
-
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
-
-import java.io.IOException;
+import org.elasticsearch.client.Validatable;
 
 /**
- * Parses {@link SignificanceHeuristic}s from an {@link XContentParser}.
+ * The request object used by the Remote cluster info API.
  */
-@FunctionalInterface
-public interface SignificanceHeuristicParser {
-    SignificanceHeuristic parse(XContentParser parser) throws IOException, ParsingException;
+public final class RemoteInfoRequest implements Validatable {
+
 }

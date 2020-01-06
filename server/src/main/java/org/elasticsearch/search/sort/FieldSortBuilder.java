@@ -563,7 +563,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return PARSER.parse(parser, new FieldSortBuilder(fieldName), null);
     }
 
-    private static ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
+    private static final ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
         PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);

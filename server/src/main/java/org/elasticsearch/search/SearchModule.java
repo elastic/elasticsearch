@@ -277,6 +277,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -286,6 +287,7 @@ import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.query.CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG;
 import static org.elasticsearch.index.query.SpanNearQueryBuilder.SpanGapQueryBuilder;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
@@ -851,18 +853,23 @@ public class SearchModule {
     }
 
     private void registerIntervalsSourceProviders() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Match.NAME, IntervalsSourceProvider.Match::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Combine.NAME, IntervalsSourceProvider.Combine::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Disjunction.NAME, IntervalsSourceProvider.Disjunction::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Fuzzy.NAME, IntervalsSourceProvider.Fuzzy::new));
+        namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
+    }
+
+    public static List<NamedWriteableRegistry.Entry> getIntervalsSourceProviderNamedWritables() {
+        return unmodifiableList(Arrays.asList(
+                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Match.NAME,
+                        IntervalsSourceProvider.Match::new),
+                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Combine.NAME,
+                        IntervalsSourceProvider.Combine::new),
+                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Disjunction.NAME,
+                        IntervalsSourceProvider.Disjunction::new),
+                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Prefix.NAME,
+                        IntervalsSourceProvider.Prefix::new),
+                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Wildcard.NAME,
+                        IntervalsSourceProvider.Wildcard::new),
+                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Fuzzy.NAME,
+                        IntervalsSourceProvider.Fuzzy::new)));
     }
 
     private void registerQuery(QuerySpec<?> spec) {

@@ -44,5 +44,5 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
      * Gets the evaluation result for this metric.
      * @return {@code Optional.empty()} if the result is not available yet, {@code Optional.of(result)} otherwise
      */
-    Optional<EvaluationMetricResult> getResult();
+    Optional<? extends EvaluationMetricResult> getResult();
 }

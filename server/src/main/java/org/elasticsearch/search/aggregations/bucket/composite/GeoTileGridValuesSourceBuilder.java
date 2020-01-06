@@ -108,6 +108,10 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         return TYPE;
     }
 
+    GeoBoundingBox geoBoundingBox() {
+        return geoBoundingBox;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), precision, geoBoundingBox);

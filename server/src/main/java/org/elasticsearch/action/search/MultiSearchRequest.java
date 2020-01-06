@@ -304,12 +304,21 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
-            if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
+            if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed() &&
+                request.indicesOptions().expandWildcardsHidden()) {
                 xContentBuilder.field("expand_wildcards", "all");
+            } else if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
+                xContentBuilder.field("expand_wildcards", "open,closed");
+            } else if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsHidden()) {
+                xContentBuilder.field("expand_wildcards", "open,hidden");
             } else if (request.indicesOptions().expandWildcardsOpen()) {
                 xContentBuilder.field("expand_wildcards", "open");
+            } else if (request.indicesOptions().expandWildcardsClosed() && request.indicesOptions().expandWildcardsHidden()) {
+                xContentBuilder.field("expand_wildcards", "closed,hidden");
             } else if (request.indicesOptions().expandWildcardsClosed()) {
                 xContentBuilder.field("expand_wildcards", "closed");
+            } else if (request.indicesOptions().expandWildcardsHidden()) {
+                xContentBuilder.field("expand_wildcards", "hidden");
             } else {
                 xContentBuilder.field("expand_wildcards", "none");
             }

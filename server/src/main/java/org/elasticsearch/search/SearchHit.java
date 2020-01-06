@@ -661,7 +661,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}
      */
-    private static ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>("innerHitParser", true, HashMap::new);
+    private static final ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>("innerHitParser", true, HashMap::new);
 
     static {
         declareInnerHitsParseFields(MAP_PARSER);

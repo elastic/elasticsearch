@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import com.google.common.collect.Ordering;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -192,7 +193,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertTopClasses(resultsObject, numTopClasses, dependentVariable, dependentVariableValues);
 
             // Let's just assert there's both training and non-training results
-            if (getFieldValue(resultsObject, "is_training")) {
+            //
+            boolean isTraining = getFieldValue(resultsObject, "is_training");
+            if (isTraining) {
                 trainingRowsCount++;
             } else {
                 nonTrainingRowsCount++;

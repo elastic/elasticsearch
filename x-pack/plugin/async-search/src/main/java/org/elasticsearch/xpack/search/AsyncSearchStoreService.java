@@ -45,7 +45,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.search.AsyncSearchTemplateRegistry.ASYNC_SEARCH_TEMPLATE_NAME;
@@ -69,7 +69,7 @@ class AsyncSearchStoreService {
     AsyncSearchStoreService(TaskManager taskManager, ThreadPool threadPool, Client client, NamedWriteableRegistry registry) {
         this.taskManager = taskManager;
         this.threadPool = threadPool;
-        this.client = new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN);
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.registry = registry;
     }
 

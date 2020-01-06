@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 
 /**
  * Manage the index template and associated ILM policy for the .async-search index.
@@ -64,6 +64,6 @@ public class AsyncSearchTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected String getOrigin() {
-        return INDEX_LIFECYCLE_ORIGIN;
+        return TASKS_ORIGIN;
     }
 }

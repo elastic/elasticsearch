@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see AsyncSearchResponse
  */
-public class SubmitAsyncSearchRequest extends ActionRequest implements CompositeIndicesRequest {
+public class SubmitAsyncSearchRequest extends ActionRequest {
     private TimeValue waitForCompletion = TimeValue.timeValueSeconds(1);
     private boolean cleanOnCompletion = true;
 

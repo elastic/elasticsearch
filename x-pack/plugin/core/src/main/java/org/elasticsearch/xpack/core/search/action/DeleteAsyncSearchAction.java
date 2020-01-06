@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.search.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +29,7 @@ public class DeleteAsyncSearchAction extends ActionType<AcknowledgedResponse> {
         return AcknowledgedResponse::new;
     }
 
-    public static class Request extends ActionRequest implements CompositeIndicesRequest {
+    public static class Request extends ActionRequest {
         private final String id;
 
         public Request(String id) {

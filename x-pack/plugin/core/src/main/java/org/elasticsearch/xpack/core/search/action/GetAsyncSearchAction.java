@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.search.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +30,7 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
         return AsyncSearchResponse::new;
     }
 
-    public static class Request extends ActionRequest implements CompositeIndicesRequest {
+    public static class Request extends ActionRequest {
         private final String id;
         private final int lastVersion;
         private final TimeValue waitForCompletion;

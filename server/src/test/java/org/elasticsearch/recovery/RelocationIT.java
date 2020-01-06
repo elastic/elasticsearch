@@ -622,7 +622,7 @@ public class RelocationIT extends ESIntegTestCase {
             Stream.generate(() -> Settings.builder().put("node.attr.color", "red").build()).limit(halfNodes)).toArray(Settings[]::new);
         List<String> nodes = internalCluster().startNodes(nodeSettings);
         String[] blueNodes = nodes.subList(0, halfNodes).toArray(new String[0]);
-        String[] redNodes = nodes.subList(0, halfNodes).toArray(new String[0]);
+        String[] redNodes = nodes.subList(halfNodes, nodes.size()).toArray(new String[0]);
         ensureStableCluster(halfNodes * 2);
         assertAcked(
             client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()

@@ -250,7 +250,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(hasDocValues);
     }
 
-
     private void assertFieldWarnings(String... fieldNames) {
         String[] warnings = new String[fieldNames.length];
         for (int i = 0; i < fieldNames.length; ++i) {

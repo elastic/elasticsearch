@@ -695,6 +695,42 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertFieldWarnings("tree", "precision", "strategy", "points_only");
     }
 
+    /**
+     *
+     * Test that doc_values parameter correctly parses
+     */
+    public void testDocValues() throws IOException {
+        String trueMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("tree", "quadtree")
+            .field("doc_values", true)
+            .endObject().endObject()
+            .endObject().endObject());
+
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(trueMapping)));
+        assertThat(e.getMessage(), equalTo("geo_shape fields indexed using prefix-trees do not support doc_values"));
+
+        // explicit false doc_values
+        String falseMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("tree", "quadtree")
+            .field("doc_values", "false")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(falseMapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
+
+        assertFalse(((LegacyGeoShapeFieldMapper)fieldMapper).fieldType().hasDocValues());
+
+        assertFieldWarnings("tree");
+    }
+
     public String toXContentString(LegacyGeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         ToXContent.Params params;

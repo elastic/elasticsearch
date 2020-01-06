@@ -197,6 +197,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             return (GeoShapeFieldType)fieldType;
         }
 
+        public Builder docValues(boolean hasDocValues) {
+            if (hasDocValues) {
+                throw new ElasticsearchParseException("geo_shape fields indexed using prefix-trees do not support doc_values");
+            }
+            // doc-values already set to `false`
+            return this;
+        }
+
         private void setupFieldTypeDeprecatedParameters(BuilderContext context) {
             GeoShapeFieldType ft = fieldType();
             if (deprecatedParameters.strategy != null) {
@@ -318,6 +326,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             setStored(false);
             setStoreTermVectors(false);
             setOmitNorms(true);
+            setHasDocValues(false);
         }
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {

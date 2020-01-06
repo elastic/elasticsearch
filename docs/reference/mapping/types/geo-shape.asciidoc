@@ -114,6 +114,11 @@ and reject the whole document.
 |`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
 | `false`
 
+|`doc_values` |Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
+| `true` for  BKD-backed geo_shape, `false` for prefix tree indexing strategy
+
 |=======================================================================
 
 

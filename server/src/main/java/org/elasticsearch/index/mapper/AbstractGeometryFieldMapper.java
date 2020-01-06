@@ -251,6 +251,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                         XContentMapValues.nodeBooleanValue(fieldNode,
                             name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
+                } else if (TypeParsers.DOC_VALUES.equals(fieldName)) {
+                    params.put(TypeParsers.DOC_VALUES, XContentMapValues.nodeBooleanValue(fieldNode, name + "." + TypeParsers.DOC_VALUES));
+                    iterator.remove();
                 }
             }
             if (parsedDeprecatedParameters == false) {
@@ -258,7 +261,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             }
             Builder builder = newBuilder(name, params);
 
-            TypeParsers.parseField(builder, name,  node, parserContext);
+            if (params.containsKey(TypeParsers.DOC_VALUES)) {
+                builder.docValues((Boolean) params.get(TypeParsers.DOC_VALUES));
+            }
 
             if (params.containsKey(Names.COERCE.getPreferredName())) {
                 builder.coerce((Boolean)params.get(Names.COERCE.getPreferredName()));

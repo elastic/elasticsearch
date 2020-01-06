@@ -29,6 +29,10 @@ tasks.register("bwcTest") {
   group = 'verification'
 }
 
+dependencies {
+  testCompile project(':client:rest-high-level')
+}
+
 for (Version bwcVersion : bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
 
@@ -41,7 +45,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     }
 
     "${baseName}-downgraded" {
-      versions = [bwcVersion.toString()]
+      version = bwcVersion.toString()
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       javaHome = BuildParams.runtimeJavaHome
@@ -54,8 +58,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     doFirst {
       project.delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
-
-    systemProperty 'tests.is_old_cluster', 'true'
+    systemProperty 'tests.rest.suite', 'old_cluster'
   }
 
   tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -64,13 +67,13 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     doFirst {
       testClusters."${baseName}".goToNextVersion()
     }
-    systemProperty 'tests.is_old_cluster', 'false'
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
   }
 
   tasks.register("${baseName}#downgradedClusterTest", RestTestRunnerTask) {
     useCluster testClusters."${baseName}-downgraded"
     dependsOn "${baseName}#upgradedClusterTest"
-    systemProperty 'tests.is_old_cluster', 'true'
+    systemProperty 'tests.rest.suite', 'downgraded_cluster'
   }
 
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {

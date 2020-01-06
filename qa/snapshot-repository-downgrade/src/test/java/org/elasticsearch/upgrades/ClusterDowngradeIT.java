@@ -139,7 +139,6 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                  XContentParser parser = JsonXContent.jsonXContent.createParser(
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
                 final Map<String, Object> raw = parser.map();
-                logger.error(raw);
                 // Bwc lookup since the format of the snapshots response changed between versions
                 if (raw.containsKey("snapshots")) {
                     snapshots = (List<Map<String, Object>>) raw.get("snapshots");

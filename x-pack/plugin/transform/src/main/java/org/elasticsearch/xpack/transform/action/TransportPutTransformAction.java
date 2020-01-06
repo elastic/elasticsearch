@@ -26,17 +26,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -51,7 +55,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -70,6 +73,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportPutTransformAction(
@@ -125,6 +129,15 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.getAuditor();
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
     }
 
     static HasPrivilegesRequest buildPrivilegeCheck(
@@ -208,26 +221,31 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             );
             return;
         }
-        try {
-            SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
-        } catch (ElasticsearchStatusException ex) {
-            listener.onFailure(ex);
-            return;
-        }
 
-        // Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
-            final String username = securityContext.getUser().principal();
-            HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
-            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, r, listener),
+        sourceDestValidator.validate(
+            clusterState,
+            config.getSource().getIndex(),
+            config.getDestination().getIndex(),
+            request.isDeferValidation() ? SourceDestValidator.NON_DEFERABLE_VALIDATIONS : SourceDestValidator.ALL_VALIDATIONS,
+            ActionListener.wrap(
+                validationResponse -> {
+                    // Early check to verify that the user can create the destination index and can read from the source
+                    if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
+                        final String username = securityContext.getUser().principal();
+                        HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
+                        ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                            r -> handlePrivsResponse(username, request, r, listener),
+                            listener::onFailure
+                        );
+
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    } else { // No security enabled, just create the transform
+                        putTransform(request, listener);
+                    }
+                },
                 listener::onFailure
-            );
-
-            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-        } else { // No security enabled, just create the transform
-            putTransform(request, listener);
-        }
+            )
+        );
     }
 
     @Override

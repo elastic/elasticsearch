@@ -113,6 +113,18 @@ public class DnRoleMapperTests extends ESTestCase {
         watcherService.start();
 
         try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+            writer.append("\n");
+        }
+
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        if (latch.getCount() != 1) {
+            fail("Listener should not be called as roles mapping is not changed.");
+        }
+
+        roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
+        assertThat(roles, contains("security"));
+
+        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
             writer.append("fantastic_four:\n")
                     .append("  - \"cn=fantastic_four,ou=marvel,o=superheros\"");

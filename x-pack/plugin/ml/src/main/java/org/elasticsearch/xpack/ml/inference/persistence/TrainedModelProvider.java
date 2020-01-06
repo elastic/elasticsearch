@@ -293,7 +293,7 @@ public class TrainedModelProvider {
             .setQuery(queryBuilder)
             .request();
         List<TrainedModelConfig> configs = new ArrayList<>(modelIds.size());
-
+        Set<String> modelsInIndex = Sets.difference(modelIds, MODELS_STORED_AS_RESOURCE);
         Set<String> modelsAsResource = Sets.intersection(MODELS_STORED_AS_RESOURCE, modelIds);
         for(String modelId : modelsAsResource) {
             try {
@@ -303,10 +303,18 @@ public class TrainedModelProvider {
                 return;
             }
         }
+        if (modelsInIndex.isEmpty()) {
+            configs.sort(Comparator.comparing(TrainedModelConfig::getModelId));
+            listener.onResponse(configs);
+            return;
+        }
 
         ActionListener<SearchResponse> configSearchHandler = ActionListener.wrap(
             searchResponse -> {
-                Set<String> observedIds = new HashSet<>(searchResponse.getHits().getHits().length, 1.0f);
+                Set<String> observedIds = new HashSet<>(
+                    searchResponse.getHits().getHits().length + modelsAsResource.size(),
+                    1.0f);
+                observedIds.addAll(modelsAsResource);
                 for(SearchHit searchHit : searchResponse.getHits().getHits()) {
                     try {
                         if (observedIds.contains(searchHit.getId()) == false) {

@@ -688,7 +688,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return Arrays.asList(
             new SystemIndexDescriptor(Watch.INDEX, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, this.getClass().getSimpleName())
+            new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, this.getClass().getSimpleName()),
+
+            //TODO: The below should be converted to hidden indices, but need to be included here until then to prevent
+            // deprecation warnings
+            new SystemIndexDescriptor(".watch-history-*", this.getClass().getSimpleName())
         );
     }
 }

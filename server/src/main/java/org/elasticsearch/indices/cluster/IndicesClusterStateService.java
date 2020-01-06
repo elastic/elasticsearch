@@ -717,7 +717,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
+    // package-private for testing
+    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
         failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
     }
 
@@ -726,7 +727,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
             if (indexService != null) {
-                indexService.removeShard(shardRouting.shardId().id(), message);
+                Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
+                if (shard != null && shard.routingEntry().isSameAllocation(shardRouting)) {
+                    indexService.removeShard(shardRouting.shardId().id(), message);
+                }
             }
         } catch (ShardNotFoundException e) {
             // the node got closed on us, ignore it

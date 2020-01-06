@@ -23,8 +23,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -118,9 +120,16 @@ public class AggregatorFactories {
                             throw new ParsingException(parser.getTokenLocation(), "Found two aggregation type definitions in ["
                                     + aggregationName + "]: [" + aggBuilder.getType() + "] and [" + fieldName + "]");
                         }
-
-                        aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
-                                new AggParseContext(aggregationName));
+                        try {
+                            aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
+                                    new AggParseContext(aggregationName));
+                        } catch (NamedObjectNotFoundException ex) {
+                            if (ex.getCategoryClass().equals(BaseAggregationBuilder.class.getName())) {
+                                throw new XContentParseException(ex.getLocation(), "Unknown Aggregation [" + fieldName + "]", ex);
+                            } else {
+                                throw ex;
+                            }
+                        }
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["

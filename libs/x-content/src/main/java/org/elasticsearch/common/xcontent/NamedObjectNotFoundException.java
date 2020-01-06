@@ -19,17 +19,25 @@
 
 package org.elasticsearch.common.xcontent;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Thrown when {@link NamedXContentRegistry} cannot locate a named object to
  * parse for a particular name
  */
 public class NamedObjectNotFoundException extends XContentParseException {
+    private final String categoryClass;
 
-    public NamedObjectNotFoundException(String message) {
-        this(null, message);
+    public NamedObjectNotFoundException(String message, Class<?> categoryClass) {
+        this(null, message, categoryClass);
     }
 
-    public NamedObjectNotFoundException(XContentLocation location, String message) {
+    public NamedObjectNotFoundException(XContentLocation location, String message, Class<?> categoryClass) {
         super(location, message);
+        this.categoryClass = requireNonNull(categoryClass, "categoryClass is required").getName();
+    }
+
+    public String getCategoryClass() {
+        return categoryClass;
     }
 }

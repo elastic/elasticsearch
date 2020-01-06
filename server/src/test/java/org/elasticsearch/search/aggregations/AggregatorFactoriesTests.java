@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -226,6 +227,21 @@ public class AggregatorFactoriesTests extends ESTestCase {
         AggregatorFactories.Builder secondRewritten = rewritten
                 .rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
         assertSame(rewritten, secondRewritten);
+    }
+
+    public void testUnknownAggregation() throws Exception {
+        XContentBuilder source = JsonXContent.contentBuilder()
+                .startObject()
+                    .startObject("aggName")
+                        .startObject("agg_that_does_not_exist")
+                            .field("field", "make.keyword")
+                        .endObject()
+                    .endObject()
+                .endObject();
+        XContentParser parser = createParser(source);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> AggregatorFactories.parseAggregators(parser));
+        assertEquals("[1:39] Unknown Aggregation [agg_that_does_not_exist]", ex.getMessage());
     }
 
     @Override

@@ -90,7 +90,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        if (invalidateOnShutdown) {
+        if (invalidateOnShutdown) { // NORELEASE Only for debug purpose as CacheEntry maintains a reference to the source dir
             cache.invalidateAll();
         }
     }

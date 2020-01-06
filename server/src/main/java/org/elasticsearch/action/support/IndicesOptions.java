@@ -204,13 +204,9 @@ public class IndicesOptions implements ToXContentFragment {
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         out.writeEnumSet(options);
         if (out.getVersion().before(Version.V_8_0_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
-            Set<WildcardStates> states = new HashSet<>();
-            for (WildcardStates state : expandWildcards) {
-                if (state != WildcardStates.HIDDEN) {
-                    states.add(state);
-                }
-            }
-            out.writeEnumSet(EnumSet.copyOf(states));
+            final EnumSet<WildcardStates> states = EnumSet.copyOf(expandWildcards);
+            states.remove(WildcardStates.HIDDEN);
+            out.writeEnumSet(states);
         } else {
             out.writeEnumSet(expandWildcards);
         }

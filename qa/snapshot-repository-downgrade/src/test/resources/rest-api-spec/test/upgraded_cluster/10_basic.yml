@@ -1,0 +1,129 @@
+---
+"Verify that we can still find things with the template":
+  - do:
+      search_template:
+        rest_total_hits_as_int: true
+        index: test_search_template
+        body:
+          id: test_search_template
+          params:
+            f1: v5_old
+  - match: { hits.total: 1 }
+
+---
+"Verify custom cluster metadata still exists after rolling upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+---
+"Index percolator query and use the percolate query in upgraded cluster":
+  - do:
+      index:
+        index: queries
+        id: q4
+        refresh: true
+        body:
+          id: q4
+          query:
+            bool:
+              minimum_should_match: 2
+              should:
+                - term:
+                    field1: value
+                - term:
+                    field2: value
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          sort: id
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+                field2: value
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: q1 }
+  - match: { hits.hits.1._id: q2 }
+  - match: { hits.hits.2._id: q4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                field2: value
+                field3: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q3 }
+
+---
+"Find a task result record from the old cluster":
+  - skip:
+      features: headers
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .tasks
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: '/.+:\d+/' }
+  - set: {hits.hits.0._id: task_id}
+
+  - do:
+      tasks.get:
+        task_id: $task_id
+
+  - is_false: node_failures
+  - is_true: task
+
+  - do:
+      headers: { "X-Opaque-Id": "Reindexing Again" }
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: reindexed_index_copy
+            size: 1
+          dest:
+            index: reindexed_index_another_copy
+  - match: { task: '/.+:\d+/' }
+  - set: { task: task_id }
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task_id
+  - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
+
+

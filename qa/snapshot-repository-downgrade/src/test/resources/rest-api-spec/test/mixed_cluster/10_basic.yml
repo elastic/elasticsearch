@@ -1,0 +1,69 @@
+---
+"Verify that we can still find things with the template":
+  - do:
+      search_template:
+        rest_total_hits_as_int: true
+        index: test_search_template
+        body:
+          id: test_search_template
+          params:
+            f1: v5_old
+  - match: { hits.total: 1 }
+
+---
+"Verify custom cluster metadata still exists during upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+---
+"Use the percolate query in mixed cluster":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          sort: id
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+                field2: value
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: q1 }
+  - match: { hits.hits.1._id: q2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                field2: value
+                field3: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q3 }
+

@@ -50,7 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 
@@ -68,15 +68,13 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
         BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
 
-    private final BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction;
+    private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
 
     private CommandLineHttpClient client;
 
     SetupPasswordTool() {
-        this((environment, settings) -> {
-            return new CommandLineHttpClient(settings, environment);
-        }, (environment) -> {
+        this(environment -> new CommandLineHttpClient(environment), environment -> {
             KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
             if (keyStoreWrapper == null) {
                 throw new UserException(ExitCodes.CONFIG,
@@ -86,8 +84,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         });
     }
 
-    SetupPasswordTool(BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction,
-            CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+    SetupPasswordTool(Function<Environment, CommandLineHttpClient> clientFunction,
+                      CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Sets the passwords for reserved users");
         subcommands.put("auto", newAutoSetup());
         subcommands.put("interactive", newInteractiveSetup());
@@ -261,12 +259,14 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             Settings settings = settingsBuilder.build();
             elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
 
-            client = clientFunction.apply(env, settings);
+            final Environment newEnv = new Environment(settings, env.configFile());
+            Environment.assertEquivalent(newEnv, env);
+
+            client = clientFunction.apply(newEnv);
 
             String providedUrl = urlOption.value(options);
             url = new URL(providedUrl == null ? client.getDefaultURL() : providedUrl);
             setShouldPrompt(options);
-
         }
 
         private void setParser() {

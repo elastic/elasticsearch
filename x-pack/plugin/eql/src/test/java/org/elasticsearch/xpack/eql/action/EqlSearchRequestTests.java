@@ -19,10 +19,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -83,45 +86,28 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         return parseInnerQueryBuilder;
     }
 
+    private Object randomValue() {
+        Supplier<Object> value = randomFrom(Arrays.asList(
+            ESTestCase::randomInt,
+            ESTestCase::randomFloat,
+            ESTestCase::randomLong,
+            ESTestCase::randomDouble,
+            () -> randomAlphaOfLengthBetween(5, 20),
+            ESTestCase::randomBoolean,
+            ESTestCase::randomByte,
+            ESTestCase::randomShort,
+            () -> new Text(randomAlphaOfLengthBetween(5, 20)),
+            () -> null));
+        return value.get();
+    }
+
     private SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
         int numSearchAfter = randomIntBetween(1, 10);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
         jsonBuilder.startArray("search_after");
         for (int i = 0; i < numSearchAfter; i++) {
-            int branch = randomInt(9);
-            switch (branch) {
-                case 0:
-                    jsonBuilder.value(randomInt());
-                    break;
-                case 1:
-                    jsonBuilder.value(randomFloat());
-                    break;
-                case 2:
-                    jsonBuilder.value(randomLong());
-                    break;
-                case 3:
-                    jsonBuilder.value(randomDouble());
-                    break;
-                case 4:
-                    jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
-                    break;
-                case 5:
-                    jsonBuilder.value(randomBoolean());
-                    break;
-                case 6:
-                    jsonBuilder.value(randomByte());
-                    break;
-                case 7:
-                    jsonBuilder.value(randomShort());
-                    break;
-                case 8:
-                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
-                    break;
-                case 9:
-                    jsonBuilder.nullValue();
-                    break;
-            }
+            jsonBuilder.value(randomValue());
         }
         jsonBuilder.endArray();
         jsonBuilder.endObject();

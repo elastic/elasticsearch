@@ -28,11 +28,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestEqlSearchAction extends BaseRestHandler {
-    public RestEqlSearchAction(RestController controller) {
-        final String path = "/{index}/_eql/search";
-        controller.registerHandler(GET, path, this);
-        controller.registerHandler(POST, path, this);
+    private static final String SEARCH_PATH = "/{index}/_eql/search";
 
+    public RestEqlSearchAction(RestController controller) {
+        controller.registerHandler(GET, SEARCH_PATH, this);
+        controller.registerHandler(POST, SEARCH_PATH, this);
     }
 
     @Override

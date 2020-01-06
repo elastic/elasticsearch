@@ -42,6 +42,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -78,8 +79,12 @@ public class IndicesOptionsTests extends ESTestCase {
 
     public void testSerializationPre70() throws Exception {
         int iterations = randomIntBetween(5, 20);
+        List<Version> declaredVersions = Version.getDeclaredVersions(Version.class);
+        OptionalInt maxV6Id = declaredVersions.stream().filter(v -> v.major == 6).mapToInt(v -> v.id).max();
+        assertTrue(maxV6Id.isPresent());
+        final Version maxVersion = Version.fromId(maxV6Id.getAsInt());
         for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.fromId(6999999));
+            Version version = randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), maxVersion);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 

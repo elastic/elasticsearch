@@ -79,7 +79,7 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerializationPre70() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), null, Version.V_6_6_0);
+            Version version = randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.fromId(6999999));
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
@@ -100,12 +100,7 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-            if (output.getVersion().onOrAfter(Version.V_6_6_0)) {
-                assertEquals(indicesOptions2.ignoreThrottled(), indicesOptions.ignoreThrottled());
-            } else {
-                assertFalse(indicesOptions2.ignoreThrottled()); // make sure we never write this option to pre 6.6
-            }
-
+            assertEquals(indicesOptions2.ignoreThrottled(), indicesOptions.ignoreThrottled());
         }
     }
 
@@ -191,31 +186,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), updatedOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());
-    }
-
-    public void testSimpleByteBWC() {
-        Map<Byte, IndicesOptions> old = new HashMap<>();
-        // These correspond to each individual option (bit) in the old byte-based IndicesOptions
-        old.put((byte) 0, IndicesOptions.fromOptions(false, false, false, false, true, false, false, false));
-        old.put((byte) 1, IndicesOptions.fromOptions(true, false, false, false, true, false, false, false));
-        old.put((byte) 2, IndicesOptions.fromOptions(false, true, false, false, true, false, false, false));
-        old.put((byte) 4, IndicesOptions.fromOptions(false, false, true, false, true, false, false, false));
-        old.put((byte) 8, IndicesOptions.fromOptions(false, false, false, true, true, false, false, false));
-        old.put((byte) 16, IndicesOptions.fromOptions(false, false, false, false, false, false, false, false));
-        old.put((byte) 32, IndicesOptions.fromOptions(false, false, false, false, true, true, false, false));
-        old.put((byte) 64, IndicesOptions.fromOptions(false, false, false, false, true, false, true, false));
-        // Test a few multi-selected options
-        old.put((byte) 13, IndicesOptions.fromOptions(true, false, true, true, true, false, false, false));
-        old.put((byte) 19, IndicesOptions.fromOptions(true, true, false, false, false, false, false, false));
-        old.put((byte) 24, IndicesOptions.fromOptions(false, false, false, true, false, false, false, false));
-        old.put((byte) 123, IndicesOptions.fromOptions(true, true, false, true, false, true, true, false));
-
-        for (Map.Entry<Byte, IndicesOptions> entry : old.entrySet()) {
-            IndicesOptions indicesOptions2 = IndicesOptions.fromByte(entry.getKey());
-            logger.info("--> 1 {}", entry.getValue().toString());
-            logger.info("--> 2 {}", indicesOptions2.toString());
-            assertThat("IndicesOptions for byte " + entry.getKey() + " differ for conversion",indicesOptions2, equalTo(entry.getValue()));
-        }
     }
 
     public void testEqualityAndHashCode() {

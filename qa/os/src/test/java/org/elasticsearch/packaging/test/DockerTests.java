@@ -576,6 +576,9 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
     }
 
+    /**
+     * Check that Elasticsearch reports per-node cgroup information.
+     */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 

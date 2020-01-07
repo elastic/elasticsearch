@@ -35,6 +35,14 @@ RUN chmod 0775 config data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+#control how ES and any child processes are shut down.
+ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini /tini
+ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini.asc /tini.asc
+RUN gpg --batch --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 595E85A6B1B4779EA4DAAEC70B588DFF0527A9B7 \
+ && gpg --batch --verify /tini.asc /tini
+RUN chmod +x /tini
+
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):
 # Copy elasticsearch from stage 0
@@ -44,6 +52,8 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
+
+COPY --from=builder /tini /tini
 
 RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
     ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \
@@ -66,11 +76,9 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-COPY bin/my_init /sbin/my_init
 
 RUN chmod g=u /etc/passwd && \
-    chmod 0775 /usr/local/bin/docker-entrypoint.sh && \
-    chmod 0775 /sbin/my_init
+    chmod 0775 /usr/local/bin/docker-entrypoint.sh
 
 # Ensure that there are no files with setuid, in order to mitigate "stackclash" attacks.
 RUN find / -xdev -perm -4000 -exec chmod u-s {} +
@@ -99,7 +107,7 @@ LABEL org.label-schema.build-date="${build_date}" \
 
 USER elasticsearch:root
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
 

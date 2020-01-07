@@ -40,36 +40,13 @@ if [[ -f bin/elasticsearch-users ]]; then
   # enabled, but we have no way of knowing which node we are yet. We'll just
   # honor the variable if it's present.
   if [[ -n "$ELASTIC_PASSWORD" ]]; then
-    [[ -f /usr/share/elasticsearch/config/elasticsearch.keystore ]] || (run_as_other_user_if_needed elasticsearch-keystore create)
+    [[ -f /usr/share/elasticsearch/config/elasticsearch.keystore ]] || (elasticsearch-keystore create)
     if ! (elasticsearch-keystore list | grep -q '^bootstrap.password$'); then
       (echo "$ELASTIC_PASSWORD" | elasticsearch-keystore add -x 'bootstrap.password')
     fi
   fi
 fi
 
-# Do not abort script if Elasticsearch returns error code
-set +e
-
-PID_FILE=/tmp/es.pid
-
-term_handler() {
-   echo "Caught SIGTERM"
-   kill -TERM $(cat $PID_FILE)
-}
-
-# We need to ensure that TERM is sent only to Elasticsearch, not
-# to the whole process group, as it can cause issues with forked
-# processes appearing to have been exited abnormally.
-trap term_handler SIGTERM
-
-# Use a mini-init process to ensure any children are cleaned up and we
-# aren't left with any zombies.
-/sbin/my_init --skip-runit -- /usr/share/elasticsearch/bin/elasticsearch "$@" -p $PID_FILE &
-
-# Wait for my_init to exit, which will happen when Elasticsearch exits.
-INIT_PID=$!
-wait "${INIT_PID}"
-
-# my_init propagates the ES exit code.
-ES_EXIT_CODE=$?
-exit $ES_EXIT_CODE
+# Signal forwarding and child reaping is handled by `tini`, which is the
+# actual entrypoint of the container
+exec /usr/share/elasticsearch/bin/elasticsearch

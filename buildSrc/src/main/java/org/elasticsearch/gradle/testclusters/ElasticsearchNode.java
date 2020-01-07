@@ -124,6 +124,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
     private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
+    private final LazyPropertyList<CliEntry> cliSetup = new LazyPropertyList<>("CLI setup commands", this);
     private final LazyPropertyMap<String, CharSequence> systemProperties = new LazyPropertyMap<>("System properties", this);
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
@@ -302,6 +303,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void cliSetup(String binTool, CharSequence... args) {
+        cliSetup.add(new CliEntry(binTool, args));
+    }
+
+    @Override
     public void setting(String key, String value) {
         settings.put(key, value);
     }
@@ -475,6 +481,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             ));
         }
 
+        if (cliSetup.isEmpty() == false) {
+            logToProcessStdout("Running " + cliSetup.size() + " setup commands");
+
+            for (CliEntry entry : cliSetup) {
+                runElasticsearchBinScript(entry.executable, entry.args);
+            }
+        }
+
         logToProcessStdout("Starting Elasticsearch process");
         startElasticsearchProcess();
     }
@@ -623,7 +637,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
-    private void runElasticsearchBinScriptWithInput(String input, String tool, String... args) {
+    private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
         if (
             Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false &&
                 Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false
@@ -642,12 +656,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         .supply()
                 );
                 spec.args(
-                    OS.<List<String>>conditional()
+                    OS.<List<CharSequence>>conditional()
                         .onWindows(() -> {
-                            ArrayList<String> result = new ArrayList<>();
+                            ArrayList<CharSequence> result = new ArrayList<>();
                             result.add("/c");
                             result.add("bin\\" + tool + ".bat");
-                            for (String arg : args) {
+                            for (CharSequence arg : args) {
                                 result.add(arg);
                             }
                             return result;
@@ -663,7 +677,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void runElasticsearchBinScript(String tool, String... args) {
+    private void runElasticsearchBinScript(String tool, CharSequence... args) {
         runElasticsearchBinScriptWithInput("", tool, args);
     }
 
@@ -1206,6 +1220,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Nested
+    public List<?> getCliSetup() {
+        return cliSetup.getNormalizedCollection();
+    }
+
+    @Nested
     public List<?> getSettings() {
         return settings.getNormalizedCollection();
     }
@@ -1374,6 +1393,26 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         @PathSensitive(PathSensitivity.NONE)
         public File getFile() {
             return file;
+        }
+    }
+
+    private static class CliEntry {
+        private String executable;
+        private CharSequence[] args;
+
+        CliEntry(String executable, CharSequence[] args) {
+            this.executable = executable;
+            this.args = args;
+        }
+
+        @Input
+        public String getExecutable() {
+            return executable;
+        }
+
+        @Input
+        public CharSequence[] getArgs() {
+            return args;
         }
     }
 }

@@ -2198,8 +2198,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
                 GetTrainedModelsRequest.getAllTrainedModelConfigsRequest(),
                 machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
-            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels));
-            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L + 1));
         }
         {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
@@ -2222,7 +2222,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testGetTrainedModelsStats() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String modelIdPrefix = "get-trained-model-stats-";
+        String modelIdPrefix = "a-get-trained-model-stats-";
         int numberOfModels = 5;
         for (int i = 0; i < numberOfModels; ++i) {
             String modelId = modelIdPrefix + i;
@@ -2254,8 +2254,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
                 GetTrainedModelsStatsRequest.getAllTrainedModelStatsRequest(),
                 machineLearningClient::getTrainedModelsStats, machineLearningClient::getTrainedModelsStatsAsync);
-            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(numberOfModels));
-            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L));
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L + 1));
             assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(0).getPipelineCount(), equalTo(1));
             assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(1).getPipelineCount(), equalTo(0));
         }

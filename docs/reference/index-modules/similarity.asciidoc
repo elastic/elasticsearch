@@ -38,7 +38,7 @@ PUT /index
 }
 --------------------------------------------------
 
-Here we configure the DFRSimilarity so it can be referenced as
+Here we configure the DFR similarity so it can be referenced as
 `my_similarity` in mappings as is illustrate in the below example:
 
 [source,console]

@@ -1423,17 +1423,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                               Version version) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
-            repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
-                final boolean hasOldFormatSnapshots =
-                    hasOldVersionSnapshots(snapshot.getRepository(), repositoryData, snapshot.getSnapshotId());
-                repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId,
-                    hasOldFormatSnapshots == false && version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
-                    ActionListener.wrap(v -> {
-                            logger.info("snapshot [{}] deleted", snapshot);
-                            removeSnapshotDeletionFromClusterState(snapshot, null, l);
-                        }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
-                    ));
-            }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)));
+            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshot(snapshot.getSnapshotId(),
+                repositoryStateId,
+                version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION) &&
+                    hasOldVersionSnapshots(snapshot.getRepository(), repositoryData, snapshot.getSnapshotId()) == false,
+                ActionListener.wrap(v -> {
+                        logger.info("snapshot [{}] deleted", snapshot);
+                        removeSnapshotDeletionFromClusterState(snapshot, null, l);
+                    }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
+                )), ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)));
         }));
     }
 

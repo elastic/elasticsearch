@@ -218,15 +218,11 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener,
-                            l -> {
-                                final boolean hasOldFormatSnapshots = snapshotsService.hasOldVersionSnapshots(
-                                    repositoryName, repositoryData, null);
-                                blobStoreRepository.cleanup(
-                                    repositoryStateId,
-                                    hasOldFormatSnapshots == false &&
-                                        newState.nodes().getMinNodeVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION),
-                                    ActionListener.wrap(result -> after(null, result), e -> after(e, null)));
-                            }
+                            l -> blobStoreRepository.cleanup(
+                                repositoryStateId,
+                                newState.nodes().getMinNodeVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)
+                                    && snapshotsService.hasOldVersionSnapshots(repositoryName, repositoryData, null) == false,
+                                ActionListener.wrap(result -> after(null, result), e -> after(e, null)))
                         ));
                     }
 

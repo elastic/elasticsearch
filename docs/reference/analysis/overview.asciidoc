@@ -15,28 +15,31 @@ documents that contain related words like `fast fox` or `foxes leap`.
 [[tokenization]]
 === Tokenization
 
-Analysis makes full-text search possible by breaking an text down into smaller
-chunks, called _tokens_. In most cases, these tokens are individual words.
+Analysis makes full-text search possible through _tokenization_: breaking a text
+down into smaller chunks, called _tokens_. In most cases, these tokens are
+individual words.
 
-For example, without analysis, the text `Quick brown fox` can only be
-matched by searches for the exact string `Quick brown fox`. With analysis,
-the text is converted to the tokens `[Quick, brown, fox]`, which can
-be matched by searches for `Quick fox`, `fox brown`, or other variations.
-
-While improved, this example search experience still has a few problems:
-
-*  A search for `Quick` would not match `quick`, even though you likely want
-either term to match the other
-
-* `fox` and `foxes` share the same root word. However,
-a search for `foxes` would not match `fox` or vice versa.
-
-* While `jumps` and `leaps` don't share a root word, they are synonyms and have
-a similar meaning. However, a search for one would not match the other.
+If you index the phrase `the quick brown fox jumps` as a single string and the
+user searches for `quick fox`, it isn't considered a match. However, if you
+tokenize the phrase and index each word separately, the terms in the query
+string can be looked up individually. This means they can be matched by searches
+for `quick fox`, `fox brown`, or other variations.
 
 [discrete]
 [[normalization]]
 === Normalization
+
+Tokenization enables matching on individual terms, but each token is still
+matched literally. This means:
+
+*  A search for `Quick` would not match `quick`, even though you likely want
+either term to match the other
+
+* Although `fox` and `foxes` share the same root word, a search for `foxes`
+would not match `fox` or vice versa.
+
+* A search for `jumps` would not match `leaps`. While they don't share a root
+word, they are synonyms and have a similar meaning.
 
 To solve these problems, text analysis can _normalize_ these tokens into a
 standard format. This allows you to match tokens that are not exactly the same

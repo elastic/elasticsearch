@@ -66,7 +66,7 @@ that govern the entire process.
 <<analysis-standard-analyzer,standard analyzer>>, which works well for most use
 cases right out of the box.
 
-If you want to further tailor your search experience, you can choose a different
+If you want to tailor your search experience, you can choose a different
 <<analysis-analyzers,built-in analyzer>> or even
 <<analysis-custom-analyzer,configure a custom one>>. A custom analyzer gives you
 control over each step of the analysis process, including:

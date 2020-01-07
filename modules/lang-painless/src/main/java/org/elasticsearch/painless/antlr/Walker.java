@@ -258,7 +258,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
             statements.add(new SDeclaration(location(ctx),
-                    new DResolvedType(location(ctx), scriptClassInfo.getGetReturns().get(index), false), name, null));
+                    new DResolvedType(location(ctx), scriptClassInfo.getGetReturns().get(index), false), name, false, null));
         }
 
         for (StatementContext statement : ctx.statement()) {
@@ -515,7 +515,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             AExpression expression = declvar.expression() == null ? null : (AExpression)visit(declvar.expression());
             DUnresolvedType unresolvedType = new DUnresolvedType(location(declvar), type);
 
-            declarations.add(new SDeclaration(location(declvar), unresolvedType, name, expression));
+            declarations.add(new SDeclaration(location(declvar), unresolvedType, name, true, expression));
         }
 
         return new SDeclBlock(location(ctx), declarations);
@@ -538,7 +538,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         SBlock block = (SBlock)visit(ctx.block());
 
         return new SCatch(location(ctx), new DResolvedType(location(ctx), Exception.class),
-                new SDeclaration(location(ctx.TYPE()), new DUnresolvedType(location(ctx.TYPE()), type), name, null), block);
+                new SDeclaration(location(ctx.TYPE()), new DUnresolvedType(location(ctx.TYPE()), type), name, false, null), block);
     }
 
     @Override

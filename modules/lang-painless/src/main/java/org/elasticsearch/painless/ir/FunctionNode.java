@@ -25,26 +25,12 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
 import org.elasticsearch.painless.symbol.ScopeTable.Variable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.painless.WriterConstants.BOOTSTRAP_METHOD_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.COLLECTIONS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.CONVERT_TO_SCRIPT_EXCEPTION_METHOD;
-import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
-import static org.elasticsearch.painless.WriterConstants.EMPTY_MAP_METHOD;
-import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
-import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.STACK_OVERFLOW_ERROR_TYPE;
 
 public class FunctionNode extends IRNode {
 
@@ -168,17 +154,16 @@ public class FunctionNode extends IRNode {
 
         // TODO: do not specialize for execute
         // TODO: https://github.com/elastic/elasticsearch/issues/51841
-        // create labels for the potential try/catch blocks in "execute"
-        Label startTry = new Label();
-        Label endTry = new Label();
-        Label startExplainCatch = new Label();
-        Label startOtherCatch = new Label();
-        Label endCatch = new Label();
-
-        if ("execute".equals(name)) {
-            methodWriter.mark(startTry);
-        }
-        // TODO: end
+//        Label startTry = new Label();
+//        Label endTry = new Label();
+//        Label startExplainCatch = new Label();
+//        Label startOtherCatch = new Label();
+//        Label endCatch = new Label();
+//
+//        if ("execute".equals(name)) {
+//            methodWriter.mark(startTry);
+//        }
+//        // TODO: end
 
         if (maxLoopCounter > 0) {
             // if there is infinite loop protection, we do this once:
@@ -194,41 +179,41 @@ public class FunctionNode extends IRNode {
 
         // TODO: do not specialize for execute
         // TODO: https://github.com/elastic/elasticsearch/issues/51841
-        if ("execute".equals(name)) {
-            methodWriter.mark(endTry);
-            methodWriter.goTo(endCatch);
-            // This looks like:
-            // } catch (PainlessExplainError e) {
-            //   throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
-            // }
-            methodWriter.visitTryCatchBlock(startTry, endTry, startExplainCatch, PAINLESS_EXPLAIN_ERROR_TYPE.getInternalName());
-            methodWriter.mark(startExplainCatch);
-            methodWriter.loadThis();
-            methodWriter.swap();
-            methodWriter.dup();
-            methodWriter.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-            methodWriter.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
-            methodWriter.invokeVirtual(CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
-            methodWriter.throwException();
-            // This looks like:
-            // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
-            //   throw this.convertToScriptException(e, e.getHeaders())
-            // }
-            // We *think* it is ok to catch OutOfMemoryError and StackOverflowError because Painless is stateless
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, PAINLESS_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, BOOTSTRAP_METHOD_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, OUT_OF_MEMORY_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, STACK_OVERFLOW_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, EXCEPTION_TYPE.getInternalName());
-            methodWriter.mark(startOtherCatch);
-            methodWriter.loadThis();
-            methodWriter.swap();
-            methodWriter.invokeStatic(COLLECTIONS_TYPE, EMPTY_MAP_METHOD);
-            methodWriter.invokeVirtual(CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
-            methodWriter.throwException();
-            methodWriter.mark(endCatch);
-        }
-        // TODO: end
+//        if ("execute".equals(name)) {
+//            methodWriter.mark(endTry);
+//            methodWriter.goTo(endCatch);
+//            // This looks like:
+//            // } catch (PainlessExplainError e) {
+//            //   throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
+//            // }
+//            methodWriter.visitTryCatchBlock(startTry, endTry, startExplainCatch, PAINLESS_EXPLAIN_ERROR_TYPE.getInternalName());
+//            methodWriter.mark(startExplainCatch);
+//            methodWriter.loadThis();
+//            methodWriter.swap();
+//            methodWriter.dup();
+//            methodWriter.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
+//            methodWriter.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
+//            methodWriter.invokeVirtual(CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+//            methodWriter.throwException();
+//            // This looks like:
+//            // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
+//            //   throw this.convertToScriptException(e, e.getHeaders())
+//            // }
+//            // We *think* it is ok to catch OutOfMemoryError and StackOverflowError because Painless is stateless
+//            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, PAINLESS_ERROR_TYPE.getInternalName());
+//            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, BOOTSTRAP_METHOD_ERROR_TYPE.getInternalName());
+//            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, OUT_OF_MEMORY_ERROR_TYPE.getInternalName());
+//            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, STACK_OVERFLOW_ERROR_TYPE.getInternalName());
+//            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, EXCEPTION_TYPE.getInternalName());
+//            methodWriter.mark(startOtherCatch);
+//            methodWriter.loadThis();
+//            methodWriter.swap();
+//            methodWriter.invokeStatic(COLLECTIONS_TYPE, EMPTY_MAP_METHOD);
+//            methodWriter.invokeVirtual(CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+//            methodWriter.throwException();
+//            methodWriter.mark(endCatch);
+//        }
+//        // TODO: end
 
         methodWriter.endMethod();
     }

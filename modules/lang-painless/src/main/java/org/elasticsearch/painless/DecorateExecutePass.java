@@ -20,22 +20,36 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.CallNode;
+import org.elasticsearch.painless.ir.CallSubNode;
+import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.StatementNode;
+import org.elasticsearch.painless.ir.StaticNode;
+import org.elasticsearch.painless.ir.ThrowNode;
+import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.UnboundCallNode;
+import org.elasticsearch.painless.ir.UnboundFieldNode;
+import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.commons.Method;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 public class DecorateExecutePass {
 
     public static void pass(ScriptRoot scriptRoot, ClassNode classNode) {
         FunctionNode executeFunctionNode = null;
 
+        // look up the execute method for decoration
         for (FunctionNode functionNode : classNode.getFunctionsNodes()) {
             if ("execute".equals(functionNode.getName())) {
                 executeFunctionNode = functionNode;
@@ -55,7 +69,7 @@ public class DecorateExecutePass {
             StatementNode statementNode = blockNode.getStatementsNodes().get(statementIndex);
 
             if (statementNode instanceof DeclarationNode) {
-                DeclarationNode declarationNode = (DeclarationNode) statementNode;
+                DeclarationNode declarationNode = (DeclarationNode)statementNode;
                 boolean isRemoved = false;
 
                 for (int getIndex = 0; getIndex < scriptRoot.getScriptClassInfo().getGetMethods().size(); ++getIndex) {
@@ -89,56 +103,198 @@ public class DecorateExecutePass {
             }
         }
 
-        /*blockNode = new BlockNode()
-                .addStatementNode(new TryNode()
-                        .setBlockNode(blockNode)
-                        .addCatchNode(new CatchNode()
-                                .setDeclarationNode(new DeclarationNode()
-                                        .setDeclarationTypeNode(new TypeNode()
-                                                .setLocation(blockNode.getLocation())
-                                                .setType(PainlessExplainError.class)
-                                        )
-                                        .setName("exception")
-                                        .setLocation(blockNode.getLocation())
-                                )
-                                .setBlockNode(new BlockNode()
-                                        .addStatementNode(new ThrowNode()
-                                                .setExpressionNode(new UnboundCallNode()
-                                                        .setTypeNode(new TypeNode()
-                                                                .setLocation(blockNode.getLocation())
-                                                                .setType(ScriptException.class)
-                                                        )
-                                                        .addArgumentNode(new VariableNode()
-                                                                .setTypeNode(new TypeNode()
-                                                                        .setLocation(blockNode.getLocation())
-                                                                        .setType(ScriptException.class)
-                                                                )
-                                                        )
-                                                        .setLocalFunction(new LocalFunction(
-                                                                "convertToScriptException",
-                                                                ScriptException.class,
-                                                                Arrays.asList(Throwable.class, Map.class),
-                                                                true,
-                                                                false
-                                                                )
-                                                        )
-                                                        .setLocation(blockNode.getLocation())
-                                                )
-                                                .setLocation(blockNode.getLocation())
-                                        )
-                                        .setLocation(blockNode.getLocation())
-                                        .setAllEscape(true)
-                                        .setStatementCount(1)
-                                )
-                                .setLocation(blockNode.getLocation())
-                        )
-                        .setLocation(blockNode.getLocation())
-                )
-                .setLocation(blockNode.getLocation())
-                .setAllEscape(blockNode.doAllEscape())
-                .setStatementCount(blockNode.getStatementCount());
+        // decorate the execute method with nodes to wrap the user statements with
+        // the sandboxed errors as follows:
+        // } catch (PainlessExplainError e) {
+        //     throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
+        // }
+        // and
+        // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
+        //     throw this.convertToScriptException(e, e.getHeaders())
+        // }
+        try {
+            Location internalLocation = new Location("<internal>", 0);
 
-        executeFunctionNode.setBlockNode(blockNode);*/
+            TryNode tryNode = new TryNode();
+            tryNode.setLocation(internalLocation);
+            tryNode.setBlockNode(blockNode);
+
+            CatchNode catchNode = new CatchNode();
+            catchNode.setLocation(internalLocation);
+
+            tryNode.addCatchNode(catchNode);
+
+            DeclarationNode declarationNode = new DeclarationNode();
+            declarationNode.setLocation(internalLocation);
+            declarationNode.setDeclarationType(PainlessExplainError.class);
+            declarationNode.setName("#painlessExplainError");
+            declarationNode.setRequiresDefault(false);
+
+            catchNode.setDeclarationNode(declarationNode);
+
+            BlockNode catchBlockNode = new BlockNode();
+            catchBlockNode.setLocation(internalLocation);
+            catchBlockNode.setAllEscape(true);
+            catchBlockNode.setStatementCount(1);
+
+            catchNode.setBlockNode(catchBlockNode);
+
+            ThrowNode throwNode = new ThrowNode();
+            throwNode.setLocation(internalLocation);
+
+            catchBlockNode.addStatementNode(throwNode);
+
+            UnboundCallNode unboundCallNode = new UnboundCallNode();
+            unboundCallNode.setLocation(internalLocation);
+            unboundCallNode.setExpressionType(ScriptException.class);
+            unboundCallNode.setLocalFunction(new LocalFunction(
+                            "convertToScriptException",
+                            ScriptException.class,
+                            Arrays.asList(Throwable.class, Map.class),
+                            true,
+                            false
+                    )
+            );
+
+            throwNode.setExpressionNode(unboundCallNode);
+
+            VariableNode variableNode = new VariableNode();
+            variableNode.setLocation(internalLocation);
+            variableNode.setExpressionType(ScriptException.class);
+            variableNode.setName("#painlessExplainError");
+
+            unboundCallNode.addArgumentNode(variableNode);
+
+            CallNode callNode = new CallNode();
+            callNode.setLocation(internalLocation);
+            callNode.setExpressionType(Map.class);
+
+            unboundCallNode.addArgumentNode(callNode);
+
+            variableNode = new VariableNode();
+            variableNode.setLocation(internalLocation);
+            variableNode.setExpressionType(PainlessExplainError.class);
+            variableNode.setName("#painlessExplainError");
+
+            callNode.setLeftNode(variableNode);
+
+            CallSubNode callSubNode = new CallSubNode();
+            callSubNode.setLocation(internalLocation);
+            callSubNode.setExpressionType(Map.class);
+            callSubNode.setBox(PainlessExplainError.class);
+            callSubNode.setMethod(new PainlessMethod(
+                    PainlessExplainError.class.getMethod(
+                            "getHeaders",
+                            PainlessLookup.class),
+                    PainlessExplainError.class,
+                    null,
+                    Collections.emptyList(),
+                    null,
+                    null,
+                    null
+            ));
+
+            callNode.setRightNode(callSubNode);
+
+            UnboundFieldNode unboundFieldNode = new UnboundFieldNode();
+            unboundFieldNode.setLocation(internalLocation);
+            unboundFieldNode.setExpressionType(PainlessLookup.class);
+            unboundFieldNode.setName("$DEFINITION");
+            unboundFieldNode.setStatic(true);
+
+            callSubNode.addArgumentNode(unboundFieldNode);
+
+            for (Class<?> throwable : new Class<?>[] {
+                    PainlessError.class, BootstrapMethodError.class, OutOfMemoryError.class, StackOverflowError.class, Exception.class}) {
+
+                String name = throwable.getSimpleName();
+                name = "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);
+
+                catchNode = new CatchNode();
+                catchNode.setLocation(internalLocation);
+
+                tryNode.addCatchNode(catchNode);
+
+                declarationNode = new DeclarationNode();
+                declarationNode.setLocation(internalLocation);
+                declarationNode.setDeclarationType(throwable);
+                declarationNode.setName(name);
+                declarationNode.setRequiresDefault(false);
+
+                catchNode.setDeclarationNode(declarationNode);
+
+                catchBlockNode = new BlockNode();
+                catchBlockNode.setLocation(internalLocation);
+                catchBlockNode.setAllEscape(true);
+                catchBlockNode.setStatementCount(1);
+
+                catchNode.setBlockNode(catchBlockNode);
+
+                throwNode = new ThrowNode();
+                throwNode.setLocation(internalLocation);
+
+                catchBlockNode.addStatementNode(throwNode);
+
+                unboundCallNode = new UnboundCallNode();
+                unboundCallNode.setLocation(internalLocation);
+                unboundCallNode.setExpressionType(ScriptException.class);
+                unboundCallNode.setLocalFunction(new LocalFunction(
+                                "convertToScriptException",
+                                ScriptException.class,
+                                Arrays.asList(Throwable.class, Map.class),
+                                true,
+                                false
+                        )
+                );
+
+                throwNode.setExpressionNode(unboundCallNode);
+
+                variableNode = new VariableNode();
+                variableNode.setLocation(internalLocation);
+                variableNode.setExpressionType(ScriptException.class);
+                variableNode.setName(name);
+
+                unboundCallNode.addArgumentNode(variableNode);
+
+                callNode = new CallNode();
+                callNode.setLocation(internalLocation);
+                callNode.setExpressionType(Map.class);
+
+                unboundCallNode.addArgumentNode(callNode);
+
+                StaticNode staticNode = new StaticNode();
+                staticNode.setLocation(internalLocation);
+                staticNode.setExpressionType(Collections.class);
+
+                callNode.setLeftNode(staticNode);
+
+                callSubNode = new CallSubNode();
+                callSubNode.setLocation(internalLocation);
+                callSubNode.setExpressionType(Map.class);
+                callSubNode.setBox(Collections.class);
+                callSubNode.setMethod(new PainlessMethod(
+                        Collections.class.getMethod("emptyMap"),
+                        Collections.class,
+                        null,
+                        Collections.emptyList(),
+                        null,
+                        null,
+                        null
+                ));
+
+                callNode.setRightNode(callSubNode);
+            }
+
+            blockNode = new BlockNode();
+            blockNode.setLocation(blockNode.getLocation());
+            blockNode.setAllEscape(blockNode.doAllEscape());
+            blockNode.setStatementCount(blockNode.getStatementCount());
+            blockNode.addStatementNode(tryNode);
+
+            executeFunctionNode.setBlockNode(blockNode);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
 
     /*
             if ("execute".equals(name)) {

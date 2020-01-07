@@ -271,7 +271,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repositoriesService.repository(repositoryName).getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repositoryData -> {
-            final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(repositoryName, repositoryData);
+            final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(repositoryName, repositoryData, null);
             clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
                 private SnapshotsInProgress.Entry newSnapshot = null;
@@ -354,14 +354,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, listener::onFailure);
     }
 
-    private boolean hasOldVersionSnapshots(String repositoryName, RepositoryData repositoryData) {
+    public boolean hasOldVersionSnapshots(String repositoryName, RepositoryData repositoryData, @Nullable SnapshotId excluded) {
         final List<SnapshotId> snapshotIds = List.copyOf(repositoryData.getSnapshotIds());
         final boolean hasOldFormatSnapshots;
         if (snapshotIds.isEmpty()) {
             hasOldFormatSnapshots = false;
         } else {
             hasOldFormatSnapshots = snapshots(repositoryName, snapshotIds, false).stream()
-                .anyMatch(snapshotInfo -> snapshotInfo.version().before(SHARD_GEN_IN_REPO_DATA_VERSION));
+                .anyMatch(snapshotInfo -> (excluded == null || snapshotInfo.snapshotId().equals(excluded) == false)
+                    && snapshotInfo.version().before(SHARD_GEN_IN_REPO_DATA_VERSION));
         }
         return hasOldFormatSnapshots;
     }
@@ -1418,8 +1419,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
             repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
-                //TODO: Check snapshot versions without the deleted snapshot and add this logic to repo cleanup
-                final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(snapshot.getRepository(), repositoryData);
+                final boolean hasOldFormatSnapshots =
+                    hasOldVersionSnapshots(snapshot.getRepository(), repositoryData, snapshot.getSnapshotId());
                 repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId,
                     hasOldFormatSnapshots == false && version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                     ActionListener.wrap(v -> {

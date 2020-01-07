@@ -77,6 +77,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     private final RepositoriesService repositoriesService;
 
+    private final SnapshotsService snapshotsService;
+
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
@@ -84,11 +86,13 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     @Inject
     public TransportCleanupRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                            RepositoriesService repositoriesService, SnapshotsService snapshotsService,
+                                            ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
         super(CleanupRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
             CleanupRepositoryRequest::new, indexNameExpressionResolver);
         this.repositoriesService = repositoriesService;
+        this.snapshotsService = snapshotsService;
         // We add a state applier that will remove any dangling repository cleanup actions on master failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
@@ -214,10 +218,16 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener,
-                            l -> blobStoreRepository.cleanup(
-                                repositoryStateId,
-                                newState.nodes().getMinNodeVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION),
-                                ActionListener.wrap(result -> after(null, result), e -> after(e, null)))));
+                            l -> {
+                                final boolean hasOldFormatSnapshots = snapshotsService.hasOldVersionSnapshots(
+                                    repositoryName, repositoryData, null);
+                                blobStoreRepository.cleanup(
+                                    repositoryStateId,
+                                    hasOldFormatSnapshots == false &&
+                                        newState.nodes().getMinNodeVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION),
+                                    ActionListener.wrap(result -> after(null, result), e -> after(e, null)));
+                            }
+                        ));
                     }
 
                     private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {

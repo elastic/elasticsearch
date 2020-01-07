@@ -51,17 +51,24 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Downgrade tests that verify that a snapshot repository is not getting corrupted and continues to function properly for downgrades.
+ * Downgrade tests that verify that a snapshot repository is not getting corrupted and continues to function properly during cluster
+ * downgrades. Concretely this test suit is simulating the following scenario:
+ * <ul>
+ *     <li>Start from a cluster in an old version and create a snapshot containing a given index</li>
+ *     <li>Upgrade the cluster to the current version and create another snapshot.</li>
+ *     <li>Downgrade the cluster back to the old version and create another snapshot</li>
+ *     <li>Once again upgrade the cluster to the current version and create a snapshot</li>
+ * </ul>
  */
 public class ClusterDowngradeIT extends ESRestTestCase {
 
-    protected enum ClusterType {
+    protected enum TestStep {
         OLD,
         UPGRADED,
         DOWNGRADED,
         RE_UPGRADED;
 
-        public static ClusterType parse(String value) {
+        public static TestStep parse(String value) {
             switch (value) {
                 case "old_cluster":
                     return OLD;
@@ -77,7 +84,7 @@ public class ClusterDowngradeIT extends ESRestTestCase {
         }
     }
 
-    protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
+    protected static final TestStep CLUSTER_TYPE = TestStep.parse(System.getProperty("tests.rest.suite"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -119,14 +126,13 @@ public class ClusterDowngradeIT extends ESRestTestCase {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
     public void testCreateSnapshot() throws IOException {
         final String repoName = "repo";
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
-            if (CLUSTER_TYPE == ClusterType.OLD || CLUSTER_TYPE == ClusterType.DOWNGRADED) {
+            if (CLUSTER_TYPE == TestStep.OLD || CLUSTER_TYPE == TestStep.DOWNGRADED) {
                 createIndex(client, "idx-1", 3);
             }
-            if (CLUSTER_TYPE == ClusterType.OLD || CLUSTER_TYPE == ClusterType.DOWNGRADED) {
+            if (CLUSTER_TYPE == TestStep.OLD || CLUSTER_TYPE == TestStep.DOWNGRADED) {
                 assertThat(client.snapshot().createRepository(new PutRepositoryRequest(repoName).type("fs").settings(
                     Settings.builder().put("location", ".")), RequestOptions.DEFAULT).isAcknowledged(), is(true));
             }
@@ -137,18 +143,9 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                 new CreateSnapshotRequest(repoName, "snapshot-to-delete").waitForCompletion(true), RequestOptions.DEFAULT);
             client.snapshot().delete(new DeleteSnapshotRequest(repoName, "snapshot-to-delete"), RequestOptions.DEFAULT);
             final List<Map<String, Object>> snapshots;
-            Response response = client.getLowLevelClient().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all"));
-            try (InputStream entity = response.getEntity().getContent();
-                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
-                final Map<String, Object> raw = parser.map();
-                // Bwc lookup since the format of the snapshots response changed between versions
-                if (raw.containsKey("snapshots")) {
-                    snapshots = (List<Map<String, Object>>) raw.get("snapshots");
-                } else {
-                    snapshots = (List<Map<String, Object>>) ((List<Map<?, ?>>) raw.get("responses")).get(0).get("snapshots");
-                }
-            }
+            Response response = client.getLowLevelClient().performRequest(
+                new Request("GET", "/_snapshot/" + repoName + "/_all"));
+            snapshots = readSnapshotsList(response);
             switch (CLUSTER_TYPE) {
                 case OLD:
                     assertThat(snapshots, hasSize(1));
@@ -167,15 +164,15 @@ public class ClusterDowngradeIT extends ESRestTestCase {
             for (SnapshotStatus status : statusResponse.getSnapshots()) {
                 assertThat(status.getShardsStats().getFailedShards(), is(0));
             }
-            if (CLUSTER_TYPE == ClusterType.DOWNGRADED) {
+            if (CLUSTER_TYPE == TestStep.DOWNGRADED) {
                 wipeAllIndices();
                 final RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot().restore(
                     new RestoreSnapshotRequest().repository(repoName).snapshot("snapshot-old").waitForCompletion(true),
                     RequestOptions.DEFAULT);
                 assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), is(0));
                 assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), greaterThanOrEqualTo(3));
-            } else if (CLUSTER_TYPE == ClusterType.RE_UPGRADED) {
-                for (ClusterType value : ClusterType.values()) {
+            } else if (CLUSTER_TYPE == TestStep.RE_UPGRADED) {
+                for (TestStep value : TestStep.values()) {
                     wipeAllIndices();
                     final RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot().restore(
                         new RestoreSnapshotRequest().repository(repoName)
@@ -186,6 +183,23 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                 }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> readSnapshotsList(final Response response) throws IOException {
+        final List<Map<String, Object>> snapshots;
+        try (InputStream entity = response.getEntity().getContent();
+             XContentParser parser = JsonXContent.jsonXContent.createParser(
+                 xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
+            final Map<String, Object> raw = parser.map();
+            // Bwc lookup since the format of the snapshots response changed between versions
+            if (raw.containsKey("snapshots")) {
+                snapshots = (List<Map<String, Object>>) raw.get("snapshots");
+            } else {
+                snapshots = (List<Map<String, Object>>) ((List<Map<?, ?>>) raw.get("responses")).get(0).get("snapshots");
+            }
+        }
+        return snapshots;
     }
 
     private void createIndex(RestHighLevelClient client, String name, int shards) throws IOException {

@@ -42,7 +42,7 @@ import java.util.Map;
 public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregationBuilder> {
     public static final String NAME = "avg";
 
-    private static final ObjectParser<AvgAggregationBuilder, String> PARSER = new ObjectParser<>(NAME, AvgAggregationBuilder::new);
+    private static final ObjectParser<AvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, AvgAggregationBuilder::new);
     static {
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
     }

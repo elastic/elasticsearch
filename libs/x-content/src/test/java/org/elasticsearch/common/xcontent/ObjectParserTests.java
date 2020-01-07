@@ -37,8 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -637,9 +635,8 @@ public class ObjectParserTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("[foo] failed to parse field [int_array]"));
     }
 
-    private static final Supplier<AtomicReference<String>> NEW_EMPTY_STRING_REF = AtomicReference::new;
     public void testNoopDeclareObject() throws IOException {
-        ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", NEW_EMPTY_STRING_REF);
+        ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", AtomicReference::new);
         parser.declareString(AtomicReference::set, new ParseField("body"));
         parser.declareObject((a,b) -> {}, (p, c) -> null, new ParseField("noop"));
 
@@ -655,7 +652,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testNoopDeclareField() throws IOException {
-        ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", NEW_EMPTY_STRING_REF);
+        ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", AtomicReference::new);
         parser.declareString(AtomicReference::set, new ParseField("body"));
         parser.declareField((a,b) -> {}, (p, c) -> null, new ParseField("noop"), ValueType.STRING_ARRAY);
 
@@ -667,7 +664,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testNoopDeclareObjectArray() throws IOException {
-        ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", NEW_EMPTY_STRING_REF);
+        ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", AtomicReference::new);
         parser.declareString(AtomicReference::set, new ParseField("body"));
         parser.declareObjectArray((a,b) -> {}, (p, c) -> null, new ParseField("noop"));
 
@@ -811,8 +808,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testContextBuilder() throws IOException {
-        Function<String, AtomicReference<String>> builder = AtomicReference::new;
-        ObjectParser<AtomicReference<String>, String> parser = new ObjectParser<>("test", builder);
+        ObjectParser<AtomicReference<String>, String> parser = ObjectParser.fromBuilder("test", AtomicReference::new);
         String context = randomAlphaOfLength(5);
         AtomicReference<String> parsed = parser.parse(createParser(JsonXContent.jsonXContent, "{}"), context);
         assertThat(parsed.get(), equalTo(context));

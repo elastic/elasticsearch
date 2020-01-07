@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.XContentParser.Token.START_ARRAY;
 import static org.elasticsearch.common.xcontent.XContentParser.Token.START_OBJECT;
 import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_BOOLEAN;
@@ -162,7 +163,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Creates a new ObjectParser.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
-     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     * @param valueSupplier A supplier that creates a new Value instance. Used when the parser is used as an inner object parser.
      */
     public ObjectParser(String name, @Nullable Supplier<Value> valueSupplier) {
         this(name, errorOnUnknown(), c -> valueSupplier.get());
@@ -171,10 +172,12 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Creates a new ObjectParser.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
-     * @param valueBuilder builds the value from the context
+     * @param valueBuilder A function that creates a new Value from the parse Context. Used
+     *                     when the parser is used as an inner object parser.
      */
-    public ObjectParser(String name, @Nullable Function<Context, Value> valueBuilder) {
-        this(name, errorOnUnknown(), valueBuilder);
+    public static <Value, Context> ObjectParser<Value, Context> fromBuilder(String name, Function<Context, Value> valueBuilder) {
+        requireNonNull(valueBuilder, "Use the single argument ctor instead");
+        return new ObjectParser<Value, Context>(name, errorOnUnknown(), valueBuilder);
     }
 
     /**
@@ -224,8 +227,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private ObjectParser(String name, UnknownFieldParser<Value, Context> unknownFieldParser,
                 @Nullable Function<Context, Value> valueBuilder) {
         this.name = name;
-        this.valueBuilder = valueBuilder;
         this.unknownFieldParser = unknownFieldParser;
+        this.valueBuilder = valueBuilder;
     }
 
     /**

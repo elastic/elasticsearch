@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -41,11 +40,6 @@ public final class EStatic extends AExpression {
         super(location);
 
         this.type = Objects.requireNonNull(type);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        // do nothing
     }
 
     @Override

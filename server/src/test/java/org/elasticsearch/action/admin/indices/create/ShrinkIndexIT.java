@@ -533,7 +533,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 IndexService indexShards = service.indexService(target.getIndex());
                 IndexShard shard = indexShards.getShard(0);
                 assertTrue(shard.isActive());
-                shard.checkIdle(0);
+                shard.flushOnIdle(0);
                 assertFalse(shard.isActive());
             }
         }

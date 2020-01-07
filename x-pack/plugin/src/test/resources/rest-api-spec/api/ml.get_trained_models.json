@@ -1,7 +1,7 @@
 {
   "ml.get_trained_models":{
     "documentation":{
-      "url":"TODO"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html"
     },
     "stability":"experimental",
     "url":{
@@ -36,8 +36,14 @@
       "include_model_definition":{
         "type":"boolean",
         "required":false,
-        "description":"Should the full model definition be included in the results. These definitions can be large",
+        "description":"Should the full model definition be included in the results. These definitions can be large. So be cautious when including them. Defaults to false.",
         "default":false
+      },
+      "decompress_definition": {
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "Should the model definition be decompressed into valid JSON or returned in a custom compressed format. Defaults to true."
       },
       "from":{
         "type":"int",

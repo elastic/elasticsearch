@@ -39,7 +39,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
 
     @Override
     protected TrainedModelConfig doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelConfig.fromXContent(parser).build();
+        return TrainedModelConfig.fromXContent(parser);
     }
 
     @Override

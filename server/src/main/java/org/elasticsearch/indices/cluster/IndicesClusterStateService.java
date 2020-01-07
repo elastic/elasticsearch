@@ -177,13 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final NodeClient client) {
         this.settings = settings;
-        this.buildInIndexListener =
-                Arrays.asList(
-                        peerRecoverySourceService,
-                        recoveryTargetService,
-                        searchService,
-                        syncedFlushService,
-                        snapshotShardsService);
+        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

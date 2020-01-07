@@ -108,6 +108,15 @@ public class NioHttpRequest implements HttpRequest {
         return content;
     }
 
+    @Override
+    public void release() {
+        // NioHttpRequest works from copied unpooled bytes no need to release anything
+    }
+
+    @Override
+    public HttpRequest releaseAndCopy() {
+        return this;
+    }
 
     @Override
     public final Map<String, List<String>> getHeaders() {

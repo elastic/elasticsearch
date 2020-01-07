@@ -52,7 +52,7 @@ public class SessionFactoryTests extends ESTestCase {
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "conn_settings"),
                 environment.settings(), environment, new ThreadContext(Settings.EMPTY));
-        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment),
                 logger);
         assertThat(options.followReferrals(), is(equalTo(true)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
@@ -72,9 +72,9 @@ public class SessionFactoryTests extends ESTestCase {
                 .put("path.home", pathHome)
                 .build();
 
-        final Environment environment = TestEnvironment.newEnvironment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
-        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment), logger);
         assertThat(options.followReferrals(), is(equalTo(false)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(10)));
@@ -88,7 +88,7 @@ public class SessionFactoryTests extends ESTestCase {
                 .put("path.home", pathHome)
                 .build();
         realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+        options = SessionFactory.connectionOptions(realmConfig, new SSLService(TestEnvironment.newEnvironment(settings)), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
         // Can't run in FIPS with verification_mode none, disable this check instead of duplicating the test case
@@ -97,8 +97,9 @@ public class SessionFactoryTests extends ESTestCase {
                     .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.NONE)
                     .put("path.home", pathHome)
                     .build();
+            environment = TestEnvironment.newEnvironment(settings);
             realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
-            options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+            options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment), logger);
             assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
         }
 
@@ -106,8 +107,9 @@ public class SessionFactoryTests extends ESTestCase {
                 .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.FULL)
                 .put("path.home", pathHome)
                 .build();
+        environment = TestEnvironment.newEnvironment(settings);
         realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+        options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 

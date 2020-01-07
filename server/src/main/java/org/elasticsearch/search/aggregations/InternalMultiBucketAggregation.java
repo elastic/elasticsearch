@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -73,7 +74,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
 
     @Override
-    public abstract List<? extends InternalBucket> getBuckets();
+    public abstract List<B> getBuckets();
 
     @Override
     public Object getProperty(List<String> path) {
@@ -139,6 +140,30 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
         }
         return size;
+    }
+
+    /**
+     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a multi-bucket
+     * agg needs to first reduce the buckets (and their parent pipelines) before allowing sibling pipelines
+     * to materialize
+     */
+    @Override
+    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
+        List<B> materializedBuckets = reducePipelineBuckets(reduceContext);
+        return super.reducePipelines(create(materializedBuckets), reduceContext);
+    }
+
+    private List<B> reducePipelineBuckets(ReduceContext reduceContext) {
+        List<B> reducedBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            for (Aggregation agg : bucket.getAggregations()) {
+                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+            }
+            reducedBuckets.add(createBucket(new InternalAggregations(aggs), bucket));
+        }
+        return reducedBuckets;
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {

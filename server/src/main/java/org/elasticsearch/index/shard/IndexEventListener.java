@@ -85,13 +85,6 @@ public interface IndexEventListener {
                                             IndexShardState currentState, @Nullable String reason) {}
 
     /**
-     * Called when a shard is marked as inactive
-     *
-     * @param indexShard The shard that was marked inactive
-     */
-    default void onShardInactive(IndexShard indexShard) {}
-
-    /**
      * Called before the index gets created. Note that this is also called
      * when the index is created on data nodes
      */

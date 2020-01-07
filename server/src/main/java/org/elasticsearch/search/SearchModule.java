@@ -96,7 +96,6 @@ import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -431,8 +430,8 @@ public class SearchModule {
 
     private void registerAggregation(AggregationSpec spec) {
         namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
-            AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
-            return spec.getParser().parse(context.name, p);
+            String name = (String) c;
+            return spec.getParser().parse(name, p);
         }));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
@@ -530,8 +529,8 @@ public class SearchModule {
 
     private void registerPipelineAggregation(PipelineAggregationSpec spec) {
         namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
-            AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
-            return spec.getParser().parse(context.name, p);
+            String name = (String) c;
+            return spec.getParser().parse(name, p);
         }));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));

@@ -192,6 +192,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return definition.getCompressedString();
     }
 
+    public void clearCompressed() {
+        definition.compressedString = null;
+    }
+
     public TrainedModelConfig ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
         if (definition == null) {
             return null;

@@ -21,6 +21,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -321,6 +323,7 @@ public final class RepositoryData {
     private static final String NAME = "name";
     private static final String UUID = "uuid";
     private static final String STATE = "state";
+    private static final String MIN_VERSION = "min_version";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -361,6 +364,10 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endObject();
+        if (shardGenerations.totalShards() > 0) {
+            // Add min version field to make it impossible for older ES versions to deserialize this object
+            builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
+        }
         builder.endObject();
         return builder;
     }
@@ -468,6 +475,12 @@ public final class RepositoryData {
                             shardGenerations.put(indexId, i, gens.get(i));
                         }
                     }
+                } else if (MIN_VERSION.equals(field)) {
+                    if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                        throw new ElasticsearchParseException("version string expected [min_version]");
+                    }
+                    final Version version = Version.fromString(parser.text());
+                    assert version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
                 } else {
                     throw new ElasticsearchParseException("unknown field name  [" + field + "]");
                 }

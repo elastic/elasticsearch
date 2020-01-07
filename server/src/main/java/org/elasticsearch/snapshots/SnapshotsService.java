@@ -80,7 +80,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -360,9 +359,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (snapshotIds.isEmpty()) {
             hasOldFormatSnapshots = false;
         } else {
-            hasOldFormatSnapshots = snapshots(repositoryName, snapshotIds, false).stream()
-                .anyMatch(snapshotInfo -> (excluded == null || snapshotInfo.snapshotId().equals(excluded) == false)
-                    && snapshotInfo.version().before(SHARD_GEN_IN_REPO_DATA_VERSION));
+            if (repositoryData.shardGenerations().totalShards() > 0) {
+                hasOldFormatSnapshots = false;
+            } else {
+                hasOldFormatSnapshots = snapshots(repositoryName, snapshotIds, false).stream()
+                    .anyMatch(snapshotInfo -> (excluded == null || snapshotInfo.snapshotId().equals(excluded) == false)
+                        && snapshotInfo.version().before(SHARD_GEN_IN_REPO_DATA_VERSION));
+            }
         }
         assert hasOldFormatSnapshots == false || repositoryData.shardGenerations().totalShards() == 0 :
             "Found non-empty shard generations [" + repositoryData.shardGenerations() + "] but repository contained old version snapshots";

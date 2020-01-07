@@ -706,7 +706,6 @@ public class SourceDestValidatorTests extends ESTestCase {
         }, null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50420")
     public void testRemoteSourceDoesNotExist() throws InterruptedException {
         Context context = spy(
             new SourceDestValidator.Context(

@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -44,7 +43,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-    private final Environment environment = TestEnvironment.newEnvironment(globalSettings);
 
     private static MockWebServer webServer;
     private MockSecureSettings secureSettings;
@@ -108,7 +106,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put(globalSettings)
             .build();
 
-        TestsSSLService sslService = new TestsSSLService(sslSettings, environment);
+        TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(sslSettings));
         final SSLContext sslContext = sslService.sslContext("xpack.security.transport.ssl");
         MockWebServer server = new MockWebServer(sslContext, false);
         server.start();

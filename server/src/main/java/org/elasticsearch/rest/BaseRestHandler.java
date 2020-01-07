@@ -18,8 +18,6 @@
  */
 
 package org.elasticsearch.rest;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
@@ -56,12 +54,6 @@ public abstract class BaseRestHandler implements RestHandler {
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
     private final LongAdder usageCount = new LongAdder();
-    /**
-     * @deprecated declare your own logger.
-     */
-    @Deprecated
-    protected Logger logger = LogManager.getLogger(getClass());
-
 
     public final long getUsageCount() {
         return usageCount.sum();

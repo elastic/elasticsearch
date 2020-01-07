@@ -7,9 +7,9 @@
 Text analysis enables {es} to perform full-text search, where the search returns
 all _relevant_ results rather than just exact matches.
 
-For example, a full-text search for `Quick fox jumps` should not only return
-documents containing that exact search string but also documents containing
-similar or related words, like  `fast fox` or even `foxes leap`.
+If you search for `Quick fox jumps`, you probably want the document that
+contains `A quick brown fox jumps over the lazy dog`, and you might also want
+documents that contain related words like `fast fox` or `foxes leap`.
 
 [discrete]
 [[tokenization]]

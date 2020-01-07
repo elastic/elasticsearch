@@ -92,6 +92,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.Comparator;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
@@ -397,7 +398,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return ob;
         }
     }
-    
+
     static class PruneOrderByForImplicitGrouping extends OptimizerRule<OrderBy> {
 
         @Override
@@ -1090,7 +1091,21 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             boolean changed = false;
 
-            for (Expression ex : Predicates.splitAnd(and)) {
+            List<Expression> andExps = Predicates.splitAnd(and);
+            // Ranges need to show up before BinaryComparisons in list, to allow the latter be optimized away into a Range, if possible
+            andExps.sort(new Comparator<Expression>() {
+                @Override
+                public int compare(Expression o1, Expression o2) {
+                    if (o1 instanceof Range && o2 instanceof Range) {
+                        return 0; // keep ranges' order
+                    } else if (o1 instanceof Range || o2 instanceof Range) {
+                        return o2 instanceof Range ? 1 : -1;
+                    } else {
+                        return 0; // keep non-ranges' order
+                    }
+                }
+            });
+            for (Expression ex : andExps) {
                 if (ex instanceof Range) {
                     Range r = (Range) ex;
                     if (findExistingRange(r, ranges, true)) {
@@ -1215,9 +1230,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             lowerEq = comp == 0 && main.includeLower() == other.includeLower();
                             // AND
                             if (conjunctive) {
-                                // (2 < a < 3) AND (1 < a < 3) -> (1 < a < 3)
+                                // (2 < a < 3) AND (1 < a < 3) -> (2 < a < 3)
                                 lower = comp > 0 ||
-                                // (2 < a < 3) AND (2 < a <= 3) -> (2 < a < 3)
+                                // (2 < a < 3) AND (2 <= a < 3) -> (2 < a < 3)
                                         (comp == 0 && !main.includeLower() && other.includeLower());
                             }
                             // OR
@@ -1316,7 +1331,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     ranges.remove(i);
                                     ranges.add(i,
                                             new Range(other.source(), other.value(),
-                                                    main.right(), lowerEq ? true : other.includeLower(),
+                                                    main.right(), lowerEq ? false : main instanceof GreaterThanOrEqual,
                                                     other.upper(), other.includeUpper()));
                                 }
 
@@ -1325,19 +1340,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             }
                         }
                     } else if (main instanceof LessThan || main instanceof LessThanOrEqual) {
-                        if (other.lower().foldable()) {
-                            Integer comp = BinaryComparison.compare(value, other.lower().fold());
+                        if (other.upper().foldable()) {
+                            Integer comp = BinaryComparison.compare(value, other.upper().fold());
                             if (comp != null) {
                                 // a < 2 AND (1 < a <= 2) -> 1 < a < 2
                                 boolean upperEq = comp == 0 && other.includeUpper() && main instanceof LessThan;
                                 // a < 2 AND (1 < a < 3) -> 1 < a < 2
-                                boolean upper = comp > 0 || upperEq;
+                                boolean upper = comp < 0 || upperEq;
 
                                 if (upper) {
                                     ranges.remove(i);
                                     ranges.add(i, new Range(other.source(), other.value(),
                                             other.lower(), other.includeLower(),
-                                            main.right(), upperEq ? true : other.includeUpper()));
+                                            main.right(), upperEq ? false : main instanceof LessThanOrEqual));
                                 }
 
                                 // found a match

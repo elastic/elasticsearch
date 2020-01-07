@@ -45,7 +45,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     }
 
     "${baseName}-downgraded" {
-      version = bwcVersion.toString()
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       javaHome = BuildParams.runtimeJavaHome
@@ -76,10 +76,20 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     systemProperty 'tests.rest.suite', 'downgraded_cluster'
   }
 
+  tasks.register("${baseName}#reUpgradedClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}-downgraded"
+    dependsOn "${baseName}#downgradedClusterTest"
+    doFirst {
+      testClusters."${baseName}-downgraded".goToNextVersion()
+    }
+    systemProperty 'tests.rest.suite', 're_upgraded_cluster'
+  }
+
+
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
     it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    def clusterName = it.name.contains("downgraded") ? "${baseName}-downgraded" : "${baseName}"
+    def clusterName = it.name.contains("downgraded") || it.name.contains("reUpgraded") ? "${baseName}-downgraded" : "${baseName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
   }
@@ -87,7 +97,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(
       tasks.register("${baseName}#bwcTest") {
-        dependsOn tasks.named("${baseName}#downgradedClusterTest")
+        dependsOn tasks.named("${baseName}#reUpgradedClusterTest")
       }
     )
   }

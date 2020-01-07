@@ -58,7 +58,8 @@ public class ClusterDowngradeIT extends ESRestTestCase {
     protected enum ClusterType {
         OLD,
         UPGRADED,
-        DOWNGRADED;
+        DOWNGRADED,
+        RE_UPGRADED;
 
         public static ClusterType parse(String value) {
             switch (value) {
@@ -68,6 +69,8 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                     return UPGRADED;
                 case "downgraded_cluster":
                     return DOWNGRADED;
+                case "re_upgraded_cluster":
+                    return RE_UPGRADED;
                 default:
                     throw new AssertionError("unknown cluster type: " + value);
             }
@@ -120,7 +123,7 @@ public class ClusterDowngradeIT extends ESRestTestCase {
     public void testCreateSnapshot() throws IOException {
         final String repoName = "repo";
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
-            if (CLUSTER_TYPE == ClusterType.OLD) {
+            if (CLUSTER_TYPE == ClusterType.OLD || CLUSTER_TYPE == ClusterType.DOWNGRADED) {
                 createIndex(client, "idx-1", 3);
             }
             if (CLUSTER_TYPE == ClusterType.OLD || CLUSTER_TYPE == ClusterType.DOWNGRADED) {
@@ -155,6 +158,9 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                     break;
                 case DOWNGRADED:
                     assertThat(snapshots, hasSize(3));
+                    break;
+                case RE_UPGRADED:
+                    assertThat(snapshots, hasSize(4));
             }
             final SnapshotsStatusResponse statusResponse = client.snapshot().status(
                 new SnapshotsStatusRequest(repoName, new String[]{"snapshot-old"}), RequestOptions.DEFAULT);
@@ -168,6 +174,16 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                     RequestOptions.DEFAULT);
                 assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), is(0));
                 assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), greaterThanOrEqualTo(3));
+            } else if (CLUSTER_TYPE == ClusterType.RE_UPGRADED) {
+                for (ClusterType value : ClusterType.values()) {
+                    wipeAllIndices();
+                    final RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot().restore(
+                        new RestoreSnapshotRequest().repository(repoName)
+                            .snapshot("snapshot-" + value.toString().toLowerCase(Locale.ROOT)).waitForCompletion(true),
+                        RequestOptions.DEFAULT);
+                    assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), is(0));
+                    assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), greaterThanOrEqualTo(3));
+                }
             }
         }
     }

@@ -16,6 +16,9 @@ settings update, rerouting, or managing users and roles.
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
+`monitor_snapshot`::
+Privileges to list and view details on existing repositories and snapshots.
+
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
 This includes snapshotting, updating settings, and rerouting. It also includes 

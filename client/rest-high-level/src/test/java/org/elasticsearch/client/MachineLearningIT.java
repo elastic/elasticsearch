@@ -1616,8 +1616,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
 
-        AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(
-            new DeleteDataFrameAnalyticsRequest(configId),
+        DeleteDataFrameAnalyticsRequest deleteRequest = new DeleteDataFrameAnalyticsRequest(configId);
+        if (randomBoolean()) {
+            deleteRequest.setForce(randomBoolean());
+        }
+        AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(deleteRequest,
             machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync);
         assertTrue(deleteDataFrameAnalyticsResponse.isAcknowledged());
 

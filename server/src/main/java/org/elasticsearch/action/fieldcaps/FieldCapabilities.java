@@ -181,7 +181,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<FieldCapabilities, String> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<FieldCapabilities, String> PARSER = new ConstructingObjectParser<>(
         "field_capabilities",
         true,
         (a, name) -> new FieldCapabilities(name,

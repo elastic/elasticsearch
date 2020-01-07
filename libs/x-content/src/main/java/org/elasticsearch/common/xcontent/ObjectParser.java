@@ -32,8 +32,10 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.XContentParser.Token.START_ARRAY;
 import static org.elasticsearch.common.xcontent.XContentParser.Token.START_OBJECT;
 import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_BOOLEAN;
@@ -147,7 +149,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
     private final String name;
-    private final Supplier<Value> valueSupplier;
+    private final Function<Context, Value> valueBuilder;
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
 
     /**
@@ -155,16 +157,27 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      */
     public ObjectParser(String name) {
-        this(name, null);
+        this(name, errorOnUnknown(), null);
     }
 
     /**
      * Creates a new ObjectParser.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
-     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     * @param valueSupplier A supplier that creates a new Value instance. Used when the parser is used as an inner object parser.
      */
     public ObjectParser(String name, @Nullable Supplier<Value> valueSupplier) {
-        this(name, errorOnUnknown(), valueSupplier);
+        this(name, errorOnUnknown(), c -> valueSupplier.get());
+    }
+
+    /**
+     * Creates a new ObjectParser.
+     * @param name the parsers name, used to reference the parser in exceptions and messages.
+     * @param valueBuilder A function that creates a new Value from the parse Context. Used
+     *                     when the parser is used as an inner object parser.
+     */
+    public static <Value, Context> ObjectParser<Value, Context> fromBuilder(String name, Function<Context, Value> valueBuilder) {
+        requireNonNull(valueBuilder, "Use the single argument ctor instead");
+        return new ObjectParser<Value, Context>(name, errorOnUnknown(), valueBuilder);
     }
 
     /**
@@ -175,7 +188,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
     public ObjectParser(String name, boolean ignoreUnknownFields, @Nullable Supplier<Value> valueSupplier) {
-        this(name, ignoreUnknownFields ? ignoreUnknown() : errorOnUnknown(), valueSupplier);
+        this(name, ignoreUnknownFields ? ignoreUnknown() : errorOnUnknown(), c -> valueSupplier.get());
     }
 
     /**
@@ -185,7 +198,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
     public ObjectParser(String name, UnknownFieldConsumer<Value> unknownFieldConsumer, @Nullable Supplier<Value> valueSupplier) {
-        this(name, consumeUnknownField(unknownFieldConsumer), valueSupplier);
+        this(name, consumeUnknownField(unknownFieldConsumer), c -> valueSupplier.get());
     }
 
     /**
@@ -202,19 +215,20 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         BiConsumer<Value, C> unknownFieldConsumer,
         @Nullable Supplier<Value> valueSupplier
     ) {
-        this(name, unknownIsNamedXContent(categoryClass, unknownFieldConsumer), valueSupplier);
+        this(name, unknownIsNamedXContent(categoryClass, unknownFieldConsumer), c -> valueSupplier.get());
     }
 
     /**
      * Creates a new ObjectParser instance with a name.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param unknownFieldParser how to parse unknown fields
-     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     * @param valueBuilder builds the value from the context. Used when the ObjectParser is not passed a value.
      */
-    private ObjectParser(String name, UnknownFieldParser<Value, Context> unknownFieldParser, @Nullable Supplier<Value> valueSupplier) {
+    private ObjectParser(String name, UnknownFieldParser<Value, Context> unknownFieldParser,
+                @Nullable Function<Context, Value> valueBuilder) {
         this.name = name;
-        this.valueSupplier = valueSupplier;
         this.unknownFieldParser = unknownFieldParser;
+        this.valueBuilder = valueBuilder;
     }
 
     /**
@@ -226,10 +240,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
      */
     @Override
     public Value parse(XContentParser parser, Context context) throws IOException {
-        if (valueSupplier == null) {
-            throw new NullPointerException("valueSupplier is not set");
+        if (valueBuilder == null) {
+            throw new NullPointerException("valueBuilder is not set");
         }
-        return parse(parser, valueSupplier.get(), context);
+        return parse(parser, valueBuilder.apply(context), context);
     }
 
     /**
@@ -277,11 +291,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     @Override
     public Value apply(XContentParser parser, Context context) {
-        if (valueSupplier == null) {
-            throw new NullPointerException("valueSupplier is not set");
-        }
         try {
-            return parse(parser, valueSupplier.get(), context);
+            return parse(parser, context);
         } catch (IOException e) {
             throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] failed to parse object", e);
         }

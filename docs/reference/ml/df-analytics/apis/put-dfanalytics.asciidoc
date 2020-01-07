@@ -247,7 +247,7 @@ PUT _ml/data_frame/analytics/loganalytics
   }
 }
 --------------------------------------------------
-// TEST[setup:setup_logdata]
+// TEST[skip:TBD]
 
 
 The API returns the following result:

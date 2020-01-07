@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,7 +23,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -174,28 +174,23 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         String overFieldValue = null;
         String partitionFieldValue = null;
 
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("test-job_record_1000_60_0_" + valuesHash + "_0", record.getId());
+        assertEquals("test-job_record_1000_60_0_0_0", record.getId());
 
-        int length = 0;
         if (randomBoolean()) {
             byFieldValue = randomAlphaOfLength(10);
-            length += byFieldValue.length();
             record.setByFieldValue(byFieldValue);
         }
         if (randomBoolean()) {
             overFieldValue = randomAlphaOfLength(10);
-            length += overFieldValue.length();
             record.setOverFieldValue(overFieldValue);
         }
         if (randomBoolean()) {
             partitionFieldValue = randomAlphaOfLength(10);
-            length += partitionFieldValue.length();
             record.setPartitionFieldValue(partitionFieldValue);
         }
 
-        valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("test-job_record_1000_60_0_" + valuesHash + "_" + length, record.getId());
+        String valuesPart = MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
+        assertEquals("test-job_record_1000_60_0_" + valuesPart, record.getId());
     }
 
     public void testStrictParser_IsLenientOnTopLevelFields() throws IOException {

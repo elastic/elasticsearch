@@ -1079,7 +1079,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
     }
 
-    public void testUpdateRolloverLifecycleDateStepRetriesWhenRolloverAliasIsMissing() throws Exception {
+    public void testUpdateRolloverLifecycleDateStepRetriesWhenRolloverInfoIsMissing() throws Exception {
         String index = this.index + "-000001";
 
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));

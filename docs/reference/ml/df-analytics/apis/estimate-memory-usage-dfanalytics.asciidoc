@@ -28,29 +28,33 @@ information, see <<security-privileges>> and <<built-in-roles>>.
 [[ml-estimate-memory-usage-dfanalytics-desc]]
 ==== {api-description-title}
 
-This API estimates memory usage for the given {dataframe-analytics-config} before the {dfanalytics-job} is even created.
+This API estimates memory usage for the given {dataframe-analytics-config} 
+before the {dfanalytics-job} is even created.
 
-Serves as an advice on how to set `model_memory_limit` when creating {dfanalytics-job}.
+Serves as an advice on how to set `model_memory_limit` when creating 
+{dfanalytics-job}.
 
 [[ml-estimate-memory-usage-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 `data_frame_analytics_config`::
-  (Required, object) Intended configuration of {dfanalytics-job}. For more information, see
-  <<ml-dfanalytics-resources>>.
-  Note that `id` and `dest` don't need to be provided in the context of this API.
+  (Required, object) Intended configuration of {dfanalytics-job}. For more 
+  information, see <<put-dfanalytics>>. Note that `id` and `dest` don't need to 
+  be provided in the context of this API.
 
 [[ml-estimate-memory-usage-dfanalytics-results]]
 ==== {api-response-body-title}
 
 `expected_memory_without_disk`::
-  (string) Estimated memory usage under the assumption that the whole {dfanalytics} should happen in memory
-  (i.e. without overflowing to disk).
+  (string) Estimated memory usage under the assumption that the whole 
+  {dfanalytics} should happen in memory (in other words, without overflowing to 
+  disk).
   
 `expected_memory_with_disk`::
-  (string) Estimated memory usage under the assumption that overflowing to disk is allowed during {dfanalytics}.
-  `expected_memory_with_disk` is usually smaller than `expected_memory_without_disk` as using disk allows to
-  limit the main memory needed to perform {dfanalytics}.
+  (string) Estimated memory usage under the assumption that overflowing to disk 
+  is allowed during {dfanalytics}. `expected_memory_with_disk` is usually 
+  smaller than `expected_memory_without_disk` as using disk allows to limit the 
+  main memory needed to perform {dfanalytics}.
 
 [[ml-estimate-memory-usage-dfanalytics-example]]
 ==== {api-examples-title}

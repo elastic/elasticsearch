@@ -44,9 +44,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-public class DecorateExecutePass {
+/**
+ * This injects additional ir nodes required to for
+ * the "execute" method. This includes injection of ir nodes
+ * to convert get methods into local variables for those
+ * that are used and adds additional sandboxing by wrapping
+ * the main "execute" block with several exceptions.
+ */
+public class DecorateExecutePhase {
 
-    public static void pass(ScriptRoot scriptRoot, ClassNode classNode) {
+    public static void phase(ScriptRoot scriptRoot, ClassNode classNode) {
         FunctionNode executeFunctionNode = null;
 
         // look up the execute method for decoration
@@ -295,47 +302,9 @@ public class DecorateExecutePass {
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
-
-    /*
-            if ("execute".equals(name)) {
-            methodWriter.mark(endTry);
-            methodWriter.goTo(endCatch);
-            // This looks like:
-            // } catch (PainlessExplainError e) {
-            //   throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
-            // }
-            methodWriter.visitTryCatchBlock(startTry, endTry, startExplainCatch, PAINLESS_EXPLAIN_ERROR_TYPE.getInternalName());
-            methodWriter.mark(startExplainCatch);
-            methodWriter.loadThis();
-            methodWriter.swap();
-            methodWriter.dup();
-            methodWriter.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-            methodWriter.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
-            methodWriter.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
-            methodWriter.throwException();
-            // This looks like:
-            // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
-            //   throw this.convertToScriptException(e, e.getHeaders())
-            // }
-            // We *think* it is ok to catch OutOfMemoryError and StackOverflowError because Painless is stateless
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, PAINLESS_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, BOOTSTRAP_METHOD_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, OUT_OF_MEMORY_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, STACK_OVERFLOW_ERROR_TYPE.getInternalName());
-            methodWriter.visitTryCatchBlock(startTry, endTry, startOtherCatch, EXCEPTION_TYPE.getInternalName());
-            methodWriter.mark(startOtherCatch);
-            methodWriter.loadThis();
-            methodWriter.swap();
-            methodWriter.invokeStatic(COLLECTIONS_TYPE, EMPTY_MAP_METHOD);
-            methodWriter.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
-            methodWriter.throwException();
-            methodWriter.mark(endCatch);
-        }
-        // TODO: end
-     */
     }
 
-    protected DecorateExecutePass() {
+    protected DecorateExecutePhase() {
         // do nothing
     }
 }

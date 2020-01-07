@@ -211,7 +211,7 @@ final class Compiler {
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
         ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
-        DecorateExecutePass.pass(scriptRoot, classNode);
+        DecorateExecutePhase.phase(scriptRoot, classNode);
         Map<String, Object> statics = classNode.write();
 
         try {
@@ -243,7 +243,7 @@ final class Compiler {
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
         ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
         ClassNode classNode = root.writeClass();
-        DecorateExecutePass.pass(scriptRoot, classNode);
+        DecorateExecutePhase.phase(scriptRoot, classNode);
         classNode.write();
 
         return classNode.getBytes();

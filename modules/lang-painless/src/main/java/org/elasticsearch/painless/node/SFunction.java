@@ -21,8 +21,13 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope.FunctionScope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.FunctionNode;
+import org.elasticsearch.painless.ir.NullNode;
+import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -150,9 +155,59 @@ public final class SFunction extends ANode {
 
     @Override
     public FunctionNode write(ClassNode classNode) {
+        BlockNode blockNode = block.write(classNode);
+
+        if (methodEscape == false) {
+            ExpressionNode expressionNode;
+
+            if (returnType == void.class) {
+                expressionNode = null;
+            } else if (isAutoReturnEnabled) {
+                if (returnType.isPrimitive()) {
+                    ConstantNode constantNode = new ConstantNode();
+                    constantNode.setLocation(location);
+                    constantNode.setExpressionType(returnType);
+
+                    if (returnType == boolean.class) {
+                        constantNode.setConstant(false);
+                    } else if (returnType == byte.class
+                            || returnType == char.class
+                            || returnType == short.class
+                            || returnType == int.class) {
+                        constantNode.setConstant(0);
+                    } else if (returnType == long.class) {
+                        constantNode.setConstant(0L);
+                    } else if (returnType == float.class) {
+                        constantNode.setConstant(0f);
+                    } else if (returnType == double.class) {
+                        constantNode.setConstant(0d);
+                    } else {
+                        throw createError(new IllegalStateException("unexpected automatic return type " +
+                                "[" + PainlessLookupUtility.typeToCanonicalTypeName(returnType) + "] " +
+                                "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+                    }
+
+                    expressionNode = constantNode;
+                } else {
+                    expressionNode = new NullNode();
+                    expressionNode.setLocation(location);
+                    expressionNode.setExpressionType(returnType);
+                }
+            } else {
+                throw createError(new IllegalStateException("not all paths provide a return value " +
+                        "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+            }
+
+            ReturnNode returnNode = new ReturnNode();
+            returnNode.setLocation(location);
+            returnNode.setExpressionNode(expressionNode);
+
+            blockNode.addStatementNode(returnNode);
+        }
+
         FunctionNode functionNode = new FunctionNode();
 
-        functionNode.setBlockNode(block.write(classNode));
+        functionNode.setBlockNode(blockNode);
 
         functionNode.setLocation(location);
         functionNode.setScriptRoot(scriptRoot);
@@ -162,8 +217,6 @@ public final class SFunction extends ANode {
         functionNode.getParameterNames().addAll(paramNameStrs);
         functionNode.setStatic(isStatic);
         functionNode.setSynthetic(synthetic);
-        functionNode.setAutoReturnEnabled(isAutoReturnEnabled);
-        functionNode.setMethodEscape(methodEscape);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 
         return functionNode;

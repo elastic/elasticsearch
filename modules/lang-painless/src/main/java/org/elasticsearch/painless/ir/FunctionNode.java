@@ -69,8 +69,6 @@ public class FunctionNode extends IRNode {
     private List<String> parameterNames = new ArrayList<>();
     private boolean isStatic;
     private boolean isSynthetic;
-    private boolean isAutoReturnEnabled;
-    private boolean doesMethodEscape;
     private int maxLoopCounter;
 
     public void setScriptRoot(ScriptRoot scriptRoot) {
@@ -127,22 +125,6 @@ public class FunctionNode extends IRNode {
 
     public boolean isSynthetic() {
         return isSynthetic;
-    }
-
-    public void setAutoReturnEnabled(boolean isAutoReturnEnabled) {
-        this.isAutoReturnEnabled = isAutoReturnEnabled;
-    }
-
-    public boolean isAutoReturnEnabled() {
-        return isAutoReturnEnabled;
-    }
-
-    public void setMethodEscape(boolean doesMethodEscape) {
-        this.doesMethodEscape = doesMethodEscape;
-    }
-
-    public boolean doesMethodEscape() {
-        return doesMethodEscape;
     }
 
     public void setMaxLoopCounter(int maxLoopCounter) {
@@ -209,31 +191,6 @@ public class FunctionNode extends IRNode {
         }
 
         blockNode.write(classWriter, methodWriter, globals, scopeTable.newScope());
-
-        if (doesMethodEscape == false) {
-            if (returnType == void.class) {
-                methodWriter.returnValue();
-            } else if (isAutoReturnEnabled) {
-                if (returnType == boolean.class) {
-                    methodWriter.push(false);
-                } else if (returnType == byte.class || returnType == char.class || returnType == short.class || returnType == int.class) {
-                    methodWriter.push(0);
-                } else if (returnType == long.class) {
-                    methodWriter.push(0L);
-                } else if (returnType == float.class) {
-                    methodWriter.push(0f);
-                } else if (returnType == double.class) {
-                    methodWriter.push(0d);
-                } else {
-                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
-                }
-
-                methodWriter.returnValue();
-            } else {
-                throw getLocation().createError(new IllegalStateException("not all paths provide a return value " +
-                        "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
-            }
-        }
 
         // TODO: do not specialize for execute
         // TODO: https://github.com/elastic/elasticsearch/issues/51841

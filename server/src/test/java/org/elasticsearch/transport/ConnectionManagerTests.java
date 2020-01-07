@@ -132,20 +132,19 @@ public class ConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
-            Transport.Connection connection = new TestConnect(node);
-            connections.add(connection);
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
-            int branch = randomInt(2);
-            switch (branch) {
-                case 0:
+
+            boolean success = randomBoolean();
+            if (success) {
+                Transport.Connection connection = new TestConnect(node);
+                connections.add(connection);
+                if (randomBoolean()) {
                     listener.onResponse(connection);
-                    break;
-                case 1:
+                } else {
                     threadPool.generic().execute(() -> listener.onResponse(connection));
-                    break;
-                default:
-                    threadPool.generic().execute(() -> listener.onFailure(new IllegalStateException("dummy exception")));
-                    break;
+                }
+            } else {
+                threadPool.generic().execute(() -> listener.onFailure(new IllegalStateException("dummy exception")));
             }
             return null;
         }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));

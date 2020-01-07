@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,11 +30,6 @@ public class RawInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    XContentBuilder innerToXContent(XContentBuilder builder, Params params) {
-        return builder;
-    }
-
-    @Override
     public boolean equals(Object object) {
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
@@ -50,7 +43,7 @@ public class RawInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField, InferenceConfig config) {
+    public void writeResult(IngestDocument document, String parentResultField) {
         throw new UnsupportedOperationException("[raw] does not support writing inference results");
     }
 
@@ -59,8 +52,4 @@ public class RawInferenceResults extends SingleValueInferenceResults {
         return NAME;
     }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
 }

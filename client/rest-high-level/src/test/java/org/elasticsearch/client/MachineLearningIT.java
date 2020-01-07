@@ -1616,8 +1616,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
 
-        AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(
-            new DeleteDataFrameAnalyticsRequest(configId),
+        DeleteDataFrameAnalyticsRequest deleteRequest = new DeleteDataFrameAnalyticsRequest(configId);
+        if (randomBoolean()) {
+            deleteRequest.setForce(randomBoolean());
+        }
+        AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(deleteRequest,
             machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync);
         assertTrue(deleteDataFrameAnalyticsResponse.isAcknowledged());
 
@@ -1819,16 +1822,80 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             AccuracyMetric.Result accuracyResult = evaluateDataFrameResponse.getMetricByName(AccuracyMetric.NAME);
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
             assertThat(
-                accuracyResult.getActualClasses(),
+                accuracyResult.getClasses(),
+                equalTo(
+                    List.of(
+                        // 9 out of 10 examples were classified correctly
+                        new AccuracyMetric.PerClassResult("ant", 0.9),
+                        // 6 out of 10 examples were classified correctly
+                        new AccuracyMetric.PerClassResult("cat", 0.6),
+                        // 8 out of 10 examples were classified correctly
+                        new AccuracyMetric.PerClassResult("dog", 0.8))));
+            assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
+        }
+        {  // Precision
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(
+                        actualClassField,
+                        predictedClassField,
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.Result precisionResult =
+                evaluateDataFrameResponse.getMetricByName(
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME);
+            assertThat(
+                precisionResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME));
+            assertThat(
+                precisionResult.getClasses(),
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new AccuracyMetric.ActualClass("cat", 5, 0.6),
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new AccuracyMetric.ActualClass("dog", 4, 0.75),
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("dog", 0.75))));
+            assertThat(precisionResult.getAvgPrecision(), equalTo(0.675));
+        }
+        {  // Recall
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(
+                        actualClassField,
+                        predictedClassField,
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result recallResult =
+                evaluateDataFrameResponse.getMetricByName(
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME);
+            assertThat(
+                recallResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME));
+            assertThat(
+                recallResult.getClasses(),
+                equalTo(
+                    List.of(
+                        // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("cat", 0.6),
+                        // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("dog", 0.75),
                         // no examples labeled as "ant" were classified correctly
-                        new AccuracyMetric.ActualClass("ant", 1, 0.0))));
-            assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("ant", 0.0))));
+            assertThat(recallResult.getAvgRecall(), equalTo(0.45));
         }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
             EvaluateDataFrameRequest evaluateDataFrameRequest =
@@ -2101,8 +2168,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
                 GetTrainedModelsRequest.getAllTrainedModelConfigsRequest(),
                 machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
-            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels));
-            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L + 1));
         }
         {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
@@ -2125,7 +2192,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testGetTrainedModelsStats() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String modelIdPrefix = "get-trained-model-stats-";
+        String modelIdPrefix = "a-get-trained-model-stats-";
         int numberOfModels = 5;
         for (int i = 0; i < numberOfModels; ++i) {
             String modelId = modelIdPrefix + i;
@@ -2157,8 +2224,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
                 GetTrainedModelsStatsRequest.getAllTrainedModelStatsRequest(),
                 machineLearningClient::getTrainedModelsStats, machineLearningClient::getTrainedModelsStatsAsync);
-            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(numberOfModels));
-            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L));
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L + 1));
             assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(0).getPipelineCount(), equalTo(1));
             assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(1).getPipelineCount(), equalTo(0));
         }

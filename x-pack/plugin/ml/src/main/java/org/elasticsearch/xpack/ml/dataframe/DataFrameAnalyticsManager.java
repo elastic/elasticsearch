@@ -76,7 +76,7 @@ public class DataFrameAnalyticsManager {
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
                         LOGGER.debug("[{}] Reassigning job that was analyzing", config.getId());
-                        startAnalytics(task, config, true);
+                        startAnalytics(task, config);
                         break;
                     // If we are already at REINDEXING, we are not 100% sure if we reindexed ALL the docs.
                     // We will delete the destination index, recreate, reindex
@@ -124,7 +124,7 @@ public class DataFrameAnalyticsManager {
                 ));
                 break;
             case RESUMING_ANALYZING:
-                startAnalytics(task, config, true);
+                startAnalytics(task, config);
                 break;
             case FINISHED:
             default:
@@ -168,7 +168,7 @@ public class DataFrameAnalyticsManager {
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
-                startAnalytics(task, config, false);
+                startAnalytics(task, config);
             },
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
@@ -223,7 +223,7 @@ public class DataFrameAnalyticsManager {
                 new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
     }
 
-    private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, boolean isTaskRestarting) {
+    private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
         // Ensure we mark reindexing is finished for the case we are recovering a task that had finished reindexing
         task.setReindexingFinished();
 
@@ -249,7 +249,7 @@ public class DataFrameAnalyticsManager {
         // TODO This could fail with errors. In that case we get stuck with the copied index.
         // We could delete the index in case of failure or we could try building the factory before reindexing
         // to catch the error early on.
-        DataFrameDataExtractorFactory.createForDestinationIndex(client, config, isTaskRestarting, dataExtractorFactoryListener);
+        DataFrameDataExtractorFactory.createForDestinationIndex(client, config, dataExtractorFactoryListener);
     }
 
     public void stop(DataFrameAnalyticsTask task) {

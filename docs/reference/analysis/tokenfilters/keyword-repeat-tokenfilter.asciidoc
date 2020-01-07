@@ -1,5 +1,8 @@
 [[analysis-keyword-repeat-tokenfilter]]
-=== Keyword Repeat Token Filter
+=== Keyword repeat token filter
+++++
+<titleabbrev>Keyword repeat</titleabbrev>
+++++
 
 The `keyword_repeat` token filter Emits each incoming token twice once
 as keyword and once as a non-keyword to allow an unstemmed version of a

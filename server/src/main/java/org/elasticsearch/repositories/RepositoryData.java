@@ -364,10 +364,11 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endObject();
-        if (shardGenerations.totalShards() > 0) {
+        // TODO: bwc logic to allow for writing this field
+        //if (shardGenerations.totalShards() > 0) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
-            builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
-        }
+            //builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
+        //}
         builder.endObject();
         return builder;
     }

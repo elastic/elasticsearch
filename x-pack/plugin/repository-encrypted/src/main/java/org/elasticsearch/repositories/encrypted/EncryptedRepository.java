@@ -15,26 +15,16 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.List;
@@ -47,15 +37,12 @@ public class EncryptedRepository extends BlobStoreRepository {
     static final int GCM_IV_LENGTH_IN_BYTES = 12;
     static final int AES_BLOCK_SIZE_IN_BYTES = 128;
     static final String DEK_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
-    static final String KEK_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
     static final int DEK_KEY_SIZE_IN_BITS = 256;
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
     static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 20; // 1MB
     static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB
-    // when something about the encryption scheme changes (eg. metadata format) we increment this version number
-    static final int ENCRYPTION_PROTOCOL_VERSION_NUMBER = 1;
 
-    private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
+    private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata";
 
     private final BlobStoreRepository delegatedRepository;
     private final KeyGenerator dataEncryptionKeyGenerator;
@@ -119,7 +106,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             BlobPath encryptionMetadataBlobPath = BlobPath.cleanPath();
-            encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(ENCRYPTION_METADATA_PREFIX + ENCRYPTION_PROTOCOL_VERSION_NUMBER);
+            encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(ENCRYPTION_METADATA_PREFIX);
             for (String pathComponent : path) {
                 encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(pathComponent);
             }
@@ -154,16 +141,19 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public InputStream readBlob(String blobName) throws IOException {
+            // read metadata
             BytesReference encryptedMetadataBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
             final byte[] decryptedMetadata;
             try {
                 decryptedMetadata = metadataEncryptor.decrypt(BytesReference.toBytes(encryptedMetadataBytes));
             } catch (ExecutionException | GeneralSecurityException e) {
-                throw new IOException("Exception while decrypting metadata");
+                throw new IOException("Exception while decrypting metadata", e);
             }
             final BlobEncryptionMetadata metadata = BlobEncryptionMetadata.deserializeMetadataFromByteArray(decryptedMetadata);
+            // decrypt metadata
             SecretKey dataDecryptionKey = new SecretKeySpec(metadata.getDataEncryptionKeyMaterial(), 0,
                     metadata.getDataEncryptionKeyMaterial().length, "AES");
+            // read and decrypt blob
             return new DecryptionPacketsInputStream(this.delegatedBlobContainer.readBlob(blobName), dataDecryptionKey,
                     metadata.getNonce(), metadata.getPacketLengthInBytes());
         }
@@ -172,58 +162,74 @@ public class EncryptedRepository extends BlobStoreRepository {
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
             SecretKey dataEncryptionKey = dataEncryptionKeyGenerator.generateKey();
             int nonce = secureRandom.nextInt();
-            // first write the encrypted blob
-            long encryptedBlobSize = EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
-            try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
-                    dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
-                this.delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
-            }
-            // metadata required to decrypt back the encrypted blob
+            // this is the metadata required to decrypt back the encrypted blob
             BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(dataEncryptionKey.getEncoded(), nonce, PACKET_LENGTH_IN_BYTES);
+            // encrypt metadata
             final byte[] encryptedMetadata;
             try {
                 encryptedMetadata = metadataEncryptor.encrypt(BlobEncryptionMetadata.serializeMetadataToByteArray(metadata));
             } catch (ExecutionException | GeneralSecurityException e) {
-                throw new IOException("Exception while encrypting metadata");
+                throw new IOException("Exception while encrypting metadata", e);
             }
-            // write the encrypted metadata
+            // first write the encrypted metadata
             try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
                 this.encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length,
-                        false /* overwrite any blob with the same name because it cannot correspond to any other encrypted blob */);
+                        failIfAlreadyExists);
+            }
+            // afterwards write the encrypted data blob
+            long encryptedBlobSize = EncryptionPacketsInputStream.getEncryptionLength(blobSize, PACKET_LENGTH_IN_BYTES);
+            try (EncryptionPacketsInputStream encryptedInputStream = new EncryptionPacketsInputStream(inputStream,
+                    dataEncryptionKey, nonce, PACKET_LENGTH_IN_BYTES)) {
+                this.delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }
         }
 
         @Override
         public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
-            // does not support atomic write
+            // the encrypted repository does not offer an alternative implementation for atomic writes
+            // fallback to regular write
             writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override
         public DeleteResult delete() throws IOException {
+            // first delete the encrypted data blob
+            DeleteResult deleteResult = this.delegatedBlobContainer.delete();
+            // then delete metadata
             this.encryptionMetadataBlobContainer.delete();
-            return this.delegatedBlobContainer.delete();
+            return deleteResult;
         }
 
         @Override
         public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-            this.encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
+            // first delete the encrypted data blob
             this.delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
+            // then delete metadata
+            this.encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
         }
 
         @Override
         public Map<String, BlobMetaData> listBlobs() throws IOException {
+            // the encrypted data blob container is the source-of-truth for list operations
+            // the metadata blob container mirrors its structure, but in some failure cases it might contain
+            // additional orphaned metadata blobs
             return this.delegatedBlobContainer.listBlobs();
         }
 
         @Override
         public Map<String, BlobContainer> children() throws IOException {
+            // the encrypted data blob container is the source-of-truth for child container operations
+            // the metadata blob container mirrors its structure, but in some failure cases it might contain
+            // additional orphaned metadata blobs
             return this.delegatedBlobContainer.children();
         }
 
         @Override
         public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+            // the encrypted data blob container is the source-of-truth for list operations
+            // the metadata blob container mirrors its structure, but in some failure cases it might contain
+            // additional orphaned metadata blobs
             return this.delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
         }
     }

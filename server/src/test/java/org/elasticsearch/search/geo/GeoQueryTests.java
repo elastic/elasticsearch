@@ -65,6 +65,7 @@ import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomRectangle;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -80,7 +81,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
     public void testNullShape() throws Exception {
         String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex("test").setId("aNullshape").setSource("{\"location\": null}", XContentType.JSON)
@@ -88,4 +89,5 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         GetResponse result = client().prepareGet("test", "aNullshape").get();
         assertThat(result.getField("location"), nullValue());
     }
+
 }

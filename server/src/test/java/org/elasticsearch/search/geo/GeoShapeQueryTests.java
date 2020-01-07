@@ -55,6 +55,8 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.apache.lucene.util.LuceneTestCase.expectThrows;
+import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
@@ -65,6 +67,7 @@ import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomRectangle;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -89,20 +92,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         return xcb;
     }
 
-    public void testNullShape() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
-
-        client().prepareIndex("test").setId("aNullshape").setSource("{\"location\": null}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).get();
-        GetResponse result = client().prepareGet("test", "aNullshape").get();
-        assertThat(result.getField("location"), nullValue());
-    }
-
     public void testIndexPointsFilterRectangle() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        client().admin().indices().prepareCreate("test").setMapping(createMapping().toString()).get();
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
@@ -179,8 +170,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexedShapeReference() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        client().admin().indices().prepareCreate("test").setMapping(createMapping().toString()).get();
         createIndex("shapes");
         ensureGreen();
 
@@ -216,8 +206,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
-        XContentBuilder mapping = createMapping();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).get();
+        client().admin().indices().prepareCreate("test").setMapping(createMapping().toString()).get();
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
 
@@ -252,8 +241,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
-        client().admin().indices().prepareCreate("test").addMapping("_doc", "location", "type=geo_shape").get();
-
+        client().admin().indices().prepareCreate("test").setMapping(createMapping().toString()).get();
         String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
         client().prepareIndex("shapes").setId("1")
@@ -398,10 +386,15 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             usePrefixTrees ? "default" : "quadtree");
 
         if (usePrefixTrees == false) {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+            client().admin().indices().prepareCreate("test").setMapping(createMapping().toString())
                 .execute().actionGet();
         } else {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+            XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .endObject().endObject().endObject();
+            client().admin().indices().prepareCreate("test").setMapping(xcb.toString())
                 .execute().actionGet();
         }
 
@@ -428,10 +421,15 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         PointBuilder pb = new PointBuilder(pt[0], pt[1]);
         gcb.shape(pb);
         if (randomBoolean()) {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+            client().admin().indices().prepareCreate("test").setMapping(createMapping().toString())
                 .execute().actionGet();
         } else {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+            XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .endObject().endObject().endObject();
+            client().admin().indices().prepareCreate("test").setMapping(xcb.toString())
                 .execute().actionGet();
         }
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
@@ -465,10 +463,15 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         }
 
         if (usePrefixTrees) {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+            XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .endObject().endObject().endObject();
+            client().admin().indices().prepareCreate("test").setMapping(xcb.toString())
                 .execute().actionGet();
         } else {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+            client().admin().indices().prepareCreate("test").setMapping(createMapping().toString())
                 .execute().actionGet();
         }
 
@@ -497,10 +500,15 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
         if (randomBoolean()) {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+            client().admin().indices().prepareCreate("test").setMapping(createMapping().toString())
                 .execute().actionGet();
         } else {
-            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+            XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .endObject().endObject().endObject();
+            client().admin().indices().prepareCreate("test").setMapping(xcb.toString())
                 .execute().actionGet();
         }
 
@@ -515,8 +523,13 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
         createIndex("shapes");
-        client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
-                .get();
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("tree", "quadtree")
+            .endObject().endObject().endObject();
+        client().admin().indices().prepareCreate("test").setMapping(xcb.toString())
+            .execute().actionGet();
 
         XContentBuilder docSource = jsonBuilder().startObject().startObject("location")
                 .field("type", "geometrycollection")
@@ -651,22 +664,22 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldAlias() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("location")
-                        .field("type", "geo_shape")
-                        .field("tree", randomBoolean() ? "quadtree" : "geohash")
-                    .endObject()
-                    .startObject("alias")
-                        .field("type", "alias")
-                        .field("path", "location")
-                    .endObject()
+        createIndex("test");
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("location")
+                    .field("type", "geo_shape")
+                    .field("tree", randomBoolean() ? "quadtree" : "geohash")
+                .endObject()
+                .startObject("alias")
+                    .field("type", "alias")
+                    .field("path", "location")
                 .endObject()
             .endObject()
         .endObject();
 
-        createIndex("test", Settings.EMPTY, "type", mapping);
+        client().admin().indices().prepareCreate("test").setMapping(xcb.toString())
+            .execute().actionGet();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
         client().prepareIndex("test").setId("1")
@@ -681,15 +694,15 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     // Test for issue #34418
     public void testEnvelopeSpanningDateline() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("doc")
-                .startObject("properties")
-                    .startObject("geo").field("type", "geo_shape").endObject()
-                .endObject()
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("geo").field("type", "geo_shape").endObject()
             .endObject()
         .endObject();
 
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+        client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(xcb.toString())
+            .execute().actionGet();
 
         String doc1 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-33.918711,\r\n" + "18.847685\r\n" + "],\r\n" +
                 "\"type\": \"Point\"\r\n" + "}}";
@@ -749,15 +762,15 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testGeometryCollectionRelations() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("doc")
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
             .startObject("geo").field("type", "geo_shape").endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+        client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(xcb.toString())
+            .execute().actionGet();
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
 

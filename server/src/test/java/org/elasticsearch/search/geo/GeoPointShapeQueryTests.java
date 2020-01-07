@@ -13,8 +13,11 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
-
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
@@ -23,7 +26,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = Strings.toString(createMapping());
         // where does the mapping ensure geo_shape type for the location field, a template?
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(createMapping().toString()).get();
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
@@ -60,10 +63,10 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     @Override
     protected XContentBuilder createMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_point")
-            .endObject().endObject().endObject().endObject();
+            .endObject().endObject().endObject();
 
         return xcb;
     }

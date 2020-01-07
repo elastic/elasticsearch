@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -1076,6 +1077,50 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // the rollover step should eventually succeed
         assertBusy(() -> assertThat(indexExists(rolledIndex), is(true)));
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
+    }
+
+    public void testWaitForActiveShardsStep() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        // create policy
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 142,\n" +
+            "    \"index.write.wait_for_active_shards\": \"all\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        // index document to trigger rollover
+        index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        assertBusy(() -> assertTrue(indexExists(originalIndex)));
+
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndex = explainIndex(index);
+                assertThat(explainIndex.get("step"), is(WaitForActiveShardsStep.NAME));
+                assertThat((Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1));
+                return true;
+            } catch (IOException e) {
+                return false;
+            }
+        });
+
+        // reset the number of replicas to 0 so that the second index wait for active shard condition can be met
+        updateIndexSettings(secondIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
     }
 
     public void testHistoryIsWrittenWithSuccess() throws Exception {

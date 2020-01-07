@@ -156,6 +156,10 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         .build();
                 } else {
                     String parentId = getSortedDocValue(parentIdFieldMapper.name(), context, hit.docId());
+                    if (parentId == null) {
+                        result[i] = Lucene.EMPTY_TOP_DOCS;
+                        continue;
+                    }
                     q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentId, qsc);
                 }
 

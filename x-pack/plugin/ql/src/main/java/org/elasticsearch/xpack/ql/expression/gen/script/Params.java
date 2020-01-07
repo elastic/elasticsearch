@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -113,7 +113,7 @@ public class Params {
                     flatten.add(p);
                 }
                 else {
-                    throw new SqlIllegalArgumentException("Unsupported field {}", p);
+                    throw new QlIllegalArgumentException("Unsupported field {}", p);
                 }
             }
         }

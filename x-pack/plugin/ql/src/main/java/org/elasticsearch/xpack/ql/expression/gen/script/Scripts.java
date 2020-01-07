@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils;
 
 import java.util.AbstractMap.SimpleEntry;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -19,6 +17,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.lang.String.format;
+import static java.util.Collections.unmodifiableMap;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -27,12 +26,14 @@ public final class Scripts {
     public static final String DOC_VALUE = "doc[{}].value";
     public static final String SQL_SCRIPTS = "{sql}";
     public static final String PARAM = "{}";
+    // NB: predefined name for loading utility scripts in a pluggable way
+    public static final String INTERNAL_SCRIPT_UTILS = "InternalScriptUtils";
 
     private Scripts() {}
 
-    private static final Map<Pattern, String> FORMATTING_PATTERNS = Collections.unmodifiableMap(Stream.of(
+    static final Map<Pattern, String> FORMATTING_PATTERNS = unmodifiableMap(Stream.of(
             new SimpleEntry<>(DOC_VALUE, SQL_SCRIPTS + ".docValue(doc,{})"),
-            new SimpleEntry<>(SQL_SCRIPTS, InternalSqlScriptUtils.class.getSimpleName()),
+            new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SCRIPT_UTILS),
             new SimpleEntry<>(PARAM, "params.%s"))
             .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
 

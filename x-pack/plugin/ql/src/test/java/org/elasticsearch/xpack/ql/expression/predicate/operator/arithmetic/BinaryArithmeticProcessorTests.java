@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 

@@ -10,13 +10,13 @@ import java.time.OffsetTime;
 import java.time.Period;
 import java.time.temporal.Temporal;
 
-import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
-
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
  * widen to double or float or long or int in this order.
  */
 public final class Arithmetics {
+
+    public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 
     private Arithmetics() {}
 

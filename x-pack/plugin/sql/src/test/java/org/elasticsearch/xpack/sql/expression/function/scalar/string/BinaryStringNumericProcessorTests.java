@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
 
 public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTestCase<BinaryStringNumericProcessor> {
     

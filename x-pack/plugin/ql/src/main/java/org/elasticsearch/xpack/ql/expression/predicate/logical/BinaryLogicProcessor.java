@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ql.expression.predicate.logical;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
@@ -85,7 +85,7 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
     @Override
     protected void checkParameter(Object param) {
         if (param != null && !(param instanceof Boolean)) {
-            throw new SqlIllegalArgumentException("A boolean is required; received {}", param);
+            throw new QlIllegalArgumentException("A boolean is required; received {}", param);
         }
     }
 

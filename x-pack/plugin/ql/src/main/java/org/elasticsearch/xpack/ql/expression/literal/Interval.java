@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.proto.StringUtils;
+import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.temporal.TemporalAmount;
@@ -76,6 +76,6 @@ public abstract class Interval<I extends TemporalAmount> implements NamedWriteab
 
     @Override
     public String toString() {
-        return StringUtils.toString(interval);
+        return DateUtils.toString(interval);
     }
 }

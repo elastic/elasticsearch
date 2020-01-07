@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
@@ -27,7 +28,7 @@ class Agg extends Param<AggregateFunction> {
 
         if (agg instanceof InnerAggregate) {
             InnerAggregate inner = (InnerAggregate) agg;
-            return Expressions.id(inner.outer()) + "." + inner.innerName();
+            return Expressions.id((Expression) inner.outer()) + "." + inner.innerName();
         }
         // Count needs special handling since in most cases it is not a dedicated aggregation
         else if (agg instanceof Count) {

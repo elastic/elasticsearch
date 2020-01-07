@@ -6,21 +6,16 @@
 package org.elasticsearch.xpack.ql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.LiteralTests;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.Percentile;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.PercentileRanks;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -34,14 +29,9 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.ql.tree.Node;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.ql.tree.NodeTests.Dummy;
 import org.elasticsearch.xpack.ql.tree.NodeTests.NoChildren;
-import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -96,8 +86,8 @@ import static org.mockito.Mockito.mock;
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(Iif.class, IfConditional.class,
-        IfNull.class, In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
+    protected static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(Iif.class, IfConditional.class, IfNull.class,
+            In.class, InPipe.class);
 
     private final Class<T> subclass;
 
@@ -321,7 +311,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * {@code ctor} that make sense when {@code ctor}
      * builds subclasses of {@link Node}.
      */
-    private static Object[] ctorArgs(Constructor<? extends Node<?>> ctor) throws Exception {
+    private Object[] ctorArgs(Constructor<? extends Node<?>> ctor) throws Exception {
         Type[] argTypes = ctor.getGenericParameterTypes();
         Object[] args = new Object[argTypes.length];
         for (int i = 0; i < argTypes.length; i++) {
@@ -347,7 +337,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Make an argument to feed the {@link #subclass}'s ctor.
      */
-    private Object makeArg(Type argType) {
+    protected Object makeArg(Type argType) {
         try {
             return makeArg(subclass, argType);
         } catch (Exception e) {
@@ -360,7 +350,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
-    private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+    private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) argType;
@@ -380,7 +370,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     // AggValueInput just needs a valid java type in a supplier
                     Object o = randomBoolean() ? null : randomAlphaOfLength(5);
                     // But the supplier has to implement equals for randomValueOtherThan
-                    return new Supplier<Object>() {
+                    return new Supplier<>() {
                         @Override
                         public Object get() {
                             return o;
@@ -421,7 +411,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         if (toBuildClass == InnerAggregate.class) {
             // InnerAggregate's AggregateFunction must be an EnclosedAgg. Avg is.
             if (argClass == AggregateFunction.class) {
-                return makeNode(Avg.class);
+                return makeInnerAggregate();
             }
         } else if (toBuildClass == FieldAttribute.class) {
             // `parent` is nullable.
@@ -458,13 +448,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                 return new LikePattern(randomAlphaOfLength(16), randomFrom('\\', '|', '/', '`'));
             }
 
-        } else if (toBuildClass == Histogram.class) {
-            if (argClass == Expression.class) {
-                return LiteralTests.randomLiteral();
-            }
-        } else if (toBuildClass == CurrentDateTime.class) {
-            if (argClass == Expression.class) {
-                return Literal.of(SourceTests.randomSource(), randomInt(9));
+        } else {
+            Object postProcess = pluggableMakeArg(toBuildClass, argClass);
+            if (postProcess != null) {
+                return null;
             }
         }
         if (Expression.class == argClass) {
@@ -529,11 +516,19 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
-    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    protected Object makeInnerAggregate() {
+        return makeArg(TestEnclosedAgg.class);
+    }
+
+    protected Object pluggableMakeArg(Class<? extends Node<?>> toBuildClass, Class<?> argClass) {
+        return null;
+    }
+
+    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
-    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
@@ -541,7 +536,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         return list;
     }
 
-    private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+    private Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
         Map<Object, Object> map = new HashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {
@@ -552,14 +547,18 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         return map;
     }
 
-    private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+    private int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
         int maxCollectionLength = 10;
 
-        if (CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(c -> c == toBuildClass)) {
+        if (hasAtLeastTwoChildren(toBuildClass)) {
             minCollectionLength = 2;
         }
         return between(minCollectionLength, maxCollectionLength);
+    }
+
+    protected boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
+        return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
 
     private List<?> makeListOfSameSizeOtherThan(Type listType, List<?> original) throws Exception {
@@ -576,7 +575,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     }
 
-    public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+    public <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
             nodeClass = randomFrom(subclassesOf(nodeClass));
         }

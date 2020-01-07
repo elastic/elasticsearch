@@ -28,15 +28,13 @@ public class FunctionDefinition {
      */
     private final boolean extractViable;
     private final Builder builder;
-    private final String type;
 
-    FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, String type, boolean datetime, Builder builder) {
+    FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, boolean datetime, Builder builder) {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;
         this.extractViable = datetime;
         this.builder = builder;
-        this.type = type;
     }
 
     public String name() {
@@ -45,10 +43,6 @@ public class FunctionDefinition {
 
     public List<String> aliases() {
         return aliases;
-    }
-
-    public String type() {
-        return type;
     }
 
     Class<? extends Function> clazz() {

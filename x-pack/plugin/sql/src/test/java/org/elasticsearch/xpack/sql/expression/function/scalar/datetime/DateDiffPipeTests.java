@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
-import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -21,9 +21,9 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 
 public class DateDiffPipeTests extends AbstractNodeTestCase<DateDiffPipe, Pipe> {
 

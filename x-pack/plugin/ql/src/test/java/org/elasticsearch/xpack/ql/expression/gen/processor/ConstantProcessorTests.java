@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ql.expression.gen.processor;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.ql.type.DataType;
 

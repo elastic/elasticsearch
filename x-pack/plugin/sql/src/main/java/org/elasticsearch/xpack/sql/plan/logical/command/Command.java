@@ -6,15 +6,15 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
-import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SqlExecutable;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.List;
@@ -22,7 +22,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
-public abstract class Command extends LogicalPlan implements Executable {
+public abstract class Command extends LogicalPlan implements SqlExecutable {
 
     protected Command(Source source) {
         super(source, emptyList());

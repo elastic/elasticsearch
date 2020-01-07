@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 
 class Grouping extends Param<GroupingFunction> {
 

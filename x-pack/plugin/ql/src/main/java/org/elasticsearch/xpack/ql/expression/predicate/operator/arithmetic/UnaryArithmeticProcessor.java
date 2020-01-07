@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -65,7 +65,7 @@ public class UnaryArithmeticProcessor implements Processor {
         if (input instanceof Number) {
             return operation.apply((Number) input);
         }
-        throw new SqlIllegalArgumentException("A number is required; received {}", input);
+        throw new QlIllegalArgumentException("A number is required; received {}", input);
     }
 
 

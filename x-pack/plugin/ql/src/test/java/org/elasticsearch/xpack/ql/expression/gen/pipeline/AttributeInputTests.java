@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
-import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 
 import static org.mockito.Mockito.mock;
 

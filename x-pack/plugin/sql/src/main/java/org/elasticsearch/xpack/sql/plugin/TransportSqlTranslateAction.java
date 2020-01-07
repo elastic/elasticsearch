@@ -16,12 +16,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
 import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.session.Configuration;
 
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
@@ -55,7 +55,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(),
                 request.requestTimeout(), request.pageTimeout(), request.filter(),
                 request.mode(), request.clientId(),
-                username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY, 
+                username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY,
                 Protocol.INDEX_INCLUDE_FROZEN);
 
         planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(

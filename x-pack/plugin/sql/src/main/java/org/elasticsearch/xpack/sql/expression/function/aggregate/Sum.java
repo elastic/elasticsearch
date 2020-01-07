@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import java.util.List;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;

@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipesTests.DummyPipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe.AttributeResolver;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 import static org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipesTests.tracksScores;
 
@@ -49,7 +47,7 @@ public class UnaryPipeTests extends ESTestCase {
     public void testCollectFields() {
         DummyPipe wantsScore = new DummyPipe(randomBoolean()) {
             @Override
-            public void collectFields(SqlSourceBuilder sourceBuilder) {
+            public void collectFields(QlSourceBuilder sourceBuilder) {
                 sourceBuilder.trackScores();
             }
         };

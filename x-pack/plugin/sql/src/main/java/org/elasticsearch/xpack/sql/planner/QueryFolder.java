@@ -20,7 +20,11 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -32,13 +36,9 @@ import org.elasticsearch.xpack.ql.expression.literal.Intervals;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
@@ -625,7 +625,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             if (f instanceof InnerAggregate) {
                 InnerAggregate ia = (InnerAggregate) f;
-                CompoundNumericAggregate outer = ia.outer();
+                CompoundNumericAggregate outer = (CompoundNumericAggregate) ia.outer();
                 String cAggPath = compoundAggMap.get(outer);
 
                 // the compound agg hasn't been seen before so initialize it

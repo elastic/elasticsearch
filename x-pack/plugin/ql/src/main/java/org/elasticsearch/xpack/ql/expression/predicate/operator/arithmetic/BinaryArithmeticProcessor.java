@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.literal.Interval;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
 import java.time.OffsetTime;
@@ -56,7 +56,7 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
                 return Arithmetics.add((Temporal) r, ((IntervalDayTime) l).interval());
             }
 
-            throw new SqlIllegalArgumentException("Cannot compute [+] between [{}] [{}]", l.getClass().getSimpleName(),
+            throw new QlIllegalArgumentException("Cannot compute [+] between [{}] [{}]", l.getClass().getSimpleName(),
                     r.getClass().getSimpleName());
         }, "+"),
         SUB((Object l, Object r) -> {
@@ -78,10 +78,10 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
                 return Arithmetics.sub((Temporal) l, ((IntervalDayTime) r).interval());
             }
             if ((r instanceof ZonedDateTime  || r instanceof OffsetTime) && l instanceof Interval<?>) {
-                throw new SqlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
+                throw new QlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
             }
 
-            throw new SqlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass().getSimpleName(),
+            throw new QlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass().getSimpleName(),
                     r.getClass().getSimpleName());
         }, "-"),
         MUL((Object l, Object r) -> {
@@ -103,7 +103,7 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
                 return ((IntervalDayTime) l).mul(((Number) r).longValue());
             }
 
-            throw new SqlIllegalArgumentException("Cannot compute [*] between [{}] [{}]", l.getClass().getSimpleName(),
+            throw new QlIllegalArgumentException("Cannot compute [*] between [{}] [{}]", l.getClass().getSimpleName(),
                     r.getClass().getSimpleName());
         }, "*"),
         DIV(Arithmetics::div, "/"),
@@ -166,11 +166,11 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
 
         if (f == BinaryArithmeticOperation.DIV || f == BinaryArithmeticOperation.MOD) {
             if (!(left instanceof Number)) {
-                throw new SqlIllegalArgumentException("A number is required; received {}", left);
+                throw new QlIllegalArgumentException("A number is required; received {}", left);
             }
 
             if (!(right instanceof Number)) {
-                throw new SqlIllegalArgumentException("A number is required; received {}", right);
+                throw new QlIllegalArgumentException("A number is required; received {}", right);
             }
 
             return f.apply(left, right);
@@ -181,6 +181,6 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
         }
 
         // this should not occur
-        throw new SqlIllegalArgumentException("Cannot perform arithmetic operation due to arguments");
+        throw new QlIllegalArgumentException("Cannot perform arithmetic operation due to arguments");
     }
 }

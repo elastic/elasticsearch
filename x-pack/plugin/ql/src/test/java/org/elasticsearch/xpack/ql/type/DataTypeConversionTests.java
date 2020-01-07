@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-
-import sun.tools.jstat.Literal;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypeConversion.Conversion;

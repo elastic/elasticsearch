@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
 public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<DatePartProcessor> {

@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.fulltext;
 
-import io.netty.util.internal.StringUtil;
-
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextUtils;
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.parser.ParsingException;
 
 import java.util.Map;
 
@@ -19,7 +16,7 @@ import static org.hamcrest.Matchers.is;
 
 public class FullTextUtilsTests extends ESTestCase {
 
-    private final Source source = new Source(1, 1, StringUtil.EMPTY_STRING);
+    private final Source source = new Source(1, 1, "");
 
     public void testColonDelimited() {
         Map<String, String> options = FullTextUtils.parseSettings("k1=v1;k2=v2", source);

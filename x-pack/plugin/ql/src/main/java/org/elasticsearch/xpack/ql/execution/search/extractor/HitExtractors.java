@@ -22,7 +22,6 @@ public final class HitExtractors {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(new Entry(HitExtractor.class, ConstantExtractor.NAME, ConstantExtractor::new));
-        entries.add(new Entry(HitExtractor.class, FieldHitExtractor.NAME, FieldHitExtractor::new));
         entries.add(new Entry(HitExtractor.class, ComputingExtractor.NAME, ComputingExtractor::new));
         return entries;
     }

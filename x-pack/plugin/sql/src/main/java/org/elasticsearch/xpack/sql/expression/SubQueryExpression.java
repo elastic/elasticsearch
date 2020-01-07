@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
 import java.util.Collections;
 import java.util.List;

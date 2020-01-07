@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.Greatest;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
@@ -115,11 +115,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 public class SqlFunctionRegistry extends FunctionRegistry {
 
     public SqlFunctionRegistry() {
-        super(new SqlFunctionTypeRegistry());
-        register(functions());
+        super(functions());
     }
 
-    private FunctionDefinition[] functions() {
+    private static FunctionDefinition[] functions() {
         return new FunctionDefinition[] {
         // Aggregate functions
                 def(Avg.class, Avg::new, "AVG"),

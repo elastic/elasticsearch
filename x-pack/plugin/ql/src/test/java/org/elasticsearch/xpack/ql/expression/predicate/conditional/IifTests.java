@@ -7,15 +7,13 @@ package org.elasticsearch.xpack.ql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfConditional;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Iif;
+import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,10 +21,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 
 /**
  * Needed to override tests in {@link NodeSubclassTests} as If is special since its children are not usual

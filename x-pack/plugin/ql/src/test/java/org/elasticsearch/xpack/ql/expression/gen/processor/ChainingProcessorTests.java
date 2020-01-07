@@ -7,16 +7,18 @@ package org.elasticsearch.xpack.ql.expression.gen.processor;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessor;
-import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessorTests;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessorTests;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessorTests;
+import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractorTests.randomProcessor;
-
-public class ChainingProcessorTests extends AbstractSqlWireSerializingTestCase<ChainingProcessor> {
+public class ChainingProcessorTests extends AbstractWireSerializingTestCase<ChainingProcessor> {
     public static ChainingProcessor randomComposeProcessor() {
         return new ChainingProcessor(randomProcessor(), randomProcessor());
     }
@@ -45,5 +47,14 @@ public class ChainingProcessorTests extends AbstractSqlWireSerializingTestCase<C
             () -> new ChainingProcessor(
                     randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second()));
         return supplier.get();
+    }
+
+    public static Processor randomProcessor() {
+        List<Supplier<Processor>> options = new ArrayList<>();
+        options.add(ChainingProcessorTests::randomComposeProcessor);
+        options.add(BinaryLogicProcessorTests::randomProcessor);
+        options.add(BinaryArithmeticProcessorTests::randomProcessor);
+        options.add(BinaryComparisonProcessorTests::randomProcessor);
+        return randomFrom(options).get();
     }
 }

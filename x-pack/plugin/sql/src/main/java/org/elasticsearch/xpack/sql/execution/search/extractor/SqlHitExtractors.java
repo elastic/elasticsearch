@@ -23,6 +23,7 @@ public final class SqlHitExtractors {
      */
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(new Entry(HitExtractor.class, FieldHitExtractor.NAME, FieldHitExtractor::new));
         entries.add(new Entry(HitExtractor.class, ScoreExtractor.NAME, in -> ScoreExtractor.INSTANCE));
         return entries;
     }

@@ -10,9 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
 import java.util.Arrays;
 

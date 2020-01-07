@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConversion;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 
 import java.util.ArrayList;
 import java.util.List;

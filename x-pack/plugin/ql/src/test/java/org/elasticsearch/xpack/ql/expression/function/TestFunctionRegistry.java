@@ -8,5 +8,7 @@ package org.elasticsearch.xpack.ql.expression.function;
 
 public class TestFunctionRegistry extends FunctionRegistry {
 
-
+    public TestFunctionRegistry(FunctionDefinition... definitions) {
+        super(definitions);
+    }
 }

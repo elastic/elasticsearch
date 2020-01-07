@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.ql.expression.literal;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.ql.ParsingException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.util.Check;
 
 import java.time.Duration;
 import java.time.Period;
@@ -274,7 +274,7 @@ public final class Intervals {
                                     v);
                         }
                         values[unitIndex++] = v;
-                    } catch (SqlIllegalArgumentException siae) {
+                    } catch (QlIllegalArgumentException siae) {
                         throw new ParsingException(source, invalidIntervalMessage(string), siae.getMessage());
                     }
                     startToken = endToken;

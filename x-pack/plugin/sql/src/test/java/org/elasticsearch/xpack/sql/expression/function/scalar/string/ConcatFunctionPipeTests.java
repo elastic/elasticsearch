@@ -18,8 +18,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 
 public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunctionPipe, Pipe> {
 

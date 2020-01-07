@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
@@ -14,8 +15,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.time.Duration;
 import java.time.OffsetTime;
@@ -137,7 +137,7 @@ public class BinaryArithmeticTests extends ESTestCase {
 
     public void testAddNumberToIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
-        SqlIllegalArgumentException expect = expectThrows(SqlIllegalArgumentException.class, () -> add(r, L(1)));
+        QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> add(r, L(1)));
         assertEquals("Cannot compute [+] between [IntervalDayTime] [Integer]", expect.getMessage());
     }
 
@@ -169,7 +169,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, l));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> sub(r, l));
         assertEquals("Cannot subtract a date from an interval; do you mean the reverse?", ex.getMessage());
     }
 
@@ -196,7 +196,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, l));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> sub(r, l));
         assertEquals("Cannot subtract a date from an interval; do you mean the reverse?", ex.getMessage());
     }
 
@@ -211,7 +211,7 @@ public class BinaryArithmeticTests extends ESTestCase {
 
     public void testSubNumberFromIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
-        SqlIllegalArgumentException expect = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, L(1)));
+        QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> sub(r, L(1)));
         assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
     }
 

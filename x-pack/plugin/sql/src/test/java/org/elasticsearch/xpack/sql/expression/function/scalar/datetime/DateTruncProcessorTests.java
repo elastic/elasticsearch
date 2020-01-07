@@ -19,8 +19,8 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
 

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ql.expression.predicate.logical;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
 
@@ -41,7 +41,7 @@ public class NotProcessor implements Processor {
         }
         
         if (!(input instanceof Boolean)) {
-            throw new SqlIllegalArgumentException("A boolean is required; received {}", input);
+            throw new QlIllegalArgumentException("A boolean is required; received {}", input);
         }
 
         return ((Boolean) input).booleanValue() ? Boolean.FALSE : Boolean.TRUE;

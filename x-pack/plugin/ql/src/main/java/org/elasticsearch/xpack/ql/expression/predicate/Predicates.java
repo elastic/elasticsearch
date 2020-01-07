@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ql.expression.predicate;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -114,8 +113,7 @@ public abstract class Predicates {
         return diff.isEmpty() ? emptyList() : diff;
     }
 
-
-    public static boolean canEvaluate(Expression exp, LogicalPlan plan) {
-        return exp.references().subsetOf(plan.outputSet());
-    }
+    //    public static boolean canEvaluate(Expression exp, LogicalPlan plan) {
+    //        return exp.references().subsetOf(plan.outputSet());
+    //    }
 }

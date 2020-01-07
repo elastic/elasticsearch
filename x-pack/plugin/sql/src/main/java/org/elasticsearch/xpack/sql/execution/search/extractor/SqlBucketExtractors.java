@@ -25,6 +25,8 @@ public class SqlBucketExtractors {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(BucketExtractors.getNamedWriteables());
+        entries.add(new Entry(BucketExtractor.class, CompositeKeyExtractor.NAME, CompositeKeyExtractor::new));
+        entries.add(new Entry(BucketExtractor.class, MetricAggExtractor.NAME, MetricAggExtractor::new));
         entries.add(new Entry(BucketExtractor.class, TopHitsAggExtractor.NAME, TopHitsAggExtractor::new));
         entries.add(new Entry(BucketExtractor.class, PivotExtractor.NAME, PivotExtractor::new));
         return entries;

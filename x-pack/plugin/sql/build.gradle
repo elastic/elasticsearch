@@ -53,7 +53,8 @@ dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
   testCompile project(path: xpackModule('ql'), configuration: 'default')
-  
+  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
+    
   bin(project(path: xpackModule('sql:sql-cli'), configuration: 'shadow'))
 }
 

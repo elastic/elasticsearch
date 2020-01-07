@@ -7,15 +7,12 @@ package org.elasticsearch.xpack.ql.expression.gen.pipeline;
 
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipe;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe.AttributeResolver;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 
 import java.util.List;
 
@@ -61,7 +58,7 @@ public class BinaryPipesTests extends ESTestCase {
     public void testCollectFields() {
         DummyPipe wantsScore = new DummyPipe(randomBoolean()) {
             @Override
-            public void collectFields(SqlSourceBuilder sourceBuilder) {
+            public void collectFields(QlSourceBuilder sourceBuilder) {
                 sourceBuilder.trackScores();
             }
         };
@@ -77,7 +74,7 @@ public class BinaryPipesTests extends ESTestCase {
      * {@link Pipe#collectFields(SqlSourceBuilder)}.
      */
     static boolean tracksScores(Pipe d) {
-        SqlSourceBuilder b = new SqlSourceBuilder();
+        QlSourceBuilder b = new QlSourceBuilder();
         d.collectFields(b);
         SearchSourceBuilder source = new SearchSourceBuilder();
         b.build(source);
@@ -160,7 +157,7 @@ public class BinaryPipesTests extends ESTestCase {
         }
 
         @Override
-        public void collectFields(SqlSourceBuilder sourceBuilder) {
+        public void collectFields(QlSourceBuilder sourceBuilder) {
         }
     }
 }

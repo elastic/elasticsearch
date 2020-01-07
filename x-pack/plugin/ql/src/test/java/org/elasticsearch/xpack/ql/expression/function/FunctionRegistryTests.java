@@ -6,31 +6,28 @@
 package org.elasticsearch.xpack.ql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.ParsingException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.session.Configuration;
 
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.TestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionRegistry.def;
 import static org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType.DISTINCT;
 import static org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType.EXTRACT;
 import static org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType.STANDARD;
-import static org.elasticsearch.xpack.sql.TestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -168,13 +165,13 @@ public class FunctionRegistryTests extends ESTestCase {
     
     public void testAliasNameIsTheSameAsAFunctionName() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
+        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
                 r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION")));
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
-        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
+        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
                 new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
                         def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
@@ -182,7 +179,7 @@ public class FunctionRegistryTests extends ESTestCase {
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
+        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
                 r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
@@ -218,12 +215,12 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Not resolved
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class,
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
             () -> r.resolveFunction(r.resolveAlias("DummyFunction")));
         assertThat(e.getMessage(),
             is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
 
-        e = expectThrows(SqlIllegalArgumentException.class,
+        e = expectThrows(QlIllegalArgumentException.class,
             () -> r.resolveFunction(r.resolveAlias("dummyFunction")));
         assertThat(e.getMessage(),
             is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));

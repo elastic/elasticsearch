@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
-import org.elasticsearch.xpack.ql.execution.search.extractor.FieldHitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessorTests;
@@ -75,7 +75,7 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-            new HitExtractorProcessor(new FieldHitExtractor(fieldName, DataType.DOUBLE, UTC, true, false)),
+            new HitExtractorProcessor(new AbstractFieldHitExtractor(fieldName, DataType.DOUBLE, UTC, true, false)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

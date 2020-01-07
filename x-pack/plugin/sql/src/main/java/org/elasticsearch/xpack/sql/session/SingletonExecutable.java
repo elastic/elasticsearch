@@ -35,7 +35,7 @@ public class SingletonExecutable implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<Page> listener) {
+    public void execute(Session session, ActionListener<Page> listener) {
         listener.onResponse(Page.last(Rows.singleton(output, values)));
     }
 

@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.ql.expression.literal;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.literal.Intervals;
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.expression.literal.Intervals.TimeUnit;
-import org.elasticsearch.xpack.sql.parser.ParsingException;
 
 import java.time.Duration;
 import java.time.Period;

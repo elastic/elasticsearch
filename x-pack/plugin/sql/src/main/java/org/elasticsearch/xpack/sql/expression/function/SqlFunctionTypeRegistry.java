@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.ql.expression.function.DefaultFunctionTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 
 public class SqlFunctionTypeRegistry extends DefaultFunctionTypeRegistry {
 

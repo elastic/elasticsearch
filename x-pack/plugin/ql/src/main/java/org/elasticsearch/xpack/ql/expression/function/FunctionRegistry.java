@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.expression.function;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -30,7 +31,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
-public abstract class FunctionRegistry {
+public class FunctionRegistry {
 
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
     // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
@@ -38,16 +39,10 @@ public abstract class FunctionRegistry {
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
 
-    private final FunctionTypeRegistry typeRegistry;
-
-    protected FunctionRegistry(FunctionTypeRegistry typeRegistry) {
-        this.typeRegistry = typeRegistry;
-    }
     /**
      * Register the given function definitions with this registry.
      */
-    public FunctionRegistry(FunctionTypeRegistry typeRegistry, FunctionDefinition... functions) {
-        this.typeRegistry = typeRegistry;
+    public FunctionRegistry(FunctionDefinition... functions) {
         register(functions);
     }
 
@@ -96,7 +91,7 @@ public abstract class FunctionRegistry {
         // It is worth double checking if we need this copy. These are immutable anyway.
         return defs.entrySet().stream()
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().type(), e.getValue().extractViable(), e.getValue().builder()))
+                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -106,7 +101,7 @@ public abstract class FunctionRegistry {
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().type(), e.getValue().extractViable(), e.getValue().builder()))
+                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -114,7 +109,7 @@ public abstract class FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a no-argument function that
      * is not aware of time zone and does not support {@code DISTINCT}.
      */
-    protected <T extends Function> FunctionDefinition def(Class<T> function,
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
             java.util.function.Function<Source, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
@@ -134,7 +129,7 @@ public abstract class FunctionRegistry {
      * the cluster name (DATABASE()) or the user name (USER()).
      */
     @SuppressWarnings("overloads")
-    protected <T extends Function> FunctionDefinition def(Class<T> function,
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
             ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
@@ -158,7 +153,7 @@ public abstract class FunctionRegistry {
     * the configuration object.
     */
     @SuppressWarnings("overloads")
-    protected <T extends Function> FunctionDefinition def(Class<T> function,
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
             UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() > 1) {
@@ -183,7 +178,7 @@ public abstract class FunctionRegistry {
      * aware of time zone and does not support {@code DISTINCT}.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected <T extends Function> FunctionDefinition def(Class<T> function,
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
             BiFunction<Source, Expression, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
@@ -202,7 +197,7 @@ public abstract class FunctionRegistry {
      * is not aware of time zone and does not support {@code DISTINCT}.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function,
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
             MultiFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (distinct) {
@@ -222,7 +217,7 @@ public abstract class FunctionRegistry {
      * aware of time zone but does support {@code DISTINCT}.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function,
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
             DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
@@ -242,7 +237,7 @@ public abstract class FunctionRegistry {
      * operates on a datetime.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function,
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
             DatetimeUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
@@ -265,7 +260,7 @@ public abstract class FunctionRegistry {
      * requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
+    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");
@@ -287,7 +282,7 @@ public abstract class FunctionRegistry {
      * requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, String... names) {
+    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 3) {
                 throw new QlIllegalArgumentException("expects three arguments");
@@ -309,7 +304,7 @@ public abstract class FunctionRegistry {
      * not aware of time zone and does not support {@code DISTINCT}.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function,
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
@@ -337,7 +332,7 @@ public abstract class FunctionRegistry {
      *
      */
     @SuppressWarnings("overloads")
-    public FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
+    public static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
                                           boolean datetime, String... names) {
         Check.isTrue(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
@@ -346,13 +341,10 @@ public abstract class FunctionRegistry {
             try {
                 return builder.build(uf.source(), uf.children(), distinct, cfg);
             } catch (QlIllegalArgumentException e) {
-                // FIXME: add exception
-                //throw new QlIllegalArgumentException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
-                throw e;
+                throw new ParsingException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
             }
         };
-        return new FunctionDefinition(primaryName, unmodifiableList(aliases), function,
-                typeRegistry.type(function), datetime, realBuilder);
+        return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
     }
 
     protected interface FunctionBuilder {
@@ -360,7 +352,7 @@ public abstract class FunctionRegistry {
     }
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function,
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
@@ -382,7 +374,7 @@ public abstract class FunctionRegistry {
     }
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function,
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
             FourParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 4) {
@@ -407,7 +399,7 @@ public abstract class FunctionRegistry {
      * @return Cast function definition
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public <T extends Function> FunctionDefinition def(Class<T> function,
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
                                                                CastFunctionBuilder<T> ctorRef,
                                                                String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) ->

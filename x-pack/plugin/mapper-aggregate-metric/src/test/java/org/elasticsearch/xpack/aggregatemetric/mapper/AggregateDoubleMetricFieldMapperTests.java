@@ -480,7 +480,8 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(AggregateDoubleMetricFieldMapper.Metric.value_count, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric.value());
+        assertEquals(AggregateDoubleMetricFieldMapper.Metric.value_count,
+            ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric.value());
     }
 
     /**

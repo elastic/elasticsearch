@@ -290,7 +290,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List values, QueryShardContext context) {
+        public Query termsQuery(List<?> values, QueryShardContext context) {
             return delegateFieldType().termsQuery(values, context);
         }
 

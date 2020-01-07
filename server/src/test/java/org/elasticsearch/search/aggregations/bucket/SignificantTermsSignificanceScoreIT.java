@@ -25,14 +25,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -49,7 +48,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -173,9 +171,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     public static class CustomSignificanceHeuristicPlugin extends MockScriptPlugin implements SearchPlugin {
         @Override
-        public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
-            return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
-                    SimpleHeuristic::new, (parser) -> SimpleHeuristic.parse(parser)));
+        public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
+            return singletonList(new SignificanceHeuristicSpec<>(SimpleHeuristic.NAME, SimpleHeuristic::new, SimpleHeuristic.PARSER));
         }
 
         @Override
@@ -209,6 +206,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     public static class SimpleHeuristic extends SignificanceHeuristic {
         public static final String NAME = "simple";
+        public static final ObjectParser<SimpleHeuristic, Void> PARSER = new ObjectParser<>(NAME, SimpleHeuristic::new);
 
         public SimpleHeuristic() {
         }
@@ -262,12 +260,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         @Override
         public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
             return subsetFreq / subsetSize > supersetFreq / supersetSize ? 2.0 : 1.0;
-        }
-
-        public static SignificanceHeuristic parse(XContentParser parser)
-                throws IOException, QueryShardException {
-            parser.nextToken();
-            return new SimpleHeuristic();
         }
     }
 

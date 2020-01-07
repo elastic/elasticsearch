@@ -80,6 +80,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -270,6 +271,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repositoriesService.repository(repositoryName).getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repositoryData -> {
+            final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(repositoryName, repositoryData);
             clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
                 private SnapshotsInProgress.Entry newSnapshot = null;
@@ -303,7 +305,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             repositoryData.getGenId(),
                             null,
                             request.userMetadata(),
-                            clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION));
+                            hasOldFormatSnapshots == false &&
+                                clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION));
                         initializingSnapshots.add(newSnapshot.snapshot());
                         snapshots = new SnapshotsInProgress(newSnapshot);
                     } else {
@@ -349,6 +352,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }, listener::onFailure);
+    }
+
+    private boolean hasOldVersionSnapshots(String repositoryName, RepositoryData repositoryData) {
+        final List<SnapshotId> snapshotIds = List.copyOf(repositoryData.getSnapshotIds());
+        final boolean hasOldFormatSnapshots;
+        if (snapshotIds.isEmpty()) {
+            hasOldFormatSnapshots = false;
+        } else {
+            hasOldFormatSnapshots = snapshots(repositoryName, snapshotIds, false).stream()
+                .anyMatch(snapshotInfo -> snapshotInfo.version().before(SHARD_GEN_IN_REPO_DATA_VERSION));
+        }
+        return hasOldFormatSnapshots;
     }
 
     /**
@@ -1402,12 +1417,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                               Version version) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
-            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
-                ActionListener.wrap(v -> {
-                        logger.info("snapshot [{}] deleted", snapshot);
-                        removeSnapshotDeletionFromClusterState(snapshot, null, l);
-                    }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
-                ));
+            repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+                //TODO: Check snapshot versions without the deleted snapshot and add this logic to repo cleanup
+                final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(snapshot.getRepository(), repositoryData);
+                repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId,
+                    hasOldFormatSnapshots == false && version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
+                    ActionListener.wrap(v -> {
+                            logger.info("snapshot [{}] deleted", snapshot);
+                            removeSnapshotDeletionFromClusterState(snapshot, null, l);
+                        }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
+                    ));
+            }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)));
         }));
     }
 

@@ -36,7 +36,7 @@ by specifying `*` as the `<job_id>`.
 By default, an overall bucket has a span equal to the largest bucket span of the
 specified {anomaly-jobs}. To override that behavior, use the optional
 `bucket_span` parameter. To learn more about the concept of buckets, see
-{stack-ov}/ml-buckets.html[Buckets].
+{ml-docs}/ml-buckets.html[Buckets].
 
 The `overall_score` is calculated by combining the scores of all the buckets
 within the overall bucket span. First, the maximum `anomaly_score` per
@@ -119,9 +119,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=timestamp-results]
 
 [[ml-get-overall-buckets-example]]
 ==== {api-examples-title}
-
-The following example gets overall buckets for {anomaly-jobs} with IDs matching
-`job-*`:
 
 [source,console]
 --------------------------------------------------

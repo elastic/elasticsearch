@@ -36,20 +36,16 @@ dependencies {
 for (Version bwcVersion : bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
 
-  testClusters {
-    "${baseName}" {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 2
-      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = BuildParams.runtimeJavaHome
-    }
+  def clusterSettings = {
+    versions = [bwcVersion.toString(), project.version]
+    numberOfNodes = 2
+    setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    javaHome = BuildParams.runtimeJavaHome
+  }
 
-    "${baseName}-downgraded" {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 2
-      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = BuildParams.runtimeJavaHome
-    }
+  testClusters {
+    "${baseName}" clusterSettings
+    "${baseName}-downgraded" clusterSettings
   }
 
   tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {

@@ -134,7 +134,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final Path confPathRepo;
     private final Path configFile;
-    private final Path confPathData;
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
@@ -151,6 +150,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
     private String transportPort = "0";
+    private Path confPathData;
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
         this.path = path;
@@ -807,6 +807,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
+        reaper.unregister(toString());
         if (tailLogs) {
             logFileContents("Standard output of node", esStdoutFile);
             logFileContents("Standard error of node", esStderrFile);
@@ -831,39 +832,43 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
-        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
+        // No-op if the process has already exited by itself.
         if (processHandle.isAlive() == false) {
             LOGGER.info("Process was not running when we tried to terminate it.");
             return;
         }
 
-        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
-        processHandle.children().forEach(each -> stopHandle(each, forcibly));
+        // Stop all children last - if the ML processes are killed before the ES JVM then
+        // they'll be recorded as having failed and won't restart when the cluster restarts.
+        // ES could actually be a child when there's some wrapper process like on Windows,
+        // and in that case the ML processes will be grandchildren of the wrapper.
+        List<ProcessHandle> children = processHandle.children().collect(Collectors.toList());
+        try {
+            logProcessInfo(
+                "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
+                processHandle.info()
+            );
 
-        logProcessInfo(
-            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
-            processHandle.info()
-        );
-
-        if (forcibly) {
-            processHandle.destroyForcibly();
-        } else {
-            processHandle.destroy();
-            waitForProcessToExit(processHandle);
-            if (processHandle.isAlive() == false) {
-                return;
+            if (forcibly) {
+                processHandle.destroyForcibly();
+            } else {
+                processHandle.destroy();
+                waitForProcessToExit(processHandle);
+                if (processHandle.isAlive() == false) {
+                    return;
+                }
+                LOGGER.info("process did not terminate after {} {}, stopping it forcefully",
+                    ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+                processHandle.destroyForcibly();
             }
-            LOGGER.info("process did not terminate after {} {}, stopping it forcefully",
-                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
-            processHandle.destroyForcibly();
-        }
 
-        waitForProcessToExit(processHandle);
-        if (processHandle.isAlive()) {
-            throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
+            waitForProcessToExit(processHandle);
+            if (processHandle.isAlive()) {
+                throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
+            }
+        } finally {
+            children.forEach(each -> stopHandle(each, forcibly));
         }
-
-        reaper.unregister(toString());
     }
 
     private void logProcessInfo(String prefix, ProcessHandle.Info info) {
@@ -1334,6 +1339,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     void setTransportPort(String transportPort) {
         this.transportPort = transportPort;
+    }
+
+    void setDataPath(Path dataPath) {
+        this.confPathData = dataPath;
     }
 
     @Internal

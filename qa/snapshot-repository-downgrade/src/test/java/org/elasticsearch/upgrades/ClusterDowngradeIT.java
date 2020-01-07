@@ -54,11 +54,13 @@ import static org.hamcrest.Matchers.is;
  * Downgrade tests that verify that a snapshot repository is not getting corrupted and continues to function properly during cluster
  * downgrades. Concretely this test suit is simulating the following scenario:
  * <ul>
- *     <li>Start from a cluster in an old version and create a snapshot containing a given index</li>
- *     <li>Upgrade the cluster to the current version and create another snapshot.</li>
- *     <li>Downgrade the cluster back to the old version and create another snapshot</li>
- *     <li>Once again upgrade the cluster to the current version and create a snapshot</li>
+ *     <li>Start from a cluster in an old version</li>
+ *     <li>Upgrade the cluster to the current version</li>
+ *     <li>Downgrade the cluster back to the old version</li>
+ *     <li>Once again upgrade the cluster to the current version</li>
  * </ul>
+ * TODO: Add two more steps: delete all old version snapshots from the repository, then downgrade again and verify that the repository
+ *       is not being corrupted. This requires first merging the logic for reading the min_version field in RepositoryData back to 7.6.
  */
 public class ClusterDowngradeIT extends ESRestTestCase {
 

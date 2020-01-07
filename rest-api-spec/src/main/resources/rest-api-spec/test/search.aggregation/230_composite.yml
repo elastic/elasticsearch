@@ -701,7 +701,6 @@ setup:
       reason: geotile_grid is not supported until 7.5.0
   - do:
       search:
-        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -724,7 +723,8 @@ setup:
                 ]
                 after: { "geo": "12/730/1590", "kw": "foo" }
 
-  - match: {hits.total: 6}
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
   - length: { aggregations.test.buckets: 3 }
   - match: { aggregations.test.buckets.0.key.geo: "12/1236/1533" }
   - match: { aggregations.test.buckets.0.key.kw: "bar" }

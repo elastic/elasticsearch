@@ -26,6 +26,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -97,7 +98,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return Tuple.tuple(bestOnDiskState.currentTerm, clusterState(env, bestOnDiskState));
     }
 
-    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
             final Path[] dataPaths =
@@ -145,7 +146,8 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
      * @param options the command line options
      * @param env the env of the node to process
      */
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException;
+    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env)
+        throws IOException, UserException;
 
     protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
         return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);

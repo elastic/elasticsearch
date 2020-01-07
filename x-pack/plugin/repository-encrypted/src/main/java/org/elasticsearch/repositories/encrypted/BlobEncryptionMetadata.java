@@ -8,10 +8,13 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -74,5 +77,20 @@ public final class BlobEncryptionMetadata implements Writeable {
         int result = Objects.hash(nonce, packetLengthInBytes);
         result = 31 * result + Arrays.hashCode(dataEncryptionKeyMaterial);
         return result;
+    }
+
+    static byte[] serializeMetadataToByteArray(BlobEncryptionMetadata metadata) throws IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            try (StreamOutput out = new OutputStreamStreamOutput(baos)) {
+                metadata.writeTo(out);
+            }
+            return baos.toByteArray();
+        }
+    }
+
+    static BlobEncryptionMetadata deserializeMetadataFromByteArray(byte[] metadata) throws IOException {
+        try (ByteArrayInputStream decryptedMetadataInputStream = new ByteArrayInputStream(metadata)) {
+            return new BlobEncryptionMetadata(decryptedMetadataInputStream);
+        }
     }
 }

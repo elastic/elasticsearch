@@ -32,12 +32,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
@@ -47,7 +49,6 @@ public class EncryptedRepository extends BlobStoreRepository {
     static final String DEK_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
     static final String KEK_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
     static final int DEK_KEY_SIZE_IN_BITS = 256;
-    static final String RAND_ALGO = "SHA1PRNG";
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
     static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 20; // 1MB
     static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB
@@ -58,22 +59,22 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     private final BlobStoreRepository delegatedRepository;
     private final KeyGenerator dataEncryptionKeyGenerator;
-    private final SecretKey keyEncryptionKey;
+    private final PasswordBasedEncryptor metadataEncryptor;
     private final SecureRandom secureRandom;
 
     protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService
-            , BlobStoreRepository delegatedRepository, SecretKey keyEncryptionKey) throws NoSuchAlgorithmException {
+            , BlobStoreRepository delegatedRepository, PasswordBasedEncryptor metadataEncryptor) throws NoSuchAlgorithmException {
         super(metadata, namedXContentRegistry, clusterService, delegatedRepository.basePath());
         this.delegatedRepository = delegatedRepository;
-        this.dataEncryptionKeyGenerator = KeyGenerator.getInstance("AES");
-        this.dataEncryptionKeyGenerator.init(DEK_KEY_SIZE_IN_BITS, SecureRandom.getInstance(RAND_ALGO));
-        this.keyEncryptionKey = keyEncryptionKey;
-        this.secureRandom = SecureRandom.getInstance(RAND_ALGO);
+        this.dataEncryptionKeyGenerator = KeyGenerator.getInstance(EncryptedRepositoryPlugin.CIPHER_ALGO);
+        this.dataEncryptionKeyGenerator.init(DEK_KEY_SIZE_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
+        this.metadataEncryptor = metadataEncryptor;
+        this.secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
     }
 
     @Override
     protected BlobStore createBlobStore() {
-        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, keyEncryptionKey,
+        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryptor,
                 secureRandom);
     }
 
@@ -99,14 +100,14 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
-        private final SecretKey keyEncryptionKey;
+        private final PasswordBasedEncryptor metadataEncryptor;
         private final SecureRandom secureRandom;
 
         EncryptedBlobStoreDecorator(BlobStore delegatedBlobStore, KeyGenerator dataEncryptionKeyGenerator,
-                                    SecretKey keyEncryptionKey, SecureRandom secureRandom) {
+                                    PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
-            this.keyEncryptionKey = keyEncryptionKey;
+            this.metadataEncryptor = metadataEncryptor;
             this.secureRandom = secureRandom;
         }
 
@@ -123,7 +124,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(pathComponent);
             }
             return new EncryptedBlobContainerDecorator(delegatedBlobStore.blobContainer(path),
-                    delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), dataEncryptionKeyGenerator, keyEncryptionKey,
+                    delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), dataEncryptionKeyGenerator, metadataEncryptor,
                     secureRandom);
         }
     }
@@ -133,15 +134,16 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
         private final KeyGenerator dataEncryptionKeyGenerator;
-        private final SecretKey keyEncryptionKey;
+        private final PasswordBasedEncryptor metadataEncryptor;
         private final SecureRandom secureRandom;
 
         EncryptedBlobContainerDecorator(BlobContainer delegatedBlobContainer, BlobContainer encryptionMetadataBlobContainer,
-                                        KeyGenerator dataEncryptionKeyGenerator, SecretKey keyEncryptionKey, SecureRandom secureRandom) {
+                                        KeyGenerator dataEncryptionKeyGenerator, PasswordBasedEncryptor metadataEncryptor,
+                                        SecureRandom secureRandom) {
             this.delegatedBlobContainer = delegatedBlobContainer;
             this.encryptionMetadataBlobContainer = encryptionMetadataBlobContainer;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
-            this.keyEncryptionKey = keyEncryptionKey;
+            this.metadataEncryptor = metadataEncryptor;
             this.secureRandom = secureRandom;
         }
 
@@ -153,7 +155,13 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public InputStream readBlob(String blobName) throws IOException {
             BytesReference encryptedMetadataBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
-            final BlobEncryptionMetadata metadata = decryptMetadata(BytesReference.toBytes(encryptedMetadataBytes), keyEncryptionKey);
+            final byte[] decryptedMetadata;
+            try {
+                decryptedMetadata = metadataEncryptor.decrypt(BytesReference.toBytes(encryptedMetadataBytes));
+            } catch (ExecutionException | GeneralSecurityException e) {
+                throw new IOException("Exception while decrypting metadata");
+            }
+            final BlobEncryptionMetadata metadata = BlobEncryptionMetadata.deserializeMetadataFromByteArray(decryptedMetadata);
             SecretKey dataDecryptionKey = new SecretKeySpec(metadata.getDataEncryptionKeyMaterial(), 0,
                     metadata.getDataEncryptionKeyMaterial().length, "AES");
             return new DecryptionPacketsInputStream(this.delegatedBlobContainer.readBlob(blobName), dataDecryptionKey,
@@ -172,7 +180,12 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
             // metadata required to decrypt back the encrypted blob
             BlobEncryptionMetadata metadata = new BlobEncryptionMetadata(dataEncryptionKey.getEncoded(), nonce, PACKET_LENGTH_IN_BYTES);
-            byte[] encryptedMetadata = encryptMetadata(metadata, keyEncryptionKey, secureRandom);
+            final byte[] encryptedMetadata;
+            try {
+                encryptedMetadata = metadataEncryptor.encrypt(BlobEncryptionMetadata.serializeMetadataToByteArray(metadata));
+            } catch (ExecutionException | GeneralSecurityException e) {
+                throw new IOException("Exception while encrypting metadata");
+            }
             // write the encrypted metadata
             try (ByteArrayInputStream encryptedMetadataInputStream = new ByteArrayInputStream(encryptedMetadata)) {
                 this.encryptionMetadataBlobContainer.writeBlob(blobName, encryptedMetadataInputStream, encryptedMetadata.length,
@@ -212,69 +225,6 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
             return this.delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
-        }
-    }
-
-    // protected for tests
-    protected static byte[] encryptMetadata(BlobEncryptionMetadata metadata, SecretKey keyEncryptionKey,
-                                            SecureRandom secureRandom) throws IOException {
-        // serialize metadata to byte[]
-        final byte[] plaintextMetadata;
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            try (StreamOutput out = new OutputStreamStreamOutput(baos)) {
-                metadata.writeTo(out);
-            }
-            plaintextMetadata = baos.toByteArray();
-        }
-        // create cipher for metadata encryption
-        byte[] iv = new byte[GCM_IV_LENGTH_IN_BYTES];
-        secureRandom.nextBytes(iv);
-        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, iv);
-        final Cipher cipher;
-        try {
-            cipher = Cipher.getInstance(KEK_ENCRYPTION_SCHEME);
-            cipher.init(Cipher.ENCRYPT_MODE, keyEncryptionKey, gcmParameterSpec);
-        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException e) {
-            throw new IOException("Exception while initializing KEK encryption cipher", e);
-        }
-        // encrypt metadata
-        final byte[] encryptedMetadata;
-        try {
-            encryptedMetadata = cipher.doFinal(plaintextMetadata);
-        } catch (IllegalBlockSizeException | BadPaddingException e) {
-            throw new IOException("Exception while encrypting metadata and DEK", e);
-        }
-        // concatenate iv and metadata cipher text
-        byte[] resultCiphertext = new byte[iv.length + encryptedMetadata.length];
-        // prepend IV
-        System.arraycopy(iv, 0, resultCiphertext, 0, iv.length);
-        System.arraycopy(encryptedMetadata, 0, resultCiphertext, iv.length, encryptedMetadata.length);
-        return resultCiphertext;
-    }
-
-    // protected for tests
-    protected static BlobEncryptionMetadata decryptMetadata(byte[] encryptedMetadata, SecretKey keyEncryptionKey) throws IOException {
-        // first bytes are IV
-        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, encryptedMetadata, 0,
-                GCM_IV_LENGTH_IN_BYTES);
-        // initialize cipher
-        final Cipher cipher;
-        try {
-            cipher = Cipher.getInstance(KEK_ENCRYPTION_SCHEME);
-            cipher.init(Cipher.DECRYPT_MODE, keyEncryptionKey, gcmParameterSpec);
-        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException e) {
-            throw new IOException("Exception while initializing KEK decryption cipher", e);
-        }
-        // decrypt metadata (use cipher)
-        final byte[] decryptedMetadata;
-        try {
-            decryptedMetadata = cipher.doFinal(encryptedMetadata, GCM_IV_LENGTH_IN_BYTES,
-                    encryptedMetadata.length - GCM_IV_LENGTH_IN_BYTES);
-        } catch (IllegalBlockSizeException | BadPaddingException e) {
-            throw new IOException("Exception while decrypting metadata and DEK", e);
-        }
-        try (ByteArrayInputStream decryptedMetadataInputStream = new ByteArrayInputStream(decryptedMetadata)) {
-            return new BlobEncryptionMetadata(decryptedMetadataInputStream);
         }
     }
 

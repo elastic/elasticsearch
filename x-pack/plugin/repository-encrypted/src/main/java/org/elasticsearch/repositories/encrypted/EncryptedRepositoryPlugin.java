@@ -26,6 +26,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,16 +38,10 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
 
     static final String REPOSITORY_TYPE_NAME = "encrypted";
     static final String CIPHER_ALGO = "AES";
-    static final int KEK_PBKDF2_ITER = 61616; // funny "uncommon" iter count larger than 60k
-    static final String KEK_PBKDF2_ALGO = "PBKDF2WithHmacSHA512";
-    static final int KEK_KEY_SIZE_IN_BITS = 256;
-    static final String DEFAULT_KEK_SALT = "the AES key encryption key, which is generated from the repository password using " +
-            "PBKDF2, is never stored on disk, therefore the salt parameter of PBKDF2, used to protect against offline cracking of the key" +
-            " using rainbow tables is not required. A hardcoded salt value does not compromise security.";
+    static final String RAND_ALGO = "SHA1PRNG";
     static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting("repository.encrypted.",
             "password", key -> SecureSetting.secureString(key, null));
     static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
-    static final Setting<String> KEK_PBKDF2_SALT = new Setting<>("kek_salt", DEFAULT_KEK_SALT, Function.identity());
 
     private final Map<String, char[]> cachedRepositoryPasswords = new HashMap<>();
 
@@ -59,14 +54,6 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
             SecureString encryptionPassword = encryptionPasswordSetting.get(settings);
             cachedRepositoryPasswords.put(repositoryName, encryptionPassword.getChars());
         }
-    }
-
-    SecretKey generateKeyEncryptionKey(char[] password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        PBEKeySpec keySpec = new PBEKeySpec(password, salt, KEK_PBKDF2_ITER, KEK_KEY_SIZE_IN_BITS);
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KEK_PBKDF2_ALGO);
-        SecretKey secretKey = keyFactory.generateSecret(keySpec);
-        SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), CIPHER_ALGO);
-        return secret;
     }
 
     @Override
@@ -105,10 +92,10 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
                     throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
                 }
                 char[] repositoryPassword = cachedRepositoryPasswords.get(metaData.name());
-                String kekSalt = KEK_PBKDF2_SALT.get(metaData.settings());
-                SecretKey keyEncryptionKey = generateKeyEncryptionKey(repositoryPassword, kekSalt.getBytes(StandardCharsets.UTF_8));
+                PasswordBasedEncryptor metadataEncryptor = new PasswordBasedEncryptor(repositoryPassword,
+                        SecureRandom.getInstance(RAND_ALGO));
                 return new EncryptedRepository(metaData, registry, clusterService, (BlobStoreRepository) delegatedRepository,
-                        keyEncryptionKey);
+                        metadataEncryptor);
             }
         });
     }

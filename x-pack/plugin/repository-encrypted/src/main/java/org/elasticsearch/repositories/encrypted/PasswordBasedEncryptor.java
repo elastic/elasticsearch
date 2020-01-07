@@ -113,8 +113,7 @@ public final class PasswordBasedEncryptor {
         // extract the salt prepended to the ciphertext
         byte[] salt = Arrays.copyOf(encryptedData, SALT_LENGTH_IN_BYTES);
         // get the key associated with the salt
-        SecretKey decryptionKey = getKeyFromSalt(new String(Base64.getDecoder().decode(salt),
-                StandardCharsets.UTF_8)).v2();
+        SecretKey decryptionKey = getKeyFromSalt(Base64.getEncoder().encodeToString(salt)).v2();
         // construct and initialize the decryption cipher
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(TAG_LENGTH_IN_BYTES * Byte.SIZE, encryptedData, SALT_LENGTH_IN_BYTES,
                 IV_LENGTH_IN_BYTES);

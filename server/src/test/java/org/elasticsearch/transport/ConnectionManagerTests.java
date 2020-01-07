@@ -33,8 +33,11 @@ import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -124,17 +127,25 @@ public class ConnectionManagerTests extends ESTestCase {
         assertEquals(1, nodeDisconnectedCount.get());
     }
 
-    public void testConcurrentConnectsAndDisconnects() throws BrokenBarrierException, InterruptedException {
+    public void testConcurrentConnects() throws Exception {
+        Set<Transport.Connection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
             Transport.Connection connection = new TestConnect(node);
+            connections.add(connection);
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
-            if (rarely()) {
-                listener.onResponse(connection);
-            } else if (frequently()) {
-                threadPool.generic().execute(() -> listener.onResponse(connection));
-            } else {
-                threadPool.generic().execute(() -> listener.onFailure(new IllegalStateException("dummy exception")));
+            int branch = randomInt(2);
+            switch (branch) {
+                case 0:
+                    listener.onResponse(connection);
+                    break;
+                case 1:
+                    threadPool.generic().execute(() -> listener.onResponse(connection));
+                    break;
+                default:
+                    threadPool.generic().execute(() -> listener.onFailure(new IllegalStateException("dummy exception")));
+                    break;
             }
             return null;
         }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
@@ -197,6 +208,16 @@ public class ConnectionManagerTests extends ESTestCase {
         });
 
         assertEquals(10, nodeConnectedCount.get() + nodeFailureCount.get());
+
+        // Only a single connection attempt should be open.
+        long size = connections.stream().filter(c -> !c.isClosed()).count();
+        assertEquals(1, size);
+
+        connectionManager.close();
+        // The connection manager will close all open connections
+        for (Transport.Connection connection : connections) {
+            assertTrue(connection.isClosed());
+        }
     }
 
     public void testConnectFailsDuringValidation() {

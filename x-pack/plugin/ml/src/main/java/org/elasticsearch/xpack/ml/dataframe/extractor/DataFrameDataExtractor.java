@@ -267,10 +267,7 @@ public class DataFrameDataExtractor {
     }
 
     public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {
-        return context.extractedFields.getAllFields().stream()
-            .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName()).containsAll(extractedField.getTypes()))
-            .map(ExtractedField::getName)
-            .collect(Collectors.toUnmodifiableSet());
+        return ExtractedFieldsDetector.getCategoricalFields(context.extractedFields, analysis);
     }
 
     public static class DataSummary {

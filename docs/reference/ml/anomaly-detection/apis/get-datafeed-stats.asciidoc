@@ -47,8 +47,11 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 `<feed_id>`::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
++
+--
 If you do not specify one of these options, the API returns information about
 all {dfeeds}.
+--
 
 [[ml-get-datafeed-stats-query-parms]]
 ==== {api-query-parms-title}
@@ -72,13 +75,14 @@ informational; you cannot update their values.
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `node`::
-(object) For started {dfeeds} only, the node upon which the {dfeed} is started. The {dfeed} and job will be on the same node.
-`id`::: The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
-`name`::: The node name. For example, `0-o0tOo`.
-`ephemeral_id`::: The node ephemeral ID.
-`transport_address`::: The host and port where transport HTTP connections are
+(object) For started {dfeeds} only, the node upon which the {dfeed} is started.
+The {dfeed} and job will be on the same node.
+`node`.`id`::: The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
+`node`.`name`::: The node name. For example, `0-o0tOo`.
+`node`.`ephemeral_id`::: The node ephemeral ID.
+`node`.`transport_address`::: The host and port where transport HTTP connections are
 accepted. For example, `127.0.0.1:9300`.
-`attributes`::: For example, `{"ml.machine_memory": "17179869184"}`.
+`node`.`attributes`::: For example, `{"ml.machine_memory": "17179869184"}`.
 
 `state`::
 (string) The status of the {dfeed}, which can be one of the following values:
@@ -92,13 +96,16 @@ re-started.
 `timing_stats`::
 (object) An object that provides statistical information about timing aspect of
 this {dfeed}.
-//average_search_time_per_bucket_ms
-//bucket_count
-//exponential_average_search_time_per_hour_ms
-`job_id`:::
+`timing_stats`.`average_search_time_per_bucket_ms`:::
+(double) Average of the {dfeed} search times in milliseconds.
+`timing_stats`.`bucket_count`:::
+(long) The number of buckets processed. 
+`timing_stats`.`exponential_average_search_time_per_hour_ms`:::
+(double) Exponential moving average of the {dfeed} search times in milliseconds.
+`timing_stats`.`job_id`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
-`search_count`::: Number of searches performed by this {dfeed}.
-`total_search_time_ms`::: Total time the {dfeed} spent searching in milliseconds.
+`timing_stats`.`search_count`::: Number of searches performed by this {dfeed}.
+`timing_stats`.`total_search_time_ms`::: Total time the {dfeed} spent searching in milliseconds.
 
 
 [[ml-get-datafeed-stats-response-codes]]

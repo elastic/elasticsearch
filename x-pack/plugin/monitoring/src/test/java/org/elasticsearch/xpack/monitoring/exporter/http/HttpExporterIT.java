@@ -590,7 +590,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         final Exporter.Config config =
                 new Exporter.Config("_http", "http", settings, clusterService(), new XPackLicenseState(Settings.EMPTY));
 
-        return new HttpExporter(config, new SSLService(settings, environment), new ThreadContext(settings));
+        final Environment env = TestEnvironment.newEnvironment(buildEnvSettings(settings));
+        return new HttpExporter(config, new SSLService(env), new ThreadContext(settings));
     }
 
     private void export(final Settings settings, final Collection<MonitoringDoc> docs) throws Exception {

@@ -6,10 +6,14 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 import org.locationtech.jts.geom.Coordinate;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -238,5 +243,95 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             .setQuery(new ShapeQueryBuilder("alias", queryGeometry).relation(ShapeRelation.INTERSECTS))
             .get();
         assertTrue(response.getHits().getTotalHits().value > 0);
+    }
+
+    public void testContainsShapeQuery() {
+
+        client().admin().indices().prepareCreate("test_contains").addMapping("type", "location", "type=shape")
+            .execute().actionGet();
+
+        String doc = "{\"location\" : {\"type\":\"envelope\", \"coordinates\":[ [-100.0, 100.0], [100.0, -100.0]]}}";
+        client().prepareIndex("test_contains").setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+
+        // index the mbr of the collection
+        EnvelopeBuilder queryShape = new EnvelopeBuilder(new Coordinate(-50, 50), new Coordinate(50, -50));
+        ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder("location", queryShape.buildGeometry()).relation(ShapeRelation.CONTAINS);
+        SearchResponse response = client().prepareSearch("test_contains").setQuery(queryBuilder).get();
+        assertSearchResponse(response);
+
+        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    public void testGeometryCollectionRelations() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("doc")
+            .startObject("properties")
+            .startObject("geometry").field("type", "shape").endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        createIndex("test_collections", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+
+        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
+
+        client().index(new IndexRequest("test_collections")
+            .source(jsonBuilder().startObject().field("geometry", envelopeBuilder).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        {
+            // A geometry collection that is fully within the indexed shape
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(1, 2));
+            builder.shape(new PointBuilder(-2, -1));
+            SearchResponse response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+        }
+        {
+            // A geometry collection that is partially within the indexed shape
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(1, 2));
+            builder.shape(new PointBuilder(20, 30));
+            SearchResponse response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+        }
+        {
+            // A geometry collection that is disjoint with the indexed shape
+            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
+            builder.shape(new PointBuilder(-20, -30));
+            builder.shape(new PointBuilder(20, 30));
+            SearchResponse response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertEquals(0, response.getHits().getTotalHits().value);
+            response = client().prepareSearch("test_collections")
+                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .get();
+            assertEquals(1, response.getHits().getTotalHits().value);
+        }
     }
 }

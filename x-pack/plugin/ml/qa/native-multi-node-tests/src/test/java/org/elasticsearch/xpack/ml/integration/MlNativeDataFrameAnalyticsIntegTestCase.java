@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -205,7 +205,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected SearchResponse searchStoredProgress(String jobId) {
-        String docId = DataFrameAnalyticsTask.progressDocId(jobId);
+        String docId = StoredProgress.documentId(jobId);
         return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(QueryBuilders.idsQuery().addIds(docId))
             .get();
@@ -273,5 +273,12 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }
         assertThat(trainingRowsIds.isEmpty(), is(false));
         return trainingRowsIds;
+    }
+
+    protected static void assertModelStatePersisted(String stateDocId) {
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
+            .get();
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
     }
 }

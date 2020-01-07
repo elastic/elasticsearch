@@ -360,7 +360,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
                 CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
                         .alias(new Alias(this.aliasName))
-                        .mapping(MapperService.SINGLE_MAPPING_NAME, mappingAndSettings.v1(), XContentType.JSON)
+                        .mapping("{\"_doc\":" + mappingAndSettings.v1() + "}")
                         .waitForActiveShards(ActiveShardCount.ALL)
                         .settings(mappingAndSettings.v2());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,

@@ -91,7 +91,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             }
 
             if (spare == null) {
-                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
+                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
             }
 
             bucketOrds.get(i, spare.termBytes);

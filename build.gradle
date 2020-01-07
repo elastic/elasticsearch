@@ -32,7 +32,6 @@ import org.gradle.util.GradleVersion
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 plugins {
-  id 'com.gradle.build-scan' version '2.4.2'
   id 'lifecycle-base'
   id 'elasticsearch.global-build-info'
   id "com.diffplug.gradle.spotless" version "3.24.2" apply false
@@ -434,6 +433,14 @@ class Run extends DefaultTask {
   )
   public void setDebug(boolean enabled) {
     project.project(':distribution').run.debug = enabled
+  }
+
+  @Option(
+    option = "data-dir",
+    description = "Override the base data directory used by the testcluster"
+  )
+  public void setDataDir(String dataDirStr) {
+    project.project(':distribution').run.dataDir = dataDirStr
   }
 }
 

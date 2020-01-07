@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -143,9 +142,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 final IndicesService indexServices = mock(IndicesService.class);
                 when(indexServices.indexServiceSafe(eq(index))).thenReturn(indexService);
 
-                final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
                 final TransportResyncReplicationAction action = new TransportResyncReplicationAction(Settings.EMPTY, transportService,
-                    clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()), resolver);
+                    clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()));
 
                 assertThat(action.globalBlockLevel(), nullValue());
                 assertThat(action.indexBlockLevel(), nullValue());

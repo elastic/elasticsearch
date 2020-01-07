@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -87,7 +88,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchResponse.Clusters clusters;
 
     private final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    private final GroupShardsIterator<SearchShardIterator> shardsIts;
+    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -113,8 +114,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 iterators.add(iterator);
             }
         }
-        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
-        this.shardsIts = new GroupShardsIterator<>(iterators);
+        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators, false);
+        this.shardsIts = new GroupShardsIterator<>(iterators, false);
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
@@ -381,6 +382,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
+            onShardGroupFailure(shardIndex, e);
             onPhaseDone();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -389,7 +391,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             logger.trace(() -> new ParameterizedMessage(
                 "{}: Failed to execute [{}] lastShard [{}]",
                 shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
-            if (!lastShard) {
+            if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
                 // no more shards active, add a failure
@@ -400,9 +402,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
+                onShardGroupFailure(shardIndex, e);
             }
         }
     }
+
+    /**
+     * Executed once for every {@link ShardId} that failed on all available shard routing.
+     *
+     * @param shardIndex the shard target that failed
+     * @param exc the final failure reason
+     */
+    protected void onShardGroupFailure(int shardIndex, Exception exc) {}
 
     /**
      * Executed once for every failed shard level request. This method is invoked before the next replica is tried for the given

@@ -63,7 +63,23 @@ public class License implements ToXContentObject {
         /**
          * Backward compatible license type parsing for older license models
          */
-        public static LicenseType resolve(String name) {
+        public static LicenseType resolve(License license) {
+            if (license.version == VERSION_START) {
+                // in 1.x: the acceptable values for 'subscription_type': none | dev | silver | gold | platinum
+                return resolve(license.subscriptionType);
+            } else {
+                // in 2.x: the acceptable values for 'type': trial | basic | silver | dev | gold | platinum
+                // in 5.x: the acceptable values for 'type': trial | basic | standard | dev | gold | platinum
+                // in 6.x: the acceptable values for 'type': trial | basic | standard | dev | gold | platinum
+                // in 7.x: the acceptable values for 'type': trial | basic | standard | dev | gold | platinum | enterprise
+                return resolve(license.type);
+            }
+        }
+
+        /**
+         * Backward compatible license type parsing for older license models
+         */
+        static LicenseType resolve(String name) {
             switch (name.toLowerCase(Locale.ROOT)) {
                 case "missing":
                     return null;
@@ -165,8 +181,12 @@ public class License implements ToXContentObject {
             return Integer.compare(opMode1.id, opMode2.id);
         }
 
-        public static OperationMode resolve(String typeName) {
-            LicenseType type = LicenseType.resolve(typeName);
+        /**
+         * Determine the operating mode for a license type
+         * @see LicenseType#resolve(License)
+         * @see #parse(String)
+         */
+        public static OperationMode resolve(LicenseType type) {
             if (type == null) {
                 return MISSING;
             }
@@ -184,6 +204,21 @@ public class License implements ToXContentObject {
                     return TRIAL;
                 default:
                     throw new IllegalArgumentException("unsupported license type [" + type.getTypeName() + "]");
+            }
+        }
+
+        /**
+         * Parses an {@code OperatingMode} from a String.
+         * The string must name an operating mode, and not a licensing level (that is, it cannot parse old style license levels
+         * such as "dev" or "silver").
+         * @see #description()
+         */
+        public static OperationMode parse(String mode) {
+            try {
+                return OperationMode.valueOf(mode.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("unrecognised license operating mode [ " + mode + "], supported modes are ["
+                    + Stream.of(values()).map(OperationMode::description).collect(Collectors.joining(",")) + "]");
             }
         }
 
@@ -212,13 +247,7 @@ public class License implements ToXContentObject {
         }
         this.maxNodes = maxNodes;
         this.startDate = startDate;
-        if (version == VERSION_START) {
-            // in 1.x: the acceptable values for 'subscription_type': none | dev | silver | gold | platinum
-            this.operationMode = OperationMode.resolve(subscriptionType);
-        } else {
-            // in 2.x: the acceptable values for 'type': trial | basic | silver | dev | gold | platinum
-            this.operationMode = OperationMode.resolve(type);
-        }
+        this.operationMode = OperationMode.resolve(LicenseType.resolve(this));
         validate();
     }
 

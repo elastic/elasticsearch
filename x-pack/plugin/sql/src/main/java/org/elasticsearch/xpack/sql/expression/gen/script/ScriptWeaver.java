@@ -7,14 +7,12 @@
 package org.elasticsearch.xpack.sql.expression.gen.script;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
@@ -36,20 +34,20 @@ public interface ScriptWeaver {
             return scriptWithFoldable(exp);
         }
 
-        Attribute attr = Expressions.attribute(exp);
-        if (attr != null) {
-            if (attr instanceof ScalarFunctionAttribute) {
-                return scriptWithScalar((ScalarFunctionAttribute) attr);
-            }
-            if (attr instanceof AggregateFunctionAttribute) {
-                return scriptWithAggregate((AggregateFunctionAttribute) attr);
-            }
-            if (attr instanceof GroupingFunctionAttribute) {
-                return scriptWithGrouping((GroupingFunctionAttribute) attr);
-            }
-            if (attr instanceof FieldAttribute) {
-                return scriptWithField((FieldAttribute) attr);
-            }
+        if (exp instanceof ScalarFunction) {
+            return scriptWithScalar((ScalarFunction) exp);
+        }
+
+        if (exp instanceof AggregateFunction) {
+            return scriptWithAggregate((AggregateFunction) exp);
+        }
+
+        if (exp instanceof GroupingFunction) {
+            return scriptWithGrouping((GroupingFunction) exp);
+        }
+
+        if (exp instanceof FieldAttribute) {
+            return scriptWithField((FieldAttribute) exp);
         }
         throw new SqlIllegalArgumentException("Cannot evaluate script for expression {}", exp);
     }
@@ -108,14 +106,14 @@ public interface ScriptWeaver {
                 dataType());
     }
 
-    default ScriptTemplate scriptWithScalar(ScalarFunctionAttribute scalar) {
-        ScriptTemplate nested = scalar.script();
+    default ScriptTemplate scriptWithScalar(ScalarFunction scalar) {
+        ScriptTemplate nested = scalar.asScript();
         return new ScriptTemplate(processScript(nested.template()),
                 paramsBuilder().script(nested.params()).build(),
                 dataType());
     }
 
-    default ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
+    default ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
         String template = "{}";
         if (aggregate.dataType().isDateBased()) {
             template = "{sql}.asDateTime({})";
@@ -125,7 +123,7 @@ public interface ScriptWeaver {
                 dataType());
     }
 
-    default ScriptTemplate scriptWithGrouping(GroupingFunctionAttribute grouping) {
+    default ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
         String template = "{}";
         if (grouping.dataType().isDateBased()) {
             template = "{sql}.asDateTime({})";

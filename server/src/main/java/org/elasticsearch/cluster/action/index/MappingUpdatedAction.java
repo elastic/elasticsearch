@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.Mapping;
@@ -72,7 +70,7 @@ public class MappingUpdatedAction {
     public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
         client.preparePutMapping().setConcreteIndex(index).setSource(mappingUpdate.toString(), XContentType.JSON)
             .setMasterNodeTimeout(dynamicMappingUpdateTimeout).setTimeout(TimeValue.ZERO)
-            .execute(new ActionListener<AcknowledgedResponse>() {
+            .execute(new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     listener.onResponse(null);
@@ -80,12 +78,8 @@ public class MappingUpdatedAction {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(unwrapException(e));
+                    listener.onFailure(e);
                 }
             });
-    }
-
-    private static Exception unwrapException(Exception cause) {
-        return cause instanceof ElasticsearchException ? FutureUtils.unwrapEsException((ElasticsearchException) cause) : cause;
     }
 }

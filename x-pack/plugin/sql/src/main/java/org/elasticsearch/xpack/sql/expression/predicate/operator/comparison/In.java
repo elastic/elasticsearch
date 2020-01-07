@@ -119,7 +119,7 @@ public class In extends ScalarFunction {
             if (ex.foldable() == false) {
                 return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
                     Expressions.name(ex),
-                    name()));
+                    sourceText()));
             }
         }
 

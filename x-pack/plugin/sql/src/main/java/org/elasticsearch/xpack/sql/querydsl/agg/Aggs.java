@@ -10,8 +10,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -123,23 +121,16 @@ public class Aggs {
         return new Aggs(groups, simpleAggs, combine(pipelineAggs, pipelineAgg));
     }
 
-    public GroupByKey findGroupForAgg(Attribute attr) {
-        String id = attr.id().toString();
+    public GroupByKey findGroupForAgg(String groupOrAggId) {
         for (GroupByKey group : this.groups) {
-            if (id.equals(group.id())) {
+            if (groupOrAggId.equals(group.id())) {
                 return group;
-            }
-            if (attr instanceof ScalarFunctionAttribute) {
-                ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) attr;
-                if (group.script() != null && group.script().equals(sfa.script())) {
-                    return group;
-                }
             }
         }
 
         // maybe it's the default group agg ?
         for (Agg agg : simpleAggs) {
-            if (id.equals(agg.id())) {
+            if (groupOrAggId.equals(agg.id())) {
                 return IMPLICIT_GROUP_KEY;
             }
         }

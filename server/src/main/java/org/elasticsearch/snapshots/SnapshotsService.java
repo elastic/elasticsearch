@@ -364,6 +364,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .anyMatch(snapshotInfo -> (excluded == null || snapshotInfo.snapshotId().equals(excluded) == false)
                     && snapshotInfo.version().before(SHARD_GEN_IN_REPO_DATA_VERSION));
         }
+        assert hasOldFormatSnapshots == false || repositoryData.shardGenerations().totalShards() == 0 :
+            "Found non-empty shard generations [" + repositoryData.shardGenerations() + "] but repository contained old version snapshots";
         return hasOldFormatSnapshots;
     }
 

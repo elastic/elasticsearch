@@ -233,7 +233,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         boolean hasDocValues = ((GeoShapeFieldMapper)fieldMapper).fieldType().hasDocValues();
         assertTrue(hasDocValues);
 
-        // explicit false accept_z_value test
+        // explicit false doc_values
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")

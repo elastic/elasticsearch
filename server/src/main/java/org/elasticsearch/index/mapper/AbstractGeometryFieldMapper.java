@@ -116,6 +116,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
         protected Orientation orientation;
+        protected Boolean docValues;
 
         /** default builder - used for external mapper*/
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
@@ -123,12 +124,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                       boolean coerce, boolean ignoreMalformed, Orientation orientation, boolean ignoreZ) {
+                       boolean coerce, boolean ignoreMalformed, Orientation orientation, boolean ignoreZ, boolean docValues) {
             super(name, fieldType, defaultFieldType);
             this.coerce = coerce;
             this.ignoreMalformed = ignoreMalformed;
             this.orientation = orientation;
             this.ignoreZValue = ignoreZ;
+            this.docValues = docValues;
         }
 
         public Builder coerce(boolean coerce) {
@@ -188,6 +190,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public Builder ignoreZValue(final boolean ignoreZValue) {
             this.ignoreZValue = ignoreZValue;
             return this;
+        }
+
+        protected Explicit<Boolean> docValues() {
+            if (docValues != null) {
+                return new Explicit<>(docValues, true);
+            }
+            return new Explicit<>(defaultDocValues(Version.CURRENT), false);
         }
 
         @Override
@@ -365,15 +374,17 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected Explicit<Boolean> coerce;
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
+    protected Explicit<Boolean> docValues;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                          Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                                          Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
+        this.docValues = docValues;
     }
 
     @Override
@@ -388,6 +399,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
         if (gsfm.ignoreZValue.explicit()) {
             this.ignoreZValue = gsfm.ignoreZValue;
+        }
+        if (gsfm.docValues.explicit()) {
+            this.docValues = gsfm.docValues;
         }
     }
 
@@ -412,6 +426,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         if (includeDefaults || ignoreZValue.explicit()) {
             builder.field(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
         }
+        if (includeDefaults || docValues.explicit()) {
+            builder.field(TypeParsers.DOC_VALUES, docValues.value());
+        }
     }
 
     public Explicit<Boolean> coerce() {
@@ -424,6 +441,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     public Explicit<Boolean> ignoreZValue() {
         return ignoreZValue;
+    }
+
+    public Explicit<Boolean> docValues() {
+        return docValues;
     }
 
     public Orientation orientation() {

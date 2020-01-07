@@ -11,7 +11,6 @@
 * <<sql-rest-fields>>
 
 [[sql-rest-overview]]
-[float]
 === Overview
 
 The SQL REST API accepts SQL in a JSON document, executes it,
@@ -51,7 +50,6 @@ quotes (`"`) inside the query string but also support multi-line as shown below:
 image:images/sql/rest/console-triple-quotes.png[]
 
 [[sql-rest-format]]
-[float]
 === Response Data Formats
 
 While the textual format is nice for humans, computers prefer something
@@ -106,7 +104,6 @@ s|Description
 
 Here are some examples for the human readable formats:
 
-[discrete]
 ==== CSV
 
 [source,console]
@@ -132,7 +129,6 @@ James S.A. Corey,Leviathan Wakes,561,2011-06-02T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[non_json]
 
-[discrete]
 ==== JSON
 
 [source,console]
@@ -168,7 +164,6 @@ Which returns:
 --------------------------------------------------
 // TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
 
-[discrete]
 ==== TSV
 
 [source,console]
@@ -195,7 +190,6 @@ James S.A. Corey	Leviathan Wakes	561	2011-06-02T00:00:00.000Z
 // TESTRESPONSE[s/\t/ /]
 // TESTRESPONSE[non_json]
 
-[discrete]
 ==== TXT
 
 [source,console]
@@ -223,7 +217,6 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[non_json]
 
-[discrete]
 ==== YAML
 
 [source,console]
@@ -275,7 +268,6 @@ cursor: "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmB
 // TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
 
 [[sql-pagination]]
-[float]
 === Paginating through a large response
 
 Using the example above, one can continue to the next page by sending back the `cursor` field. In
@@ -339,7 +331,6 @@ Which will like return the
 
 
 [[sql-rest-filtering]]
-[float]
 === Filtering using {es} query DSL
 
 You can filter the results that SQL will run on using a standard
@@ -376,7 +367,6 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 // TESTRESPONSE[non_json]
 
 [[sql-rest-columnar]]
-[float]
 === Columnar results
 
 The most well known way of displaying the results of an SQL query result in general is the one where each
@@ -449,7 +439,6 @@ Which looks like:
 // TESTRESPONSE[s/46ToAwFzQERYRjFaWEo1UVc1a1JtVjBZMmdCQUFBQUFBQUFBQUVXWjBaNlFXbzNOV0pVY21Wa1NUZDJhV2t3V2xwblp3PT3\/\/\/\/\/DwQBZgZhdXRob3IBBHRleHQAAAFmBG5hbWUBBHRleHQAAAFmCnBhZ2VfY291bnQBBGxvbmcBAAFmDHJlbGVhc2VfZGF0ZQEIZGF0ZXRpbWUBAAEP/$body.cursor/]
 
 [[sql-rest-fields]]
-[float]
 === Supported REST parameters
 
 In addition to the `query` and `fetch_size`, a request a number of user-defined fields for specifying

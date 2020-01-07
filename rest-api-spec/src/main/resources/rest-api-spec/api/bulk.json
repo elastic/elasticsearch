@@ -90,7 +90,8 @@
       }
     },
     "body":{
-      "description":"The operation definition and data (action-data pairs), separated by newlines",
+      "type":"list",
+      "description":"The operation definition and data (action-data pairs), separated by newlines E.g. 'action\ndata\naction\naction\ndata'. In client libraries (like NodeJS) action-data pair objects should be used as array members; data is optional according to action type. E.g. '[action,data,action,action,data]'",
       "required":true,
       "serialize":"bulk"
     }

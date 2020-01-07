@@ -81,7 +81,8 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndexDescriptor.checkForOverlappingPatterns(descriptors));
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + broadPattern + "] overlaps with other system index descriptors:"));
+        assertThat(exception.getMessage(), containsString("a system index descriptor [" + broadPattern +
+            "] overlaps with other system index descriptors:"));
         assertThat(exception.getMessage(), containsString(overlapping1.toString()));
         assertThat(exception.getMessage(), containsString(overlapping2.toString()));
         assertThat(exception.getMessage(), containsString(overlapping3.toString()));

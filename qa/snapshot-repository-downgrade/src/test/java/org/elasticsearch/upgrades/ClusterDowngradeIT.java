@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -54,10 +54,10 @@ import static org.hamcrest.Matchers.is;
  * Downgrade tests that verify that a snapshot repository is not getting corrupted and continues to function properly during cluster
  * downgrades. Concretely this test suit is simulating the following scenario:
  * <ul>
- *     <li>Start from a cluster in an old version</li>
- *     <li>Upgrade the cluster to the current version</li>
- *     <li>Downgrade the cluster back to the old version</li>
- *     <li>Once again upgrade the cluster to the current version</li>
+ *     <li>Start from a cluster in an old version: {@link TestStep#OLD}</li>
+ *     <li>Upgrade the cluster to the current version: {@link TestStep#UPGRADED}</li>
+ *     <li>Downgrade the cluster back to the old version: {@link TestStep#DOWNGRADED}</li>
+ *     <li>Once again upgrade the cluster to the current version: {@link TestStep#RE_UPGRADED}</li>
  * </ul>
  * TODO: Add two more steps: delete all old version snapshots from the repository, then downgrade again and verify that the repository
  *       is not being corrupted. This requires first merging the logic for reading the min_version field in RepositoryData back to 7.6.
@@ -81,12 +81,12 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                 case "re_upgraded_cluster":
                     return RE_UPGRADED;
                 default:
-                    throw new AssertionError("unknown cluster type: " + value);
+                    throw new AssertionError("unknown test step: " + value);
             }
         }
     }
 
-    protected static final TestStep CLUSTER_TYPE = TestStep.parse(System.getProperty("tests.rest.suite"));
+    protected static final TestStep TEST_STEP = TestStep.parse(System.getProperty("tests.rest.suite"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -131,24 +131,21 @@ public class ClusterDowngradeIT extends ESRestTestCase {
     public void testCreateSnapshot() throws IOException {
         final String repoName = "repo";
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
-            if (CLUSTER_TYPE == TestStep.OLD || CLUSTER_TYPE == TestStep.DOWNGRADED) {
-                createIndex(client, "idx-1", 3);
-            }
-            if (CLUSTER_TYPE == TestStep.OLD || CLUSTER_TYPE == TestStep.DOWNGRADED) {
+            final int shards = 3;
+            if (TEST_STEP == TestStep.OLD || TEST_STEP == TestStep.DOWNGRADED) {
+                createIndex(client, "test-index", shards);
                 assertThat(client.snapshot().createRepository(new PutRepositoryRequest(repoName).type("fs").settings(
                     Settings.builder().put("location", ".")), RequestOptions.DEFAULT).isAcknowledged(), is(true));
             }
-            client.snapshot().create(
-                new CreateSnapshotRequest(repoName, "snapshot-" + CLUSTER_TYPE.toString().toLowerCase(Locale.ROOT))
-                    .waitForCompletion(true), RequestOptions.DEFAULT);
-            client.snapshot().create(
-                new CreateSnapshotRequest(repoName, "snapshot-to-delete").waitForCompletion(true), RequestOptions.DEFAULT);
-            client.snapshot().delete(new DeleteSnapshotRequest(repoName, "snapshot-to-delete"), RequestOptions.DEFAULT);
-            final List<Map<String, Object>> snapshots;
-            Response response = client.getLowLevelClient().performRequest(
-                new Request("GET", "/_snapshot/" + repoName + "/_all"));
-            snapshots = readSnapshotsList(response);
-            switch (CLUSTER_TYPE) {
+            createSnapshot(client, repoName, "snapshot-" + TEST_STEP.toString().toLowerCase(Locale.ROOT));
+            final String snapshotToDeleteName = "snapshot-to-delete";
+            // Create a snapshot and delete it right away again to test the impact of each version's cleanup functionality that is run
+            // as part of the snapshot delete
+            createSnapshot(client, repoName, snapshotToDeleteName);
+            client.snapshot().delete(new DeleteSnapshotRequest(repoName, snapshotToDeleteName), RequestOptions.DEFAULT);
+            final List<Map<String, Object>> snapshots = readSnapshotsList(
+                client.getLowLevelClient().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all")));
+            switch (TEST_STEP) {
                 case OLD:
                     assertThat(snapshots, hasSize(1));
                     break;
@@ -161,34 +158,39 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                 case RE_UPGRADED:
                     assertThat(snapshots, hasSize(4));
             }
-            final SnapshotsStatusResponse statusResponse = client.snapshot().status(
-                new SnapshotsStatusRequest(repoName, new String[]{"snapshot-old"}), RequestOptions.DEFAULT);
+            final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
+                snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)), RequestOptions.DEFAULT);
             for (SnapshotStatus status : statusResponse.getSnapshots()) {
                 assertThat(status.getShardsStats().getFailedShards(), is(0));
             }
-            if (CLUSTER_TYPE == TestStep.DOWNGRADED) {
+            if (TEST_STEP == TestStep.DOWNGRADED) {
                 wipeAllIndices();
-                final RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot().restore(
-                    new RestoreSnapshotRequest().repository(repoName).snapshot("snapshot-old").waitForCompletion(true),
-                    RequestOptions.DEFAULT);
-                assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), is(0));
-                assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), greaterThanOrEqualTo(3));
-            } else if (CLUSTER_TYPE == TestStep.RE_UPGRADED) {
+                final RestoreInfo restoreInfo = restoreSnapshot(client, repoName, "snapshot-old");
+                assertThat(restoreInfo.failedShards(), is(0));
+                assertThat(restoreInfo.successfulShards(), equalTo(shards));
+            } else if (TEST_STEP == TestStep.RE_UPGRADED) {
                 for (TestStep value : TestStep.values()) {
                     wipeAllIndices();
-                    final RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot().restore(
-                        new RestoreSnapshotRequest().repository(repoName)
-                            .snapshot("snapshot-" + value.toString().toLowerCase(Locale.ROOT)).waitForCompletion(true),
-                        RequestOptions.DEFAULT);
-                    assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), is(0));
-                    assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), greaterThanOrEqualTo(3));
+                    final RestoreInfo restoreInfo =
+                        restoreSnapshot(client, repoName, "snapshot-" + value.toString().toLowerCase(Locale.ROOT));
+                    assertThat(restoreInfo.failedShards(), is(0));
+                    assertThat(restoreInfo.successfulShards(), equalTo(shards));
                 }
             }
         }
     }
 
+    private static RestoreInfo restoreSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {
+        return client.snapshot().restore(new RestoreSnapshotRequest().repository(repoName).snapshot(name).waitForCompletion(true),
+            RequestOptions.DEFAULT).getRestoreInfo();
+    }
+
+    private static void createSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {
+        client.snapshot().create(new CreateSnapshotRequest(repoName, name).waitForCompletion(true), RequestOptions.DEFAULT);
+    }
+
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> readSnapshotsList(final Response response) throws IOException {
+    private List<Map<String, Object>> readSnapshotsList(Response response) throws IOException {
         final List<Map<String, Object>> snapshots;
         try (InputStream entity = response.getEntity().getContent();
              XContentParser parser = JsonXContent.jsonXContent.createParser(

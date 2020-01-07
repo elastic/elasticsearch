@@ -247,7 +247,7 @@ PUT _ml/data_frame/analytics/loganalytics
   }
 }
 --------------------------------------------------
-// TEST[skip:TBD]
+// TEST[setup:setup_logdata]
 
 
 The API returns the following result:
@@ -276,7 +276,7 @@ The API returns the following result:
     },
     "model_memory_limit": "1gb",
     "create_time" : 1562265491319,
-    "version" : "7.5.0",
+    "version" : "7.5.2",
     "allow_lazy_start" : false
 }
 ----

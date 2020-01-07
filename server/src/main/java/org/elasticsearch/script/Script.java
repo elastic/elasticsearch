@@ -278,7 +278,7 @@ public final class Script implements ToXContentObject, Writeable {
      * @param consumer the consumer for the script
      */
     public static <T> void declareScript(AbstractObjectParser<T, ?> parser, BiConsumer<T, Script> consumer) {
-        parser.declareField(consumer, (p, c) -> Script.parse(p), Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
+        declareScript(parser, consumer, Script.SCRIPT_PARSE_FIELD);
     }
 
     /**

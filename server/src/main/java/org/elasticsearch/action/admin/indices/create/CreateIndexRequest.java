@@ -246,7 +246,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
+     * Set the mapping for this index
      *
      * @param source The mapping source
      */
@@ -255,12 +255,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
+     * Set the mapping for this index
      *
-     * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, Map<String, ?> source) {
+    public CreateIndexRequest mapping(Map<String, ?> source) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, source);
+    }
+
+    private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);

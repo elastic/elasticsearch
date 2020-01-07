@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -123,7 +122,7 @@ public final class DataFrameAnalyticsIndex {
         properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetaData(config.getId(), clock));
-        return new CreateIndexRequest(destinationIndex, settings).mapping(MapperService.SINGLE_MAPPING_NAME, mappingsAsMap);
+        return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
     private static Settings settings(GetSettingsResponse settingsResponse) {

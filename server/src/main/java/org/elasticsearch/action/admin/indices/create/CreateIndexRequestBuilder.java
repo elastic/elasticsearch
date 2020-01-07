@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.Map;
 
@@ -128,7 +127,7 @@ public class CreateIndexRequestBuilder
      * @param source The mapping source
      */
     public CreateIndexRequestBuilder setMapping(Map<String, Object> source) {
-        request.mapping(MapperService.SINGLE_MAPPING_NAME, source);
+        request.mapping(source);
         return this;
     }
 

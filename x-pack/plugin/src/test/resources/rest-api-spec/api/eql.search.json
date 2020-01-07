@@ -21,7 +21,13 @@
         }
       ]
     },
-    "params":{},
+    "params":{
+      "wait_for_completion":{
+        "type":"boolean",
+        "default":true,
+        "description":"Should the request should block until the operation is complete."
+      }
+    },
     "body":{
       "description":"Eql request body. Use the `query` to limit the query scope.",
       "required":true

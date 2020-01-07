@@ -14,6 +14,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse> {
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
+    private final TaskManager taskManager;
 
     @Inject
     public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -34,11 +37,17 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.clusterService = clusterService;
+        this.taskManager = transportService.getTaskManager();
     }
 
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
-        operation(request, listener);
+        if (request.waitForCompletion()) {
+            operation(request, listener);
+        } else {
+            // TODO: This is for the test only - we need to create and return another task here during execution
+            listener.onResponse(new EqlSearchResponse(new TaskId(clusterService.localNode().getId(), task.getId())));
+        }
     }
 
     public static void operation(EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {

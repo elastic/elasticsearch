@@ -5,22 +5,15 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.io.IOException;
 
@@ -43,16 +36,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             eqlRequest = EqlSearchRequest.fromXContent(parser);
             eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+            eqlRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", true));
         }
 
-        return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(EqlSearchResponse response) throws Exception {
-                XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
-                response.toXContent(builder, request);
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+        return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

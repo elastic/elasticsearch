@@ -9,6 +9,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.HashMap;
@@ -32,11 +33,15 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
 
     @Override
     protected EqlSearchResponse createTestInstance() {
-        TotalHits totalHits = null;
         if (randomBoolean()) {
-            totalHits = new TotalHits(randomIntBetween(100, 1000), TotalHits.Relation.EQUAL_TO);
+            return new EqlSearchResponse(new TaskId(randomAlphaOfLength(5), randomLong()));
+        } else {
+            TotalHits totalHits = null;
+            if (randomBoolean()) {
+                totalHits = new TotalHits(randomIntBetween(100, 1000), TotalHits.Relation.EQUAL_TO);
+            }
+            return createRandomInstance(totalHits);
         }
-        return createRandomInstance(totalHits);
     }
 
     @Override

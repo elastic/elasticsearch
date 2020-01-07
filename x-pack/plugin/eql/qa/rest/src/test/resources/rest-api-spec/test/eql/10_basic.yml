@@ -25,3 +25,18 @@ setup:
   - match: {took: 0}
   - match: {hits.total.value: 0}
 
+---
+# Testing async execution
+"Execute some EQL async":
+  - do:
+      eql.search:
+        index: eql_test
+        wait_for_completion: false
+        body:
+          rule: "process where user = 'SYSTEM'"
+
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+
+
+# TODO: Add get task when task result is stored

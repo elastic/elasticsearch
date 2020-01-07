@@ -38,10 +38,13 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         "   }" +
         "}";
 
-    static String defaultTestIndex = "endgame-*";
+    private String[] defaultTestIndex;
+    private boolean waitForCompletion;
 
     @Before
     public void setup() {
+        defaultTestIndex = generateRandomStringArray(10, 10, false);
+        waitForCompletion = randomBoolean();
     }
 
     @Override
@@ -61,7 +64,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         try {
             QueryBuilder query = parseQuery(defaultTestQuery);
             EqlSearchRequest request = new EqlSearchRequest()
-                .indices(new String[]{defaultTestIndex})
+                .indices(defaultTestIndex)
                 .query(query)
                 .timestampField(randomAlphaOfLength(10))
                 .eventTypeField(randomAlphaOfLength(10))
@@ -71,6 +74,9 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
 
             if (randomBoolean()) {
                 request.searchAfter(randomJsonSearchFromBuilder());
+            }
+            if (waitForCompletion || randomBoolean()) {
+                request.waitForCompletion(waitForCompletion);
             }
             return request;
         } catch (IOException ex) {
@@ -130,7 +136,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
 
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
-        return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
+        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex).waitForCompletion(waitForCompletion);
     }
 
     public void testSizeException() {

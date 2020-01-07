@@ -41,6 +41,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private int fetchSize = 50;
     private SearchAfterBuilder searchAfterBuilder;
     private String rule;
+    private boolean waitForCompletion;
 
     static final String KEY_QUERY = "query";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
@@ -75,6 +76,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         fetchSize = in.readVInt();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         rule = in.readString();
+        waitForCompletion = in.readBoolean();
     }
 
     @Override
@@ -224,6 +226,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public boolean waitForCompletion() {
+        return this.waitForCompletion;
+    }
+
+    public EqlSearchRequest waitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -236,6 +247,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(fetchSize);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeString(rule);
+        out.writeBoolean(waitForCompletion);
     }
 
     @Override
@@ -256,7 +268,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             Objects.equals(eventTypeField, that.eventTypeField) &&
             Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
             Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
-            Objects.equals(rule, that.rule);
+            Objects.equals(rule, that.rule) &&
+            Objects.equals(waitForCompletion, that.waitForCompletion);
     }
 
     @Override
@@ -270,7 +283,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             eventTypeField,
             implicitJoinKeyField,
             searchAfterBuilder,
-            rule);
+            rule,
+            waitForCompletion);
     }
 
     @Override

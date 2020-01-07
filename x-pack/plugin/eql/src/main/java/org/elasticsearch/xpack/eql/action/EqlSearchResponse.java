@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,48 +81,83 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject {
 
-    private Hits hits;
-    private long tookInMillis;
-    private boolean isTimeout;
+    private final TaskId taskId;
+    private final Hits hits;
+    private final long tookInMillis;
+    private final boolean isTimeout;
 
     private static final class Fields {
         static final String TOOK = "took";
         static final String TIMED_OUT = "timed_out";
         static final String HITS = "hits";
+        static final String TASK = "task";
     }
 
     private static final ParseField TOOK = new ParseField(Fields.TOOK);
     private static final ParseField TIMED_OUT = new ParseField(Fields.TIMED_OUT);
     private static final ParseField HITS = new ParseField(Fields.HITS);
+    private static final ParseField TASK = new ParseField(Fields.TASK);
 
-    private static final ObjectParser<EqlSearchResponse, Void> PARSER = objectParser(EqlSearchResponse::new);
+    private static final ConstructingObjectParser<EqlSearchResponse, Void> PARSER =
+        new ConstructingObjectParser<>("eql/search_response", false,
+            args -> {
+                if (args[0] != null) {
+                    if (args[1] != null || args[2] != null || args[3] != null) {
+                        throw new IllegalArgumentException("Unexpected elements in async response");
+                    }
+                    return new EqlSearchResponse(new TaskId((String)args[0]));
+                } else {
+                    if (args[1] == null) {
+                        throw new IllegalArgumentException("Missing hits");
+                    }
+                    if (args[2] == null) {
+                        throw new IllegalArgumentException("Missing took time");
+                    }
+                    if (args[3] == null) {
+                        throw new IllegalArgumentException("Missing timeout");
+                    }
+                    return new EqlSearchResponse((Hits)args[1], (long)args[2], (boolean)args[3]);
+                }
+            });
 
-    private static <R extends EqlSearchResponse> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
-        ObjectParser<R, Void> parser = new ObjectParser<>("eql/search_response", false, supplier);
-        parser.declareLong(EqlSearchResponse::took, TOOK);
-        parser.declareBoolean(EqlSearchResponse::isTimeout, TIMED_OUT);
-        parser.declareObject(EqlSearchResponse::hits,
-            (p, c) -> Hits.fromXContent(p), HITS);
-        return parser;
+    static {
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TASK);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
+        PARSER.declareLong(ConstructingObjectParser. optionalConstructorArg(), TOOK);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), TIMED_OUT);
     }
 
-    // Constructor for parser from json
-    protected EqlSearchResponse() {
-        super();
+    public EqlSearchResponse(TaskId taskId) {
+        this.taskId = taskId;
+        this.hits = null;
+        this.tookInMillis = 0;
+        this.isTimeout = false;
     }
 
     public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout) {
-        super();
-        this.hits(hits);
+        if (hits == null) {
+            this.hits = new Hits((Events)null, null);
+        } else {
+            this.hits = hits;
+        }
+        this.taskId = null;
         this.tookInMillis = tookInMillis;
         this.isTimeout = isTimeout;
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {
         super(in);
-        tookInMillis = in.readVLong();
-        isTimeout = in.readBoolean();
-        hits = new Hits(in);
+        if (in.readBoolean()) {
+            taskId = TaskId.readFromStream(in);
+            this.hits = null;
+            this.tookInMillis = 0;
+            this.isTimeout = false;
+        } else {
+            taskId = null;
+            tookInMillis = in.readVLong();
+            isTimeout = in.readBoolean();
+            hits = new Hits(in);
+        }
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -129,51 +166,44 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(tookInMillis);
-        out.writeBoolean(isTimeout);
-        hits.writeTo(out);
+        if (taskId != null) {
+            out.writeBoolean(true);
+            taskId.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+            out.writeVLong(tookInMillis);
+            out.writeBoolean(isTimeout);
+            hits.writeTo(out);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params);
+        if (taskId != null) {
+            builder.field("task", taskId.toString());
+        } else {
+            builder.field(TOOK.getPreferredName(), tookInMillis);
+            builder.field(TIMED_OUT.getPreferredName(), isTimeout);
+            hits.toXContent(builder, params);
+        }
         return builder.endObject();
     }
 
-    private XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(TOOK.getPreferredName(), tookInMillis);
-        builder.field(TIMED_OUT.getPreferredName(), isTimeout);
-        hits.toXContent(builder, params);
-        return builder;
+    public TaskId taskId() {
+        return taskId;
     }
 
     public long took() {
         return tookInMillis;
     }
 
-    public void took(long tookInMillis) {
-        this.tookInMillis = tookInMillis;
-    }
-
     public boolean isTimeout() {
         return isTimeout;
     }
 
-    public void isTimeout(boolean isTimeout) {
-        this.isTimeout = isTimeout;
-    }
-
     public Hits hits() {
         return hits;
-    }
-
-    public void hits(Hits hits) {
-        if (hits == null) {
-            this.hits = new Hits((Events)null, null);
-        } else {
-            this.hits = hits;
-        }
     }
 
     @Override
@@ -185,14 +215,15 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return false;
         }
         EqlSearchResponse that = (EqlSearchResponse) o;
-        return Objects.equals(hits, that.hits)
+        return  Objects.equals(taskId, that.taskId) &&
+            Objects.equals(hits, that.hits)
             && Objects.equals(tookInMillis, that.tookInMillis)
             && Objects.equals(isTimeout, that.isTimeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, tookInMillis, isTimeout);
+        return Objects.hash(taskId, hits, tookInMillis, isTimeout);
     }
 
     @Override

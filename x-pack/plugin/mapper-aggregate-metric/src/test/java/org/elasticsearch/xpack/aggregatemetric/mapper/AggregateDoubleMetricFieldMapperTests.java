@@ -36,6 +36,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public static final String METRICS_FIELD = METRICS.getPreferredName();
     public static final String IGNORE_MALFORMED_FIELD = IGNORE_MALFORMED.getPreferredName();
     public static final String CONTENT_TYPE = AggregateDoubleMetricFieldMapper.CONTENT_TYPE;
+    public static final String DEFAULT_METRIC = AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC.getPreferredName();
 
     /**
      * Test parsing field mapping and adding simple field
@@ -139,7 +140,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
             .endObject().endObject()
             .endObject().endObject());
 
-        Exception e = expectThrows(MapperParsingException.class,
+        Exception e = expectThrows(IllegalArgumentException.class,
             () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping)));
         assertThat(e.getMessage(), containsString("Metric [unsupported] is not supported."));
     }
@@ -435,6 +436,137 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
         assertThat(e.getCause().getMessage(),
             containsString("failed to parse field [metric._value_count] of type [integer] in document with id '1'." +
                 " Preview of field's value: '45.43'"));
+    }
+
+    /**
+     * Test setting the default_metric explicitly
+     */
+    public void testExplicitDefaultMetric() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
+            .field(DEFAULT_METRIC, "sum")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
+        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
+        assertEquals(AggregateDoubleMetricFieldMapper.Metric.sum, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric.value());
+    }
+
+    /**
+     * Test the default_metric when not set explicitly. When only a single metric is contained, this is set as the default
+     */
+    public void testImplicitDefaultMetricSingleMetric() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"value_count"})
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
+        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
+        assertEquals(AggregateDoubleMetricFieldMapper.Metric.value_count, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric.value());
+    }
+
+    /**
+     * Test the default_metric when not set explicitly, by default we have set it to be the max.
+     */
+    public void testImplicitDefaultMetric() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"value_count", "sum", "max"})
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
+        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
+        assertEquals(AggregateDoubleMetricFieldMapper.Metric.max, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric.value());
+    }
+
+    /**
+     * Test the default_metric when not set explicitly. When more than one metrics are contained
+     * and max is not one of them, an exception should be thrown.
+     */
+    public void testMissingDefaultMetric() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
+            .endObject().endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), containsString("Property [default_metric] must be set"));
+    }
+
+    /**
+     * Test setting an invalid value for the default_metric. An exception must be thrown
+     */
+    public void testInvalidDefaultMetric() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
+            .field(DEFAULT_METRIC, "invalid_metric")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser()
+                .parse("_doc", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), containsString("Metric [invalid_metric] is not supported."));
+    }
+
+    /**
+     * Test setting a value for the default_metric that is not contained in the "metrics" field.
+     * An exception must be thrown
+     */
+    public void testUndefinedDefaultMetric() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
+            .field(DEFAULT_METRIC, "min")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser()
+                .parse("_doc", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), containsString("Metric [min] is not defined in the metrics field."));
     }
 
     @Override

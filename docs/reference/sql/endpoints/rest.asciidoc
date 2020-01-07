@@ -274,7 +274,8 @@ cursor: "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmB
 === Paginating through a large response
 
 Using the example from the <<sql-rest-format,previous section>>, one can
-continue to the next page by sending back the cursor field.
+continue to the next page by sending back the cursor field. In case of text
+format, the cursor is returned as `Cursor` http header.
 
 [source,console]
 --------------------------------------------------

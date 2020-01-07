@@ -21,13 +21,13 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -449,16 +449,15 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
-        client().prepareIndex("test").setId("1").setSource("f", 1).get();
-        DeleteResponse response = client().prepareDelete("test", "1").get();
-        long seqNo = response.getSeqNo();
-        long primaryTerm = response.getPrimaryTerm();
-        // delete is still in cache this should work
-        client().prepareIndex("test").setId("1").setSource("f", 2).setIfSeqNo(seqNo).setIfPrimaryTerm(primaryTerm).get();
+        client().prepareIndex("test").setId("1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
+        client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
+        // delete is still in cache this should fail
+        assertThrows(client().prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
+            VersionConflictEngineException.class);
+
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));
 
-        response = client().prepareDelete("test", "1").get();
-        seqNo = response.getSeqNo();
+        client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(4).get();
 
         // Make sure the time has advanced for InternalEngine#resolveDocVersion()
         for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
@@ -466,9 +465,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             assertBusy(() -> assertThat(threadPool.relativeTimeInMillis(), greaterThan(startTime)));
         }
 
-        // delete is should not be in cache
-        assertThrows(client().prepareIndex("test").setId("1").setSource("f", 3).setIfSeqNo(seqNo).setIfPrimaryTerm(primaryTerm),
-            VersionConflictEngineException.class);
+        // delete should not be in cache
+        client().prepareIndex("test").setId("1").setSource("f", 2).setVersionType(VersionType.EXTERNAL).setVersion(1);
     }
 
     public void testUpdateSettingsWithBlocks() {

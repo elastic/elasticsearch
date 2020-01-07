@@ -65,6 +65,9 @@ there>>. {ccr-cap} will not function if soft deletes are disabled.
   configured at index creation and only on indices created on or after 6.5.0.
   The default value is `true`.
 
+  deprecated::[7.6, Creating indices with soft-deletes disabled is
+  deprecated and will be removed in future Elasticsearch versions.]
+
 `index.soft_deletes.retention_lease.period`::
 
   The maximum length of time to retain a shard history retention lease before

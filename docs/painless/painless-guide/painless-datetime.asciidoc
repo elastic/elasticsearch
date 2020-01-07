@@ -45,7 +45,7 @@ datetime formatting is a switch from a complex datetime to a string datetime.
 A <<painless-api-reference-shared-DateTimeFormatter, DateTimeFormatter>> is a
 complex type (<<reference-types, object>>) that defines the allowed sequence
 of characters for a string datetime. Datetime parsing and formatting often
-requires a DateTimeFormatter. For more information about how to use a
+require a DateTimeFormatter. For more information about how to use a
 DateTimeFormatter see the
 {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html[Java documentation].
 
@@ -231,8 +231,8 @@ ZonedDateTime updatedZdt = zdt.withYear(1976);
 
 Use either two numeric datetimes or two complex datetimes to calculate the
 difference (elapsed time) between two different datetimes. Use
-<<subtraction-operator, subtraction>> to calculate the difference between
-between two numeric datetimes of the same time unit such as milliseconds. For
+<<subtraction-operator, subtraction>> to calculate the difference between two
+numeric datetimes of the same time unit such as milliseconds. For
 complex datetimes there is often a method or another complex type
 (<<reference-types, object>>) available to calculate the difference. Use
 <<painless-api-reference-shared-ChronoUnit, ChronoUnit>>
@@ -606,9 +606,9 @@ value for the current document.
 ==== Datetime Now
 
 Under most Painless contexts the current datetime, `now`, is not supported.
-There are two primary reasons for this. The first is scripts are often run once
+There are two primary reasons for this. The first is that scripts are often run once
 per document, so each time the script is run a different `now` is returned. The
-second is scripts are often run in a distributed fashion without a way to
+second is that scripts are often run in a distributed fashion without a way to
 appropriately synchronize `now`. Instead, pass in a user-defined parameter with
 either a string datetime or numeric datetime for `now`. A numeric datetime is
 preferred as there is no need to parse it for comparison.

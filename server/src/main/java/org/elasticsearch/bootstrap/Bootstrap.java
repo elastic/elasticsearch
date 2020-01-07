@@ -19,14 +19,13 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -158,6 +158,24 @@ final class Bootstrap {
         JvmInfo.jvmInfo();
     }
 
+    /**
+     * JDK 14 bug:
+     * https://github.com/elastic/elasticsearch/issues/50512
+     * We circumvent it here by loading the offending class before installing security manager.
+     *
+     * To be removed once the JDK is fixed.
+     */
+    static void fixJDK14EAFileChannelMap() {
+        // minor time-bomb here to ensure that we reevaluate if final 14 version does not include fix.
+        if (System.getProperty("java.version").equals("14-ea")) {
+            try {
+                Class.forName("jdk.internal.misc.ExtendedMapMode", true, Bootstrap.class.getClassLoader());
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException("Unable to lookup ExtendedMapMode class", e);
+            }
+        }
+    }
+
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
         Settings settings = environment.settings();
 
@@ -208,6 +226,8 @@ final class Bootstrap {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+
+        fixJDK14EAFileChannelMap();
 
         // install SM after natives, shutdown hooks, etc.
         try {

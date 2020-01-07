@@ -31,7 +31,8 @@ update or delete the job before you can delete the filter.
 ==== {api-path-parms-title}
 
 `<filter_id>`::
-  (Required, string) Identifier for the filter.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-delete-filter-example]]
 ==== {api-examples-title}

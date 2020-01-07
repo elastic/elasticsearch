@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -27,13 +28,8 @@ public class TrainedModelProviderTests extends ESTestCase {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         // Should be OK as we don't make any client calls
         trainedModelProvider.deleteTrainedModel("lang_ident_model_1", future);
-        try {
-            future.actionGet();
-            fail("Should not have succeeded in deleting model stored as resource");
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(),
-                equalTo(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_MODEL, "lang_ident_model_1")));
-        }
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_MODEL, "lang_ident_model_1")));
     }
 
     public void testPutModelThatExistsAsResource() {
@@ -41,13 +37,8 @@ public class TrainedModelProviderTests extends ESTestCase {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         trainedModelProvider.storeTrainedModel(config, future);
-        try {
-            future.actionGet();
-            fail("Should not have succeeded in putting a model that is already stored as resource");
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(),
-                equalTo(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, "lang_ident_model_1")));
-        }
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, "lang_ident_model_1")));
     }
 
     public void testGetModelThatExistsAsResource() throws Exception {
@@ -71,13 +62,9 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testGetModelThatExistsAsResourceButIsMissing() {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
-        try {
-            trainedModelProvider.loadModelFromResource("missing_model", randomBoolean());
-            fail("should not have succeeded loading a missing model from a resource");
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(),
-                equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, "missing_model")));
-        }
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> trainedModelProvider.loadModelFromResource("missing_model", randomBoolean()));
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, "missing_model")));
     }
 
     @Override

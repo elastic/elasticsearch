@@ -408,9 +408,8 @@ public class TrainedModelProvider {
             searchRequest,
             ActionListener.<SearchResponse>wrap(
                 response -> {
-                    Set<String> matchedResourceModels = matchedResourceIds(tokens);
-                    Set<String> foundResourceIds = new LinkedHashSet<>(matchedResourceModels);
-                    long totalHitCount = response.getHits().getTotalHits().value + matchedResourceModels.size();
+                    Set<String> foundResourceIds = new LinkedHashSet<>(matchedResourceIds(tokens));
+                    long totalHitCount = response.getHits().getTotalHits().value + foundResourceIds.size();
                     for (SearchHit hit : response.getHits().getHits()) {
                         Map<String, Object> docSource = hit.getSourceAsMap();
                         if (docSource == null) {

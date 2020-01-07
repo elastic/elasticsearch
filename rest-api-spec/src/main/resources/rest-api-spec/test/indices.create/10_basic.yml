@@ -123,8 +123,8 @@
 ---
 "Create index without soft deletes":
   - skip:
-      version:  " - 7.9.99"
-      reason:   "indices without soft deletes are deprecated in 8.0"
+      version:  " - 7.5.99"
+      reason:   "indices without soft deletes are deprecated in 7.6"
       features: "warnings"
 
   - do:

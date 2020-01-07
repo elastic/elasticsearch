@@ -354,6 +354,11 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Data store ID of this record.
      */
     public String getId() {
+        return buildId(jobId, timestamp, bucketSpan, detectorIndex, byFieldValue, overFieldValue, partitionFieldValue);
+    }
+
+    static String buildId(String jobId, Date timestamp, long bucketSpan, int detectorIndex,
+                          String byFieldValue, String overFieldValue, String partitionFieldValue) {
         return jobId + "_record_" + timestamp.getTime() + "_" + bucketSpan + "_" + detectorIndex + "_"
             + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
     }

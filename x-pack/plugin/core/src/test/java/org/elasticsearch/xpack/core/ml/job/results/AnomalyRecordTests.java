@@ -15,8 +15,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
 
@@ -216,5 +219,19 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testIdLength() {
+        String jobId = randomAlphaOfLength(MlStrings.ID_LENGTH_LIMIT);
+        Date timestamp = new Date(Long.MAX_VALUE);
+        long bucketSpan = Long.MAX_VALUE;
+        int detectorIndex = Integer.MAX_VALUE;
+        String byFieldValue = randomAlphaOfLength(randomIntBetween(100, 1000));
+        String overFieldValue = randomAlphaOfLength(randomIntBetween(100, 1000));
+        String partitionFieldValue = randomAlphaOfLength(randomIntBetween(100, 1000));
+
+        String id = AnomalyRecord.buildId(jobId, timestamp, bucketSpan, detectorIndex, byFieldValue, overFieldValue, partitionFieldValue);
+        // 512 comes from IndexRequest.validate()
+        assertThat(id.getBytes(StandardCharsets.UTF_8).length, lessThanOrEqualTo(512));
     }
 }

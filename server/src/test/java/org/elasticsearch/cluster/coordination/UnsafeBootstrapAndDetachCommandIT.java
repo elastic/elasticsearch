@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;
@@ -134,13 +133,9 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         }
     }
 
-    public void testBootstrapNoNodeMetaData() throws IOException {
+    public void testBootstrapNoNodeMetaData() {
         Settings envSettings = buildEnvSettings(Settings.EMPTY);
         Environment environment = TestEnvironment.newEnvironment(envSettings);
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(envSettings, environment)) {
-            NodeMetaData.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
-        }
-
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
@@ -175,7 +170,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
-        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
     public void testDetachNoClusterState() throws IOException {
@@ -189,7 +184,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
-        expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
+        expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
     public void testBootstrapAbortedByUser() throws IOException {

@@ -51,7 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -439,8 +439,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
     private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale)
         throws IOException {
         final Path nodePath = getNodePath(shardPath);
-        final NodeMetaData nodeMetaData =
-            NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodePath);
+        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(nodePath);
 
         if (nodeMetaData == null) {
             throw new ElasticsearchException("No node meta data at " + nodePath);
@@ -463,7 +462,8 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     private Path getNodePath(ShardPath shardPath) {
         final Path nodePath = shardPath.getDataPath().getParent().getParent().getParent();
-        if (Files.exists(nodePath) == false || Files.exists(nodePath.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+        if (Files.exists(nodePath) == false ||
+            Files.exists(nodePath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {
             throw new ElasticsearchException("Unable to resolve node path for " + shardPath);
         }
         return nodePath;

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
@@ -67,6 +68,11 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
             nodePaths = nodeEnvironment.nodeDataPaths();
+            final String nodeId = randomAlphaOfLength(10);
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
+                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE, true).createWriter()) {
+                writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
+            }
         }
         dataNoMasterSettings = Settings.builder()
             .put(dataMasterSettings)

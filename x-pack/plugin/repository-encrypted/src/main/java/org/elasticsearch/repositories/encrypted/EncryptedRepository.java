@@ -6,6 +6,8 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -16,7 +18,13 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -57,6 +65,17 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.dataEncryptionKeyGenerator.init(DEK_KEY_SIZE_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
         this.metadataEncryptor = metadataEncryptor;
         this.secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
+    }
+
+    @Override
+    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                              ActionListener<String> listener) {
+        if (EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
+            super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
+        } else {
+            listener.onFailure(LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
+        }
     }
 
     @Override

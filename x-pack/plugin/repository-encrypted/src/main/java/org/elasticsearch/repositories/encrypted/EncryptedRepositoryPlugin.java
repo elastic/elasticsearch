@@ -15,19 +15,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +40,8 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
     static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
 
     private final Map<String, char[]> cachedRepositoryPasswords = new HashMap<>();
+
+    protected static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public EncryptedRepositoryPlugin(Settings settings) {
         // cache the passwords for all encrypted repositories during plugin instantiation
@@ -73,6 +71,9 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
 
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
+                if (false == getLicenseState().isEncryptedRepositoryAllowed()) {
+                    throw LicenseUtils.newComplianceException(REPOSITORY_TYPE_NAME + " snapshot repository");
+                }
                 String delegateType = DELEGATE_TYPE.get(metaData.settings());
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");

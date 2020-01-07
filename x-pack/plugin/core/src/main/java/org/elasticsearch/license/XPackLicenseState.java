@@ -528,6 +528,25 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if creating and using an encrypted repository is available based on the current license.
+     */
+    public synchronized boolean isEncryptedRepositoryAllowed() {
+        Status localStatus = status;
+
+        if (localStatus.active == false) {
+            return false;
+        }
+
+        switch (localStatus.mode) {
+            case TRIAL:
+            case PLATINUM:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
      * Monitoring is always available as long as there is a valid license
      *
      * @return true if the license is active

@@ -19,31 +19,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker.DockerShell;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
@@ -78,6 +53,33 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Docker.DockerShell;
+import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 public class DockerTests extends PackagingTestCase {
     protected DockerShell sh;
@@ -134,7 +136,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test020PluginsListWithNoPlugins() {
         final Installation.Executables bin = installation.executables();
-        final Result r = sh.run(bin.elasticsearchPlugin + " list");
+        final Result r = sh.run(bin.pluginTool + " list");
 
         assertThat("Expected no plugins to be listed", r.stdout, emptyString());
     }
@@ -152,9 +154,9 @@ public class DockerTests extends PackagingTestCase {
         // Move the auto-created one out of the way, or else the CLI prompts asks us to confirm
         sh.run("mv " + keystorePath + " " + keystorePath + ".bak");
 
-        sh.run(bin.elasticsearchKeystore + " create");
+        sh.run(bin.keystoreTool + " create");
 
-        final Result r = sh.run(bin.elasticsearchKeystore + " list");
+        final Result r = sh.run(bin.keystoreTool + " list");
         assertThat(r.stdout, containsString("keystore.seed"));
     }
 
@@ -169,7 +171,7 @@ public class DockerTests extends PackagingTestCase {
         assertPermissionsAndOwnership(keystorePath, p660);
 
         final Installation.Executables bin = installation.executables();
-        final Result result = sh.run(bin.elasticsearchKeystore + " list");
+        final Result result = sh.run(bin.keystoreTool + " list");
         assertThat(result.stdout, containsString("keystore.seed"));
     }
 
@@ -392,6 +394,27 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that environment variables are translated to -E options even for commands invoked under
+     * `docker exec`, where the Docker image's entrypoint is not executed.
+     */
+    public void test83EnvironmentVariablesAreRespectedUnderDockerExec() {
+        // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
+        // tool in question is only in the default distribution.
+        assumeTrue(distribution.isDefault());
+
+        runContainer(distribution(), null, Collections.singletonMap("http.host", "this.is.not.valid"));
+
+        // This will fail if the env var above is passed as a -E argument
+        final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
+
+        assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
+        assertThat(
+            result.stdout,
+            containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known")
+        );
+    }
+
+    /**
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */
@@ -403,11 +426,11 @@ public class DockerTests extends PackagingTestCase {
         if (distribution().isDefault()) {
             assertTrue(existsInContainer(securityCli));
 
-            Result result = sh.run(bin.elasticsearchCertutil + " --help");
+            Result result = sh.run(bin.certutilTool + " --help");
             assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
             // Ensure that the exit code from the java command is passed back up through the shell script
-            result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
+            result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
             assertThat(result.isSuccess(), is(false));
             assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
         } else {
@@ -421,7 +444,7 @@ public class DockerTests extends PackagingTestCase {
     public void test091ElasticsearchShardCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
-        final Result result = sh.run(bin.elasticsearchShard + " -h");
+        final Result result = sh.run(bin.shardTool + " -h");
         assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
     }
 
@@ -431,7 +454,7 @@ public class DockerTests extends PackagingTestCase {
     public void test092ElasticsearchNodeCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
-        final Result result = sh.run(bin.elasticsearchNode + " -h");
+        final Result result = sh.run(bin.nodeTool + " -h");
         assertThat(
             "Failed to find expected message about the elasticsearch-node CLI tool",
             result.stdout,

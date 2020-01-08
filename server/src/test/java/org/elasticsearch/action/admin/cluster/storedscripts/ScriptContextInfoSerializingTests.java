@@ -56,7 +56,10 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
     }
 
     private static ScriptContextInfo mutate(ScriptContextInfo instance, Set<String> names) {
-        if (names == null) { names = new HashSet<>(); }
+        if (names == null) {
+            names = new HashSet<>();
+            names.add(instance.name);
+        }
         switch (randomIntBetween(0, 2)) {
             case 0:
                 return new ScriptContextInfo(

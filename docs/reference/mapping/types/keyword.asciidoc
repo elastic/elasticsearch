@@ -4,8 +4,8 @@
 <titleabbrev>Keyword</titleabbrev>
 ++++
 
-A field to index structured content such as email addresses, hostnames, status
-codes, zip codes or tags.
+A field to index structured content such as IDs, email addresses, hostnames,
+status codes, zip codes or tags.
 
 They are typically used for filtering (_Find me all blog posts where
 ++status++ is ++published++_), for sorting, and for aggregations. Keyword
@@ -29,6 +29,12 @@ PUT my_index
   }
 }
 --------------------------------
+
+[TIP]
+.Mapping numeric identifiers
+====
+include::numeric.asciidoc[tag=map-ids-as-keyword]
+====
 
 [[keyword-params]]
 ==== Parameters for keyword fields

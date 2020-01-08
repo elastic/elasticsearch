@@ -206,7 +206,7 @@ public final class GeoJson {
         return builder.endObject();
     }
 
-    private static ConstructingObjectParser<Geometry, GeoJson> PARSER =
+    private static final ConstructingObjectParser<Geometry, GeoJson> PARSER =
         new ConstructingObjectParser<>("geojson", true, (a, c) -> {
             String type = (String) a[0];
             CoordinateNode coordinates = (CoordinateNode) a[1];
@@ -382,17 +382,17 @@ public final class GeoJson {
         return geometry.visit(new GeometryVisitor<String, RuntimeException>() {
             @Override
             public String visit(Circle circle) {
-                return "circle";
+                return "Circle";
             }
 
             @Override
             public String visit(GeometryCollection<?> collection) {
-                return "geometrycollection";
+                return "GeometryCollection";
             }
 
             @Override
             public String visit(Line line) {
-                return "linestring";
+                return "LineString";
             }
 
             @Override
@@ -402,32 +402,32 @@ public final class GeoJson {
 
             @Override
             public String visit(MultiLine multiLine) {
-                return "multilinestring";
+                return "MultiLineString";
             }
 
             @Override
             public String visit(MultiPoint multiPoint) {
-                return "multipoint";
+                return "MultiPoint";
             }
 
             @Override
             public String visit(MultiPolygon multiPolygon) {
-                return "multipolygon";
+                return "MultiPolygon";
             }
 
             @Override
             public String visit(Point point) {
-                return "point";
+                return "Point";
             }
 
             @Override
             public String visit(Polygon polygon) {
-                return "polygon";
+                return "Polygon";
             }
 
             @Override
             public String visit(Rectangle rectangle) {
-                return "envelope";
+                return "Envelope";
             }
         });
     }

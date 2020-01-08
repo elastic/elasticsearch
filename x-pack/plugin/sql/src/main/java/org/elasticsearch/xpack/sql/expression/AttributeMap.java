@@ -32,14 +32,14 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
         @Override
         public int hashCode() {
-            return attr.hashCode();
+            return attr.semanticHash();
         }
 
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof AttributeWrapper) {
                 AttributeWrapper aw = (AttributeWrapper) obj;
-                return attr.equals(aw.attr);
+                return attr.semanticEquals(aw.attr);
             }
 
             return false;

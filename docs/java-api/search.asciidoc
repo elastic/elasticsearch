@@ -43,7 +43,7 @@ For more information on the search operation, check out the REST
 [[java-search-scrolling]]
 === Using scrolls in Java
 
-Read the {ref}/search-request-scroll.html[scroll documentation]
+Read the {ref}/search-request-body.html#request-body-search-scroll[scroll documentation]
 first!
 
 [source,java]

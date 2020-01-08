@@ -28,6 +28,8 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.time.Clock;
 import java.util.Collections;
@@ -82,7 +84,7 @@ public final class DataFrameAnalyticsIndex {
     }
 
     private static void prepareCreateIndexRequest(Client client, Clock clock, DataFrameAnalyticsConfig config,
-                                                         ActionListener<CreateIndexRequest> listener) {
+                                                  ActionListener<CreateIndexRequest> listener) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
         ActionListener<ImmutableOpenMap<String, MappingMetaData>> mappingsListener = ActionListener.wrap(
@@ -103,12 +105,13 @@ public final class DataFrameAnalyticsIndex {
             listener::onFailure
         );
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
-        getSettingsRequest.indices(config.getSource().getIndex());
-        getSettingsRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        getSettingsRequest.names(PRESERVED_SETTINGS);
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, GetSettingsAction.INSTANCE,
-            getSettingsRequest, getSettingsResponseListener);
+        GetSettingsRequest getSettingsRequest =
+            new GetSettingsRequest()
+                .indices(config.getSource().getIndex())
+                .indicesOptions(IndicesOptions.lenientExpandOpen())
+                .names(PRESERVED_SETTINGS);
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(), ML_ORIGIN, client, GetSettingsAction.INSTANCE, getSettingsRequest, getSettingsResponseListener);
     }
 
     private static CreateIndexRequest createIndexRequest(Clock clock, DataFrameAnalyticsConfig config, Settings settings,
@@ -119,8 +122,11 @@ public final class DataFrameAnalyticsIndex {
         String destinationIndex = config.getDest().getIndex();
         String type = mappings.keysIt().next();
         Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
-        addProperties(mappingsAsMap);
-        addMetaData(mappingsAsMap, config.getId(), clock);
+        Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
+        checkResultsFieldIsNotPresentInProperties(config, properties);
+        properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
+        Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
+        metadata.putAll(createMetaData(config.getId(), clock));
         return new CreateIndexRequest(destinationIndex, settings).mapping(type, mappingsAsMap);
     }
 
@@ -154,21 +160,32 @@ public final class DataFrameAnalyticsIndex {
         return maxValue;
     }
 
-    private static void addProperties(Map<String, Object> mappingsAsMap) {
-        Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
+    private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config, Map<String, Object> mappingsProperties) {
+        Map<String, Object> properties = new HashMap<>();
         Map<String, String> idCopyMapping = new HashMap<>();
         idCopyMapping.put("type", "keyword");
         properties.put(ID_COPY, idCopyMapping);
+        for (Map.Entry<String, String> entry
+                : config.getAnalysis().getExplicitlyMappedFields(config.getDest().getResultsField()).entrySet()) {
+            String destFieldPath = entry.getKey();
+            String sourceFieldPath = entry.getValue();
+            Object sourceFieldMapping = mappingsProperties.get(sourceFieldPath);
+            if (sourceFieldMapping != null) {
+                properties.put(destFieldPath, sourceFieldMapping);
+            }
+        }
+        return properties;
     }
 
-    private static void addMetaData(Map<String, Object> mappingsAsMap, String analyticsId, Clock clock) {
-        Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
+    private static Map<String, Object> createMetaData(String analyticsId, Clock clock) {
+        Map<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
         metadata.put(CREATED_BY, "data-frame-analytics");
         Map<String, Version> versionMapping = new HashMap<>();
         versionMapping.put(CREATED, Version.CURRENT);
         metadata.put(VERSION, versionMapping);
         metadata.put(ANALYTICS, analyticsId);
+        return metadata;
     }
 
     @SuppressWarnings("unchecked")
@@ -181,22 +198,45 @@ public final class DataFrameAnalyticsIndex {
         return value;
     }
 
-    public static void updateMappingsToDestIndex(Client client, DataFrameAnalyticsConfig analyticsConfig, GetIndexResponse getIndexResponse,
+    @SuppressWarnings("unchecked")
+    public static void updateMappingsToDestIndex(Client client, DataFrameAnalyticsConfig config, GetIndexResponse getIndexResponse,
                                                  ActionListener<AcknowledgedResponse> listener) {
         // We have validated the destination index should match a single index
         assert getIndexResponse.indices().length == 1;
 
+        // Fetch mappings from destination index
         ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.getMappings().get(getIndexResponse.indices()[0]);
         String type = mappings.keysIt().next();
+        Map<String, Object> destMappingsAsMap = mappings.valuesIt().next().sourceAsMap();
+        Map<String, Object> destPropertiesAsMap =
+            (Map<String, Object>)destMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
 
-        Map<String, Object> addedMappings = Collections.singletonMap(PROPERTIES,
-            Collections.singletonMap(ID_COPY, Collections.singletonMap("type", "keyword")));
+        // Verify that the results field does not exist in the dest index
+        checkResultsFieldIsNotPresentInProperties(config, destPropertiesAsMap);
 
-        PutMappingRequest putMappingRequest = new PutMappingRequest(getIndexResponse.indices());
-        putMappingRequest.type(type);
-        putMappingRequest.source(addedMappings);
-        ClientHelper.executeWithHeadersAsync(analyticsConfig.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE,
-            putMappingRequest, listener);
+        // Determine mappings to be added to the destination index
+        Map<String, Object> addedMappings =
+            Collections.singletonMap(PROPERTIES, createAdditionalMappings(config, Collections.unmodifiableMap(destPropertiesAsMap)));
+
+        // Add the mappings to the destination index
+        PutMappingRequest putMappingRequest =
+            new PutMappingRequest(getIndexResponse.indices())
+                .type(type)
+                .source(addedMappings);
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE, putMappingRequest, listener);
+    }
+
+    private static void checkResultsFieldIsNotPresentInProperties(DataFrameAnalyticsConfig config, Map<String, Object> properties) {
+        String resultsField = config.getDest().getResultsField();
+        if (properties.containsKey(resultsField)) {
+            throw ExceptionsHelper.badRequestException(
+                "A field that matches the {}.{} [{}] already exists; please set a different {}",
+                DataFrameAnalyticsConfig.DEST.getPreferredName(),
+                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
+                resultsField,
+                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
+        }
     }
 }
 

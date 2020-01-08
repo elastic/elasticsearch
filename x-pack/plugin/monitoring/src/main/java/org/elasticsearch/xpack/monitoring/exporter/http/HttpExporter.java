@@ -76,6 +76,20 @@ public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
 
+    private static Setting.AffixSettingDependency TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
+        @Override
+        public Setting.AffixSetting getSetting() {
+            return Exporter.TYPE_SETTING;
+        }
+
+        @Override
+        public void validate(final String key, final Object value, final Object dependency) {
+            if (TYPE.equals(dependency) == false) {
+                throw new SettingsException("[" + key + "] is set but type is [" + dependency + "]");
+            }
+        }
+    };
+
     /**
      * A string array representing the Elasticsearch node(s) to communicate with over HTTP(S).
      */
@@ -109,9 +123,6 @@ public class HttpExporter extends Exporter {
                                 } else {
                                     throw new SettingsException("host list for [" + key + "] is empty but type is [" + type + "]");
                                 }
-                            } else if ("http".equals(type) == false) {
-                                // the hosts can only be non-empty if the type is "http"
-                                throw new SettingsException("host list for [" + key + "] is set but type is [" + type + "]");
                             }
 
                             boolean httpHostFound = false;
@@ -127,7 +138,7 @@ public class HttpExporter extends Exporter {
                                     throw new SettingsException("[" + key + "] invalid host: [" + host + "]", e);
                                 }
 
-                                if ("http".equals(httpHost.getSchemeName())) {
+                                if (TYPE.equals(httpHost.getSchemeName())) {
                                     httpHostFound = true;
                                 } else {
                                     httpsHostFound = true;
@@ -151,26 +162,31 @@ public class HttpExporter extends Exporter {
 
                     },
                     Property.Dynamic,
-                    Property.NodeScope));
+                    Property.NodeScope),
+                TYPE_DEPENDENCY);
 
     /**
      * Master timeout associated with bulk requests.
      */
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Timeout used for initiating a connection.
      */
     public static final Setting.AffixSetting<TimeValue> CONNECTION_TIMEOUT_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","connection.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "connection.timeout",
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Timeout used for reading from the connection.
      */
     public static final Setting.AffixSetting<TimeValue> CONNECTION_READ_TIMEOUT_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","connection.read_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "connection.read_timeout",
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Username for basic auth.
      */
@@ -180,12 +196,12 @@ public class HttpExporter extends Exporter {
                         key,
                         new Setting.Validator<String>() {
                             @Override
-                            public void validate(String password) {
+                            public void validate(final String password) {
                                  // no username validation that is independent of other settings
                             }
 
                             @Override
-                            public void validate(String username, Map<Setting<?>, Object> settings) {
+                            public void validate(final String username, final Map<Setting<?>, Object> settings) {
                                 final String namespace =
                                     HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
                                         HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
@@ -200,6 +216,11 @@ public class HttpExporter extends Exporter {
                                             "but [" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] is " +
                                             "missing");
                                     }
+                                    final String type =
+                                        (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                                    if ("http".equals(type) == false) {
+                                        throw new SettingsException("username for [" + key + "] is set but type is [" + type + "]");
+                                    }
                                 }
                             }
 
@@ -208,7 +229,9 @@ public class HttpExporter extends Exporter {
                                 final String namespace =
                                     HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
                                         HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
-                                final List<Setting<?>> settings = Collections.singletonList(
+
+                                final List<Setting<?>> settings = Arrays.asList(
+                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace),
                                     HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace));
                                 return settings.iterator();
                             }
@@ -216,7 +239,8 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope,
-                        Property.Filtered));
+                        Property.Filtered),
+                    TYPE_DEPENDENCY);
     /**
      * Password for basic auth.
      */
@@ -260,15 +284,19 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope,
-                        Property.Filtered));
+                        Property.Filtered),
+                    TYPE_DEPENDENCY);
     /**
      * The SSL settings.
      *
      * @see SSLService
      */
     public static final Setting.AffixSetting<Settings> SSL_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","ssl",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered));
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "ssl",
+                (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered),
+                TYPE_DEPENDENCY);
     /**
      * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
      */
@@ -287,19 +315,37 @@ public class HttpExporter extends Exporter {
                             }
                         },
                         Property.Dynamic,
-                        Property.NodeScope));
+                        Property.NodeScope),
+                    TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */
     public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","sniff.enabled",
-                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
     public static final Setting.AffixSetting<Settings> HEADERS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","headers",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.groupSetting(
+                        key + ".",
+                        settings -> {
+                            final Set<String> names = settings.names();
+                            for (String name : names) {
+                                final String fullSetting = key + "." + name;
+                                if (HttpExporter.BLACKLISTED_HEADERS.contains(name)) {
+                                    throw new SettingsException("header cannot be overwritten via [" + fullSetting + "]");
+                                }
+                                final List<String> values = settings.getAsList(name);
+                                if (values.isEmpty()) {
+                                    throw new SettingsException("headers must have values, missing for setting [" + fullSetting + "]");
+                                }
+                            }
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope),
+                    TYPE_DEPENDENCY);
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
@@ -311,19 +357,19 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable whether to create placeholders for the old templates.
      */
     public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
     public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
 
     /**
      * Minimum supported version of the remote monitoring cluster (same major).

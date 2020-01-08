@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -31,11 +22,99 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 /**
  * Data structure for license. Use {@link Builder} to build a license.
  * Provides serialization/deserialization &amp; validation methods for license object
  */
 public class License implements ToXContentObject {
+
+    public enum LicenseType {
+        BASIC,
+        STANDARD,
+        GOLD,
+        PLATINUM,
+        ENTERPRISE,
+        TRIAL;
+
+        public String getTypeName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static LicenseType parse(String type) throws IllegalArgumentException {
+            try {
+                return LicenseType.valueOf(type.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("unrecognised license type [ " + type + "], supported license types are ["
+                    + Stream.of(values()).map(LicenseType::getTypeName).collect(Collectors.joining(",")) + "]");
+            }
+        }
+
+        /**
+         * Backward compatible license type parsing for older license models
+         */
+        public static LicenseType resolve(License license) {
+            if (license.version == VERSION_START) {
+                // in 1.x: the acceptable values for 'subscription_type': none | dev | silver | gold | platinum
+                return resolve(license.subscriptionType);
+            } else {
+                // in 2.x: the acceptable values for 'type': trial | basic | silver | dev | gold | platinum
+                // in 5.x: the acceptable values for 'type': trial | basic | standard | dev | gold | platinum
+                // in 6.x: the acceptable values for 'type': trial | basic | standard | dev | gold | platinum
+                // in 7.x: the acceptable values for 'type': trial | basic | standard | dev | gold | platinum | enterprise
+                return resolve(license.type);
+            }
+        }
+
+        /**
+         * Backward compatible license type parsing for older license models
+         */
+        static LicenseType resolve(String name) {
+            switch (name.toLowerCase(Locale.ROOT)) {
+                case "missing":
+                    return null;
+                case "trial":
+                case "none": // bwc for 1.x subscription_type field
+                case "dev": // bwc for 1.x subscription_type field
+                case "development": // bwc for 1.x subscription_type field
+                    return TRIAL;
+                case "basic":
+                    return BASIC;
+                case "standard":
+                    return STANDARD;
+                case "silver":
+                case "gold":
+                    return GOLD;
+                case "platinum":
+                case "cloud_internal":
+                case "internal": // bwc for 1.x subscription_type field
+                    return PLATINUM;
+                case "enterprise":
+                    return ENTERPRISE;
+                default:
+                    throw new IllegalArgumentException("unknown license type [" + name + "]");
+            }
+        }
+
+        static boolean isBasic(String typeName) {
+            return BASIC.getTypeName().equals(typeName);
+        }
+
+        static boolean isTrial(String typeName) {
+            return TRIAL.getTypeName().equals(typeName);
+        }
+    }
+
     public static final int VERSION_START = 1;
     public static final int VERSION_NO_FEATURE_TYPE = 2;
     public static final int VERSION_START_DATE = 3;
@@ -49,6 +128,12 @@ public class License implements ToXContentObject {
      * and in a human readable format
      */
     public static final String REST_VIEW_MODE = "rest_view";
+    /**
+     * XContent param name to map the "enterprise" license type to "platinum"
+     * for backwards compatibility with older clients
+     */
+    public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
+
     /**
      * XContent param name to deserialize license(s) with
      * no signature
@@ -102,28 +187,44 @@ public class License implements ToXContentObject {
             return Integer.compare(opMode1.id, opMode2.id);
         }
 
-        public static OperationMode resolve(String type) {
-            switch (type.toLowerCase(Locale.ROOT)) {
-                case "missing":
-                    return MISSING;
-                case "trial":
-                case "none": // bwc for 1.x subscription_type field
-                case "dev": // bwc for 1.x subscription_type field
-                case "development": // bwc for 1.x subscription_type field
-                    return TRIAL;
-                case "basic":
+        /**
+         * Determine the operating mode for a license type
+         * @see LicenseType#resolve(License)
+         * @see #parse(String)
+         */
+        public static OperationMode resolve(LicenseType type) {
+            if (type == null) {
+                return MISSING;
+            }
+            switch (type) {
+                case BASIC:
                     return BASIC;
-                case "standard":
+                case STANDARD:
                     return STANDARD;
-                case "silver":
-                case "gold":
+                case GOLD:
                     return GOLD;
-                case "platinum":
-                case "cloud_internal":
-                case "internal": // bwc for 1.x subscription_type field
+                case PLATINUM:
+                case ENTERPRISE: // TODO Add an explicit enterprise operating mode
                     return PLATINUM;
+                case TRIAL:
+                    return TRIAL;
                 default:
-                    throw new IllegalArgumentException("unknown type [" + type + "]");
+                    throw new IllegalArgumentException("unsupported license type [" + type.getTypeName() + "]");
+            }
+        }
+
+        /**
+         * Parses an {@code OperatingMode} from a String.
+         * The string must name an operating mode, and not a licensing level (that is, it cannot parse old style license levels
+         * such as "dev" or "silver").
+         * @see #description()
+         */
+        public static OperationMode parse(String mode) {
+            try {
+                return OperationMode.valueOf(mode.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("unrecognised license operating mode [ " + mode + "], supported modes are ["
+                    + Stream.of(values()).map(OperationMode::description).collect(Collectors.joining(",")) + "]");
             }
         }
 
@@ -152,13 +253,7 @@ public class License implements ToXContentObject {
         }
         this.maxNodes = maxNodes;
         this.startDate = startDate;
-        if (version == VERSION_START) {
-            // in 1.x: the acceptable values for 'subscription_type': none | dev | silver | gold | platinum
-            this.operationMode = OperationMode.resolve(subscriptionType);
-        } else {
-            // in 2.x: the acceptable values for 'type': trial | basic | silver | dev | gold | platinum
-            this.operationMode = OperationMode.resolve(type);
-        }
+        this.operationMode = OperationMode.resolve(LicenseType.resolve(this));
         validate();
     }
 
@@ -301,7 +396,7 @@ public class License implements ToXContentObject {
             throw new IllegalStateException("maxNodes has to be set");
         } else if (expiryDate == -1) {
             throw new IllegalStateException("expiryDate has to be set");
-        } else if (expiryDate == LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && "basic".equals(type) == false) {
+        } else if (expiryDate == LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && LicenseType.isBasic(type) == false) {
             throw new IllegalStateException("only basic licenses are allowed to have no expiration");
         }
     }
@@ -377,6 +472,7 @@ public class License implements ToXContentObject {
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         boolean licenseSpecMode = params.paramAsBoolean(LICENSE_SPEC_VIEW_MODE, false);
         boolean restViewMode = params.paramAsBoolean(REST_VIEW_MODE, false);
+        boolean hideEnterprise = params.paramAsBoolean(XCONTENT_HIDE_ENTERPRISE, false);
         boolean previouslyHumanReadable = builder.humanReadable();
         if (licenseSpecMode && restViewMode) {
             throw new IllegalArgumentException("can have either " + REST_VIEW_MODE + " or " + LICENSE_SPEC_VIEW_MODE);
@@ -395,7 +491,10 @@ public class License implements ToXContentObject {
             builder.field(Fields.STATUS, status().label());
         }
         builder.field(Fields.UID, uid);
-        builder.field(Fields.TYPE, type);
+
+        final String bwcType = hideEnterprise && "enterprise".equals(type) ? "platinum" : type;
+        builder.field(Fields.TYPE, bwcType);
+
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
@@ -689,6 +788,10 @@ public class License implements ToXContentObject {
             return this;
         }
 
+        public Builder type(LicenseType type) {
+            return type(type.getTypeName());
+        }
+
         public Builder type(String type) {
             this.type = type;
             return this;
@@ -778,6 +881,7 @@ public class License implements ToXContentObject {
             }
             return this;
         }
+
     }
 
 }

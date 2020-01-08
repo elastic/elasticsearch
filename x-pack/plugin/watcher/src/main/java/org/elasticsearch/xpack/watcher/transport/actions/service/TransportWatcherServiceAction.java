@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,6 +34,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherSer
 import java.io.IOException;
 
 public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
 
     private AckedRequest ackedRequest = new AckedRequest() {
         @Override

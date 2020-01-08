@@ -1,19 +1,4 @@
 ---
-"Test get-all given no trained models exist":
-
-  - do:
-      ml.get_trained_models:
-        model_id: "_all"
-  - match: { count: 0 }
-  - match: { trained_model_configs: [] }
-
-  - do:
-      ml.get_trained_models:
-        model_id: "*"
-  - match: { count: 0 }
-  - match: { trained_model_configs: [] }
-
----
 "Test get given missing trained model":
 
   - do:
@@ -111,3 +96,11 @@
       catch: conflict
       ml.delete_trained_model:
         model_id: "used-regression-model"
+---
+"Test get pre-packaged trained models":
+  - do:
+      ml.get_trained_models:
+        model_id: "_all"
+        allow_no_match: false
+  - match: { count: 1 }
+  - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }

@@ -92,7 +92,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
-    private static final Logger LOGGER = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -253,7 +253,7 @@ public class TransportStartDataFrameAnalyticsAction
                         toValidateMappingsListener.onResponse(startContext);
                         break;
                     case FINISHED:
-                        LOGGER.info("[{}] Job has already finished", startContext.config.getId());
+                        logger.info("[{}] Job has already finished", startContext.config.getId());
                         finalListener.onFailure(ExceptionsHelper.badRequestException(
                             "Cannot start because the job has already finished"));
                         break;
@@ -275,8 +275,7 @@ public class TransportStartDataFrameAnalyticsAction
                 new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(startContext.config);
 
                 // Validate extraction is possible
-                boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
-                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, isTaskRestarting, ActionListener.wrap(
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, ActionListener.wrap(
                     extractedFieldsDetector -> {
                         startContext.extractedFields = extractedFieldsDetector.detect().v1();
                         toValidateDestEmptyListener.onResponse(startContext);
@@ -477,7 +476,7 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onFailure(Exception e) {
-                    LOGGER.error("[" + persistentTask.getParams().getId() + "] Failed to cancel persistent task that could " +
+                    logger.error("[" + persistentTask.getParams().getId() + "] Failed to cancel persistent task that could " +
                         "not be assigned due to [" + exception.getMessage() + "]", e);
                     listener.onFailure(exception);
                 }
@@ -553,7 +552,7 @@ public class TransportStartDataFrameAnalyticsAction
             if (unavailableIndices.size() != 0) {
                 String reason = "Not opening data frame analytics job [" + id +
                     "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";
-                LOGGER.debug(reason);
+                logger.debug(reason);
                 return new PersistentTasksCustomMetaData.Assignment(null, reason);
             }
 
@@ -563,7 +562,7 @@ public class TransportStartDataFrameAnalyticsAction
                 if (scheduledRefresh) {
                     String reason = "Not opening data frame analytics job [" + id +
                         "] because job memory requirements are stale - refresh requested";
-                    LOGGER.debug(reason);
+                    logger.debug(reason);
                     return new PersistentTasksCustomMetaData.Assignment(null, reason);
                 }
             }
@@ -579,7 +578,7 @@ public class TransportStartDataFrameAnalyticsAction
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, StartDataFrameAnalyticsAction.TaskParams params,
                                      PersistentTaskState state) {
-            LOGGER.info("[{}] Starting data frame analytics", params.getId());
+            logger.info("[{}] Starting data frame analytics", params.getId());
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
 
             // If we are "stopping" there is nothing to do

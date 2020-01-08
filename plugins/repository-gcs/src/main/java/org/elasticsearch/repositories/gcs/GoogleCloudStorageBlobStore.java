@@ -315,19 +315,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
-     * Deletes the blob from the specific bucket
-     *
-     * @param blobName name of the blob
-     */
-    void deleteBlob(String blobName) throws IOException {
-        final BlobId blobId = BlobId.of(bucketName, blobName);
-        final boolean deleted = SocketAccess.doPrivilegedIOException(() -> client().delete(blobId));
-        if (deleted == false) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
-    }
-
-    /**
      * Deletes the given path and all its children.
      *
      * @param pathStr Name of path to delete
@@ -403,5 +390,4 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         assert s != null;
         return keyPath + s;
     }
-
 }

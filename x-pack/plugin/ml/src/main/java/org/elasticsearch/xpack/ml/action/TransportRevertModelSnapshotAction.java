@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -40,6 +42,8 @@ import java.util.function.Consumer;
 
 public class TransportRevertModelSnapshotAction extends TransportMasterNodeAction<RevertModelSnapshotAction.Request,
         RevertModelSnapshotAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportRevertModelSnapshotAction.class);
 
     private final Client client;
     private final JobManager jobManager;
@@ -166,7 +170,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         return ActionListener.wrap(response -> {
             jobResultsProvider.dataCounts(jobId, counts -> {
                 counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
+                jobDataCountsPersister.persistDataCountsAsync(jobId, counts, new ActionListener<Boolean>() {
                     @Override
                     public void onResponse(Boolean aBoolean) {
                         listener.onResponse(response);

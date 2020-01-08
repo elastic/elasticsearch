@@ -188,7 +188,7 @@ namespace in `elasticsearch.yml`. For example:
 ----------------------------------------
 xpack.security.authc.realms:
 
-    native.realm1:
+    native.realm1: <1>
         order: 0
         ...
 
@@ -201,6 +201,9 @@ xpack.security.authc.realms:
         ...
     ...
 ----------------------------------------
+<1> Specifies the type of realm (for example, `native`, `ldap`,
+`active_directory`, `pki`, `file`, `kerberos`, `saml`) and the realm name. This
+information is required.
 
 The valid settings vary depending on the realm type. For more
 information, see <<setting-up-authentication>>.
@@ -208,9 +211,6 @@ information, see <<setting-up-authentication>>.
 [float]
 [[ref-realm-settings]]
 ===== Settings valid for all realms
-
-`type`::
-The type of the realm: `native`, `ldap`, `active_directory`, `pki`, or `file`. Required.
 
 `order`::
 The priority of the realm within the realm chain. Realms with a lower order are

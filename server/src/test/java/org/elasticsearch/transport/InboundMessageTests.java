@@ -191,14 +191,14 @@ public class InboundMessageTests extends ESTestCase {
             reference = request.serialize(streamOutput);
         }
         final byte[] serialized = BytesReference.toBytes(reference);
-        final int statusPosition = TcpHeader.HEADER_SIZE - TcpHeader.VERSION_ID_SIZE - 1;
+        final int statusPosition = TcpHeader.headerSize(Version.CURRENT) - TcpHeader.VERSION_ID_SIZE - TcpHeader.VARIABLE_HEADER_SIZE - 1;
         // force status byte to signal compressed on the otherwise uncompressed message
         serialized[statusPosition] = TransportStatus.setCompress(serialized[statusPosition]);
         reference = new BytesArray(serialized);
         InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, registry, threadContext);
         BytesReference sliced = reference.slice(6, reference.length() - 6);
         final IllegalStateException iste = expectThrows(IllegalStateException.class, () -> reader.deserialize(sliced));
-        assertThat(iste.getMessage(), Matchers.startsWith("stream marked as compressed, but no compressor found,"));
+        assertThat(iste.getMessage(), Matchers.equalTo("stream marked as compressed, but is missing deflate header"));
     }
 
     private void testVersionIncompatibility(Version version, Version currentVersion, boolean isHandshake) throws IOException {

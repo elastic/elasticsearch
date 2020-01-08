@@ -63,7 +63,10 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         @Override
         protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
+            // Write tp is expected when executing enrich processor from index / bulk api
+            // Management tp is expected when executing enrich processor from ingest simulate api
+            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)
+                || Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
             coordinator.schedule(request, listener);
         }
     }

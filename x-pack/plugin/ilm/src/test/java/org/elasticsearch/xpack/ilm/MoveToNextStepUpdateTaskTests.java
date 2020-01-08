@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -71,10 +72,10 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
         AtomicBoolean changed = new AtomicBoolean(false);
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey,
-            () -> now, state -> changed.set(true));
+            () -> now, new AlwaysExistingStepRegistry(), state -> changed.set(true));
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
-        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+        StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(nextStepKey));
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
@@ -88,7 +89,8 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         long now = randomNonNegativeLong();
         setStateToKey(notCurrentStepKey, now);
-        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, null);
+        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null,
+            () -> now, new AlwaysExistingStepRegistry(), null);
         ClusterState newState = task.execute(clusterState);
         assertSame(newState, clusterState);
     }
@@ -98,7 +100,8 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         setStateToKey(currentStepKey, now);
         setStatePolicy("not-" + policy);
-        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, null);
+        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now,
+            new AlwaysExistingStepRegistry(), null);
         ClusterState newState = task.execute(clusterState);
         assertSame(newState, clusterState);
     }
@@ -113,10 +116,10 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
         SetOnce<Boolean> changed = new SetOnce<>();
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-            invalidNextStep, () -> now, s -> changed.set(true));
+            invalidNextStep, () -> now, new AlwaysExistingStepRegistry(), s -> changed.set(true));
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
-        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+        StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(invalidNextStep));
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
@@ -132,13 +135,29 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
         setStateToKey(currentStepKey, now);
 
-        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now, state -> {});
+        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now,
+            new AlwaysExistingStepRegistry(), state -> {});
         Exception expectedException = new RuntimeException();
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> task.onFailure(randomAlphaOfLength(10), expectedException));
         assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
                 + "] to step [" + nextStepKey + "].", exception.getMessage());
         assertSame(expectedException, exception.getCause());
+    }
+
+    /**
+     * Fake policy steps registry that will always pass validation that the step exists
+     */
+    private static class AlwaysExistingStepRegistry extends PolicyStepsRegistry {
+
+        AlwaysExistingStepRegistry() {
+            super(new NamedXContentRegistry(Collections.emptyList()), null);
+        }
+
+        @Override
+        public boolean stepExists(String policy, StepKey stepKey) {
+            return true;
+        }
     }
 
     private void setStatePolicy(String policy) {

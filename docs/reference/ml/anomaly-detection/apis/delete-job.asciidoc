@@ -39,23 +39,22 @@ separated list.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-delete-job-query-parms]]
 ==== {api-query-parms-title}
 
 `force`::
-  (Optional, boolean) Use to forcefully delete an opened job; this method is
-  quicker than closing and deleting the job.
+(Optional, boolean) Use to forcefully delete an opened job; this method is
+quicker than closing and deleting the job.
 
 `wait_for_completion`::
-  (Optional, boolean) Specifies whether the request should return immediately or
-  wait until the job deletion completes. Defaults to `true`.
+(Optional, boolean) Specifies whether the request should return immediately or
+wait until the job deletion completes. Defaults to `true`.
 
 [[ml-delete-job-example]]
 ==== {api-examples-title}
-
-The following example deletes the `total-requests` job:
 
 [source,console]
 --------------------------------------------------

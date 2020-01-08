@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.AttributeInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.ConstantInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
@@ -21,19 +17,18 @@ import java.util.Objects;
 public abstract class NamedExpression extends Expression {
 
     private final String name;
-    private final ExpressionId id;
+    private final NameId id;
     private final boolean synthetic;
-    private Pipe lazyPipe = null;
 
 
-    public NamedExpression(Source source, String name, List<Expression> children, ExpressionId id) {
+    public NamedExpression(Source source, String name, List<Expression> children, NameId id) {
         this(source, name, children, id, false);
     }
 
-    public NamedExpression(Source source, String name, List<Expression> children, ExpressionId id, boolean synthetic) {
+    public NamedExpression(Source source, String name, List<Expression> children, NameId id, boolean synthetic) {
         super(source, children);
         this.name = name;
-        this.id = id == null ? new ExpressionId() : id;
+        this.id = id == null ? new NameId() : id;
         this.synthetic = synthetic;
     }
 
@@ -41,7 +36,7 @@ public abstract class NamedExpression extends Expression {
         return name;
     }
 
-    public ExpressionId id() {
+    public NameId id() {
         return id;
     }
 
@@ -50,20 +45,6 @@ public abstract class NamedExpression extends Expression {
     }
 
     public abstract Attribute toAttribute();
-
-    public Pipe asPipe() {
-        if (lazyPipe == null) {
-            lazyPipe = foldable() ? new ConstantInput(source(), this, fold()) : makePipe();
-        }
-
-        return lazyPipe;
-    }
-
-    protected Pipe makePipe() {
-        return new AttributeInput(source(), this, toAttribute());
-    }
-
-    public abstract ScriptTemplate asScript();
 
     @Override
     public int hashCode() {
@@ -94,5 +75,10 @@ public abstract class NamedExpression extends Expression {
     @Override
     public String toString() {
         return super.toString() + "#" + id();
+    }
+
+    @Override
+    public String nodeString() {
+        return name();
     }
 }

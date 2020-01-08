@@ -53,7 +53,7 @@ pause auto-follow patterns.
 [float]
 ==== {ml-cap} {classanalysis}
 
-{stack-ov}/dfa-classification.html[{classanalysis-cap}] is a supervised {ml}
+{ml-docs}/dfa-classification.html[{classanalysis-cap}] is a supervised {ml}
 process for predicting a class or category of a given data point in a dataset.
 For example, it can determine whether an email is spam or not.
 {classification-cap} is for predicting discrete, categorical values, unlike

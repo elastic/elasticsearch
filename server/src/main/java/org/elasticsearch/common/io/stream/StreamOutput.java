@@ -146,6 +146,10 @@ public abstract class StreamOutput extends OutputStream {
         this.features = Collections.unmodifiableSet(new HashSet<>(features));
     }
 
+    public Set<String> getFeatures() {
+        return this.features;
+    }
+
     public long position() throws IOException {
         throw new UnsupportedOperationException();
     }

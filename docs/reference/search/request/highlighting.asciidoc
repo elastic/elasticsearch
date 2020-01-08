@@ -840,13 +840,13 @@ Response:
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.601195,
+        "max_score": 1.6011951,
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
-                "_score": 1.601195,
+                "_score": 1.6011951,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",
@@ -898,13 +898,13 @@ Response:
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1.601195,
+        "max_score": 1.6011951,
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
-                "_score": 1.601195,
+                "_score": 1.6011951,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",

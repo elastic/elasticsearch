@@ -123,4 +123,5 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
     protected EqlSearchResponse doParseInstance(XContentParser parser) {
         return EqlSearchResponse.fromXContent(parser);
     }
+
 }

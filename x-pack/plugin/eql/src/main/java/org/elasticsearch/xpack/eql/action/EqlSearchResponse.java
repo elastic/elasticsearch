@@ -99,24 +99,26 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private static final ParseField TASK = new ParseField(Fields.TASK);
 
     private static final ConstructingObjectParser<EqlSearchResponse, Void> PARSER =
-        new ConstructingObjectParser<>("eql/search_response", false,
+        new ConstructingObjectParser<>("eql/search_response", true,
             args -> {
-                if (args[0] != null) {
-                    if (args[1] != null || args[2] != null || args[3] != null) {
-                        throw new IllegalArgumentException("Unexpected elements in async response");
-                    }
-                    return new EqlSearchResponse(new TaskId((String)args[0]));
+                int i = 0;
+                String taskId = (String) args[i++];
+                Hits hits = (Hits) args[i++];
+                Long took = (Long) args[i++];
+                Boolean timeout = (Boolean) args[i];
+                if (taskId != null) {
+                    return new EqlSearchResponse(new TaskId(taskId));
                 } else {
-                    if (args[1] == null) {
+                    if (hits == null) {
                         throw new IllegalArgumentException("Missing hits");
                     }
-                    if (args[2] == null) {
+                    if (took == null) {
                         throw new IllegalArgumentException("Missing took time");
                     }
-                    if (args[3] == null) {
+                    if (timeout == null) {
                         throw new IllegalArgumentException("Missing timeout");
                     }
-                    return new EqlSearchResponse((Hits)args[1], (long)args[2], (boolean)args[3]);
+                    return new EqlSearchResponse(hits, took, timeout);
                 }
             });
 

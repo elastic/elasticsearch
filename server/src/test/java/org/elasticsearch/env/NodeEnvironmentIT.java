@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -137,14 +138,14 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
 
     public void testFailsToStartIfDowngraded() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
-            NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooNewVersion()), dataPaths));
+            PersistedClusterStateService.overrideVersion(NodeMetaDataTests.tooNewVersion(), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]")));
     }
 
     public void testFailsToStartIfUpgradedTooFar() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
-            NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooOldVersion()), dataPaths));
+            PersistedClusterStateService.overrideVersion(NodeMetaDataTests.tooOldVersion(), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
     }
@@ -238,10 +239,15 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
 
-        final IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+            () -> PersistedClusterStateService.nodeMetaData(allDataPaths.stream().map(PathUtils::get).toArray(Path[]::new)));
+
+        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
+
+        illegalStateException = expectThrows(IllegalStateException.class,
             () -> internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), allDataPaths)));
 
-        assertThat(illegalStateException.getMessage(), containsString("belong to multiple nodes with IDs"));
+        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
 
         final List<String> node0DataPathsPlusOne = new ArrayList<>(node0DataPaths);
         node0DataPathsPlusOne.add(createTempDir().toString());

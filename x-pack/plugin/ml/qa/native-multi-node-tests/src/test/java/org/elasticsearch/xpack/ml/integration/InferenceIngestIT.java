@@ -232,6 +232,32 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             containsString("Could not find trained model [test_classification_missing]"));
     }
 
+    public void testSimulateLangIdent() {
+        String source = "{\n" +
+            "  \"pipeline\": {\n" +
+            "    \"processors\": [\n" +
+            "      {\n" +
+            "        \"inference\": {\n" +
+            "          \"inference_config\": {\"classification\":{}},\n" +
+            "          \"model_id\": \"lang_ident_model_1\",\n" +
+            "          \"field_mappings\": {}\n" +
+            "        }\n" +
+            "      }\n" +
+            "    ]\n" +
+            "  },\n" +
+            "  \"docs\": [\n" +
+            "    {\"_source\": {\n" +
+            "      \"text\": \"this is some plain text.\"\n" +
+            "    }}]\n" +
+            "}";
+
+        SimulatePipelineResponse response = client().admin().cluster()
+            .prepareSimulatePipeline(new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON).get();
+        SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)response.getResults().get(0);
+        assertThat(baseResult.getIngestDocument().getFieldValue("ml.inference.predicted_value", String.class), equalTo("en"));
+    }
+
     private Map<String, Object> generateSourceDoc() {
         return new HashMap<>(){{
             put("col1", randomFrom("female", "male"));

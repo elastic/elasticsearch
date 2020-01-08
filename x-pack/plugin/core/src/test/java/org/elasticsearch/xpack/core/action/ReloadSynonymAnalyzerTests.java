@@ -205,6 +205,23 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
         assertEquals("Failed to parse mapping: analyzer [my_synonym_analyzer] "
                 + "contains filters [synonym_filter] that are not allowed to run in all mode.", ex.getMessage());
+
+        // same for synonym filters in multiplexer chain
+        ex = expectThrows(MapperException.class,
+                () -> client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
+                        .putList("analysis.analyzer." + analyzerName + ".filter", "my_multiplexer")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
+                        .put("analysis.filter.my_multiplexer.type", "multiplexer")
+                        .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
+                        .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
+
+        assertEquals("Failed to parse mapping: analyzer [my_synonym_analyzer] "
+                + "contains filters [my_multiplexer] that are not allowed to run in all mode.", ex.getMessage());
     }
 
     private Path setupSynonymsFile(String synonymsFileName, String content) throws IOException {

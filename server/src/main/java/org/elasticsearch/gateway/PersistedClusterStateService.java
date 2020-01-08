@@ -252,7 +252,6 @@ public class PersistedClusterStateService {
                         nodeId = thisNodeId;
                         version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
                     }
-                    return new NodeMetaData(thisNodeId, Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY))));
                 } catch (IndexNotFoundException e) {
                     logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
                 }

@@ -125,8 +125,8 @@ public class TopHitsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("idx").addMapping("type", TERMS_AGGS_FIELD, "type=keyword"));
         assertAcked(prepareCreate("field-collapsing").addMapping("type", "group", "type=keyword"));
         createIndex("empty");
-        assertAcked(prepareCreate("articles").addMapping("article",
-            jsonBuilder().startObject().startObject("article").startObject("properties")
+        assertAcked(prepareCreate("articles").setMapping(
+            jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject(TERMS_AGGS_FIELD)
                     .field("type", "keyword")
                 .endObject()

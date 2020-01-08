@@ -253,10 +253,10 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
         Random random = random();
         assertAcked(prepareCreate("test")
-                .addMapping("type",
+                .setMapping(
                         XContentFactory.jsonBuilder()
                                 .startObject()
-                                .startObject("type")
+                                .startObject("_doc")
                                 .startObject("properties")
                                 .startObject("sparse_bytes")
                                 .field("type", "keyword")
@@ -510,8 +510,8 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(prepareCreate("test")
-.addMapping("type1",
-                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("str_value")
+            .setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("str_value")
                         .field("type", "keyword").endObject().startObject("boolean_value").field("type", "boolean").endObject()
                         .startObject("byte_value").field("type", "byte").endObject().startObject("short_value").field("type", "short")
                         .endObject().startObject("integer_value").field("type", "integer").endObject().startObject("long_value")
@@ -722,10 +722,10 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMissingNumbers() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1",
+        assertAcked(prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                             .startObject("i_value")
                                 .field("type", "integer")
@@ -794,10 +794,10 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMissingStrings() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1",
+        assertAcked(prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("value")
                         .field("type", "keyword")
@@ -927,8 +927,8 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMVField() throws Exception {
         assertAcked(prepareCreate("test")
-                        .addMapping("type1",
-                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("long_values")
+                        .setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("long_values")
                         .field("type", "long").endObject().startObject("int_values").field("type", "integer").endObject()
                         .startObject("short_values").field("type", "short").endObject().startObject("byte_values")
                         .field("type", "byte").endObject().startObject("float_values").field("type", "float").endObject()
@@ -1275,8 +1275,8 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortOnRareField() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1",
-                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("string_values")
+        assertAcked(prepareCreate("test").setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("string_values")
                         .field("type", "keyword").endObject().endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test").setId(Integer.toString(1)).setSource(jsonBuilder().startObject()
@@ -1419,10 +1419,10 @@ public class FieldSortIT extends ESIntegTestCase {
      */
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
-                .addMapping("type",
+                .setMapping(
                         XContentFactory.jsonBuilder()
                                 .startObject()
-                                    .startObject("type")
+                                    .startObject("_doc")
                                         .startObject("properties")
                                             .startObject("nested")
                                                 .field("type", "nested")

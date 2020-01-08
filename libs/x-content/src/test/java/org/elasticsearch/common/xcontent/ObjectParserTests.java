@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ObjectParserTests extends ESTestCase {
@@ -804,5 +805,12 @@ public class ObjectParserTests extends ESTestCase {
             XContentParseException ex = expectThrows(XContentParseException.class, () -> TopLevelNamedXConent.PARSER.parse(parser, null));
             assertEquals("[1:2] [test] unable to parse Object with name [not_supported_field]: parser not found", ex.getMessage());
         }
+    }
+
+    public void testContextBuilder() throws IOException {
+        ObjectParser<AtomicReference<String>, String> parser = ObjectParser.fromBuilder("test", AtomicReference::new);
+        String context = randomAlphaOfLength(5);
+        AtomicReference<String> parsed = parser.parse(createParser(JsonXContent.jsonXContent, "{}"), context);
+        assertThat(parsed.get(), equalTo(context));
     }
 }

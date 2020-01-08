@@ -1346,7 +1346,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("test")
-              .addMapping("doc", mapping));
+              .setMapping(mapping));
         ensureGreen();
 
         // index simple data

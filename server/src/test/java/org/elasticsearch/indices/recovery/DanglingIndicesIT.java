@@ -67,6 +67,11 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
         }
 
+        if (randomBoolean()) {
+            client().admin().indices().prepareClose(INDEX_NAME).get();
+        }
+        ensureGreen(INDEX_NAME);
+
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 
@@ -82,6 +87,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             assertThat(client().admin().indices().prepareGetSettings(INDEX_NAME).get().getSetting(INDEX_NAME, "index.refresh_interval"),
                 equalTo("42s"));
         }
+        ensureGreen(INDEX_NAME);
     }
 
     /**

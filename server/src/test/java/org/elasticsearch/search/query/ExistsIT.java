@@ -58,7 +58,7 @@ public class ExistsIT extends ESIntegTestCase {
     public void testExists() throws Exception {
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "text")
@@ -86,7 +86,7 @@ public class ExistsIT extends ESIntegTestCase {
                 .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(mapping));
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));
@@ -149,7 +149,7 @@ public class ExistsIT extends ESIntegTestCase {
     public void testFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("bar")
                             .field("type", "long")
@@ -169,7 +169,7 @@ public class ExistsIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -201,7 +201,7 @@ public class ExistsIT extends ESIntegTestCase {
     public void testFieldAliasWithNoDocValues() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "long")
@@ -214,7 +214,7 @@ public class ExistsIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();

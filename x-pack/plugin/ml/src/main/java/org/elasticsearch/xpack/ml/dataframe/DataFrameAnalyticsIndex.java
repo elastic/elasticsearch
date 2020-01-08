@@ -22,7 +22,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.sort.SortOrder;
@@ -87,7 +86,7 @@ public final class DataFrameAnalyticsIndex {
                                                   ActionListener<CreateIndexRequest> listener) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
-        ActionListener<ImmutableOpenMap<String, MappingMetaData>> mappingsListener = ActionListener.wrap(
+        ActionListener<MappingMetaData> mappingsListener = ActionListener.wrap(
             mappings -> listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappings)),
             listener::onFailure
         );
@@ -115,19 +114,15 @@ public final class DataFrameAnalyticsIndex {
     }
 
     private static CreateIndexRequest createIndexRequest(Clock clock, DataFrameAnalyticsConfig config, Settings settings,
-                                                         ImmutableOpenMap<String, MappingMetaData> mappings) {
-        // There should only be 1 type
-        assert mappings.size() == 1;
-
+                                                         MappingMetaData mappings) {
         String destinationIndex = config.getDest().getIndex();
-        String type = mappings.keysIt().next();
-        Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
+        Map<String, Object> mappingsAsMap = mappings.sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
         checkResultsFieldIsNotPresentInProperties(config, properties);
         properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetaData(config.getId(), clock));
-        return new CreateIndexRequest(destinationIndex, settings).mapping(type, mappingsAsMap);
+        return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
     private static Settings settings(GetSettingsResponse settingsResponse) {

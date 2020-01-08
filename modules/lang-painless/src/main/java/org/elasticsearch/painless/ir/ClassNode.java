@@ -42,11 +42,6 @@ import java.util.List;
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_METHOD;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_METHOD;
-import static org.elasticsearch.painless.WriterConstants.FUNCTION_TABLE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
@@ -143,27 +138,6 @@ public class ClassNode extends IRNode {
                 scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
         ClassVisitor classVisitor = classWriter.getClassVisitor();
         classVisitor.visitSource(Location.computeSourceName(name), null);
-
-        // Write the a method to bootstrap def calls
-        MethodWriter bootstrapDef = classWriter.newMethodWriter(Opcodes.ACC_STATIC | Opcodes.ACC_VARARGS, DEF_BOOTSTRAP_METHOD);
-        bootstrapDef.visitCode();
-        bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-        bootstrapDef.getStatic(CLASS_TYPE, "$FUNCTIONS", FUNCTION_TABLE_TYPE);
-        bootstrapDef.loadArgs();
-        bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
-        bootstrapDef.returnValue();
-        bootstrapDef.endMethod();
-
-        // Write static variables for name, source and statements used for writing exception messages
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$NAME", STRING_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$SOURCE", STRING_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$STATEMENTS", BITSET_TYPE.getDescriptor(), null, null).visitEnd();
-
-        // Write the static variables used by the method to bootstrap def calls
-        classVisitor.visitField(
-                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(
-                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$FUNCTIONS", FUNCTION_TABLE_TYPE.getDescriptor(), null, null).visitEnd();
 
         org.objectweb.asm.commons.Method init;
 

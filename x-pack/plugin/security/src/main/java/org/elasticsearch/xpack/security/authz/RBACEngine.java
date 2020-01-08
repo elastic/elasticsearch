@@ -277,10 +277,10 @@ public class RBACEngine implements AuthorizationEngine {
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
             } else {
-                assert false :
-                    "only scroll and async-search related requests are known indices api that don't support retrieving the indices they relate to";
-                listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices api that don't support " +
-                    "retrieving the indices they relate to"));
+                assert false : "only scroll and async-search related requests are known indices api that don't " +
+                    "support retrieving the indices they relate to";
+                listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
+                    "api that don't support retrieving the indices they relate to"));
             }
         } else if (request instanceof IndicesRequest &&
             IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {

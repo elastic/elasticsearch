@@ -132,7 +132,7 @@ public class NestedIT extends ESIntegTestCase {
         }
 
         assertAcked(prepareCreate("idx_nested_nested_aggs")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                             .field("type", "nested")
                             .startObject("properties")
@@ -368,7 +368,7 @@ public class NestedIT extends ESIntegTestCase {
 
     // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
                     .startObject("comments")
                         .field("type", "nested")
                         .startObject("properties")
@@ -400,7 +400,7 @@ public class NestedIT extends ESIntegTestCase {
                 .endObject().endObject().endObject();
         assertAcked(prepareCreate("idx2")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("provider", mapping));
+                .setMapping(mapping));
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
@@ -559,7 +559,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testFilterAggInsideNestedAgg() throws Exception {
         assertAcked(prepareCreate("classes")
-                .addMapping("class", jsonBuilder().startObject().startObject("class").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("name").field("type", "text").endObject()
                         .startObject("methods")
                             .field("type", "nested")

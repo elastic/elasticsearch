@@ -107,8 +107,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
 [[ml-valid-detector-example]]
 ==== {api-examples-title}
 
-The following example validates detector configuration information:
-
 [source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/_validate/detector

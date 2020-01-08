@@ -1088,15 +1088,16 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
-        final long seqNoForRecovery;
+        final long minSeqNoToRetain;
         if (engine.config().getIndexSettings().isSoftDeleteEnabled()) {
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+                final long seqNoForRecovery = Long.parseLong(
+                    safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+                minSeqNoToRetain = Math.min(seqNoForRecovery, globalCheckpoint + 1 - retainedOps);
             }
         } else {
-            seqNoForRecovery = engine.getMinRetainedSeqNo();
+            minSeqNoToRetain = engine.getMinRetainedSeqNo();
         }
-        final long minSeqNoToRetain = Math.min(seqNoForRecovery, globalCheckpoint + 1 - retainedOps);
         for (Translog.Operation translogOp : translogOps) {
             final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
             if (luceneOp == null) {

@@ -154,7 +154,11 @@ public class CacheService extends AbstractLifecycleComponent {
     public void readFromCache(final Path filePath, final long fileLength, final CheckedSupplier<IndexInput, IOException> fileSource,
                               final long position, final byte[] b, int off, int len) throws IOException {
         long pos = position;
-        while (len > 0 && lifecycleState() == Lifecycle.State.STARTED) {
+        while (len > 0) {
+            final Lifecycle.State state = lifecycleState();
+            if (state != Lifecycle.State.STARTED) {
+                throw new IOException("Failed to read data from cache: cache service is [" + state + "]");
+            }
             final CacheEntry cacheEntry = getOrAddToCache(filePath, fileLength, fileSource);
             if (cacheEntry.tryIncRef() == false) {
                 continue;
@@ -170,6 +174,7 @@ public class CacheService extends AbstractLifecycleComponent {
                 cacheEntry.decRef();
             }
         }
+        assert len == 0 : "partial read operation [" + len + "]";
     }
 
     /**

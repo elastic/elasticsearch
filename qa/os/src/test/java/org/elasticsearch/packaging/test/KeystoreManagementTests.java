@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Docker;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -35,6 +36,8 @@ import java.nio.file.StandardOpenOption;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
+import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
@@ -45,7 +48,6 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -54,7 +56,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     private static final String PASSWORD_ERROR_MESSAGE = "Provided keystore password was incorrect";
 
-    /** We need an initially installed package */
+    /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {
         assumeTrue(distribution().isArchive());
 
@@ -63,11 +65,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
-        assertThat("has-passwd should fail", r.exitCode, not(is(0)));
-        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
+        assertFalse("has-passwd should fail", r.isSuccess());
+        assertThat("has-passwd should indicate missing keystore",
+            r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
     }
 
-    /** We need an initially installed package */
+    /** Test initial package state */
     public void test11InstallPackageDistribution() throws Exception {
         assumeTrue(distribution().isPackage());
 
@@ -78,11 +81,34 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
-        assertThat("has-passwd should fail", r.exitCode, not(is(0)));
-        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password-protected"));
+        assertFalse("has-passwd should fail", r.isSuccess());
+        assertThat("has-passwd should indicate unprotected keystore",
+            r.stderr, containsString("ERROR: Keystore is not password-protected"));
+        Shell.Result r2 = bin.keystoreTool.run("list");
+        assertThat(r2.stdout, containsString("keystore.seed"));
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49469 */
+    /** Test initial Docker state */
+    public void test12InstallDockerDistribution() throws Exception {
+        assumeTrue(distribution().isDocker());
+
+        installation = Docker.runContainer(distribution());
+
+        try {
+            waitForPathToExist(installation.config("elasticsearch.keystore"));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        final Installation.Executables bin = installation.executables();
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
+        assertFalse("has-passwd should fail", r.isSuccess());
+        assertThat("has-passwd should indicate unprotected keystore",
+            r.stdout, containsString("ERROR: Keystore is not password-protected"));
+        Shell.Result r2 = bin.keystoreTool.run("list");
+        assertThat(r2.stdout, containsString("keystore.seed"));
+    }
+
     public void test20CreateKeystoreManually() throws Exception {
         rmKeystoreIfExists();
         createKeystore();
@@ -95,7 +121,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     public void test30AutoCreateKeystore() throws Exception {
-        assumeTrue("RPMs and Debs install a keystore file", distribution.isArchive());
+        assumeTrue("Packages and docker are installed with a keystore file", distribution.isArchive());
         rmKeystoreIfExists();
 
         startElasticsearch();
@@ -239,12 +265,31 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Platforms.onWindows(() -> {
             sh.chown(keystore);
         });
+
+        if (distribution().isDocker()) {
+            try {
+                waitForPathToExist(keystore);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     private void rmKeystoreIfExists() {
         Path keystore = installation.config("elasticsearch.keystore");
-        if (Files.exists(keystore)) {
-            FileUtils.rm(keystore);
+        if (distribution().isDocker()) {
+            try {
+                waitForPathToExist(keystore);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            // Move the auto-created one out of the way, or else the CLI prompts asks us to confirm
+            sh.run("rm " + keystore);
+        } else {
+            if (Files.exists(keystore)) {
+                FileUtils.rm(keystore);
+            }
         }
     }
 
@@ -267,7 +312,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertThat("keystore should be password protected", r.exitCode, is(0));
     }
 
-    private void verifyKeystorePermissions() throws Exception {
+    private void verifyKeystorePermissions() {
         Path keystore = installation.config("elasticsearch.keystore");
         switch (distribution.packaging) {
             case TAR:
@@ -279,7 +324,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertThat(keystore, file(File, "root", "elasticsearch", p660));
                 break;
             case DOCKER:
-                // TODO #49469
+                assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

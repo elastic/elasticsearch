@@ -56,7 +56,7 @@ public class IndicesOptions implements ToXContentFragment {
                 return defaultStates;
             }
 
-            Set<WildcardStates> states = new HashSet<>();
+            EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
             String[] wildcards = nodeStringArrayValue(value);
             // TODO why do we let patterns like "none,all" or "open,none,closed" get used. The location of 'none' in the array changes the
             // meaning of the resulting value
@@ -75,14 +75,14 @@ public class IndicesOptions implements ToXContentFragment {
                         states.clear();
                         break;
                     case "all":
-                        states.addAll(EnumSet.allOf(WildcardStates.class));
+                        states = EnumSet.allOf(WildcardStates.class);
                         break;
                     default:
                         throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                 }
             }
 
-            return states.isEmpty() ? NONE : EnumSet.copyOf(states);
+            return states;
         }
     }
 

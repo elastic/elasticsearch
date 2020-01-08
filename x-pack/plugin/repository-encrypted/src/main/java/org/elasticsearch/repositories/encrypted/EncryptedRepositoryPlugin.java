@@ -6,13 +6,17 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicenseUtils;
@@ -28,15 +32,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public final class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
+    static final Logger LOGGER = LogManager.getLogger(EncryptedRepository.class);
     static final String REPOSITORY_TYPE_NAME = "encrypted";
     static final String CIPHER_ALGO = "AES";
     static final String RAND_ALGO = "SHA1PRNG";
     static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting("repository.encrypted.",
-            "password", key -> SecureSetting.secureString(key, null));
+            "password", key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
     static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
 
     private final Map<String, char[]> cachedRepositoryPasswords = new HashMap<>();
@@ -44,6 +50,11 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
     protected static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public EncryptedRepositoryPlugin(Settings settings) {
+        if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
+            LOGGER.warn("Encrypted snapshot repositories are not allowed for the current license." +
+                    "Snapshotting to any encrypted repository is not permitted and will fail.",
+                    LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
+        }
         // cache the passwords for all encrypted repositories during plugin instantiation
         // the keystore-based secure passwords are not readable on repository instantiation
         for (String repositoryName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(settings)) {
@@ -62,6 +73,12 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
     @Override
     public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
                                                            final ClusterService clusterService) {
+        final boolean areRepositoriesPasswordsConsistent = new ConsistentSettingsService(env.settings(), clusterService,
+                Set.of(ENCRYPTION_PASSWORD_SETTING)).areAllConsistent();
+        // there might not be any encrypted repositories installed so no need to fail the node at this point
+        if (false == areRepositoriesPasswordsConsistent) {
+            LOGGER.warn("The password for encrypted snapshot repositories are not identical across all nodes.");
+        }
         return Collections.singletonMap(REPOSITORY_TYPE_NAME, new Repository.Factory() {
 
             @Override
@@ -71,8 +88,13 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
 
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
-                if (false == getLicenseState().isEncryptedRepositoryAllowed()) {
-                    throw LicenseUtils.newComplianceException(REPOSITORY_TYPE_NAME + " snapshot repository");
+                if (false == areRepositoriesPasswordsConsistent) {
+                    throw new SettingsException("The password for encrypted snapshot repositories are not identical across all nodes.");
+                }
+                if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
+                    LOGGER.warn("Encrypted snapshot repositories are not allowed for the current license." +
+                                    "Snapshots to the [" + metaData.name() + "] encrypted repository are not permitted and will fail.",
+                            LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
                 }
                 String delegateType = DELEGATE_TYPE.get(metaData.settings());
                 if (Strings.hasLength(delegateType) == false) {

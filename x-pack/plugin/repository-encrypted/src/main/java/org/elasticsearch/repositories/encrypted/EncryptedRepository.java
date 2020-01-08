@@ -74,7 +74,8 @@ public class EncryptedRepository extends BlobStoreRepository {
         if (EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
             super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
+            listener.onFailure(LicenseUtils.newComplianceException(
+                    EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
         }
     }
 

@@ -805,9 +805,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
 
                 expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
-                // strangely, the wrapped exception appears as the root cause...
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=broadcast_shard_operation_failed_exception, " +
-                        "reason=F]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 expected.addSuppressed(suppressed);
                 break;
 

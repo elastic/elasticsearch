@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -1078,6 +1079,67 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
     }
 
+    public void testUpdateRolloverLifecycleDateStepRetriesWhenRolloverInfoIsMissing() throws Exception {
+        String index = this.index + "-000001";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+
+        createIndexWithSettings(
+            index,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            true
+        );
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), is(WaitForRolloverReadyStep.NAME)));
+
+        // moving ILM to the "update-rollover-lifecycle-date" without having gone through the actual rollover step
+        // the "update-rollover-lifecycle-date" step will fail as the index has no rollover information
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"update-rollover-lifecycle-date\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(moveToStepRequest);
+
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(index);
+                String step = (String) explainIndexResponse.get("step");
+                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
+                return step != null && step.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null && retryCount >= 1;
+            } catch (IOException e) {
+                return false;
+            }
+        });
+
+        index(client(), index, "1", "foo", "bar");
+        Request refreshIndex = new Request("POST", "/" + index + "/_refresh");
+        client().performRequest(refreshIndex);
+
+        // manual rollover the index so the "update-rollover-lifecycle-date" ILM step can continue and finish successfully as the index
+        // will have rollover information now
+        Request rolloverRequest = new Request("POST", "/alias/_rollover");
+        rolloverRequest.setJsonEntity("{\n" +
+            "  \"conditions\": {\n" +
+            "    \"max_docs\": \"1\"\n" +
+            "  }\n" +
+            "}"
+        );
+        client().performRequest(rolloverRequest);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY)));
+    }
+
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         String index = "success-index";
 
@@ -1121,7 +1183,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
     }
-
 
     public void testHistoryIsWrittenWithFailure() throws Exception {
         String index = "failure-index";

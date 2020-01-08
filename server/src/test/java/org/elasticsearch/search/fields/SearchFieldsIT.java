@@ -677,9 +677,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("doc", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("doc")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("field1")
                                         .field("type", "object")
@@ -994,7 +994,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("_source")
                         .field("enabled", false)
                     .endObject()
@@ -1018,7 +1018,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1057,7 +1057,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
+            .startObject("_doc")
             .startObject("_source")
             .field("enabled", false)
             .endObject()
@@ -1081,7 +1081,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1120,7 +1120,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field1")
                             .field("type", "text")
@@ -1141,7 +1141,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
             .endObject()
         .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");
@@ -1164,7 +1164,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testWildcardStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field1")
                             .field("type", "text")
@@ -1185,7 +1185,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
             .endObject()
         .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");

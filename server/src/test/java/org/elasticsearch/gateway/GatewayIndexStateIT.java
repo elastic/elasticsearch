@@ -93,7 +93,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> creating test index, with meta routing");
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing")
+                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("_routing")
                     .field("required", true).endObject().endObject().endObject())
                 .execute().actionGet();
 

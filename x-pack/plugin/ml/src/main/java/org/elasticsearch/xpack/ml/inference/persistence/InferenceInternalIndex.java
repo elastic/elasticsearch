@@ -53,7 +53,7 @@ public final class InferenceInternalIndex {
                 // the configurations are expected to be small
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
-            .putMapping(SINGLE_MAPPING_NAME, Strings.toString(mappings()))
+            .setMapping(Strings.toString(mappings()))
             .build();
         return inferenceTemplate;
     }

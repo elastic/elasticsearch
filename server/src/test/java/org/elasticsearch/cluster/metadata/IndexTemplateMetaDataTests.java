@@ -78,13 +78,13 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
     public void testValidateInvalidIndexPatterns() throws Exception {
         final IllegalArgumentException emptyPatternError = expectThrows(IllegalArgumentException.class, () -> {
             new IndexTemplateMetaData(randomRealisticUnicodeOfLengthBetween(5, 10), randomInt(), randomInt(),
-                Collections.emptyList(), Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of());
+                Collections.emptyList(), Settings.EMPTY, null, ImmutableOpenMap.of());
         });
         assertThat(emptyPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
 
         final IllegalArgumentException nullPatternError = expectThrows(IllegalArgumentException.class, () -> {
             new IndexTemplateMetaData(randomRealisticUnicodeOfLengthBetween(5, 10), randomInt(), randomInt(),
-                null, Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of());
+                null, Settings.EMPTY, null, ImmutableOpenMap.of());
         });
         assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
 
@@ -156,7 +156,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
             templateBuilder.version(between(0, 100));
         }
         if (randomBoolean()) {
-            templateBuilder.putMapping("doc", "{\"doc\":{\"properties\":{\"type\":\"text\"}}}");
+            templateBuilder.setMapping("{\"doc\":{\"properties\":{\"type\":\"text\"}}}");
         }
         IndexTemplateMetaData template = templateBuilder.build();
         XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON.xContent()));

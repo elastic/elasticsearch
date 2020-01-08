@@ -194,7 +194,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         final String name = MonitoringTemplateUtils.templateName(system.getSystem());
 
         for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
-            final String docMapping = template.getMappings().get("_doc").toString();
+            final String docMapping = template.getMappings().toString();
 
             assertThat(docMapping, notNullValue());
             assertThat(docMapping, containsString("test"));

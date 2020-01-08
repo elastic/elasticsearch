@@ -58,6 +58,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -441,13 +442,14 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, CompressedXContent> cursor1 : templateMetaData.mappings()) {
-                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor1.value.uncompressed()), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
+                CompressedXContent compressed = templateMetaData.getMappings();
+                if (compressed != null) {
+                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(compressed.uncompressed()), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
                         // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor1.key);
+                        mapping = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
                     }
-                    builder.field(cursor1.key);
+                    builder.field(MapperService.SINGLE_MAPPING_NAME);
                     builder.map(mapping);
                 }
                 builder.endObject();

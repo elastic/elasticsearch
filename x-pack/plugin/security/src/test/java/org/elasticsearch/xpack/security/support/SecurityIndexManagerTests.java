@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -429,9 +430,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Map<String, String> mappings = getTemplateMappings(templateName);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(TEMPLATE_NAME)
                 .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            templateBuilder.putMapping(entry.getKey(), entry.getValue());
-        }
+        templateBuilder.setMapping(mappings.get(MapperService.SINGLE_MAPPING_NAME));
         return templateBuilder;
     }
 
@@ -568,9 +567,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         request.source(template, XContentType.JSON);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName)
             .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
-        for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-            templateBuilder.putMapping(entry.getKey(), entry.getValue());
-        }
+        templateBuilder.setMapping(request.mappings().get(MapperService.SINGLE_MAPPING_NAME));
         return templateBuilder;
     }
 }

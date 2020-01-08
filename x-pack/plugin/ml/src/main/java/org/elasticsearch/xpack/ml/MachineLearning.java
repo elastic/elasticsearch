@@ -885,7 +885,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate =
                     IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
-                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
+                        .setMapping(Strings.toString(auditMapping))
                         .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX))
                         .version(Version.CURRENT.id)
                         .settings(Settings.builder()
@@ -911,7 +911,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .version(Version.CURRENT.id)
-                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
+                        .setMapping(Strings.toString(docMapping))
                         .build();
                 templates.put(MlMetaIndex.INDEX_NAME, metaTemplate);
             } catch (IOException e) {
@@ -931,7 +931,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
-                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(configMapping))
+                        .setMapping(Strings.toString(configMapping))
                         .build();
                 templates.put(AnomalyDetectorsIndex.configIndexName(), configTemplate);
             } catch (IOException e) {
@@ -946,7 +946,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
-                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
+                        .setMapping(Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
 
@@ -968,7 +968,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
                                 // set the default all search field
                                 .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES))
-                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
+                        .setMapping(Strings.toString(docMapping))
                         .version(Version.CURRENT.id)
                         .build();
                 templates.put(AnomalyDetectorsIndex.jobResultsIndexPrefix(), jobResultsTemplate);

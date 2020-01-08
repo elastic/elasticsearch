@@ -82,7 +82,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                         randomAlphaOfLength(4));
                 esIMD.patterns(Arrays.asList(generateRandomStringArray(32, 4, false, false)));
                 esIMD.settings(randomIndexSettings());
-                esIMD.putMapping("_doc", new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
+                esIMD.setMapping(new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
                 int numAliases = randomIntBetween(0, 8);
                 for (int j = 0; j < numAliases; j++) {
                     esIMD.putAlias(randomAliasMetaData(String.format(Locale.ROOT, "%02d ", j) + randomAlphaOfLength(4)));
@@ -110,8 +110,8 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                     assertThat(result.order(), equalTo(esIMD.order()));
                     assertThat(result.version(), equalTo(esIMD.version()));
 
-                    assertThat(esIMD.mappings().size(), equalTo(1));
-                    BytesArray mappingSource = new BytesArray(esIMD.mappings().valuesIt().next().uncompressed());
+                    assertNotNull(esIMD.mappings());
+                    BytesArray mappingSource = new BytesArray(esIMD.mappings().uncompressed());
                     Map<String, Object> expectedMapping =
                         XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
@@ -205,7 +205,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             serverTemplateBuilder.order(clientITMD.order());
             serverTemplateBuilder.version(clientITMD.version());
             if (clientITMD.mappings() != null) {
-                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, clientITMD.mappings().source());
+                serverTemplateBuilder.setMapping(clientITMD.mappings().source());
             }
             serverIndexTemplates.add(serverTemplateBuilder.build());
 

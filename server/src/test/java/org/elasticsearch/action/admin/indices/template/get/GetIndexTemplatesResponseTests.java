@@ -59,7 +59,7 @@ public class GetIndexTemplatesResponseTests extends AbstractWireSerializingTestC
             }
             if (randomBoolean()) {
                 try {
-                    templateBuilder.putMapping("doc", "{\"properties\":{\"type\":\"text\"}}");
+                    templateBuilder.setMapping("{\"properties\":{\"type\":\"text\"}}");
                 } catch (IOException ex) {
                     throw new UncheckedIOException(ex);
                 }

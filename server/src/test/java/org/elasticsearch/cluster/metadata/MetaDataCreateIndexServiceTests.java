@@ -542,7 +542,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(templateBuilder -> {
             templateBuilder.putAlias(AliasMetaData.builder("alias1"));
-            templateBuilder.putMapping("_doc", createMapping("mapping_from_template", "text"));
+            templateBuilder.setMapping(createMapping("mapping_from_template", "text"));
         });
         request.mappings(createMapping("mapping_from_request", "text").string());
 
@@ -594,7 +594,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> builder
             .putAlias(AliasMetaData.builder("alias").searchRouting("fromTemplate").build())
-            .putMapping("_doc", templateMapping)
+            .setMapping(templateMapping)
             .settings(Settings.builder().put("key1", "templateValue"))
         );
 
@@ -665,7 +665,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> builder
             .putAlias(AliasMetaData.builder("alias").searchRouting("fromTemplate").build())
-            .putMapping("_doc", templateMapping)
+            .setMapping(templateMapping)
             .settings(Settings.builder().put("templateSetting", "templateValue"))
         );
 
@@ -732,7 +732,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testParseMappingsWithTypedTemplateAndTypelessIndexMapping() throws Exception {
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
             try {
-                builder.putMapping("type", "{\"type\": {}}");
+                builder.setMapping("{\"_doc\": {}}");
             } catch (IOException e) {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
@@ -745,8 +745,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testParseMappingsWithTypedTemplate() throws Exception {
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
             try {
-                builder.putMapping("type",
-                    "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
+                builder.setMapping(
+                    "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
             } catch (IOException e) {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
@@ -758,7 +758,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     public void testParseMappingsWithTypelessTemplate() throws Exception {
         IndexTemplateMetaData templateMetaData = addMatchingTemplate(builder -> {
             try {
-                builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}");
+                builder.setMapping("{\"_doc\": {}}");
             } catch (IOException e) {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }

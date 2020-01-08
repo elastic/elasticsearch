@@ -32,12 +32,16 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -212,6 +216,7 @@ public class MetaDataIndexTemplateService {
         return matchedTemplates;
     }
 
+    @SuppressWarnings("unchecked")
     private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,
             IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
         Index createdIndex = null;
@@ -243,16 +248,22 @@ public class MetaDataIndexTemplateService {
             Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
             for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                 try {
-                    templateBuilder.putMapping(entry.getKey(), entry.getValue());
+                    mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                 } catch (Exception e) {
                     throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
                 }
-                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
             }
             if (mappingsForValidation.isEmpty() == false) {
                 assert mappingsForValidation.size() == 1;
                 String type = mappingsForValidation.keySet().iterator().next();
-                dummyIndexService.mapperService().merge(type, mappingsForValidation.get(type), MergeReason.MAPPING_UPDATE);
+                Map<String, Object> mappings = mappingsForValidation.get(type);
+                if (mappings.size() == 1 && mappings.keySet().iterator().next().equals(type)) {
+                    mappings = (Map<String, Object>) mappings.get(type);
+                }
+                mappings = Map.of(MapperService.SINGLE_MAPPING_NAME, mappings);
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
+                XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mappings);
+                templateBuilder.setMapping(new CompressedXContent(BytesReference.bytes(mappingBuilder)));
             }
 
         } finally {

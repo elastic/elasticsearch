@@ -353,17 +353,10 @@ public class MetaDataCreateIndexService {
         Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
         // apply templates, merging the mappings into the request mapping if exists
         for (IndexTemplateMetaData template : templates) {
-            for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
-                String mappingString = cursor.value.string();
-                // Templates are wrapped with their _type names, which for pre-8x templates may not
-                // be _doc.  For now, we unwrap them based on the _type name, and then re-wrap with
-                // _doc
-                // TODO in 9x these will all have a _type of _doc so no re-wrapping will be necessary
+            CompressedXContent compressed = template.getMappings();
+            if (compressed != null) {
+                String mappingString = compressed.string();
                 Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                assert templateMapping.size() == 1 : templateMapping;
-                assert cursor.key.equals(templateMapping.keySet().iterator().next()) : cursor.key + " != " + templateMapping;
-                templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME,
-                    templateMapping.values().iterator().next());
                 if (mappings.isEmpty()) {
                     mappings = templateMapping;
                 } else {

@@ -106,8 +106,8 @@ teardown:
       id: 1
       pipeline: "outer"
       body: {}
-- match: { error.root_cause.0.type: "ingest_processor_exception" }
-- match: { error.root_cause.0.reason: "java.lang.IllegalStateException: Cycle detected for pipeline: outer" }
+- match: { error.root_cause.0.type: "illegal_state_exception" }
+- match: { error.root_cause.0.reason: "Cycle detected for pipeline: outer" }
 
 ---
 "Test Pipeline Processor with templating":
@@ -200,5 +200,5 @@ teardown:
           {
             "org": "legal"
           }
-  - match: { error.root_cause.0.type: "ingest_processor_exception" }
-  - match: { error.root_cause.0.reason: "java.lang.IllegalStateException: Pipeline processor configured for non-existent pipeline [legal-department]" }
+  - match: { error.root_cause.0.type: "illegal_state_exception" }
+  - match: { error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [legal-department]" }

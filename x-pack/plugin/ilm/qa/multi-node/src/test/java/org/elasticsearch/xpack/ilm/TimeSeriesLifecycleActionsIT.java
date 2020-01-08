@@ -1117,7 +1117,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
                 String step = (String) explainIndexResponse.get("step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null && retryCount >= 2;
+                return step != null && step.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }

@@ -111,8 +111,9 @@ public enum ValuesSourceRegistry {
                         return entry.getValue();
                     }
                 }
-                // TODO: Error message should list valid field types; not sure fieldType.toString() is the best choice.
-                throw new IllegalArgumentException("Field type " + fieldType.toString() + " is not supported for aggregation "
+                // TODO: Error message should list valid field types
+                String fieldDescription = fieldType.name() + "(" + fieldType.toString() + ")";
+                throw new IllegalArgumentException("Field type " + fieldDescription + " is not supported for aggregation "
                     + aggregationName);
             } else {
                 // TODO: Legacy resolve logic; remove this after converting all aggregations to the new system

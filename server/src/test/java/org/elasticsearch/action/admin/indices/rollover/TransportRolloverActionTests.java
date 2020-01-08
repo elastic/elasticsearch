@@ -359,7 +359,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName));
+            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomBoolean()));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 

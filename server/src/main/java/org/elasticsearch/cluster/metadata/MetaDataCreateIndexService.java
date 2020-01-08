@@ -278,8 +278,10 @@ public class MetaDataCreateIndexService {
 
         // we only find a template when its an API call (a new index)
         // find templates, highest order are better matching
+        final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
+            IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
         final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index())) :
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index(), isHidden)) :
             List.of();
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates, xContentRegistry));

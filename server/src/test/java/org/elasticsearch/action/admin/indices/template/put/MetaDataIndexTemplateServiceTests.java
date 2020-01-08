@@ -144,11 +144,11 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         putTemplateDetail(new PutRequest("test", "foo-2").patterns(Arrays.asList("foo-*")).order(2));
         putTemplateDetail(new PutRequest("test", "bar").patterns(Arrays.asList("bar-*")).order(between(0, 100)));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234").stream()
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", randomBoolean()).stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1"));
-        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz").stream()
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", randomBoolean()).stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar"));
-        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz"), empty());
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", randomBoolean()), empty());
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

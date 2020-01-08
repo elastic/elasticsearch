@@ -65,15 +65,12 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(false));
         // publish
         new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).newHashPublisher().onMaster();
-        ConsistentSettingsService consistentService = new ConsistentSettingsService(settings, clusterService, List.of(stringSetting));
-        assertThat(consistentService.areAllConsistent(), is(true));
+        assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(true));
         // change value
         secureSettings.setString(stringSetting.getKey(), "_TYPO_somethingsecure");
-        assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(false));
         // publish change
         new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).newHashPublisher().onMaster();
-        assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(true));
     }
 
@@ -92,15 +89,12 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(false));
         // publish
         new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).newHashPublisher().onMaster();
-        ConsistentSettingsService consistentService = new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting));
-        assertThat(consistentService.areAllConsistent(), is(true));
+        assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         // change value
         secureSettings.setString("test.affix.second.bar", "_TYPO_second_secure");
-        assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(false));
         // publish change
         new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).newHashPublisher().onMaster();
-        assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         // add value
         secureSettings.setString("test.affix.third.bar", "third_secure");

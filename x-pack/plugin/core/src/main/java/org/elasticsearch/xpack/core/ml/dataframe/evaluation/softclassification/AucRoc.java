@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,8 +19,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -33,7 +36,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric.actualIsTrueQuery;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification.actualIsTrueQuery;
 
 /**
  * Area under the curve (AUC) of the receiver operating characteristic (ROC).
@@ -53,7 +57,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassific
  * When this is used for multi-class classification, it will calculate the ROC
  * curve of each class versus the rest.
  */
-public class AucRoc implements SoftClassificationMetric {
+public class AucRoc implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("auc_roc");
 
@@ -88,7 +92,7 @@ public class AucRoc implements SoftClassificationMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(BinarySoftClassification.NAME, NAME);
     }
 
     @Override
@@ -123,9 +127,9 @@ public class AucRoc implements SoftClassificationMetric {
     }
 
     @Override
-    public List<AggregationBuilder> aggs(String actualField, String predictedProbabilityField) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedProbabilityField) {
         if (result != null) {
-            return List.of();
+            return Tuple.tuple(List.of(), List.of());
         }
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
         AggregationBuilder percentilesForClassValueAgg =
@@ -138,7 +142,9 @@ public class AucRoc implements SoftClassificationMetric {
                 .filter(NON_TRUE_AGG_NAME, QueryBuilders.boolQuery().mustNot(actualIsTrueQuery(actualField)))
                 .subAggregation(
                     AggregationBuilders.percentiles(PERCENTILES).field(predictedProbabilityField).percentiles(percentiles));
-        return List.of(percentilesForClassValueAgg, percentilesForRestAgg);
+        return Tuple.tuple(
+            List.of(percentilesForClassValueAgg, percentilesForRestAgg),
+            List.of());
     }
 
     @Override
@@ -330,7 +336,7 @@ public class AucRoc implements SoftClassificationMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(BinarySoftClassification.NAME, NAME);
         }
 
         @Override

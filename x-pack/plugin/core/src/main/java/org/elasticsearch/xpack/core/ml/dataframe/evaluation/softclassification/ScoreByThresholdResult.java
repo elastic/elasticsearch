@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -13,9 +14,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResu
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+
 public class ScoreByThresholdResult implements EvaluationMetricResult {
 
-    public static final String NAME = "score_by_threshold_result";
+    public static final ParseField NAME = new ParseField("score_by_threshold_result");
 
     private final String name;
     private final double[] thresholds;
@@ -36,7 +39,7 @@ public class ScoreByThresholdResult implements EvaluationMetricResult {
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return registeredMetricName(BinarySoftClassification.NAME, NAME);
     }
 
     @Override

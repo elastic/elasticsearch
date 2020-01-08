@@ -151,8 +151,7 @@ has nothing in common with the query geometry.
 * `WITHIN` - Return all documents whose `geo_shape` field
 is within the query geometry.
 * `CONTAINS` - Return all documents whose `geo_shape` field
-contains the query geometry. Note: this is only supported using the
-`recursive` Prefix Tree Strategy deprecated[6.6]
+contains the query geometry.
 
 [float]
 ==== Ignore Unmapped

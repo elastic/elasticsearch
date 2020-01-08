@@ -23,7 +23,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -162,8 +164,16 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     "prediction_field_type", "string")));
     }
 
-    public void testFieldCardinalityLimitsIsNonNull() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
+    public void testRequiredFieldsIsNonEmpty() {
+        assertThat(createTestInstance().getRequiredFields(), is(not(empty())));
+    }
+
+    public void testFieldCardinalityLimitsIsNonEmpty() {
+        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(anEmptyMap())));
+    }
+
+    public void testFieldMappingsToCopyIsNonEmpty() {
+        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(not(anEmptyMap())));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {
@@ -208,5 +218,17 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));
         }
+    }
+
+    public void testGetStateDocId() {
+        Classification classification = createRandom();
+        assertThat(classification.persistsState(), is(true));
+        String randomId = randomAlphaOfLength(10);
+        assertThat(classification.getStateDocId(randomId), equalTo(randomId + "_classification_state#1"));
+    }
+
+    public void testExtractJobIdFromStateDoc() {
+        assertThat(Classification.extractJobIdFromStateDoc("foo_bar-1_classification_state#1"), equalTo("foo_bar-1"));
+        assertThat(Classification.extractJobIdFromStateDoc("noop"), is(nullValue()));
     }
 }

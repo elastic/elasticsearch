@@ -63,7 +63,7 @@ public class SqlNodeSubclassTests extends NodeSubclassTests {
 
 
     @Override
-    protected Object makeInnerAggregate() {
+    protected Object makeEnclosedAgg() {
         return makeArg(Avg.class);
     }
 

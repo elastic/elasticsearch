@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.literal.Interval;
 
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
@@ -67,7 +68,9 @@ public final class DataTypes {
         if (value instanceof String || value instanceof Character) {
             return KEYWORD;
         }
-
+        if (value instanceof Interval) {
+            return ((Interval<?>) value).dataType();
+        }
         throw new QlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
 

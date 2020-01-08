@@ -409,9 +409,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
          * so we have to hard code it here.
          */
         if (toBuildClass == InnerAggregate.class) {
-            // InnerAggregate's AggregateFunction must be an EnclosedAgg. Avg is.
+            // InnerAggregate's AggregateFunction must be an EnclosedAgg.
             if (argClass == AggregateFunction.class) {
-                return makeInnerAggregate();
+                return makeEnclosedAgg();
             }
         } else if (toBuildClass == FieldAttribute.class) {
             // `parent` is nullable.
@@ -451,7 +451,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         } else {
             Object postProcess = pluggableMakeArg(toBuildClass, argClass);
             if (postProcess != null) {
-                return null;
+                return postProcess;
             }
         }
         if (Expression.class == argClass) {
@@ -516,7 +516,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
-    protected Object makeInnerAggregate() {
+    protected Object makeEnclosedAgg() {
         return makeArg(TestEnclosedAgg.class);
     }
 
@@ -622,7 +622,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
                         // filter the class that are not interested
                         // (and IDE folders like eclipse)
-                        if (!className.startsWith("org.elasticsearch.xpack.sql")) {
+                        if (!className.startsWith("org.elasticsearch.xpack.")) {
                             return FileVisitResult.CONTINUE;
                         }
 

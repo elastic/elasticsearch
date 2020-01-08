@@ -36,6 +36,8 @@
       - ansicolor
       - timestamps
       - gradle-build-scan
+      - inject:
+          properties-file: '.ci/java-versions.properties'
     properties:
         - github:
             url: https://github.com/elastic/elasticsearch/
@@ -76,4 +78,4 @@
 
 
 
-            
+

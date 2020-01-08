@@ -19,7 +19,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -53,9 +52,6 @@ public class CacheService extends AbstractLifecycleComponent {
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
         Setting.Property.NodeScope);
 
-    public static final Setting<Boolean> SNAPSHOT_CACHE_INVALIDATE_ON_SHUTDOWN =
-        Setting.boolSetting("searchable.snapshot.cache.invalidate_on_shutdown", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
-
     private static final int CACHE_FILE_RANGE_SIZE = 1 << 15;
 
     private static final StandardOpenOption[] CACHE_FILE_OPEN_OPTIONS = new StandardOpenOption[]{
@@ -67,20 +63,13 @@ public class CacheService extends AbstractLifecycleComponent {
     private final Cache<String, CacheEntry> cache;
     private final ThreadPool threadPool;
 
-    private volatile boolean invalidateOnShutdown = SNAPSHOT_CACHE_INVALIDATE_ON_SHUTDOWN.get(Settings.EMPTY);
-
-    public CacheService(final Settings settings, final ClusterSettings clusterSettings, final ThreadPool threadPool) {
+    public CacheService(final Settings settings, final ThreadPool threadPool) {
         this.cache = CacheBuilder.<String, CacheEntry>builder()
             .setMaximumWeight(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes())
             .weigher((key, entry) -> entry.estimateWeight()) // TODO only evaluated on promotion/eviction...
             .removalListener(notification -> markAsEvicted(notification.getValue()))
             .build();
-        clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_INVALIDATE_ON_SHUTDOWN, this::setInvalidateOnShutdown);
         this.threadPool = threadPool;
-    }
-
-    private void setInvalidateOnShutdown(boolean invalidateOnShutdown) {
-        this.invalidateOnShutdown = invalidateOnShutdown;
     }
 
     @Override
@@ -90,9 +79,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        if (invalidateOnShutdown) { // NORELEASE Only for debug purpose as CacheEntry maintains a reference to the source dir
-            cache.invalidateAll();
-        }
+        cache.invalidateAll();
     }
 
     @Override
@@ -200,11 +187,9 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param predicate the predicate to evaluate
      */
     public void removeFromCache(final Predicate<String> predicate) {
-        if (invalidateOnShutdown) {
-            for (String cacheKey : cache.keys()) {
-                if (predicate.test(cacheKey)) {
-                    cache.invalidate(cacheKey);
-                }
+        for (String cacheKey : cache.keys()) {
+            if (predicate.test(cacheKey)) {
+                cache.invalidate(cacheKey);
             }
         }
         cache.refresh();
@@ -242,7 +227,7 @@ public class CacheService extends AbstractLifecycleComponent {
                 protected void closeInternal() {
                     assert refCount() == 0;
                     IOUtils.closeWhileHandlingException(CacheEntry.this.channel);
-                    assert evicted || invalidateOnShutdown == false;
+                    assert evicted;
                     if (evicted) {
                         logger.trace(() -> new ParameterizedMessage("deleting cache file [{}]", path));
                         IOUtils.deleteFilesIgnoringExceptions(path);

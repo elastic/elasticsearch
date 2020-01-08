@@ -138,7 +138,7 @@ public class EmailSslTests extends ESTestCase {
         Set<Setting<?>> registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registeredSettings.addAll(EmailService.getSettings());
         ClusterSettings clusterSettings = new ClusterSettings(settings, registeredSettings);
-        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
+        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
         final EmailService emailService = new EmailService(settings, null, sslService, clusterSettings);
         EmailTemplate emailTemplate = EmailTemplate.builder().from("from@example.org").to("to@example.org")
             .subject("subject").textBody("body").build();

@@ -200,7 +200,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
 
     protected void createIndexBasedOnFieldSettings(String index, String alias, TestFieldSetting[] fieldSettings) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject().startObject("type1").startObject("properties");
+        mappingBuilder.startObject().startObject("_doc").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
             field.addToMappings(mappingBuilder);
         }
@@ -209,7 +209,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                 .putList("index.analysis.analyzer.tv_test.filter", "lowercase");
-        assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
+        assertAcked(prepareCreate(index).setMapping(mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
     }
 
     /**

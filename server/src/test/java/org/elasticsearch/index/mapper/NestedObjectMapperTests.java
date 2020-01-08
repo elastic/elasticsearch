@@ -516,7 +516,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testParentObjectMapperAreNested() throws Exception {
-        MapperService mapperService = createIndex("index1", Settings.EMPTY, "_doc", jsonBuilder().startObject()
+        MapperService mapperService = createIndex("index1", Settings.EMPTY, jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("comments")
                         .field("type", "nested")
@@ -530,7 +530,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         ObjectMapper objectMapper = mapperService.getObjectMapper("comments.messages");
         assertTrue(objectMapper.parentObjectMapperAreNested(mapperService));
 
-        mapperService = createIndex("index2", Settings.EMPTY, "_doc", jsonBuilder().startObject()
+        mapperService = createIndex("index2", Settings.EMPTY, jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("comments")
                     .field("type", "object")

@@ -498,6 +498,13 @@ public class DistroTestPlugin implements Plugin<Project> {
                 return true;
 
             case LINUX:
+                // We don't attempt to check the current flavor and version of Linux unless we're
+                // running in CI, because we don't want to stop people running the Docker tests in
+                // their own environments if they really want to.
+                if (BuildParams.isCi() == false) {
+                    return true;
+                }
+
                 // Only some hosts in CI are configured with Docker. We attempt to work out the OS
                 // and version, so that we know whether to expect to find Docker. We don't attempt
                 // to probe for whether Docker is available, because that doesn't tell us whether

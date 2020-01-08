@@ -53,7 +53,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
-    private static ConstructingObjectParser<ScriptScoreQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
+    private static final ConstructingObjectParser<ScriptScoreQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
         args -> {
             ScriptScoreQueryBuilder ssQueryBuilder = new ScriptScoreQueryBuilder((QueryBuilder) args[0], (Script) args[1]);
             if (args[2] != null) ssQueryBuilder.setMinScore((Float) args[2]);

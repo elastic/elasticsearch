@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -1238,10 +1237,10 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
         String mappingJson = Strings.toString(jsonBuilder().startObject()
-                .startObject("type").startObject("properties")
+                .startObject("properties")
                 .startObject("date").field("type", "date").field("format", "strict_date_optional_time||dd-MM-yyyy")
-                .endObject().endObject().endObject().endObject());
-        prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).get();
+                .endObject().endObject().endObject());
+        prepareCreate("idx2").setMapping(mappingJson).get();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
             reqs[i] = client().prepareIndex("idx2").setId("" + i)

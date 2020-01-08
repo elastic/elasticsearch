@@ -282,7 +282,7 @@ public class SyncedFlushResponse implements ToXContentObject {
         private Map<String, Object> routing;
 
         @SuppressWarnings("unchecked")
-        static ConstructingObjectParser<ShardFailure, Void> PARSER = new ConstructingObjectParser<>(
+        static final ConstructingObjectParser<ShardFailure, Void> PARSER = new ConstructingObjectParser<>(
             "shardfailure",
             a -> new ShardFailure((Integer)a[0], (String)a[1], (Map<String, Object>)a[2])
         );

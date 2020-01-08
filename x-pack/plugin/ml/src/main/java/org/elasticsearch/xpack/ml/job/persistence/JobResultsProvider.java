@@ -129,7 +129,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -295,7 +294,7 @@ public class JobResultsProvider {
             // This assumes the requested mapping will be merged with mappings from the template,
             // and may need to be revisited if template merging is ever refactored
             try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(termFields)) {
-                createIndexRequest.mapping(SINGLE_MAPPING_NAME, termFieldsMapping);
+                createIndexRequest.mapping(termFieldsMapping);
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(

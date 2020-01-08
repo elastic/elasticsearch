@@ -152,10 +152,13 @@ public class ConnectionManagerTests extends ESTestCase {
         assertFalse(connectionManager.nodeConnected(node));
 
         ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
-            if (rarely()) {
-                l.onResponse(null);
-            } else if (frequently()) {
-                threadPool.generic().execute(() -> l.onResponse(null));
+            boolean success = randomBoolean();
+            if (success) {
+                if (randomBoolean()) {
+                    l.onResponse(null);
+                } else {
+                    threadPool.generic().execute(() -> l.onResponse(null));
+                }
             } else {
                 threadPool.generic().execute(() -> l.onFailure(new IllegalStateException("dummy exception")));
             }
@@ -208,9 +211,17 @@ public class ConnectionManagerTests extends ESTestCase {
 
         assertEquals(10, nodeConnectedCount.get() + nodeFailureCount.get());
 
-        // Only a single connection attempt should be open.
-        long size = connections.stream().filter(c -> !c.isClosed()).count();
-        assertEquals(1, size);
+        int managedConnections = connectionManager.size();
+        if (managedConnections != 0) {
+            assertEquals(1, managedConnections);
+
+            // Only a single connection attempt should be open.
+            assertEquals(1, connections.stream().filter(c -> c.isClosed() == false).count());
+        } else {
+            // No connections succeeded
+            assertEquals(0, connections.stream().filter(c -> c.isClosed() == false).count());
+        }
+
 
         connectionManager.close();
         // The connection manager will close all open connections

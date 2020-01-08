@@ -44,8 +44,7 @@ import java.util.stream.Collectors;
  * each of these blobs.
  * Before writing a new {@link IndexMetaData} blob during snapshot finalization in
  * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#finalizeSnapshot} an instance of {@link IndexMetaData} should be
- * hashed and then used to check if already exists in the repository
- * via {@link #getIndexMetaBlobId(String)}.
+ * hashed and then used to check if it already exists in the repository via {@link #getIndexMetaBlobId(String)}.
  */
 public final class IndexMetaDataGenerations {
 
@@ -167,8 +166,16 @@ public final class IndexMetaDataGenerations {
      * @return hex encoded SHA-256
      */
     public static String hashIndexMetaData(IndexMetaData indexMetaData) {
-        final Map<String, Object> builderString =
-            deepSort(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(normalizeMetaData(indexMetaData)), true));
+        // Remove primary terms and version from the metadata to get a consistent hash across allocation changes
+        final IndexMetaData.Builder normalized = IndexMetaData.builder(indexMetaData).version(1L);
+        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+            normalized.primaryTerm(i, 1L);
+        }
+        // IndexMetaData is serialized as a number of nested maps without any ordering guarantees. To get a consistent hash we first turn
+        // it into a nested tree-map to get ordering across all fields and then hash the nested tree-map
+        // TODO: Do the conversion of metadata to map more efficiently without the serialization round-trip
+        final Map<String, Object> normalizedMap = deepSort(
+            XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(normalized.build()), true));
         MessageDigest digest = MessageDigests.sha256();
         try (StreamOutput hashOut = new OutputStreamStreamOutput(new OutputStream() {
             @Override
@@ -181,27 +188,20 @@ public final class IndexMetaDataGenerations {
                 digest.update(b, off, len);
             }
         })) {
-            hashOut.writeMap(builderString);
+            hashOut.writeMap(normalizedMap);
         } catch (IOException e) {
             throw new AssertionError("No actual IO happens here", e);
         }
         return MessageDigests.toHexString(digest.digest());
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> deepSort(Map<String, Object> map) {
         final TreeMap<String, Object> result = new TreeMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            result.put(entry.getKey(),
-                entry.getValue() instanceof Map ? deepSort((Map<String, Object>) entry.getValue()) : entry.getValue());
+            final Object value = entry.getValue();
+            result.put(entry.getKey(), value instanceof Map ? deepSort((Map<String, Object>) value) : value);
         }
         return result;
-    }
-
-    private static IndexMetaData normalizeMetaData(final IndexMetaData indexMetaData) {
-        final IndexMetaData.Builder normalized = IndexMetaData.builder(indexMetaData).version(1L);
-        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-            normalized.primaryTerm(i, 1L);
-        }
-        return normalized.build();
     }
 }

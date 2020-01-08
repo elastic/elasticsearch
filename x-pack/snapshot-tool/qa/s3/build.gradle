@@ -4,6 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   compile project(":plugins:repository-s3")
@@ -26,9 +27,9 @@ String s3PermanentBucket = System.getenv("amazon_s3_bucket")
 String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
-  s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
-  s3PermanentBucket = 'permanent-bucket-test'
+  s3PermanentAccessKey = 'sn_tool_access_key'
+  s3PermanentSecretKey = 'sn_tool_secret_key'
+  s3PermanentBucket = 'bucket'
   s3PermanentBasePath = 'integration_test'
 
   useS3Fixture = true
@@ -48,41 +49,17 @@ task thirdPartyTest(type: Test) {
 }
 
 if (useS3Fixture) {
-  thirdPartyTest.enabled = false;
   testingConventions.enabled = false;
-  /*
-
-  See: https://github.com/elastic/elasticsearch/issues/46813 Fails with --parallel
-
-  apply plugin: 'elasticsearch.test.fixtures'
-
-  testFixtures.useFixture()
-
-  task writeDockerFile {
-    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
-    outputs.file(minioDockerfile)
-    doLast {
-      minioDockerfile.parentFile.mkdirs()
-      minioDockerfile.text =
-        "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-          "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-          "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-          "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
-    }
-  }
-
-  preProcessFixture {
-    dependsOn(writeDockerFile)
-  }
+  testFixtures.useFixture(':test:fixtures:minio-fixture', "minio-fixture-for-snapshot-tool")
 
   def minioAddress = {
-    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+    int minioPort = project(':test:fixtures:minio-fixture').postProcessFixture.ext."test.fixtures.minio-fixture-for-snapshot-tool.tcp.9000"
     assert minioPort > 0
     'http://127.0.0.1:' + minioPort
   }
 
   thirdPartyTest {
-    dependsOn tasks.postProcessFixture
+    dependsOn project(':test:fixtures:minio-fixture').postProcessFixture
     nonInputProperties.systemProperty 'test.s3.endpoint', "${-> minioAddress.call()}"
   }
 
@@ -91,7 +68,7 @@ if (useS3Fixture) {
       throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
         "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
     }
-  }*/
+  }
 }
 
 check.dependsOn(thirdPartyTest)

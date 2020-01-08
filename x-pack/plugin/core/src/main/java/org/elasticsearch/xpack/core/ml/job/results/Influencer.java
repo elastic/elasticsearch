@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
@@ -134,7 +135,7 @@ public class Influencer implements ToXContentObject, Writeable {
 
     public String getId() {
         return jobId + "_influencer_" + timestamp.getTime() + "_" + bucketSpan + "_" +
-                influenceField + "_" + influenceValue.hashCode() + "_" + influenceValue.length();
+                influenceField + "_" + MachineLearningField.valuesToId(influenceValue);
     }
 
     public double getProbability() {

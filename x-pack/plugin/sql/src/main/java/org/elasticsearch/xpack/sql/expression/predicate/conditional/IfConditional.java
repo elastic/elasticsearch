@@ -69,24 +69,17 @@ public class IfConditional extends Expression {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (!super.equals(o)) {
-            return false;
-        }
-
-        IfConditional that = (IfConditional) o;
-        return Objects.equals(condition, that.condition) &&
-            Objects.equals(result, that.result);
+    public int hashCode() {
+        return Objects.hash(condition, result);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(condition, result);
+    public boolean equals(Object o) {
+        if (super.equals(o) == true) {
+            IfConditional that = (IfConditional) o;
+            return Objects.equals(condition, that.condition) 
+                    && Objects.equals(result, that.result);
+        }
+        return false;
     }
 }

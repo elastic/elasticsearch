@@ -37,7 +37,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 import org.junit.rules.TestWatcher;
@@ -48,6 +47,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -87,8 +88,8 @@ public abstract class PackagingTestCase extends Assert {
 
     private static boolean failed;
 
-    @ClassRule
-    public static final TestWatcher testFailureRule = new TestWatcher() {
+    @Rule
+    public final TestWatcher testFailureRule = new TestWatcher() {
         @Override
         protected void failed(Throwable e, Description description) {
             failed = true;
@@ -96,7 +97,7 @@ public abstract class PackagingTestCase extends Assert {
     };
 
     // a shell to run system commands with
-    protected Shell sh;
+    protected static Shell sh;
 
     @Rule
     public final TestName testNameRule = new TestName();
@@ -112,11 +113,24 @@ public abstract class PackagingTestCase extends Assert {
         cleanEverything();
     }
 
+    @BeforeClass
+    public static void createShell() throws Exception {
+        sh = new Shell();
+    }
+
     @Before
     public void setup() throws Exception {
         assumeFalse(failed); // skip rest of tests once one fails
 
-        sh = newShell();
+        sh.reset();
+        if (distribution().hasJdk == false) {
+            Platforms.onLinux(() -> {
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+            Platforms.onWindows(() -> {
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+        }
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -128,17 +142,20 @@ public abstract class PackagingTestCase extends Assert {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                installation = Archives.installArchive(distribution);
+                installation = Archives.installArchive(sh, distribution);
                 Archives.verifyArchiveInstallation(installation, distribution);
                 break;
             case DEB:
             case RPM:
-                installation = Packages.installPackage(distribution);
-                Packages.verifyPackageInstallation(installation, distribution, newShell());
+                installation = Packages.installPackage(sh, distribution);
+                Packages.verifyPackageInstallation(installation, distribution, sh);
                 break;
             case DOCKER:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
+                break;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }
 
@@ -147,19 +164,7 @@ public abstract class PackagingTestCase extends Assert {
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            switch (distribution.packaging) {
-                case TAR:
-                case ZIP:
-                    Archives.runElasticsearch(installation, sh);
-                    break;
-                case DEB:
-                case RPM:
-                    Packages.startElasticsearch(sh, installation);
-                    break;
-                case DOCKER:
-                    // nothing, "installing" docker image is running it
-            }
-
+            awaitElasticsearchStartup(runElasticsearchStartCommand());
         } catch (Exception e ){
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -180,7 +185,33 @@ public abstract class PackagingTestCase extends Assert {
                 FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             throw e;
         }
+        stopElasticsearch();
+    }
 
+    /**
+     * Run the command to start Elasticsearch, but don't wait or test for success.
+     * This method is useful for testing failure conditions in startup. To await success,
+     * use {@link #startElasticsearch()}.
+     * @return Shell results of the startup command.
+     * @throws Exception when command fails immediately.
+     */
+    public Shell.Result runElasticsearchStartCommand() throws Exception {
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                return Archives.runElasticsearchStartCommand(installation, sh);
+            case DEB:
+            case RPM:
+                return Packages.runElasticsearchStartCommand(sh);
+            case DOCKER:
+                // nothing, "installing" docker image is running it
+                return Shell.NO_OP;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        }
+    }
+
+    public void stopElasticsearch() throws Exception {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
@@ -191,20 +222,73 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.stopElasticsearch(sh);
                 break;
             case DOCKER:
-                // nothing, removing container is handled externally
+                // nothing, "installing" docker image is running it
+                break;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }
 
-    protected static Shell newShell() throws Exception {
-        Shell sh = new Shell();
-        if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
-            Platforms.onWindows(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
+    public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
+        assertThat("Startup command should succeed", result.exitCode, equalTo(0));
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                Archives.assertElasticsearchStarted(installation);
+                break;
+            case DEB:
+            case RPM:
+                Packages.assertElasticsearchStarted(sh, installation);
+                break;
+            case DOCKER:
+                Docker.waitForElasticsearchToStart();
+                break;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
-        return sh;
+    }
+
+    /**
+     * Start Elasticsearch and wait until it's up and running. If you just want to run
+     * the start command, use {@link #runElasticsearchStartCommand()}.
+     * @throws Exception if Elasticsearch can't start
+     */
+    public void startElasticsearch() throws Exception {
+        awaitElasticsearchStartup(runElasticsearchStartCommand());
+    }
+
+    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage) {
+
+        if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+
+            // If log file exists, then we have bootstrapped our logging and the
+            // error should be in the logs
+            assertTrue("log file exists", Files.exists(installation.logs.resolve("elasticsearch.log")));
+            String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
+            assertThat(logfile, containsString(expectedMessage));
+
+        } else if (distribution().isPackage() && Platforms.isSystemd()) {
+
+            // For systemd, retrieve the error from journalctl
+            assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
+            Shell.Result error = sh.run("journalctl --boot --unit elasticsearch.service");
+            assertThat(error.stdout, containsString(expectedMessage));
+
+        } else if (Platforms.WINDOWS == true) {
+
+            // In Windows, we have written our stdout and stderr to files in order to run
+            // in the background
+            String wrapperPid = result.stdout.trim();
+            sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
+            sh.runIgnoreExitCode("Get-EventSubscriber | " +
+                "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
+                "Unregister-EventSubscriber -Force");
+            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), containsString(expectedMessage));
+
+        } else {
+
+            // Otherwise, error should be on shell stderr
+            assertThat(result.stderr, containsString(expectedMessage));
+        }
     }
 }

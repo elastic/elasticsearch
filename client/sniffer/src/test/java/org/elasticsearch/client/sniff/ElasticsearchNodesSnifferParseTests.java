@@ -107,6 +107,28 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
                 node(9207, "c2", "6.0.0", false, false, true));
     }
 
+    public void testParsingPublishAddressWithPreES7Format() throws IOException {
+        InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("es6_nodes_publication_address_format.json");
+
+        HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
+        List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
+
+        assertEquals("127.0.0.1", nodes.get(0).getHost().getHostName());
+        assertEquals(9200, nodes.get(0).getHost().getPort());
+        assertEquals("http", nodes.get(0).getHost().getSchemeName());
+    }
+
+    public void testParsingPublishAddressWithES7Format() throws IOException {
+        InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("es7_nodes_publication_address_format.json");
+
+        HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
+        List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
+
+        assertEquals("elastic.test", nodes.get(0).getHost().getHostName());
+        assertEquals(9200, nodes.get(0).getHost().getPort());
+        assertEquals("http", nodes.get(0).getHost().getSchemeName());
+    }
+
     private Node node(int port, String name, String version, boolean master, boolean data, boolean ingest) {
         HttpHost host = new HttpHost("127.0.0.1", port);
         Set<HttpHost> boundHosts = new HashSet<>(2);

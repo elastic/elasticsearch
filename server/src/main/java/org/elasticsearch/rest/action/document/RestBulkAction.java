@@ -86,4 +86,9 @@ public class RestBulkAction extends BaseRestHandler {
     public boolean supportsContentStream() {
         return true;
     }
+
+    @Override
+    public boolean allowsUnsafeBuffers() {
+        return true;
+    }
 }

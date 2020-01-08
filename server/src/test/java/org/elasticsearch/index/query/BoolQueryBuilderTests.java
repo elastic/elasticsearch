@@ -264,7 +264,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "      }" +
                 "    }" +
                 "  } ]," +
-                "  \"adjust_pure_negative\" : true," +
                 "  \"minimum_should_match\" : \"23\"," +
                 "  \"boost\" : 42.0" +
                 "}" +

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-JAVA_HOME=${JAVA_HOME:-$HOME/.java/openjdk12}
+JAVA_HOME=${JAVA_HOME:-$HOME/.java/openjdk13}
 RUNTIME_JAVA_HOME=${RUNTIME_JAVA_HOME:-$HOME/.java/openjdk11}
 
 JAVA7_HOME=$HOME/.java/java7

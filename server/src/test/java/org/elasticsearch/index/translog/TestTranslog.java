@@ -92,11 +92,21 @@ public class TestTranslog {
                 // if we crashed while rolling a generation then we might have copied `translog.ckp` to its numbered generation file but
                 // have not yet written a new `translog.ckp`. During recovery we must also verify that this file is intact, so it's ok to
                 // corrupt this file too (either by writing the wrong information, correctly formatted, or by properly corrupting it)
-                final Checkpoint checkpointCopy = LuceneTestCase.usually(random) ? checkpoint
-                        : new Checkpoint(checkpoint.offset + random.nextInt(2), checkpoint.numOps + random.nextInt(2),
-                            checkpoint.generation + random.nextInt(2), checkpoint.minSeqNo + random.nextInt(2),
-                            checkpoint.maxSeqNo + random.nextInt(2), checkpoint.globalCheckpoint + random.nextInt(2),
-                            checkpoint.minTranslogGeneration + random.nextInt(2), checkpoint.trimmedAboveSeqNo + random.nextInt(2));
+                final Checkpoint checkpointCopy;
+                if (LuceneTestCase.usually(random)) {
+                    checkpointCopy = checkpoint;
+                } else {
+                    long newTranslogGeneration = checkpoint.generation + random.nextInt(2);
+                    long newMinTranslogGeneration = Math.min(newTranslogGeneration, checkpoint.minTranslogGeneration + random.nextInt(2));
+                    long newMaxSeqNo = checkpoint.maxSeqNo + random.nextInt(2);
+                    long newMinSeqNo = Math.min(newMaxSeqNo, checkpoint.minSeqNo + random.nextInt(2));
+                    long newTrimmedAboveSeqNo = Math.min(newMaxSeqNo, checkpoint.trimmedAboveSeqNo + random.nextInt(2));
+
+                    checkpointCopy = new Checkpoint(checkpoint.offset + random.nextInt(2), checkpoint.numOps + random.nextInt(2),
+                        newTranslogGeneration, newMinSeqNo,
+                        newMaxSeqNo, checkpoint.globalCheckpoint + random.nextInt(2),
+                        newMinTranslogGeneration, newTrimmedAboveSeqNo);
+                }
                 Checkpoint.write(FileChannel::open, unnecessaryCheckpointCopyPath, checkpointCopy,
                     StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
 

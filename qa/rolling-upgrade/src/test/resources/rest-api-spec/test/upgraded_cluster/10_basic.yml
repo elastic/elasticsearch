@@ -126,4 +126,20 @@
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
 
+---
+"Create an index that matches the typed template, and verify that the type is no longer there":
+  - do:
+      indices.create:
+        index: typed-template-test
+        mappings:
+          properties:
+            textfield:
+              type: text
+
+  - do:
+      indicies.get_mapping:
+        index: typed-template-test
+  - is_true: { 'typed-template-test' : mappings.properties.kw }
+
+
 

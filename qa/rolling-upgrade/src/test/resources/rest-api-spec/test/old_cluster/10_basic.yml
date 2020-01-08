@@ -205,3 +205,19 @@
         wait_for_completion: true
         task_id: $task
 
+---
+"Add an index template with a type in the old cluster"
+  - do:
+      indices.put_template:
+        include_type_name: true
+        name: typed-template
+        body:
+          index_patterns: typed-template-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            type1:
+              properties:
+                kw:
+                  type: keyword

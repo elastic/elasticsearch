@@ -35,7 +35,7 @@ dependencies {
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
-  String downgradedClusterName = "${baseName}-downgraded"
+  String revertedClusterName = "${baseName}-reverted"
 
   def clusterSettings = {
     versions = [bwcVersion.toString(), project.version]
@@ -46,46 +46,46 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
 
   testClusters {
     "${baseName}" clusterSettings
-    "${downgradedClusterName}" clusterSettings
+    "${revertedClusterName}" clusterSettings
   }
 
-  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#Step1OldClusterTest", RestTestRunnerTask) {
     useCluster testClusters."${baseName}"
     mustRunAfter(precommit)
     doFirst {
       project.delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
-    systemProperty 'tests.rest.suite', 'old_cluster'
+    systemProperty 'tests.rest.suite', 'step1'
   }
 
-  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#Step2NewClusterTest", RestTestRunnerTask) {
     useCluster testClusters."${baseName}"
-    dependsOn "${baseName}#oldClusterTest"
+    dependsOn "${baseName}#Step1OldClusterTest"
     doFirst {
       testClusters."${baseName}".goToNextVersion()
     }
-    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    systemProperty 'tests.rest.suite', 'step2'
   }
 
-  tasks.register("${baseName}#downgradedClusterTest", RestTestRunnerTask) {
-    useCluster testClusters."${downgradedClusterName}"
-    dependsOn "${baseName}#upgradedClusterTest"
-    systemProperty 'tests.rest.suite', 'downgraded_cluster'
+  tasks.register("${baseName}#Step3OldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${revertedClusterName}"
+    dependsOn "${baseName}#Step2NewClusterTest"
+    systemProperty 'tests.rest.suite', 'step3'
   }
 
-  tasks.register("${baseName}#reUpgradedClusterTest", RestTestRunnerTask) {
-    useCluster testClusters."${downgradedClusterName}"
-    dependsOn "${baseName}#downgradedClusterTest"
+  tasks.register("${baseName}#Step4NewClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${revertedClusterName}"
+    dependsOn "${baseName}#Step3OldClusterTest"
     doFirst {
-      testClusters."${downgradedClusterName}".goToNextVersion()
+      testClusters."${revertedClusterName}".goToNextVersion()
     }
-    systemProperty 'tests.rest.suite', 're_upgraded_cluster'
+    systemProperty 'tests.rest.suite', 'step4'
   }
 
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
     it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    def clusterName = it.name.contains("downgraded") || it.name.contains("reUpgraded") ? "${downgradedClusterName}" : "${baseName}"
+    def clusterName = it.name.contains("Step3") || it.name.contains("Step4") ? "${revertedClusterName}" : "${baseName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
   }
@@ -93,7 +93,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(
       tasks.register("${baseName}#bwcTest") {
-        dependsOn tasks.named("${baseName}#reUpgradedClusterTest")
+        dependsOn tasks.named("${baseName}#Step4NewClusterTest")
       }
     )
   }

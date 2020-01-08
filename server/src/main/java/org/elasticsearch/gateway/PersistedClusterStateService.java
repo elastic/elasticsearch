@@ -157,7 +157,7 @@ public class PersistedClusterStateService {
                 final Directory directory = createDirectory(path.resolve(METADATA_DIRECTORY_NAME));
                 closeables.add(directory);
 
-                final IndexWriter indexWriter = createIndexWriter(directory);
+                final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
                 metaDataIndexWriters.add(new MetaDataIndexWriter(directory, indexWriter));
             }
@@ -170,10 +170,10 @@ public class PersistedClusterStateService {
         return new Writer(metaDataIndexWriters, nodeId, bigArrays);
     }
 
-    private static IndexWriter createIndexWriter(Directory directory) throws IOException {
+    private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
         final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         // start empty since we re-write the whole cluster state to ensure it is all using the same format version
-        indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        indexWriterConfig.setOpenMode(openExisting ? IndexWriterConfig.OpenMode.APPEND : IndexWriterConfig.OpenMode.CREATE);
         // only commit when specifically instructed, we must not write any intermediate states
         indexWriterConfig.setCommitOnClose(false);
         // most of the data goes into stored fields which are not buffered, so we only really need a tiny buffer
@@ -275,7 +275,8 @@ public class PersistedClusterStateService {
                     final Map<String, String> userData = reader.getIndexCommit().getUserData();
                     assert userData.get(NODE_VERSION_KEY) != null;
 
-                    try (IndexWriter indexWriter = createIndexWriter(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    try (IndexWriter indexWriter =
+                             createIndexWriter(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
                         final Map<String, String> commitData = new HashMap<>(userData);
                         commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id));
                         indexWriter.setLiveCommitData(commitData.entrySet());

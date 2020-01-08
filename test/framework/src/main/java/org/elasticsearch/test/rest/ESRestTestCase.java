@@ -52,6 +52,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -969,23 +970,27 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings) + "}");
-        client().performRequest(request);
+        createIndex(name, settings, null);
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
-                + ", \"mappings\" : {" + mapping + "} }");
-        client().performRequest(request);
+        createIndex(name, settings, mapping, null);
     }
 
     protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
-            + ", \"mappings\" : {" + mapping + "}"
-            + ", \"aliases\": {" + aliases + "} }");
+        String entity = "{\"settings\": " + Strings.toString(settings);
+        if (mapping != null) {
+            entity += ",\"mappings\" : {" + mapping + "}";
+        }
+        if (aliases != null) {
+            entity += ",\"aliases\": {" + aliases + "}";
+        }
+        entity += "}";
+        if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+            expectSoftDeletesWarning(request, name);
+        }
+        request.setJsonEntity(entity);
         client().performRequest(request);
     }
 
@@ -1002,6 +1007,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("PUT", "/" + index + "/_settings");
         request.setJsonEntity(Strings.toString(settings));
         client().performRequest(request);
+    }
+
+    protected static void expectSoftDeletesWarning(Request request, String indexName) {
+        final List<String> expectedWarnings = Collections.singletonList(
+            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
+            "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
+        final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
+            request.setOptions(requestOptions);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+            request.setOptions(requestOptions);
+        }
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {

@@ -139,11 +139,15 @@ analyzing the splits with respect to their own history. It is used for finding
 unusual values in the context of the split.
 end::by-field-name[]
 
+tag::calendar-id[]
+A string that uniquely identifies a calendar.
+end::calendar-id[]
+
 tag::categorization-analyzer[]
 If `categorization_field_name` is specified, you can also define the analyzer
 that is used to interpret the categorization field. This property cannot be used
 at the same time as `categorization_filters`. The categorization analyzer
-specifies how the `categorization_field` is interpreted by the categorization
+specifies how the categorization field is interpreted by the categorization
 process. The syntax is very similar to that used to define the `analyzer` in the
 <<indices-analyze,Analyze endpoint>>. For more information, see
 {ml-docs}/ml-configuring-categories.html[Categorizing log messages].
@@ -170,7 +174,7 @@ end::categorization-analyzer[]
 
 tag::categorization-examples-limit[]
 The maximum number of examples stored per category in memory and in the results
-data store. The default value is 4.  If you increase this value, more examples
+data store. The default value is `4`.  If you increase this value, more examples
 are available, however it requires that you have more storage available. If you
 set this value to `0`, no examples are stored.
 +
@@ -486,51 +490,6 @@ optionally `results_field` (`ml` by default).
     results of the analysis. Default to `ml`.
 end::dest[]
 
-tag::detector[]
-A detector has the following properties:
-
-`by_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
-
-`custom_rules`::::
-(array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
-
-`detector_description`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
-
-`detector_index`::::
-(integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
-
-`exclude_frequent`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
-
-`field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
-
-`function`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=function]
-
-`over_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
-
-`partition_field_name`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
-
-`use_null`::::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
-
-end::detector[]
-
 tag::detector-description[]
 A description of the detector. For example, `Low event rate`.
 end::detector-description[]
@@ -612,6 +571,10 @@ token filters, other plugins can provide more token filters. This property is
 optional. If it is not specified, no token filters are applied prior to
 categorization.
 end::filter[]
+
+tag::filter-id[]
+A string that uniquely identifies a filter.
+end::filter-id[]
 
 tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real
@@ -866,11 +829,6 @@ applied. For example, "CPU,NetworkIn,DiskWrites". Wildcards are not supported.
 Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
-tag::model-snapshot-id[]
-A numerical character string that uniquely identifies the model snapshot. For 
-example, `1575402236000 `.
-end::model-snapshot-id[]
-
 tag::model-snapshot-retention-days[]
 The time in days that model snapshots are retained for the job. Older snapshots
 are deleted. The default value is `1`, which means snapshots are retained for
@@ -1002,7 +960,7 @@ is `100`.
 end::size[]
 
 tag::snapshot-id[]
-Identifier for the model snapshot.
+A numerical character string that uniquely identifies the model snapshot.
 end::snapshot-id[]
 
 tag::source-put-dfa[]
@@ -1104,8 +1062,8 @@ end::tokenizer[]
 tag::training-percent[]
 Defines what percentage of the eligible documents that will 
 be used for training. Documents that are ignored by the analysis (for example 
-those that contain arrays) won’t be included in the calculation for used 
-percentage. Defaults to `100`.
+those that contain arrays with more than one value) won’t be included in the 
+calculation for used percentage. Defaults to `100`.
 end::training-percent[]
 
 tag::use-null[]

@@ -19,12 +19,16 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Objects;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -90,4 +94,28 @@ public class AdapterActionFutureTests extends ESTestCase {
         thread.join();
     }
 
+    public void testUnwrapException() {
+        checkUnwrap(new RemoteTransportException("test", new RuntimeException()), RuntimeException.class, RemoteTransportException.class);
+        checkUnwrap(new RemoteTransportException("test", new Exception()),
+            UncategorizedExecutionException.class, RemoteTransportException.class);
+        checkUnwrap(new Exception(), UncategorizedExecutionException.class, Exception.class);
+        checkUnwrap(new ElasticsearchException("test", new Exception()), ElasticsearchException.class, ElasticsearchException.class);
+    }
+
+    private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException,
+                             Class<? extends Exception> getException) {
+        final AdapterActionFuture<Void, Void> adapter = new AdapterActionFuture<Void, Void>() {
+            @Override
+            protected Void convert(Void listenerResponse) {
+                fail();
+                return null;
+            }
+        };
+
+        adapter.onFailure(exception);
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, adapter::actionGet).getClass());
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, () -> adapter.actionGet(10, TimeUnit.SECONDS)).getClass());
+        assertEquals(getException, expectThrows(ExecutionException.class, () -> adapter.get()).getCause().getClass());
+        assertEquals(getException, expectThrows(ExecutionException.class, () -> adapter.get(10, TimeUnit.SECONDS)).getCause().getClass());
+    }
 }

@@ -114,11 +114,14 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), timeValue).build()));
     }
 
-    public void testClusterInfoServiceCollectsInformation() throws Exception {
+    public void testClusterInfoServiceCollectsInformation() {
         internalCluster().startNodes(2);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
             .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
             .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node

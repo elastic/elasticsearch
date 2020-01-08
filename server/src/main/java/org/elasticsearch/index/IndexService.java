@@ -335,7 +335,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             IndexMetaData.FORMAT.writeAndCleanup(getMetaData(), nodeEnv.indexPaths(index()));
         } catch (WriteStateException e) {
-            logger.info(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
+            logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
         }
     }
 
@@ -347,7 +347,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
         } catch (IOException e) {
-            logger.info(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
+            logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
         }
     }
 

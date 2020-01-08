@@ -280,8 +280,7 @@ public class MetaStateService {
         // To ensure that the metadata is never reimported by loadFullStateBWC in case where the deletions here fail mid-way through,
         // we first write an empty manifest file so that the indices become unreferenced, then clean up the indices, and only then delete
         // the manifest file.
-        MANIFEST_FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths());
-        META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        unreferenceAll();
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
             // delete meta state directories of indices
             MetaDataStateFormat.deleteMetaState(nodeEnv.resolveIndexFolder(indexFolderName));

@@ -221,6 +221,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
 
+    @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
@@ -308,13 +309,13 @@ public class IndicesService extends AbstractLifecycleComponent
         };
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
-        danglingIndicesThreadPoolExecutor = EsExecutors.newScaling(
+        nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
+        danglingIndicesThreadPoolExecutor = nodeWriteDanglingIndicesInfo ? EsExecutors.newScaling(
             nodeName + "/" + DANGLING_INDICES_UPDATE_THREAD_NAME,
             1, 1,
             0, TimeUnit.MILLISECONDS,
             daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
-            threadPool.getThreadContext());
-        nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
+            threadPool.getThreadContext()) : null;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -1532,6 +1533,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private void updateDanglingIndicesInfo(Index index) {
         assert DiscoveryNode.isDataNode(settings) : "dangling indices information should only be persisted on data nodes";
+        assert nodeWriteDanglingIndicesInfo : "writing dangling indices info is not enabled";
+        assert danglingIndicesThreadPoolExecutor != null : "executor for dangling indices info is not available";
         if (danglingIndicesToWrite.add(index)) {
             logger.trace("triggered dangling indices update for {}", index);
             final long triggeredTimeMillis = threadPool.relativeTimeInMillis();
@@ -1539,7 +1542,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 danglingIndicesThreadPoolExecutor.execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.info(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index), e);
+                        logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index), e);
                     }
 
                     @Override
@@ -1571,6 +1574,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     // visible for testing
     public boolean allPendingDanglingIndicesWritten() {
-        return danglingIndicesToWrite.isEmpty();
+        return nodeWriteDanglingIndicesInfo == false ||
+            (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
     }
 }

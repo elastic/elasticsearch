@@ -43,29 +43,21 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testSynonymsUpdateable() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
-        Path configDir = node().getEnvironment().configFile();
-        if (Files.exists(configDir) == false) {
-            Files.createDirectory(configDir);
-        }
-        Path synonymsFile = configDir.resolve(synonymsFileName);
-        if (Files.exists(synonymsFile) == false) {
-            Files.createFile(synonymsFile);
-        }
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
-            out.println("foo, baz");
-        }
+        Path synonymsFile = setupSynonymsFile(synonymsFileName, "foo, baz");
 
         final String indexName = "test";
         final String synonymAnalyzerName = "synonym_analyzer";
         final String synonymGraphAnalyzerName = "synonym_graph_analyzer";
         assertAcked(client().admin().indices().prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.number_of_shards", 5).put("index.number_of_replicas", 0)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
                         .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "lowercase", "synonym_filter")
                         .put("analysis.analyzer." + synonymGraphAnalyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + synonymGraphAnalyzerName + ".filter", "lowercase", "synonym_graph_filter")
-                        .put("analysis.filter.synonym_filter.type", "synonym").put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
                         .put("analysis.filter.synonym_graph_filter.type", "synonym_graph")
                         .put("analysis.filter.synonym_graph_filter.updateable", "true")
@@ -124,26 +116,18 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testSynonymsInMultiplexerUpdateable() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
-        Path configDir = node().getEnvironment().configFile();
-        if (Files.exists(configDir) == false) {
-            Files.createDirectory(configDir);
-        }
-        Path synonymsFile = configDir.resolve(synonymsFileName);
-        if (Files.exists(synonymsFile) == false) {
-            Files.createFile(synonymsFile);
-        }
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
-            out.println("foo, baz");
-        }
+        Path synonymsFile = setupSynonymsFile(synonymsFileName, "foo, baz");
 
         final String indexName = "test";
         final String synonymAnalyzerName = "synonym_in_multiplexer_analyzer";
         assertAcked(client().admin().indices().prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.number_of_shards", 5).put("index.number_of_replicas", 0)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
                         .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "my_multiplexer")
-                        .put("analysis.filter.synonym_filter.type", "synonym").put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
                         .put("analysis.filter.my_multiplexer.type", "multiplexer")
                         .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
@@ -192,6 +176,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
+        setupSynonymsFile(synonymsFileName, "foo, baz");
         Path configDir = node().getEnvironment().configFile();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
@@ -208,14 +193,34 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
         final String indexName = "test";
         final String analyzerName = "my_synonym_analyzer";
         MapperException ex = expectThrows(MapperException.class,
-                () -> client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 0).put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
+                () -> client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "synonym_filter")
-                        .put("analysis.filter.synonym_filter.type", "synonym").put("analysis.filter.synonym_filter.updateable", "true")
+                        .put("analysis.filter.synonym_filter.type", "synonym")
+                        .put("analysis.filter.synonym_filter.updateable", "true")
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName))
                         .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals("Failed to parse mapping: analyzer [my_synonym_analyzer] "
                 + "contains filters [synonym_filter] that are not allowed to run in all mode.", ex.getMessage());
     }
+
+    private Path setupSynonymsFile(String synonymsFileName, String content) throws IOException {
+        Path configDir = node().getEnvironment().configFile();
+        if (Files.exists(configDir) == false) {
+            Files.createDirectory(configDir);
+        }
+        Path synonymsFile = configDir.resolve(synonymsFileName);
+        if (Files.exists(synonymsFile) == false) {
+            Files.createFile(synonymsFile);
+        }
+        try (PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+            out.println(content);
+        }
+        return synonymsFile;
+    }
+
 }

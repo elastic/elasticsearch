@@ -80,6 +80,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -354,7 +355,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     public boolean hasOldVersionSnapshots(String repositoryName, RepositoryData repositoryData, @Nullable SnapshotId excluded) {
-        final List<SnapshotId> snapshotIds = List.copyOf(repositoryData.getSnapshotIds());
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         final boolean hasOldFormatSnapshots;
         if (snapshotIds.isEmpty()) {
             hasOldFormatSnapshots = false;

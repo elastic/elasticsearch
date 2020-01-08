@@ -113,21 +113,6 @@ public class ClusterDowngradeIT extends ESRestTestCase {
         return true;
     }
 
-    @Override
-    protected boolean preserveRollupJobsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveILMPoliciesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSLMPoliciesUponCompletion() {
-        return true;
-    }
-
     public void testCreateSnapshot() throws IOException {
         final String repoName = "repo";
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {

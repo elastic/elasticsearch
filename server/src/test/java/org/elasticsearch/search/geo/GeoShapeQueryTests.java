@@ -124,6 +124,17 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         return createMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE);
     }
 
+    public void testNullShape() throws Exception {
+        String mapping = Strings.toString(createMapping());
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        client().prepareIndex("test").setId("aNullshape").setSource("{\"location\": null}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).get();
+        GetResponse result = client().prepareGet("test", "aNullshape").get();
+        assertThat(result.getField("location"), nullValue());
+    }
+
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = Strings.toString(createRandomMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();

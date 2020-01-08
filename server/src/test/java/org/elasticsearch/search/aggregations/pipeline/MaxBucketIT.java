@@ -511,7 +511,7 @@ public class MaxBucketIT extends ESIntegTestCase {
             .endObject().endObject().endObject()
             .endObject().endObject().endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate("foo_2")
-            .addMapping("doc", builder).get());
+            .setMapping(builder).get());
 
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license").field("partnumber", "foobar").field("count", 2).endObject()

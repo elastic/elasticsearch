@@ -10,7 +10,7 @@ reindexed into a target index.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-`ctx['_op']` (`String`)::
+`ctx['op']` (`String`)::
         The name of the operation.
 
 {ref}/mapping-routing-field.html[`ctx['_routing']`] (`String`)::
@@ -34,7 +34,7 @@ reindexed into a target index.
 
 *Side Effects*
 
-`ctx['_op']`::
+`ctx['op']`::
         Use the default of `index` to update a document. Set to `none` to
         specify no operation or `delete` to delete the current document from
         the index.

@@ -44,7 +44,8 @@ public class ComputingExtractor implements HitExtractor, BucketExtractor {
         this.hitName = hitName;
     }
 
-    ComputingExtractor(StreamInput in) throws IOException {
+    // public because of tests...
+    public ComputingExtractor(StreamInput in) throws IOException {
         processor = in.readNamedWriteable(Processor.class);
         hitName = in.readOptionalString();
     }

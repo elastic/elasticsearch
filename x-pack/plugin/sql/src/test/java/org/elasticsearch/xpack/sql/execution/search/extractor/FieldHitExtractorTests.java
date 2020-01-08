@@ -12,10 +12,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -38,32 +37,32 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.is;
 
-public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<AbstractFieldHitExtractor> {
+public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<FieldHitExtractor> {
 
-    public static AbstractFieldHitExtractor randomFieldHitExtractor() {
+    public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new AbstractFieldHitExtractor(name, null, null, randomZone(), randomBoolean(), hitName, false);
+        return new FieldHitExtractor(name, null, null, randomZone(), randomBoolean(), hitName, false);
     }
 
     @Override
-    protected AbstractFieldHitExtractor createTestInstance() {
+    protected FieldHitExtractor createTestInstance() {
         return randomFieldHitExtractor();
     }
 
     @Override
-    protected Reader<AbstractFieldHitExtractor> instanceReader() {
-        return AbstractFieldHitExtractor::new;
+    protected Reader<FieldHitExtractor> instanceReader() {
+        return FieldHitExtractor::new;
     }
 
     @Override
-    protected ZoneId instanceZoneId(AbstractFieldHitExtractor instance) {
+    protected ZoneId instanceZoneId(FieldHitExtractor instance) {
         return instance.zoneId();
     }
 
     @Override
-    protected AbstractFieldHitExtractor mutateInstance(AbstractFieldHitExtractor instance) {
-        return new AbstractFieldHitExtractor(
+    protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
+        return new FieldHitExtractor(
             instance.fieldName() + "mutated",
             instance.fullFieldName() + "mutated",
             randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values())),
@@ -79,7 +78,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         String child = randomAlphaOfLength(5);
         String fieldName = grandparent + "." + parent + "." + child;
 
-        AbstractFieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -103,7 +102,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         String child = randomAlphaOfLength(5);
         String fieldName = grandparent + "." + parent + "." + child;
 
-        AbstractFieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -142,7 +141,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
 
     public void testGetDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -165,13 +164,13 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField("my_date_field", documentFieldValues);
         hit.fields(singletonMap("my_date_field", field));
-        AbstractFieldHitExtractor extractor = new AbstractFieldHitExtractor("my_date_field", DataType.DATETIME, zoneId, true);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATETIME, zoneId, true);
         assertEquals(DateUtils.asDateTime(millis, zoneId), extractor.extract(hit));
     }
 
     public void testGetSource() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -195,22 +194,22 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
 
     public void testToString() {
         assertEquals("hit.field@hit@Europe/Berlin",
-            new AbstractFieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
+                new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
     }
 
     public void testMultiValuedDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor fe = getFieldHitExtractor(fieldName, true);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, true);
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         hit.fields(singletonMap(fieldName, field));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
     public void testMultiValuedSourceValue() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         source.startObject(); {
@@ -219,13 +218,13 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
     public void testSingleValueArrayInSource() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         Object value = randomValue();
@@ -239,30 +238,30 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
     }
 
     public void testExtractSourcePath() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
         assertThat(fe.extractFromSource(map), is(value));
     }
 
     public void testExtractSourceIncorrectPath() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d] from source"));
     }
 
     public void testMultiValuedSource() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", asList(value, value));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
 
     public void testMultiValuedSourceAllowed() {
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor("a", null, UTC, false, true);
+        FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, false, true);
         Object valueA = randomValue();
         Object valueB = randomValue();
         Map<String, Object> map = singletonMap("a", asList(valueA, valueB));
@@ -270,28 +269,28 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
     }
 
     public void testFieldWithDots() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a.b", value);
         assertEquals(value, fe.extractFromSource(map));
     }
 
     public void testNestedFieldWithDots() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", value));
         assertEquals(value, fe.extractFromSource(map));
     }
 
     public void testNestedFieldWithDotsWithNestedField() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
         assertEquals(value, fe.extractFromSource(map));
     }
 
     public void testNestedFieldWithDotsWithNestedFieldWithDots() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d.e", value)));
         assertEquals(value, fe.extractFromSource(map));
@@ -306,7 +305,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
             sj.add(path[i]);
         }
         boolean arrayLeniency = randomBoolean();
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor(sj.toString(), null, UTC, false, arrayLeniency);
+        FieldHitExtractor fe = new FieldHitExtractor(sj.toString(), null, UTC, false, arrayLeniency);
 
         List<String> paths = new ArrayList<>(path.length);
         int start = 0;
@@ -353,22 +352,22 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         } else {
             // if we have an array with more than one value in it, check that we throw the correct exception and exception message
             final Map<String, Object> map2 = Collections.unmodifiableMap(map);
-            SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map2));
+            SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
             assertThat(ex.getMessage(), is("Arrays (returned by [" + expected + "]) are not supported"));
         }
     }
 
     public void testExtractSourceIncorrectPathWithFieldWithDots() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d.e] from source"));
     }
 
     public void testFieldWithDotsAndCommonPrefix() {
-        AbstractFieldHitExtractor fe1 = getFieldHitExtractor("a.d", false);
-        AbstractFieldHitExtractor fe2 = getFieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe1 = getFieldHitExtractor("a.d", false);
+        FieldHitExtractor fe2 = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         map.put("a", singletonMap("d", value));
@@ -378,8 +377,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
     }
 
     public void testFieldWithDotsAndCommonPrefixes() {
-        AbstractFieldHitExtractor fe1 = getFieldHitExtractor("a1.b.c.d1.e.f.g1", false);
-        AbstractFieldHitExtractor fe2 = getFieldHitExtractor("a2.b.c.d2.e.f.g2", false);
+        FieldHitExtractor fe1 = getFieldHitExtractor("a1.b.c.d1.e.f.g1", false);
+        FieldHitExtractor fe2 = getFieldHitExtractor("a2.b.c.d2.e.f.g2", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         map.put("a1", singletonMap("b.c", singletonMap("d1", singletonMap("e.f", singletonMap("g1", value)))));
@@ -389,17 +388,17 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
     }
 
     public void testFieldWithDotsAndSamePathButDifferentHierarchy() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e.f.g", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e.f.g", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         map.put("a.b", singletonMap("c", singletonMap("d.e", singletonMap("f.g", value))));
         map.put("a", singletonMap("b.c", singletonMap("d.e", singletonMap("f", singletonMap("g", value)))));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Multiple values (returned by [a.b.c.d.e.f.g]) are not supported"));
     }
 
     public void testFieldsWithSingleValueArrayAsSubfield() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : "value"}]
@@ -408,16 +407,16 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
     }
 
     public void testFieldsWithMultiValueArrayAsSubfield() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : "value1"}, {"b" : "value2"}]
         map.put("a", asList(singletonMap("b", randomNonNullValue()), singletonMap("b", randomNonNullValue())));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a.b]) are not supported"));
     }
 
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : [{"c" : "value"}]}]
@@ -426,16 +425,16 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
     }
 
     public void testFieldsWithMultiValueArrayAsSubfield_ThreeNestedLists() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : [{"c" : ["value1", "value2"]}]}]
         map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", asList("value1", "value2"))))));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a.b.c]) are not supported"));
     }
 
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists2() {
-        AbstractFieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : {"c" : ["value"]}]}]
@@ -445,7 +444,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
 
     public void testObjectsForSourceValue() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         source.startObject(); {
@@ -457,13 +456,13 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
     }
 
     public void testGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
         Map<String, Object> map = new HashMap<>();
         map.put(fieldName, "POINT (1 2)");
         assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
@@ -475,7 +474,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
 
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
         Map<String, Object> map = new HashMap<>();
         map.put(fieldName, "POINT (1 2)");
         assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
@@ -485,10 +484,10 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
 
         Map<String, Object> map2 = new HashMap<>();
         map2.put(fieldName, Arrays.asList("POINT (1 2)", "POINT (3 4)"));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map2));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
-        AbstractFieldHitExtractor lenientFe = new AbstractFieldHitExtractor(fieldName,
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName,
             randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false, true);
         assertEquals(new GeoShape(1, 2), lenientFe.extractFromSource(map2));
     }
@@ -526,7 +525,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
 
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor(pathCombined, DataType.GEO_POINT, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(pathCombined, DataType.GEO_POINT, UTC, false);
         assertEquals(new GeoShape(lon, lat), fe.extract(hit));
     }
 
@@ -549,17 +548,17 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
 
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false);
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false);
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
-        AbstractFieldHitExtractor lenientFe = new AbstractFieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false, true);
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false, true);
         assertEquals(new GeoShape(lon, lat), lenientFe.extract(hit));
     }
 
     public void testGeoPointExtractionFromDocValues() {
         String fieldName = randomAlphaOfLength(5);
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, singletonList("2, 1"));
         hit.fields(singletonMap(fieldName, field));
@@ -571,18 +570,18 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<A
     public void testGeoPointExtractionFromMultipleDocValues() {
         String fieldName = randomAlphaOfLength(5);
         SearchHit hit = new SearchHit(1);
-        AbstractFieldHitExtractor fe = new AbstractFieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
 
         hit.fields(singletonMap(fieldName, new DocumentField(fieldName, Arrays.asList("2,1", "3,4"))));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
-        AbstractFieldHitExtractor lenientFe = new AbstractFieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true, true);
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true, true);
         assertEquals(new GeoShape(1, 2), lenientFe.extract(hit));
     }
 
-    private AbstractFieldHitExtractor getFieldHitExtractor(String fieldName, boolean useDocValue) {
-        return new AbstractFieldHitExtractor(fieldName, null, UTC, useDocValue);
+    private FieldHitExtractor getFieldHitExtractor(String fieldName, boolean useDocValue) {
+        return new FieldHitExtractor(fieldName, null, UTC, useDocValue);
     }
 
     private Object randomValue() {

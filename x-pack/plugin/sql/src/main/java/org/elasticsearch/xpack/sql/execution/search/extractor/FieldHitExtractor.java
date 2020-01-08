@@ -80,6 +80,11 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     }
 
     @Override
+    protected Object extractFromSource(Map<String, Object> map) {
+        return super.extractFromSource(map);
+    }
+
+    @Override
     protected Object unwrapCustomValue(Object values) {
         DataType dataType = dataType();
 
@@ -115,5 +120,10 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         }
 
         return null;
+    }
+
+    @Override
+    protected DataType dataType() {
+        return super.dataType();
     }
 }

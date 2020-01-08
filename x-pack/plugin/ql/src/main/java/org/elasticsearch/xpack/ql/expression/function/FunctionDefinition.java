@@ -45,7 +45,7 @@ public class FunctionDefinition {
         return aliases;
     }
 
-    Class<? extends Function> clazz() {
+    public Class<? extends Function> clazz() {
         return clazz;
     }
 

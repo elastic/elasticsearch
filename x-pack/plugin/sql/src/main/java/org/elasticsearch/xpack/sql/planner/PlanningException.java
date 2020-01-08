@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ql.tree.Location;
-import org.elasticsearch.xpack.sql.ClientSqlException;
+import org.elasticsearch.xpack.sql.SqlClientException;
 import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-public class PlanningException extends ClientSqlException {
+public class PlanningException extends SqlClientException {
     public PlanningException(String message, Object... args) {
         super(message, args);
     }

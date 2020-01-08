@@ -12,7 +12,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     public void testNoAggs() {
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(emptyList()));
         MetricAggExtractor extractor = randomMetricAggExtractor();
-        SqlException exception = expectThrows(SqlException.class, () -> extractor.extract(bucket));
+        SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class, () -> extractor.extract(bucket));
         assertEquals("Cannot find an aggregation named " + extractor.name(), exception.getMessage());
     }
 

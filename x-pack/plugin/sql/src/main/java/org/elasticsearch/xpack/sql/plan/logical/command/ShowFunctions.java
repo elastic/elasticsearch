@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionTypeRegistry;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
@@ -54,7 +55,7 @@ public class ShowFunctions extends Command {
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.asJavaRegex() : null);
 
         listener.onResponse(of(session, functions.stream()
-                .map(f -> asList(f.name(), f.type()))
+                .map(f -> asList(f.name(), SqlFunctionTypeRegistry.INSTANCE.type(f.clazz())))
                 .collect(toList())));
     }
 

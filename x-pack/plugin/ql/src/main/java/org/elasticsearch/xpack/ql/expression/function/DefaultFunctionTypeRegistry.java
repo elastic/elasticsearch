@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.conditional.ConditionalFu
 
 public class DefaultFunctionTypeRegistry implements FunctionTypeRegistry {
 
+    public static final DefaultFunctionTypeRegistry INSTANCE = new DefaultFunctionTypeRegistry();
+
     private enum Types {
         AGGREGATE(AggregateFunction.class),
         CONDITIONAL(ConditionalFunction.class),

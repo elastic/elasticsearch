@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 
 public class SqlFunctionTypeRegistry extends DefaultFunctionTypeRegistry {
 
+    public static final SqlFunctionTypeRegistry INSTANCE = new SqlFunctionTypeRegistry();
+
     private enum Types {
         GROUPING(GroupingFunction.class),
         SCORE(Score.class);

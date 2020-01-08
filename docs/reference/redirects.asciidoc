@@ -276,6 +276,12 @@ This page was deleted.
 [[ml-snapshot-stats]]
 See <<ml-update-snapshot>> and <<ml-get-snapshot>>.
 
+[role="exclude",id="ml-dfanalytics-resources"]
+=== {dfanalytics-cap} job resources
+
+This page was deleted.
+See <<put-dfanalytics>>.
+
 [role="exclude",id="ml-results-resource"]
 === Results resources
 

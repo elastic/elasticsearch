@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -43,12 +41,10 @@ import static org.hamcrest.Matchers.is;
 public class HiddenIndexIT extends ESIntegTestCase {
 
     public void testHiddenIndexSearch() {
-        CreateIndexResponse createResponse = client().admin().indices().prepareCreate("hidden-index")
+        assertAcked(client().admin().indices().prepareCreate("hidden-index")
             .setSettings(Settings.builder().put("index.hidden", true).build())
-            .setWaitForActiveShards(ActiveShardCount.ALL)
-            .get();
-        assertTrue(createResponse.isAcknowledged());
-        assertTrue(createResponse.isShardsAcknowledged());
+            .get());
+        ensureGreen("hidden-index");
 
         // default not visible
         client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();

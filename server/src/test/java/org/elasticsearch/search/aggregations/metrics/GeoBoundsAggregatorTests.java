@@ -26,16 +26,9 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoTestUtils;
-import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
@@ -44,7 +37,6 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -228,8 +220,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFiji() throws Exception {
-        XContentParser fijiParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            new BytesArray("{\n" +
+        MultiPolygon geometryForIndexing = (MultiPolygon) GeoTestUtils.fromGeoJsonString("{\n" +
             "  \"type\": \"MultiPolygon\",\n" +
             "  \"coordinates\": [\n" +
             "   [\n" +
@@ -333,18 +324,14 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             "    ]\n" +
             "   ]\n" +
             "  ]\n" +
-            " }"), XContentType.JSON);
-
-        fijiParser.nextToken();
-        MultiPolygon fiji = (MultiPolygon) new GeometryParser(true, true, true).parse(fijiParser);
-        MultiPolygon geometryForIndexing = (MultiPolygon) new GeoShapeIndexer(true, "indexer").prepareForIndexing(fiji);
+            " }");
 
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             doc.add(new BinaryGeoShapeDocValuesField("fiji_shape",
                 GeoTestUtils.toDecodedTriangles(geometryForIndexing), new CentroidCalculator(geometryForIndexing)));
-            for (Polygon poly : fiji) {
+            for (Polygon poly : geometryForIndexing) {
                 for (int i = 0; i < poly.getPolygon().length(); i++) {
                     doc.add(new LatLonDocValuesField("fiji_points", poly.getPolygon().getLat(i), poly.getPolygon().getLon(i)));
                 }

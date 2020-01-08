@@ -124,6 +124,11 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public double weight() {
+            return 1.0;
+        }
+
+        @Override
         public double lat() {
             return geoPoint.lat();
         }
@@ -171,6 +176,11 @@ public abstract class MultiGeoValues {
         @Override
         public DimensionalShapeType dimensionalShapeType() {
             return reader.getDimensionalShapeType();
+        }
+
+        @Override
+        public double weight() {
+            return reader.getSumCentroidWeight();
         }
 
         @Override
@@ -229,6 +239,7 @@ public abstract class MultiGeoValues {
         BoundingBox boundingBox();
         GeoRelation relate(Rectangle rectangle);
         DimensionalShapeType dimensionalShapeType();
+        double weight();
     }
 
     public static class BoundingBox {

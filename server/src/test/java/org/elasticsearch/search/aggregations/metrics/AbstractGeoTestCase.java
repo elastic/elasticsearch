@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -85,7 +86,6 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         multiTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         multiBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         singleCentroid = new GeoPoint(0, 0);
-        singleShapeCentroid = new GeoPoint(9.4, 34.4);
         multiCentroid = new GeoPoint(0, 0);
         unmappedCentroid = new GeoPoint(0, 0);
 
@@ -155,7 +155,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         geoPointValues[4] = new GeoPoint(-11, 178);
         Line line = new Line(new double[] { 178, -179, 170, -175, 178 }, new double[] { 38, 12, -24, 32, -11 });
         String lineAsWKT = new WellKnownText(false, new GeographyValidator(true)).toWKT(line);
-
+        CentroidCalculator centroidCalculator = new CentroidCalculator(line);
+        singleShapeCentroid = new GeoPoint(centroidCalculator.getY(), centroidCalculator.getX());
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex(DATELINE_IDX_NAME).setSource(jsonBuilder()
                     .startObject()

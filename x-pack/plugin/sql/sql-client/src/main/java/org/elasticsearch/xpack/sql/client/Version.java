@@ -92,7 +92,7 @@ public class Version {
         String ver = "Unknown";
         String hash = ver;
 
-        if (urlStr.endsWith(".jar")) {
+        if (urlStr.endsWith(".jar") || urlStr.endsWith(".jar!/")) {
             try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");

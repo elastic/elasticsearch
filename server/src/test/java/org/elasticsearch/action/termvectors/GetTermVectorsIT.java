@@ -68,7 +68,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testNoSuchDoc() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
@@ -76,7 +76,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
         client().prepareIndex("test").setId("666").setSource("field", "foo bar").execute().actionGet();
         refresh();
@@ -92,7 +92,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testExistingFieldWithNoTermVectorsNoNPE() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("existingfield")
                             .field("type", "text")
@@ -100,7 +100,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
         // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test").setId("0").setSource("existingfield", "?").execute().actionGet();
@@ -117,7 +117,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testExistingFieldButNotInDocNPE() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("existingfield")
                             .field("type", "text")
@@ -125,7 +125,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
         // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test").setId("0").setSource("anotherexistingfield", 1).execute().actionGet();
@@ -183,7 +183,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public void testSimpleTermVectors() throws IOException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
@@ -192,7 +192,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping)
+        assertAcked(prepareCreate("test").setMapping(mapping)
                 .addAlias(new Alias("alias"))
                 .setSettings(Settings.builder()
                         .put(indexSettings())
@@ -257,7 +257,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         ft.setStoreTermVectorPositions(storePositions);
 
         String optionString = FieldMapper.termVectorOptionsToString(ft);
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
@@ -266,7 +266,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping)
+        assertAcked(prepareCreate("test").setMapping(mapping)
                 .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
@@ -385,7 +385,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             fieldNames[i] = "field" + String.valueOf(i);
         }
 
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         XContentBuilder source = jsonBuilder().startObject();
         for (String field : fieldNames) {
             mapping.startObject(field)
@@ -399,7 +399,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         source.endObject();
 
         assertAcked(prepareCreate("test")
-                .addMapping("type1", mapping)
+                .setMapping(mapping)
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
@@ -560,7 +560,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testSimpleWildCards() throws IOException {
         int numFields = 25;
 
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         XContentBuilder source = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
             mapping.startObject("field" + i)
@@ -572,7 +572,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         source.endObject();
         mapping.endObject().endObject().endObject();
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
         ensureGreen();
 
         client().prepareIndex("test").setId("0").setSource(source).get();
@@ -682,7 +682,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         // setup mapping and document source
         Set<String> withTermVectors = new HashSet<>();
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         XContentBuilder source = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
             String fieldName = "field" + i;
@@ -705,7 +705,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
                 .setSettings(settings)
-                .addMapping("type1", mapping));
+                .setMapping(mapping));
         ensureGreen();
 
         // index a single document with prepared source

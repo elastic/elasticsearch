@@ -50,9 +50,7 @@ public final class TransformIndex {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"));
 
-        request.mapping(
-            SINGLE_MAPPING_NAME,
-            createMappingXContent(mappings, transformConfig.getId(), clock));
+        request.mapping(createMappingXContent(mappings, transformConfig.getId(), clock));
 
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
             listener.onResponse(true);

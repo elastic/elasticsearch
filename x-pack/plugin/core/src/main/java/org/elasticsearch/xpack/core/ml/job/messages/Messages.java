@@ -87,10 +87,12 @@ public final class Messages {
     public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
+    public static final String INFERENCE_CANNOT_DELETE_MODEL =
+        "Unable to delete model [{0}]";
     public static final String MODEL_DEFINITION_TRUNCATED =
         "Model definition truncated. Unable to deserialize trained model definition [{0}]";
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
-    public static final String INFERENCE_TO_MANY_DEFINITIONS_REQUESTED =
+    public static final String INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED =
         "Getting model definition is not supported when getting more than one model";
     public static final String INFERENCE_WARNING_ALL_FIELDS_MISSING = "Model [{0}] could not be inferred as all fields were missing";
 

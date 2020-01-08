@@ -642,7 +642,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .addMapping("type", queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
         );
         assertAcked(client().admin().indices().prepareCreate("test3")
-            .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+            .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("field")
                 .field("type", "keyword")
                 .endObject()
@@ -664,7 +664,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test1")
                 .addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword"));
         assertAcked(client().admin().indices().prepareCreate("test2")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field")
                         .field("type", "keyword")
                         .endObject()
@@ -728,7 +728,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .startObject("properties").startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
                 .endObject();
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("employee", mapping)
+                .setMapping(mapping)
         );
         client().prepareIndex("test").setId("q1").setSource(jsonBuilder().startObject()
                 .field("query", QueryBuilders.nestedQuery("employee",

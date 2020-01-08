@@ -92,7 +92,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.Comparator;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
@@ -1093,16 +1092,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             List<Expression> andExps = Predicates.splitAnd(and);
             // Ranges need to show up before BinaryComparisons in list, to allow the latter be optimized away into a Range, if possible
-            andExps.sort(new Comparator<Expression>() {
-                @Override
-                public int compare(Expression o1, Expression o2) {
-                    if (o1 instanceof Range && o2 instanceof Range) {
-                        return 0; // keep ranges' order
-                    } else if (o1 instanceof Range || o2 instanceof Range) {
-                        return o2 instanceof Range ? 1 : -1;
-                    } else {
-                        return 0; // keep non-ranges' order
-                    }
+            andExps.sort((o1, o2) -> {
+                if (o1 instanceof Range && o2 instanceof Range) {
+                    return 0; // keep ranges' order
+                } else if (o1 instanceof Range || o2 instanceof Range) {
+                    return o2 instanceof Range ? 1 : -1;
+                } else {
+                    return 0; // keep non-ranges' order
                 }
             });
             for (Expression ex : andExps) {

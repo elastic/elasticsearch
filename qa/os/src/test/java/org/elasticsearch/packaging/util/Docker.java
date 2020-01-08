@@ -178,9 +178,9 @@ public class Docker {
                 // Give the container a chance to crash out
                 Thread.sleep(1000);
 
-                psOutput = dockerShell.run("ps -w ax").stdout;
+                psOutput = dockerShell.run("ps -ww ax").stdout;
 
-                if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java")) {
+                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;
                     break;
                 }

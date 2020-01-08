@@ -329,14 +329,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy("delete", new WaitForSnapshotAction("slm"));
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
         assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo("wait-for-snapshot")));
 
         createSnapshotRepo();
         createSlmPolicy();
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
 
         Request request = new Request("PUT", "/_slm/policy/slm/_execute");
         assertOK(client().performRequest(request));
@@ -356,11 +356,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
 
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
-
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("snapshot")));
-
+        
         request = new Request("PUT", "/_slm/policy/slm/_execute");
         assertOK(client().performRequest(request));
 

@@ -122,12 +122,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
 
 `detectors`.`detector_index`:::
-(integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
 +
 --
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
 If you want to update a specific detector, you must use this identifier. You
-cannot, however, update the `detector_index` value for a detector.
+cannot, however, change the `detector_index` value for a detector.
 --
 
 `groups`::

@@ -73,13 +73,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GeoShapeQueryTests extends ESSingleNodeTestCase {
+public class GeoShapeQueryTests extends GeoQueryTests {
     private static final String[] PREFIX_TREES = new String[] {
         LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
         LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
     };
 
-    private XContentBuilder createMapping() throws Exception {
+    @Override
+    protected XContentBuilder createMapping() throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("geo")
             .field("type", "geo_shape")

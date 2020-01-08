@@ -150,7 +150,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         }
         switch(targetType) {
             case REGRESSION:
-                return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences));
+                return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences), config);
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
                 List<ClassificationInferenceResults.TopClassEntry> topClasses = InferenceHelpers.topClasses(
@@ -160,7 +160,8 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 double value = outputAggregator.aggregate(processedInferences);
                 return new ClassificationInferenceResults(outputAggregator.aggregate(processedInferences),
                     classificationLabel(value, classificationLabels),
-                    topClasses);
+                    topClasses,
+                    config);
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on ensemble model");
         }

@@ -76,7 +76,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.time.Clock.systemUTC;
-import static org.elasticsearch.repositories.ESBlobStoreContainerTestCase.randomBytes;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -599,7 +599,9 @@ public class TokenServiceTests extends ESTestCase {
         final byte[] randomBytes = new byte[numBytes];
         random().nextBytes(randomBytes);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-
+        // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
+        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, Base64.getEncoder().encodeToString(randomBytes));
 

@@ -298,6 +298,7 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -446,7 +447,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION,
                 InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
-                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL
+                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES
             );
     }
 
@@ -520,9 +522,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService.getNodeName());
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService.getNodeName());
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(client, clusterService, settings);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(client, resultsPersisterService, anomalyDetectionAuditor);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client,
+            resultsPersisterService,
+            anomalyDetectionAuditor);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
@@ -554,11 +559,17 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     environment,
                     settings,
                     nativeController,
-                    client,
-                    clusterService);
+                    clusterService,
+                    resultsPersisterService,
+                    anomalyDetectionAuditor);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
-                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, client, nativeController, clusterService,
-                    xContentRegistry);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(
+                    environment,
+                    nativeController,
+                    clusterService,
+                    xContentRegistry,
+                    resultsPersisterService,
+                    dataFrameAnalyticsAuditor);
                 memoryEstimationProcessFactory =
                     new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;

@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -66,7 +66,7 @@ public class TransformCheckpointService {
         final long lastCheckpointNumber,
         final TransformIndexerPosition nextCheckpointPosition,
         final TransformProgress nextCheckpointProgress,
-        final ActionListener<TransformCheckpointingInfo> listener
+        final ActionListener<TransformCheckpointingInfoBuilder> listener
     ) {
 
         // we need to retrieve the config first before we can defer the rest to the corresponding provider

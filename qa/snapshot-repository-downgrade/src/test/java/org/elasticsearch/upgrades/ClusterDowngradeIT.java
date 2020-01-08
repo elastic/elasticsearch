@@ -164,25 +164,23 @@ public class ClusterDowngradeIT extends ESRestTestCase {
                 assertThat(status.getShardsStats().getFailedShards(), is(0));
             }
             if (TEST_STEP == TestStep.DOWNGRADED) {
-                wipeAllIndices();
-                final RestoreInfo restoreInfo = restoreSnapshot(client, repoName, "snapshot-old");
-                assertThat(restoreInfo.failedShards(), is(0));
-                assertThat(restoreInfo.successfulShards(), equalTo(shards));
+                ensureSnapshotRestoreWorks(client, repoName, "snapshot-old", shards);
             } else if (TEST_STEP == TestStep.RE_UPGRADED) {
                 for (TestStep value : TestStep.values()) {
-                    wipeAllIndices();
-                    final RestoreInfo restoreInfo =
-                        restoreSnapshot(client, repoName, "snapshot-" + value.toString().toLowerCase(Locale.ROOT));
-                    assertThat(restoreInfo.failedShards(), is(0));
-                    assertThat(restoreInfo.successfulShards(), equalTo(shards));
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + value.toString().toLowerCase(Locale.ROOT), shards);
                 }
             }
         }
     }
 
-    private static RestoreInfo restoreSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {
-        return client.snapshot().restore(new RestoreSnapshotRequest().repository(repoName).snapshot(name).waitForCompletion(true),
-            RequestOptions.DEFAULT).getRestoreInfo();
+    private static void ensureSnapshotRestoreWorks(RestHighLevelClient client, String repoName, String name,
+                                                   int shards) throws IOException {
+        wipeAllIndices();
+        final RestoreInfo restoreInfo =
+            client.snapshot().restore(new RestoreSnapshotRequest().repository(repoName).snapshot(name).waitForCompletion(true),
+                RequestOptions.DEFAULT).getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), equalTo(shards));
     }
 
     private static void createSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {

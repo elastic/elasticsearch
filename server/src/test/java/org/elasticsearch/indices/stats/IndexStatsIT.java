@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -594,7 +595,8 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testSegmentsStats() {
         assertAcked(prepareCreate("test_index")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)));
         ensureGreen();
 
         NumShards test1 = getNumShards("test_index");

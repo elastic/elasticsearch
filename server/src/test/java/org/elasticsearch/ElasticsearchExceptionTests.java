@@ -164,6 +164,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         {
+            final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(
+                new RemoteTransportException("abc", new IllegalArgumentException("foobar")));
+            assertEquals(foobars.length, 1);
+            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertEquals("foobar", foobars[0].getMessage());
+            assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
+            assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
+        }
+
+        {
             XContentParseException inner = new XContentParseException(null, "inner");
             XContentParseException outer = new XContentParseException(null, "outer", inner);
             final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);

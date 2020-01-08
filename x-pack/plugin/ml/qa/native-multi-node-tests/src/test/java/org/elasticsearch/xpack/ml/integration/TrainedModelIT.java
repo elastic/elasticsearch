@@ -60,8 +60,8 @@ public class TrainedModelIT extends ESRestTestCase {
     }
 
     public void testGetTrainedModels() throws IOException {
-        String modelId = "test_regression_model";
-        String modelId2 = "test_regression_model-2";
+        String modelId = "a_test_regression_model";
+        String modelId2 = "a_test_regression_model-2";
         Request model1 = new Request("PUT",
             InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + modelId);
         model1.setJsonEntity(buildRegressionModel(modelId));
@@ -84,36 +84,36 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
         String response = EntityUtils.toString(getModel.getEntity());
 
-        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression*"));
+            MachineLearning.BASE_PATH + "inference/a_test_regression*"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
-        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
-        assertThat(response, containsString("\"model_id\":\"test_regression_model-2\""));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model-2\""));
         assertThat(response, not(containsString("\"definition\"")));
         assertThat(response, containsString("\"count\":2"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression_model?human=true&include_model_definition=true"));
+            MachineLearning.BASE_PATH + "inference/a_test_regression_model?human=true&include_model_definition=true"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
-        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage\""));
         assertThat(response, containsString("\"definition\""));
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression_model?decompress_definition=false&include_model_definition=true"));
+            MachineLearning.BASE_PATH + "inference/a_test_regression_model?decompress_definition=false&include_model_definition=true"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
-        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
         assertThat(response, containsString("\"compressed_definition\""));
         assertThat(response, not(containsString("\"definition\"")));
@@ -121,17 +121,17 @@ public class TrainedModelIT extends ESRestTestCase {
 
         ResponseException responseException = expectThrows(ResponseException.class, () ->
             client().performRequest(new Request("GET",
-                MachineLearning.BASE_PATH + "inference/test_regression*?human=true&include_model_definition=true")));
+                MachineLearning.BASE_PATH + "inference/a_test_regression*?human=true&include_model_definition=true")));
         assertThat(EntityUtils.toString(responseException.getResponse().getEntity()),
-            containsString(Messages.INFERENCE_TO_MANY_DEFINITIONS_REQUESTED));
+            containsString(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression_model,test_regression_model-2"));
+            MachineLearning.BASE_PATH + "inference/a_test_regression_model,a_test_regression_model-2"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
-        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
-        assertThat(response, containsString("\"model_id\":\"test_regression_model-2\""));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model-2\""));
         assertThat(response, containsString("\"count\":2"));
 
         getModel = client().performRequest(new Request("GET",
@@ -149,17 +149,17 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
-        assertThat(response, containsString("\"count\":2"));
-        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
-        assertThat(response, not(containsString("\"model_id\":\"test_regression_model-2\"")));
+        assertThat(response, containsString("\"count\":3"));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
+        assertThat(response, not(containsString("\"model_id\":\"a_test_regression_model-2\"")));
 
         getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "inference?from=1&size=1"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
-        assertThat(response, containsString("\"count\":2"));
-        assertThat(response, not(containsString("\"model_id\":\"test_regression_model\"")));
-        assertThat(response, containsString("\"model_id\":\"test_regression_model-2\""));
+        assertThat(response, containsString("\"count\":3"));
+        assertThat(response, not(containsString("\"model_id\":\"a_test_regression_model\"")));
+        assertThat(response, containsString("\"model_id\":\"a_test_regression_model-2\""));
     }
 
     public void testDeleteTrainedModels() throws IOException {

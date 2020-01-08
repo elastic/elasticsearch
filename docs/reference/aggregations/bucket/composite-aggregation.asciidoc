@@ -287,6 +287,72 @@ Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
 `-08:00`)  or as a timezone id, an identifier used in the TZ database like
 `America/Los_Angeles`.
 
+*Offset*
+
+include::datehistogram-aggregation.asciidoc[tag=offset-explanation]
+
+[source,console,id=composite-aggregation-datehistogram-offset-example]
+----
+PUT my_index/_doc/1?refresh
+{
+  "date": "2015-10-01T05:30:00Z"
+}
+
+PUT my_index/_doc/2?refresh
+{
+  "date": "2015-10-01T06:30:00Z"
+}
+
+GET my_index/_search?size=0
+{
+  "aggs": {
+    "my_buckets": {
+      "composite" : {
+        "sources" : [
+          {
+            "date": {
+              "date_histogram" : {
+                "field": "date",
+                "calendar_interval": "day",
+                "offset": "+6h",
+                "format": "iso8601"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+----
+
+include::datehistogram-aggregation.asciidoc[tag=offset-result-intro]
+
+[source,console-result]
+----
+{
+  ...
+  "aggregations": {
+    "my_buckets": {
+      "after_key": { "date": "2015-10-01T06:00:00.000Z" },
+      "buckets": [
+        {
+          "key": { "date": "2015-09-30T06:00:00.000Z" },
+          "doc_count": 1
+        },
+        {
+          "key": { "date": "2015-10-01T06:00:00.000Z" },
+          "doc_count": 1
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+include::datehistogram-aggregation.asciidoc[tag=offset-note]
+
 ===== Mixing different values source
 
 The `sources` parameter accepts an array of values source.
@@ -441,7 +507,7 @@ GET /_search
     ...
     "aggregations": {
         "my_buckets": {
-            "after_key": { <1>
+            "after_key": {
                 "date": 1494288000000,
                 "product": "mad max"
             },
@@ -467,17 +533,9 @@ GET /_search
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 
-<1> The last composite bucket returned by the query.
-
-NOTE: The `after_key` is equals to the last bucket returned in the response before
-any filtering that could be done by <<search-aggregations-pipeline, Pipeline aggregations>>.
-If all buckets are filtered/removed by a pipeline aggregation, the `after_key` will contain
-the last bucket before filtering.
-
-The `after` parameter can be used to retrieve the composite buckets that are **after**
-the last composite buckets returned in a previous round.
-For the example below the last bucket can be found in `after_key` and the next
-round of result can be retrieved with:
+To get the next set of buckets, resend the same aggregation with the `after`
+parameter set to the `after_key` value returned in the response.
+For example, this request uses the `after_key` value provided in the previous response:
 
 [source,console,id=composite-aggregation-after-example]
 --------------------------------------------------
@@ -500,6 +558,10 @@ GET /_search
 --------------------------------------------------
 
 <1> Should restrict the aggregation to buckets that sort **after** the provided values.
+
+NOTE: The `after_key` is *usually* the key to the last bucket returned in
+the response, but that isn't guaranteed. Always use the returned `after_key` instead
+of derriving it from the buckets.
 
 ==== Early termination
 

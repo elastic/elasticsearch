@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -43,7 +42,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser parser = createParser(builder)) {
-            ScrollableHitSource.SearchFailure parsed = RemoteResponseParsers.SEARCH_FAILURE_PARSER.parse(parser, XContentType.JSON);
+            ScrollableHitSource.SearchFailure parsed = RemoteResponseParsers.SEARCH_FAILURE_PARSER.parse(parser, null);
             assertNotNull(parsed.getReason());
             assertThat(parsed.getReason().getMessage(), Matchers.containsString("exhausted"));
             assertThat(parsed.getReason(), Matchers.instanceOf(EsRejectedExecutionException.class));

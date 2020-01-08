@@ -145,7 +145,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         public static ParseField PREVIEW = new ParseField("preview");
         public static ParseField MAPPINGS = new ParseField("mappings");
 
-        static ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
+        static final ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
         static {
             PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), PREVIEW);
             PARSER.declareObject(Response::setMappings, (p, c) -> p.mapOrdered(), MAPPINGS);

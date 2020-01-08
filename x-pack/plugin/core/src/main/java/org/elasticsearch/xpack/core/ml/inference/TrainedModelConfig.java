@@ -192,6 +192,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return definition.getCompressedString();
     }
 
+    public void clearCompressed() {
+        definition.compressedString = null;
+    }
+
     public TrainedModelConfig ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
         if (definition == null) {
             return null;
@@ -402,6 +406,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 return this;
             }
             this.definition = LazyModelDefinition.fromCompressedString(definitionFromString);
+            return this;
+        }
+
+        public Builder clearDefinition() {
+            this.definition = null;
             return this;
         }
 

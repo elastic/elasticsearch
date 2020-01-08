@@ -53,7 +53,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     @Before
     public void init() {
         settings = Settings.builder()
-            .put("resource.reload.interval.high", "2s")
+            .put("resource.reload.interval.high", "100ms")
             .put("path.home", createTempDir())
             .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000",
                 "pbkdf2_50000"))
@@ -102,6 +102,20 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(result.getUser(), is(user));
 
         watcherService.start();
+
+        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+            writer.append("\n");
+        }
+
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        if (latch.getCount() != 1) {
+            fail("Listener should not be called as users passwords are not changed.");
+        }
+
+        assertThat(store.userExists(username), is(true));
+        result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser(), is(user));
 
         try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();

@@ -4,9 +4,8 @@
     display-name: "elastic / elasticsearch # %BRANCH% - docker test ramdisk (experimental)"
     description: "Experimental test job to shake out issues with Docker in CI\n"
     node: "(debian-10 || sles-12 || debian-8 || sles-15) && immutable"
-    triggers:
-      - timed: "H/10 * * * *"
+    triggers: []
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+git+push
-          .ci/build.sh -Dbwc.checkout.align=true -p test.fixtures composeUp
+          .ci/build.sh -Dbwc.checkout.align=true -p test/fixtures composeUp

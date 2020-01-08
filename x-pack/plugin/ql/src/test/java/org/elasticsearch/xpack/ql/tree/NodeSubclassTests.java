@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.CompoundAggregate;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipesTests;
@@ -413,7 +414,11 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             if (argClass == AggregateFunction.class) {
                 return makeEnclosedAgg();
             }
-        } else if (toBuildClass == FieldAttribute.class) {
+            else if (argClass == CompoundAggregate.class) {
+                return makeCompoundAgg();
+            }
+        }
+        else if (toBuildClass == FieldAttribute.class) {
             // `parent` is nullable.
             if (argClass == FieldAttribute.class && randomBoolean()) {
                 return null;
@@ -516,7 +521,11 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
-    protected Object makeEnclosedAgg() {
+    protected Object makeCompoundAgg() throws Exception {
+        return makeArg(TestCompoundAggregate.class);
+    }
+
+    protected Object makeEnclosedAgg() throws Exception {
         return makeArg(TestEnclosedAgg.class);
     }
 

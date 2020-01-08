@@ -44,8 +44,10 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -53,10 +55,10 @@ import static org.hamcrest.Matchers.is;
  * Tests that verify that a snapshot repository is not getting corrupted and continues to function properly when accessed by multiple
  * clusters of different versions. Concretely this test suit is simulating the following scenario:
  * <ul>
- *     <li>Start a cluster in an old version: {@link TestStep#STEP1_OLD_CLUSTER}</li>
- *     <li>Start a cluster running the current version: {@link TestStep#STEP2_NEW_CLUSTER}</li>
- *     <li>Again start a cluster in an old version: {@link TestStep#STEP3_OLD_CLUSTER}</li>
- *     <li>Once again start a cluster running the current version: {@link TestStep#STEP4_NEW_CLUSTER}</li>
+ *     <li>Start and run against a cluster in an old version: {@link TestStep#STEP1_OLD_CLUSTER}</li>
+ *     <li>Start and run against a cluster running the current version: {@link TestStep#STEP2_NEW_CLUSTER}</li>
+ *     <li>Run against the old version cluster from the first step: {@link TestStep#STEP3_OLD_CLUSTER}</li>
+ *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  * TODO: Add two more steps: delete all old version snapshots from the repository, then downgrade again and verify that the repository
  *       is not being corrupted. This requires first merging the logic for reading the min_version field in RepositoryData back to 7.6.
@@ -119,10 +121,13 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // Create a snapshot and delete it right away again to test the impact of each version's cleanup functionality that is run
             // as part of the snapshot delete
             createSnapshot(client, repoName, snapshotToDeleteName);
+            final List<Map<String, Object>> snapshotsIncludingToDelete = listSnapshots(repoName);
+            // Every step creates one snapshot and we have to add one more for the temporary snapshot
+            assertThat(snapshotsIncludingToDelete, hasSize(TEST_STEP.ordinal() + 1 + 1));
+            assertThat(snapshotsIncludingToDelete.stream().map(
+                sn -> (String) sn.get("snapshot")).collect(Collectors.toList()), hasItem(snapshotToDeleteName));
             deleteSnapshot(client, repoName, snapshotToDeleteName);
-            final List<Map<String, Object>> snapshots = readSnapshotsList(
-                client.getLowLevelClient().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all")));
-            // Every step creates one snapshot
+            final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
             final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
                 snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)), RequestOptions.DEFAULT);
@@ -151,8 +156,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 createIndex(client, "test-index", shards);
                 createSnapshot(client, repoName, "snapshot-" + TEST_STEP);
             }
-            final List<Map<String, Object>> snapshots = readSnapshotsList(
-                client.getLowLevelClient().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all")));
+            final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             switch (TEST_STEP) {
                 case STEP1_OLD_CLUSTER:
                     assertThat(snapshots, hasSize(1));
@@ -188,8 +192,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             createIndex(client, "test-index", shards);
             createRepository(client, repoName, false);
             createSnapshot(client, repoName, "snapshot-" + TEST_STEP);
-            final List<Map<String, Object>> snapshots = readSnapshotsList(
-                client.getLowLevelClient().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all")));
+            final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             // Every step creates one snapshot
             assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
             final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
@@ -217,6 +220,22 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         client.snapshot().delete(new DeleteSnapshotRequest(repoName, name), RequestOptions.DEFAULT);
     }
 
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> listSnapshots(String repoName) throws IOException {
+        try (InputStream entity = client().performRequest(
+            new Request("GET", "/_snapshot/" + repoName + "/_all")).getEntity().getContent();
+             XContentParser parser = JsonXContent.jsonXContent.createParser(
+                 xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
+            final Map<String, Object> raw = parser.map();
+            // Bwc lookup since the format of the snapshots response changed between versions
+            if (raw.containsKey("snapshots")) {
+                return (List<Map<String, Object>>) raw.get("snapshots");
+            } else {
+                return (List<Map<String, Object>>) ((List<Map<?, ?>>) raw.get("responses")).get(0).get("snapshots");
+            }
+        }
+    }
+
     private static void ensureSnapshotRestoreWorks(RestHighLevelClient client, String repoName, String name,
                                                    int shards) throws IOException {
         wipeAllIndices();
@@ -235,23 +254,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private static void createSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {
         client.snapshot().create(new CreateSnapshotRequest(repoName, name).waitForCompletion(true), RequestOptions.DEFAULT);
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> readSnapshotsList(Response response) throws IOException {
-        final List<Map<String, Object>> snapshots;
-        try (InputStream entity = response.getEntity().getContent();
-             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                 xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
-            final Map<String, Object> raw = parser.map();
-            // Bwc lookup since the format of the snapshots response changed between versions
-            if (raw.containsKey("snapshots")) {
-                snapshots = (List<Map<String, Object>>) raw.get("snapshots");
-            } else {
-                snapshots = (List<Map<String, Object>>) ((List<Map<?, ?>>) raw.get("responses")).get(0).get("snapshots");
-            }
-        }
-        return snapshots;
     }
 
     private void createIndex(RestHighLevelClient client, String name, int shards) throws IOException {

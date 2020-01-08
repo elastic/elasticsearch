@@ -35,7 +35,8 @@ dependencies {
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
-  String revertedClusterName = "${baseName}-reverted"
+  String oldClusterName = "${baseName}-old"
+  String newClusterName = "${baseName}-new"
 
   def clusterSettings = { v ->
     return {
@@ -47,12 +48,12 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
   }
 
   testClusters {
-    "${baseName}" clusterSettings(bwcVersion.toString())
-    "${revertedClusterName}" clusterSettings(project.version)
+    "${oldClusterName}" clusterSettings(bwcVersion.toString())
+    "${newClusterName}" clusterSettings(project.version)
   }
 
   tasks.register("${baseName}#Step1OldClusterTest", RestTestRunnerTask) {
-    useCluster testClusters."${baseName}"
+    useCluster testClusters."${oldClusterName}"
     mustRunAfter(precommit)
     doFirst {
       project.delete("${buildDir}/cluster/shared/repo/${baseName}")
@@ -61,19 +62,19 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
   }
 
   tasks.register("${baseName}#Step2NewClusterTest", RestTestRunnerTask) {
-    useCluster testClusters."${revertedClusterName}"
+    useCluster testClusters."${newClusterName}"
     dependsOn "${baseName}#Step1OldClusterTest"
     systemProperty 'tests.rest.suite', 'step2'
   }
 
   tasks.register("${baseName}#Step3OldClusterTest", RestTestRunnerTask) {
-    useCluster testClusters."${baseName}"
+    useCluster testClusters."${oldClusterName}"
     dependsOn "${baseName}#Step2NewClusterTest"
     systemProperty 'tests.rest.suite', 'step3'
   }
 
   tasks.register("${baseName}#Step4NewClusterTest", RestTestRunnerTask) {
-    useCluster testClusters."${revertedClusterName}"
+    useCluster testClusters."${newClusterName}"
     dependsOn "${baseName}#Step3OldClusterTest"
     systemProperty 'tests.rest.suite', 'step4'
   }
@@ -81,7 +82,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
     it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    def clusterName = it.name.contains("Step2") || it.name.contains("Step4") ? "${revertedClusterName}" : "${baseName}"
+    def clusterName = it.name.contains("Step2") || it.name.contains("Step4") ? "${newClusterName}" : "${oldClusterName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
   }

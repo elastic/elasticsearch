@@ -70,8 +70,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
@@ -93,8 +93,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeThisWithTypes() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-            jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+            jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("text").field("type", "text").endObject()
                 .endObject().endObject().endObject()));
 
@@ -118,8 +118,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     //Issue #30148
     public void testMoreLikeThisForZeroTokensInOneOfTheAnalyzedFields() throws Exception {
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test")
-            .addMapping("type", jsonBuilder()
-            .startObject().startObject("type")
+            .setMapping(jsonBuilder()
+            .startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("myField").field("type", "text").endObject()
                 .startObject("empty").field("type", "text").endObject()
@@ -170,8 +170,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testMoreLikeThisWithAliases() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
@@ -296,8 +296,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     // Issue #3252
     public void testNumericField() throws Exception {
         final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
-        prepareCreate("test").addMapping("type", jsonBuilder()
-                    .startObject().startObject("type")
+        prepareCreate("test").setMapping(jsonBuilder()
+                    .startObject().startObject("_doc")
                     .startObject("properties")
                         .startObject("int_value").field("type", randomFrom(numericTypes)).endObject()
                         .startObject("string_value").field("type", "text").endObject()
@@ -383,7 +383,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .endObject()
         .endObject();
 
-        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         indexDoc("test", "1", "text", "lucene");
@@ -400,8 +400,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeInclude() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
@@ -439,8 +439,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeThisIds() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
@@ -715,8 +715,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     //Issue #29678
     public void testWithMissingRouting() throws IOException {
         logger.info("Creating index test with routing required for type1");
-        assertAcked(prepareCreate("test").addMapping("type1",
-            jsonBuilder().startObject().startObject("type1")
+        assertAcked(prepareCreate("test").setMapping(
+            jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
                 .startObject("_routing").field("required", true).endObject()
             .endObject().endObject()));

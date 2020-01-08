@@ -436,7 +436,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        IndexService indexService = createIndex("nested_sorting", Settings.EMPTY, "_doc", mapping);
+        IndexService indexService = createIndex("nested_sorting", Settings.EMPTY, mapping);
 
         List<List<Document>> books = new ArrayList<>();
         {

@@ -264,14 +264,14 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testGeometryCollectionRelations() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("doc")
+            .startObject("_doc")
             .startObject("properties")
             .startObject("geometry").field("type", "shape").endObject()
             .endObject()
             .endObject()
             .endObject();
 
-        createIndex("test_collections", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+        createIndex("test_collections", Settings.builder().put("index.number_of_shards", 1).build(), mapping);
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
 

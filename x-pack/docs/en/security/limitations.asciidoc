@@ -27,7 +27,7 @@ privileges for, not the set of all indices on the cluster.
 [float]
 === Multi document APIs
 
-Multi get and multi term vectors API throw IndexNotFoundException when trying to access non existing indices that the user is
+Multi get and multi term vectors API throw IndexNotFoundException when trying to access non-existing indices that the user is
 not authorized for. By doing that they leak information regarding the fact that the index doesn't exist, while the user is not
 authorized to know anything about those indices.
 

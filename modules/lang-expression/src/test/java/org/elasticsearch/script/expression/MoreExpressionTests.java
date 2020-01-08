@@ -588,10 +588,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testGeo() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("location").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("name", "test")
@@ -621,10 +621,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testBoolean() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("vip").field("type", "boolean");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("doc", xContentBuilder));
+        assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("id", 1, "price", 1.0, "vip", true),

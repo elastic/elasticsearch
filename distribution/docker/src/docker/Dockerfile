@@ -11,11 +11,11 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM ${base_image} AS builder
+FROM centos:7 AS builder
 
-RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
-    ${package_manager} install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
-    ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
+RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
+    yum install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
+    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
@@ -41,13 +41,13 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Add entrypoint
 ################################################################################
 
-FROM ${base_image}
+FROM centos:7
 
 ENV ELASTIC_CONTAINER true
 
-RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
-    ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \
-    ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
+RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
+    yum install --setopt=tsflags=nodocs -y nc shadow-utils zip unzip && \
+    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \

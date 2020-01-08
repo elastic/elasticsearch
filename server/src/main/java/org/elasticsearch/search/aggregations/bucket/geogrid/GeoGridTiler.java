@@ -23,6 +23,9 @@ import org.elasticsearch.common.geo.GeoRelation;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
@@ -45,7 +48,8 @@ public interface GeoGridTiler {
      *
      * @return the number of tiles the geoValue intersects
      */
-    int setValues(CellIdSource.GeoShapeCellValues docValues, MultiGeoValues.GeoValue geoValue, int precision);
+    int setValues(CellIdSource.GeoShapeCellValues docValues, MultiGeoValues.GeoValue geoValue, int precision,
+                  MultiBucketConsumer multiBucketConsumer);
 
     class GeoHashGridTiler implements GeoGridTiler {
         public static final GeoHashGridTiler INSTANCE = new GeoHashGridTiler();
@@ -58,7 +62,8 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int setValues(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
+        public int setValues(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision,
+                             MultiBucketConsumer multiBucketConsumer) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
             long numLonCells = (long) ((bounds.maxX() - bounds.minX()) / Geohash.lonWidthInDegrees(precision));
@@ -157,7 +162,7 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int setValues(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
+        public int setValues(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision,MultiBucketConsumer multiBucketConsumer) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
             final double tiles = 1 << precision;

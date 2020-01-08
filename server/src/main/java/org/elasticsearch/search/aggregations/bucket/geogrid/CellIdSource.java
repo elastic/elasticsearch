@@ -30,6 +30,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+
 /**
  * Wrapper class to help convert {@link MultiGeoValues}
  * to numeric long values for bucketing.
@@ -38,12 +40,13 @@ public class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.Geo valuesSource;
     private final int precision;
     private final GeoGridTiler encoder;
+    private final MultiBucketConsumer multiBucketConsumer;
 
-    public CellIdSource(Geo valuesSource, int precision, GeoGridTiler encoder) {
+    public CellIdSource(Geo valuesSource, int precision, GeoGridTiler encoder,  MultiBucketConsumer multiBucketConsumer) {
         this.valuesSource = valuesSource;
-        //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;
         this.encoder = encoder;
+        this.multiBucketConsumer = multiBucketConsumer;
     }
 
     public int precision() {
@@ -68,7 +71,7 @@ public class CellIdSource extends ValuesSource.Numeric {
             return new GeoPointCellValues(geoValues, precision, encoder);
         } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
             // docValues are geo shapes
-            return new GeoShapeCellValues(geoValues, precision, encoder);
+            return new GeoShapeCellValues(geoValues, precision, encoder, multiBucketConsumer);
         } else {
             throw new IllegalArgumentException("unsupported geo type");
         }
@@ -89,14 +92,17 @@ public class CellIdSource extends ValuesSource.Numeric {
         private MultiGeoValues geoValues;
         private int precision;
         private GeoGridTiler tiler;
+        private MultiBucketConsumer multiBucketConsumer;
 
-        protected GeoShapeCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
+        protected GeoShapeCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler, MultiBucketConsumer multiBucketConsumer) {
             this.geoValues = geoValues;
             this.precision = precision;
             this.tiler = tiler;
+            this.multiBucketConsumer = multiBucketConsumer;
         }
 
         protected void resizeCell(int newSize) {
+            multiBucketConsumer.checkNewCountWithLimit(newSize);
             resize(newSize);
         }
 
@@ -114,9 +120,8 @@ public class CellIdSource extends ValuesSource.Numeric {
             if (geoValues.advanceExact(docId)) {
                 ValuesSourceType vs = geoValues.valuesSourceType();
                 MultiGeoValues.GeoValue target = geoValues.nextValue();
-                // TODO(talevy): determine reasonable circuit-breaker here
                 resize(0);
-                tiler.setValues(this, target, precision);
+                tiler.setValues(this, target, precision, multiBucketConsumer);
                 sort();
                 return true;
             } else {

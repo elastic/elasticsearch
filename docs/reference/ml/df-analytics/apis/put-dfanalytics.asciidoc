@@ -83,11 +83,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-start]
 `analysis`::
 (Required, object)
 The analysis configuration, which contains the information necessary to perform
-{classification}, {oldetection}, or {regression}.
+one of the following types of analysis: {classification}, {oldetection}, or
+{regression}.
 //include::{docdir}/ml/ml-shared.asciidoc[tag=analysis]
 
 `analysis`.`classification`:::
-(Required, object)footnote:disclaimer[The analysis object must contain only one type of analysis: classification, regression, or outlier_detection.]
+(Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-classification.html[{classification}].
 +
@@ -146,7 +147,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
 
 `analysis`.`outlier_detection`:::
-(Required, object)footnote:disclaimer[]
+(Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-outlier-detection.html[{oldetection}]:
 
@@ -175,7 +176,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 
 `analysis`.`regression`:::
-(Required, object)footnote:disclaimer[]
+(Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-regression.html[{regression}].
 +

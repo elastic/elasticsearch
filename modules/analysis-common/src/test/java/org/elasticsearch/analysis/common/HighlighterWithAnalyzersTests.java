@@ -57,9 +57,9 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
 
     public void testNgramHighlightingWithBrokenPositions() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("test", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("test")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("name")
                                         .field("type", "text")
@@ -213,7 +213,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .put("index.analysis.filter.synonym.type", "synonym")
             .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
-        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).setMapping(type1TermVectorMapping()));
 
         ensureGreen();
 
@@ -317,7 +317,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
     }
 
     public static XContentBuilder type1TermVectorMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("type1")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("term_vector", "with_positions_offsets").endObject()
             .startObject("field2").field("type", "text").field("term_vector", "with_positions_offsets").endObject()

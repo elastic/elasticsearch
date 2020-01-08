@@ -90,6 +90,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -1020,7 +1021,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             () -> {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                     .field("date")
-                    .dateHistogramInterval(DateHistogramInterval.days(1));
+                    .calendarInterval(DateHistogramInterval.days(1));
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo));
             },
             (result) -> {
@@ -1044,7 +1045,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             () -> {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                     .field("date")
-                    .dateHistogramInterval(DateHistogramInterval.days(1));
+                    .calendarInterval(DateHistogramInterval.days(1));
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
                     .aggregateAfter(createAfterKey("date", 1474329600000L));
 
@@ -1058,7 +1059,35 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             }
         );
 
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        /*
+         * Tests a four hour offset, which moves the document with
+         * date 2017-10-20T03:08:45 into 2017-10-19's bucket.
+         */
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date"),
+            LongPoint.newRangeQuery(
+                "date",
+                asLong("2016-09-20T09:00:34"),
+                asLong("2017-10-20T06:09:24")
+            )), dataset,
+            () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
+                    .field("date")
+                    .calendarInterval(DateHistogramInterval.days(1))
+                    .offset(TimeUnit.HOURS.toMillis(4));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
+                    .aggregateAfter(createAfterKey("date", 1474329600000L));
+
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=1508472000000}", result.afterKey().toString());
+                assertEquals("{date=1474344000000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{date=1508385600000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{date=1508472000000}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            }
+        );
     }
 
     public void testWithDateTerms() throws IOException {

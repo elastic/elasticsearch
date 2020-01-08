@@ -33,7 +33,7 @@ PUT logs-debug
 
 `constant_keyword` supports the same queries and aggregations as `keyword`
 fields do, but takes advantage of the fact that all documents have the same
-value per index to be more efficient.
+value per index to execute queries more efficiently.
 
 It is both allowed to submit documents that don't have a value for the field or
 that have a value equal to the value configured in mappings. The two below

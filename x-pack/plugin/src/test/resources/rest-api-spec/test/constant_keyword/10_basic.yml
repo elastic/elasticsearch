@@ -1,7 +1,7 @@
 setup:
 
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.99.99" # TODO: make it 7.5.99 after backport
       reason: "constant_keyword was added in 7.6"
 
   - do:

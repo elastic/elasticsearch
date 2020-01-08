@@ -5,33 +5,42 @@
  */
 
 
-package org.elasticsearch.xpack.core.index.mapper;
+package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.FuzzyTermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantKeywordIndexFieldData;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
 /**
@@ -117,7 +126,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             super.checkCompatibility(otherFT, conflicts);
             ConstantKeywordFieldType other = (ConstantKeywordFieldType) otherFT;
             if (Objects.equals(value, other.value) == false) {
-                conflicts.add("mapper [" + name() + "] has different [value]");
+                conflicts.add("mapper [" + name() + "] has different [value]: [" + value + "] vs. [" + other.value + "]");
             }
         }
 
@@ -194,6 +203,48 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
         }
+
+        @Override
+        public Query rangeQuery(
+                Object lowerTerm, Object upperTerm,
+                boolean includeLower, boolean includeUpper,
+                ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
+                QueryShardContext context) {
+            final BytesRef valueAsBytesRef = new BytesRef(value);
+            if (lowerTerm != null && BytesRefs.toBytesRef(lowerTerm).compareTo(valueAsBytesRef) >= (includeLower ? 1 : 0)) {
+                return new MatchNoDocsQuery();
+            }
+            if (upperTerm != null && valueAsBytesRef.compareTo(BytesRefs.toBytesRef(upperTerm)) >= (includeUpper ? 1 : 0)) {
+                return new MatchNoDocsQuery();
+            }
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
+        public Query fuzzyQuery(Object term, Fuzziness fuzziness, int prefixLength, int maxExpansions,
+                boolean transpositions) {
+            final String termAsString = BytesRefs.toString(term);
+            final int maxEdits = fuzziness.asDistance(termAsString);
+            final Automaton automaton = FuzzyTermsEnum.buildAutomaton(termAsString, prefixLength, transpositions, maxEdits);
+            final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+            if (runAutomaton.run(this.value)) {
+                return new MatchAllDocsQuery();
+            } else {
+                return new MatchNoDocsQuery();
+            }
+        }
+
+        @Override
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+                MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            final Automaton automaton = new RegExp(value, flags).toAutomaton(maxDeterminizedStates);
+            final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+            if (runAutomaton.run(this.value)) {
+                return new MatchAllDocsQuery();
+            } else {
+                return new MatchNoDocsQuery();
+            }
+        }
     }
 
     protected ConstantKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -218,16 +269,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             value = context.externalValue().toString();
         } else {
             XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = fieldType().nullValueAsString();
-            } else {
-                value =  parser.textOrNull();
-            }
+            value =  parser.textOrNull();
         }
 
         if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() +
-                    "] only accepts values that are equal to the wrapped value [" + fieldType().value() + "], but got [" + value + "]");
+                    "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
+                    "], but got [" + value + "]");
         }
     }
     @Override

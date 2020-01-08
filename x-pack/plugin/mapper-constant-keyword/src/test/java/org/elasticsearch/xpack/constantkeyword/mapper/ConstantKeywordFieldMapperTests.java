@@ -4,11 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.index.mapper;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,15 +19,16 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+
+import java.util.Collection;
 
 public class ConstantKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(XPackPlugin.class);
-        return plugins;
+        return pluginList(ConstantKeywordMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     public void testDefaults() throws Exception {
@@ -54,8 +51,8 @@ public class ConstantKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("field", "bar").endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", illegalSource, XContentType.JSON)));
-        assertEquals("[constant_keyword] field [field] only accepts values that are equal to the wrapped value [foo], but got [bar]",
-                e.getCause().getMessage());
+        assertEquals("[constant_keyword] field [field] only accepts values that are equal to the value defined in the mappings [foo], " +
+                "but got [bar]", e.getCause().getMessage());
     }
 
 }

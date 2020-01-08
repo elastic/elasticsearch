@@ -423,54 +423,21 @@ this can speed up queries significantly.
 === Use <<constant-keyword,`constant_keyword`>> to speed up filtering
 
 There is a general rule that the cost of a filter is mostly a function of the
-number of matched documents. For instance, imagine that you have an index with
-cycles. If your index has many more bicycles than tricycles, then applying a
-filter on `cycle_type: tricycle` is much cheaper than applying a filter on
-`cycle_type: bicycle`. There is an exception to this rule, the
-<<query-dsl-match-all-query,`match_all`>> query. The reason is that queries that
-contain `match_all` filters can often remove this filter. For instance assume
-the following query:
+number of matched documents. Imagine that you have an index containing cycles.
+There are a large number of bicycles and many searches perform a filter on
+`cycle_type: bicycle`. This very common filter is unfortunately also very costly
+since it matches most documents. There is a simple way to avoid running this
+filter: move bicycles to their own index and filter bicycles by searching this
+index instead of adding a filter to the query.
 
-[source,console]
---------------------------------------------------
-GET cycles/_search
-{
-  "query": {
-    "bool": {
-      "must": {
-        "match": {
-          "description": "dutch"
-        }
-      },
-      "filter": {
-        "match_all": {}
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[s/^/PUT cycles\n/]
+Unfortunately this can make client-side logic tricky, which is where
+`constant_keyword` helps. By mapping `cycle_type` as a `constant_keyword` with
+value `bicycle` on the index that contains bicycles, clients can keep running
+the exact same queries as they used to run on the monolithic index and
+Elasticsearch will do the right thing on the bicycles index by ignoring filters
+on `cycle_type` if the value is `bicycle` and returning no hits otherwise.
 
-Elasticsearch will internally execute it the same way as:
-
-[source,console]
---------------------------------------------------
-GET cycles/_search
-{
-  "query": {
-    "match": {
-      "description": "dutch"
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
-
-This makes sense: the filter had no effect in this case. This might not sound
-useful though: why would you add a filter on a `match_all` in the first place?
-This is where the <<constant-keyword,`constant_keyword`>> field comes to play:
-queries on this field rewrite to either a `match_all` query, or a query that
-doesn't match any documents. See the following snippet:
+Here is what mappings could look like:
 
 [source,console]
 --------------------------------------------------
@@ -506,8 +473,8 @@ PUT other_cycles
 
 We are splitting our index in two: one that will contain only bicycles, and
 another one that contains other cycles: unicycles, tricycles, etc. Then at
-search time, we need to update the path to include both indices, but don't
-need to update queries:
+search time, we need to search both indices, but we don't need to modify
+queries.
 
 
 [source,console]
@@ -532,24 +499,23 @@ GET bicycles,other_cycles/_search
 --------------------------------------------------
 // TEST[continued]
 
-The filter on `cycle_type` is interesting above: the `bicycle` value doesn't
-exist in the `other_cycles`, so Elasticsearch will very easily figure out that
-this query has no matches. And in the `bicycles` index, this filter will rewrite
-to a `match_all`, so the overall query will then be rewritten to remove the
-filter:
+On the `bicycles` index, Elasticsearch will simply ignore the `cycle_type`
+filter and rewrite the search request to the one below:
 
 [source,console]
 --------------------------------------------------
-GET bicycles/_search
+GET bicycles,other_cycles/_search
 {
-  "query": {
-    "match": {
-      "description": "dutch"
-    }
+  "match": {
+    "description": "dutch"
   }
 }
 --------------------------------------------------
 // TEST[continued]
+
+On the `other_cycles` index, Elasticsearch will quickly figure out that
+`bicycle` doesn't exist in the terms dictionary of the `cycle_type` field and
+return a search response with no hits.
 
 This is a powerful way of making queries cheaper by putting common values in a
 dedicated index. This idea can also be combined across multiple fields: for
@@ -560,5 +526,5 @@ and a `bicycles-other-colors` indices.
 The `constant_keyword` is not strictly required for this optimization: it is
 also possible to update the client-side logic in order to route queries to the
 relevant indices based on filters. However `constant_keyword` makes it
-transparently and allows to decouple search requests from the index topology,
-for a negligible overhead.
+transparently and allows to decouple search requests from the index topology in
+exchange of very little overhead.

@@ -880,4 +880,13 @@ public class XPackLicenseState {
     public synchronized XPackLicenseState copyCurrentLicenseState() {
         return new XPackLicenseState(this);
     }
+
+    /**
+     * Determine if support for constant-keyword fields should be enabled.
+     * <p>
+     * Constant-keyword fields are available for all license types except {@link OperationMode#MISSING}.
+     */
+    public synchronized boolean isConstantKeywordAllowed() {
+        return status.active;
+    }
 }

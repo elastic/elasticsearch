@@ -36,7 +36,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.Licensing;
@@ -62,7 +61,6 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
-import org.elasticsearch.xpack.core.index.mapper.ConstantKeywordFieldMapper;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
@@ -344,8 +342,4 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         return settings;
     }
 
-    @Override
-    public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(ConstantKeywordFieldMapper.CONTENT_TYPE, new ConstantKeywordFieldMapper.TypeParser());
-    }
 }

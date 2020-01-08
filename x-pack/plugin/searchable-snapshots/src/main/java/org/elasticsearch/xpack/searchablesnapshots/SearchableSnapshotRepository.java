@@ -69,7 +69,7 @@ public class SearchableSnapshotRepository extends FilterRepository {
     public SearchableSnapshotRepository(Repository in) {
         super(in);
         if (in instanceof BlobStoreRepository == false) {
-            throw new IllegalArgumentException("Repository [" + in + "] does not support searchable snapshots" );
+            throw new IllegalArgumentException("Repository [" + in + "] does not support searchable snapshots");
         }
         blobStoreRepository = (BlobStoreRepository) in;
     }
@@ -153,13 +153,13 @@ public class SearchableSnapshotRepository extends FilterRepository {
 
             final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
             if (repository instanceof SearchableSnapshotRepository == false) {
-                throw new IllegalArgumentException("Repository [" + repository + "] is not searchable" );
+                throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
             }
 
             final CacheService cache = cacheService.get();
             assert cache != null;
 
-            return ((SearchableSnapshotRepository)repository).makeDirectory(indexSettings, shardPath, cache);
+            return ((SearchableSnapshotRepository) repository).makeDirectory(indexSettings, shardPath, cache);
         };
     }
 }

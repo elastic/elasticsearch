@@ -290,7 +290,7 @@ public class CacheService extends AbstractLifecycleComponent {
          *
          * @throws IOException if something went wrong
          */
-        private  int fetchRange(final long position, final byte[] buffer, final int offset, final int length) throws IOException {
+        private int fetchRange(final long position, final byte[] buffer, final int offset, final int length) throws IOException {
             final CompletableFuture<Integer> future = new CompletableFuture<>();
             assert refCounter.refCount() > 0;
 

@@ -85,7 +85,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder)
-                .mapping("type", "foo", "type=geo_point"))
+                .mappingFromSimplifiedDef("foo", "type=geo_point"))
                 .actionGet();
 
         ensureGreen();

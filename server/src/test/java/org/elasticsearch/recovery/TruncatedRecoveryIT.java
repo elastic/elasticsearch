@@ -88,7 +88,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(prepareCreate("test")
-            .addMapping("type1", "field1", "type=text", "the_id", "type=text")
+            .setMapping("field1", "type=text", "the_id", "type=text")
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
                 .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node

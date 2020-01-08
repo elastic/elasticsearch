@@ -17,12 +17,16 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.ConsistentSettingsService;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -55,15 +59,18 @@ public class EncryptedRepository extends BlobStoreRepository {
     private final BlobStoreRepository delegatedRepository;
     private final KeyGenerator dataEncryptionKeyGenerator;
     private final PasswordBasedEncryptor metadataEncryptor;
+    private final ConsistentSettingsService consistentSettingsService;
     private final SecureRandom secureRandom;
 
-    protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService
-            , BlobStoreRepository delegatedRepository, PasswordBasedEncryptor metadataEncryptor) throws NoSuchAlgorithmException {
+    protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                                  BlobStoreRepository delegatedRepository, PasswordBasedEncryptor metadataEncryptor,
+                                  ConsistentSettingsService consistentSettingsService) throws NoSuchAlgorithmException {
         super(metadata, namedXContentRegistry, clusterService, delegatedRepository.basePath());
         this.delegatedRepository = delegatedRepository;
         this.dataEncryptionKeyGenerator = KeyGenerator.getInstance(EncryptedRepositoryPlugin.CIPHER_ALGO);
         this.dataEncryptionKeyGenerator.init(DEK_KEY_SIZE_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
         this.metadataEncryptor = metadataEncryptor;
+        this.consistentSettingsService = consistentSettingsService;
         this.secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
     }
 
@@ -82,11 +89,17 @@ public class EncryptedRepository extends BlobStoreRepository {
     @Override
     protected BlobStore createBlobStore() {
         return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryptor,
-                secureRandom);
+                secureRandom, consistentSettingsService);
     }
 
     @Override
     protected void doStart() {
+        SecureSetting<?> passwordSettingForThisRepo =
+                (SecureSetting<?>) EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name());
+        if (false == consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
+            throw new RepositoryException(metadata.name(), "The value for the Secure setting [" + passwordSettingForThisRepo.getKey() +
+                    "] does not match the master's");
+        }
         this.delegatedRepository.start();
         super.doStart();
     }
@@ -109,13 +122,16 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryptor metadataEncryptor;
         private final SecureRandom secureRandom;
+        private final ConsistentSettingsService consistentSettingsService;
 
         EncryptedBlobStoreDecorator(BlobStore delegatedBlobStore, KeyGenerator dataEncryptionKeyGenerator,
-                                    PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom) {
+                                    PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom,
+                                    ConsistentSettingsService consistentSettingsService) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
             this.secureRandom = secureRandom;
+            this.consistentSettingsService = consistentSettingsService;
         }
 
         @Override
@@ -132,7 +148,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
             return new EncryptedBlobContainerDecorator(delegatedBlobStore.blobContainer(path),
                     delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), dataEncryptionKeyGenerator, metadataEncryptor,
-                    secureRandom);
+                    secureRandom, consistentSettingsService);
         }
     }
 
@@ -143,15 +159,17 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryptor metadataEncryptor;
         private final SecureRandom secureRandom;
+        private final ConsistentSettingsService consistentSettingsService;
 
         EncryptedBlobContainerDecorator(BlobContainer delegatedBlobContainer, BlobContainer encryptionMetadataBlobContainer,
                                         KeyGenerator dataEncryptionKeyGenerator, PasswordBasedEncryptor metadataEncryptor,
-                                        SecureRandom secureRandom) {
+                                        SecureRandom secureRandom, ConsistentSettingsService consistentSettingsService) {
             this.delegatedBlobContainer = delegatedBlobContainer;
             this.encryptionMetadataBlobContainer = encryptionMetadataBlobContainer;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
             this.secureRandom = secureRandom;
+            this.consistentSettingsService = consistentSettingsService;
         }
 
         @Override

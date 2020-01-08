@@ -45,8 +45,6 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
             "password", key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
     static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
 
-    private final Map<String, char[]> cachedRepositoryPasswords = new HashMap<>();
-
     protected static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public EncryptedRepositoryPlugin(Settings settings) {
@@ -54,14 +52,6 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
             LOGGER.warn("Encrypted snapshot repositories are not allowed for the current license." +
                     "Snapshotting to any encrypted repository is not permitted and will fail.",
                     LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
-        }
-        // cache the passwords for all encrypted repositories during plugin instantiation
-        // the keystore-based secure passwords are not readable on repository instantiation
-        for (String repositoryName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(settings)) {
-            Setting<SecureString> encryptionPasswordSetting = ENCRYPTION_PASSWORD_SETTING
-                    .getConcreteSettingForNamespace(repositoryName);
-            SecureString encryptionPassword = encryptionPasswordSetting.get(settings);
-            cachedRepositoryPasswords.put(repositoryName, encryptionPassword.getChars());
         }
     }
 
@@ -73,12 +63,16 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
     @Override
     public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
                                                            final ClusterService clusterService) {
-        final boolean areRepositoriesPasswordsConsistent = new ConsistentSettingsService(env.settings(), clusterService,
-                Set.of(ENCRYPTION_PASSWORD_SETTING)).areAllConsistent();
-        // there might not be any encrypted repositories installed so no need to fail the node at this point
-        if (false == areRepositoriesPasswordsConsistent) {
-            LOGGER.warn("The password for encrypted snapshot repositories are not identical across all nodes.");
+        // cache all the passwords for encrypted repositories while keystore-based secure passwords are still readable
+        final Map<String, char[]> cachedRepositoryPasswords = new HashMap<>();
+        for (String repositoryName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(env.settings())) {
+            Setting<SecureString> encryptionPasswordSetting = ENCRYPTION_PASSWORD_SETTING
+                    .getConcreteSettingForNamespace(repositoryName);
+            SecureString encryptionPassword = encryptionPasswordSetting.get(env.settings());
+            cachedRepositoryPasswords.put(repositoryName, encryptionPassword.getChars());
         }
+        final ConsistentSettingsService consistentSettingsService = new ConsistentSettingsService(env.settings(), clusterService,
+                Set.of(ENCRYPTION_PASSWORD_SETTING));
         return Collections.singletonMap(REPOSITORY_TYPE_NAME, new Repository.Factory() {
 
             @Override
@@ -88,9 +82,6 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
 
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
-                if (false == areRepositoriesPasswordsConsistent) {
-                    throw new SettingsException("The password for encrypted snapshot repositories are not identical across all nodes.");
-                }
                 if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
                     LOGGER.warn("Encrypted snapshot repositories are not allowed for the current license." +
                                     "Snapshots to the [" + metaData.name() + "] encrypted repository are not permitted and will fail.",
@@ -118,7 +109,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
                 PasswordBasedEncryptor metadataEncryptor = new PasswordBasedEncryptor(repositoryPassword,
                         SecureRandom.getInstance(RAND_ALGO));
                 return new EncryptedRepository(metaData, registry, clusterService, (BlobStoreRepository) delegatedRepository,
-                        metadataEncryptor);
+                        metadataEncryptor, consistentSettingsService);
             }
         });
     }

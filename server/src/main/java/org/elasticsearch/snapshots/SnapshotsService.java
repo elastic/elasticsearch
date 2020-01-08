@@ -268,7 +268,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         validate(repositoryName, snapshotName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-        repositoriesService.repository(repositoryName).getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repositoryData -> {
             clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
@@ -349,6 +348,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }, listener::onFailure);
+        try {
+            repositoriesService.repository(repositoryName).getRepositoryData(repositoryDataListener);
+        } catch(Exception e) {
+            repositoryDataListener.onFailure(e);
+        }
     }
 
     /**

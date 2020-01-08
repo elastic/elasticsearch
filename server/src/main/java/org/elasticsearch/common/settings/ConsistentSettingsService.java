@@ -100,11 +100,7 @@ public final class ConsistentSettingsService {
      */
     public boolean areAllConsistent() {
         ClusterState state = clusterService.state();
-        if (state.metaData() == null || state.metaData().hashesOfConsistentSettings() == null) {
-            throw new IllegalStateException("Hashes of consistent secure settings are not yet published by the master node. Cannot " +
-                    "check consistency at this time");
-        }
-        Map<String, String> publishedHashesOfConsistentSettings = state.metaData().hashesOfConsistentSettings();
+        Map<String, String> publishedHashesOfConsistentSettings = getPublishedHashesOfConsistentSettings();
         AtomicBoolean allConsistent = new AtomicBoolean(true);
         for (String localSettingName : digestsBySettingKey.keySet()) {
             if (false == publishedHashesOfConsistentSettings.containsKey(localSettingName)) {
@@ -158,6 +154,46 @@ public final class ConsistentSettingsService {
             }
         }
         return allConsistent.get();
+    }
+
+    public boolean isConsistent(SecureSetting<?> secureSetting) {
+        for (String localSettingName : digestsBySettingKey.keySet()) {
+            if (secureSetting.match(localSettingName)) {
+                Map<String, String> publishedHashesOfConsistentSettings = getPublishedHashesOfConsistentSettings();
+                if (false == publishedHashesOfConsistentSettings.containsKey(localSettingName)) {
+                    logger.warn("no published hash for the consistent secure setting [{}] but it exists on the local node",
+                            localSettingName);
+                    return false;
+                }
+                String publishedSaltAndHash = publishedHashesOfConsistentSettings.get(localSettingName);
+                String[] parts = publishedSaltAndHash.split(":");
+                if (parts == null || parts.length != 2) {
+                    throw new IllegalArgumentException("published hash [" + publishedSaltAndHash + " ] for secure setting ["
+                            + localSettingName + "] is invalid");
+                }
+                String publishedSalt = parts[0];
+                String publishedHash = parts[1];
+                byte[] localDigest = digestsBySettingKey.get(localSettingName);
+                byte[] computedSaltedHashBytes = computeSaltedPBKDF2Hash(localDigest, publishedSalt.getBytes(StandardCharsets.UTF_8));
+                final String computedSaltedHash = new String(Base64.getEncoder().encode(computedSaltedHashBytes), StandardCharsets.UTF_8);
+                if (false == publishedHash.equals(computedSaltedHash)) {
+                    logger.warn("the published hash [{}] of the consistent secure setting [{}] differs from the locally computed one [{}]",
+                            publishedHash, localSettingName, computedSaltedHash);
+                    return false;
+                }
+                return true;
+            }
+        }
+        throw new IllegalArgumentException("Invalid setting [" + secureSetting.getKey() + "] for consistency check.");
+    }
+
+    private Map<String, String> getPublishedHashesOfConsistentSettings() {
+        ClusterState state = clusterService.state();
+        if (state.metaData() == null || state.metaData().hashesOfConsistentSettings() == null) {
+            throw new IllegalStateException("Hashes of consistent secure settings are not yet published by the master node. Cannot " +
+                    "check consistency at this time");
+        }
+        return state.metaData().hashesOfConsistentSettings();
     }
 
     /**

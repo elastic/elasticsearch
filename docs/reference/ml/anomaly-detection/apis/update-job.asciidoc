@@ -192,7 +192,7 @@ POST _ml/anomaly_detectors/low_request_rate/_update
 When the {anomaly-job} is updated, you receive a summary of the job
 configuration information, including the updated property values. For example:
 
-[source,console-result]
+[source,js]
 ----
 {
   "job_id" : "low_request_rate",
@@ -219,5 +219,3 @@ configuration information, including the updated property values. For example:
   ...
 }
 ----
-// TESTRESPONSE[s/"job_version": "8.0.0"/"job_version": $body.job_version/]
-// TESTRESPONSE[s/"create_time": 1576623023709/"create_time": $body.create_time/]

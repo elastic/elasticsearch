@@ -141,7 +141,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             doc.put(field, "value");
         }
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setMapping(fieldMappers)
+                        .setMapping((Object[])fieldMappers)
         );
         client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 

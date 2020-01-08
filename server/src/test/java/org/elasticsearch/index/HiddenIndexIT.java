@@ -44,7 +44,6 @@ public class HiddenIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("hidden-index")
             .setSettings(Settings.builder().put("index.hidden", true).build())
             .get());
-        ensureGreen("hidden-index");
 
         // default not visible
         client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();

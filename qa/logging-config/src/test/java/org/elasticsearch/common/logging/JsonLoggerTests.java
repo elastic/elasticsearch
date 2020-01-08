@@ -45,13 +45,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -351,14 +355,14 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     logLine("file", Level.ERROR, "sample-name", "test", "error message"),
-                    stacktraceWith("java.lang.Exception: exception message"),
-                    stacktraceWith("Caused by: java.lang.RuntimeException: cause message")
+                    stacktraceMatches("java.lang.Exception: exception message.*Caused by: java.lang.RuntimeException: cause message.*")
                 )
             ));
         }
     }
 
-    public void testJsonInStacktraceMessageIsSplitted() throws IOException {
+
+    public void testJsonInStacktraceMessageIsNotSplitted() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
         String json = "{" + LINE_SEPARATOR +
@@ -382,8 +386,8 @@ public class JsonLoggerTests extends ESTestCase {
                     //message field will have a single line with json escaped
                     logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
 
-                    //stacktrace field will have each json line will in a separate array element
-                    stacktraceWith(("java.lang.Exception: " + json)/*.split(LINE_SEPARATOR)*/)
+                    //stacktrace message will be single line
+                    stacktraceWith("java.lang.Exception: " + json)
                 )
             ));
         }
@@ -527,8 +531,8 @@ public class JsonLoggerTests extends ESTestCase {
             }
         };
     }
-    private Matcher<JsonLogLine> stacktraceWith(String... lines) {
-        return new FeatureMatcher<JsonLogLine, List<String>>(Matchers.hasItems(lines),
+    private Matcher<JsonLogLine> stacktraceWith(String line) {
+        return new FeatureMatcher<JsonLogLine, List<String>>(hasItems(Matchers.containsString(line)),
             "error.stack_trace", "error.stack_trace") {
 
             @Override
@@ -537,4 +541,16 @@ public class JsonLoggerTests extends ESTestCase {
             }
         };
     }
+
+    private Matcher<JsonLogLine> stacktraceMatches(String regexp) {
+        return new FeatureMatcher<JsonLogLine, List<String>>(hasItems(matchesRegex(Pattern.compile(regexp, Pattern.DOTALL))),
+            "error.stack_trace", "error.stack_trace") {
+
+            @Override
+            protected List<String> featureValueOf(JsonLogLine actual) {
+                return actual.stacktrace();
+            }
+        };
+    }
+
 }

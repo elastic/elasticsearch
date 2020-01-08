@@ -115,7 +115,7 @@ public class Case extends ConditionalFunction {
 
     /**
      * All foldable conditions that fold to FALSE should have
-     * been removed by the {@link Optimizer}#SimplifyCase.
+     * been removed by the Optimizer.
      */
     @Override
     public boolean foldable() {

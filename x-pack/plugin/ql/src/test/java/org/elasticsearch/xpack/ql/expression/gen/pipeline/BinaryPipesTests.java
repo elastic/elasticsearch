@@ -71,7 +71,7 @@ public class BinaryPipesTests extends ESTestCase {
     /**
      * Returns {@code true} if the processor defintion builds a query that
      * tracks scores, {@code false} otherwise. Used for testing
-     * {@link Pipe#collectFields(SqlSourceBuilder)}.
+     * {@link Pipe#collectFields(QlSourceBuilder)}.
      */
     static boolean tracksScores(Pipe d) {
         QlSourceBuilder b = new QlSourceBuilder();

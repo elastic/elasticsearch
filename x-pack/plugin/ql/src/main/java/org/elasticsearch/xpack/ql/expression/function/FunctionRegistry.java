@@ -260,7 +260,8 @@ public class FunctionRegistry {
      * requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
+    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, 
+            String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");
@@ -282,7 +283,8 @@ public class FunctionRegistry {
      * requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, String... names) {
+    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, 
+            String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 3) {
                 throw new QlIllegalArgumentException("expects three arguments");
@@ -393,7 +395,7 @@ public class FunctionRegistry {
     }
 
     /**
-     * Special method to create function definition for {@link Cast} as its
+     * Special method to create function definition for Cast as its
      * signature is not compatible with {@link UnresolvedFunction}
      *
      * @return Cast function definition

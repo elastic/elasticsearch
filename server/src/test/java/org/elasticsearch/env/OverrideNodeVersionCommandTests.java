@@ -23,11 +23,14 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -41,6 +44,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     private Environment environment;
     private Path[] nodePaths;
+    private String nodeId;
     private final OptionSet noOptions = new OptionParser().parse();
 
     @Before
@@ -49,12 +53,21 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         environment = TestEnvironment.newEnvironment(settings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment)) {
             nodePaths = nodeEnvironment.nodeDataPaths();
+            nodeId = nodeEnvironment.nodeId();
 
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, randomAlphaOfLength(10),
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE, true).createWriter()) {
-                writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
+                writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
+                    .persistentSettings(Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), true).build()).build())
+                    .build());
             }
         }
+    }
+
+    @After
+    public void checkClusterStateIntact() throws IOException {
+        assertTrue(MetaData.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(nodePaths, nodeId,
+            xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE, true).loadBestOnDiskState().metaData.persistentSettings()));
     }
 
     public void testFailsOnEmptyPath() {

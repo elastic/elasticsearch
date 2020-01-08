@@ -77,7 +77,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     public static final Setting.AffixSetting<String> SERVER_NAME = Setting.affixKeySetting(
         "cluster.remote.",
         "server_name",
-        (ns, key) -> Setting.simpleString(key, null, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
+        (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 1;
@@ -219,10 +219,10 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             for (int i = 0; i < remaining; ++i) {
                 String id = clusterAlias + "#" + resolved;
                 Map<String, String> attributes;
-                if (configuredServerName != null) {
-                    attributes = Collections.singletonMap("server_name", configuredServerName);
-                } else {
+                if (Strings.isNullOrEmpty(configuredServerName)) {
                     attributes = Collections.emptyMap();
+                } else {
+                    attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
                 DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
                     Version.CURRENT.minimumCompatibilityVersion());

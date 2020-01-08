@@ -1,11 +1,11 @@
 [[analysis]]
-= Analysis
+= Text analysis
 
 [partintro]
 --
 
-_Analysis_ is the process of converting text, like the body of any email, into
-_tokens_ or _terms_ which are added to the inverted index for searching.
+_Text analysis_ is the process of converting text, like the body of any email,
+into _tokens_ or _terms_ which are added to the inverted index for searching.
 Analysis is performed by an <<analysis-analyzers,_analyzer_>> which can be
 either a built-in analyzer or a <<analysis-custom-analyzer,`custom`>> analyzer
 defined per index.
@@ -141,6 +141,8 @@ looking for:
 * The `standard` analyzer.
 
 --
+
+include::analysis/overview.asciidoc[]
 
 include::analysis/anatomy.asciidoc[]
 

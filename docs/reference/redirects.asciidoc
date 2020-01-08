@@ -277,6 +277,12 @@ This page was deleted.
 See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
 <<get-transform>>.
 
+[role="exclude",id="ml-dfanalytics-resources"]
+=== {dfanalytics-cap} job resources
+
+This page was deleted.
+See <<put-dfanalytics>>.
+
 [role="exclude",id="ml-results-resource"]
 === Results resources
 

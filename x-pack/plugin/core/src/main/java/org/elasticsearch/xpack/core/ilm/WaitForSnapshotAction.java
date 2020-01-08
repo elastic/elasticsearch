@@ -25,7 +25,7 @@ import java.util.Objects;
  */
 public class WaitForSnapshotAction implements LifecycleAction {
 
-    public static final String NAME = "waitforsnapshot";
+    public static final String NAME = "snapshot";
     public static final ParseField POLICY_FIELD = new ParseField("policy");
 
     private static final ConstructingObjectParser<WaitForSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,

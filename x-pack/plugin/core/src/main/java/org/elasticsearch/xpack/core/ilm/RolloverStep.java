@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -66,8 +64,7 @@ public class RolloverStep extends AsyncActionStep {
         }
 
         // Calling rollover with no conditions will always roll over the index
-        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null)
-            .masterNodeTimeout(getMasterTimeout(currentClusterState));
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";

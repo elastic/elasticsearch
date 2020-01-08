@@ -25,7 +25,7 @@ public class FreezeStep extends AsyncRetryDuringSnapshotActionStep {
     @Override
     public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         getClient().admin().indices().execute(FreezeIndexAction.INSTANCE,
-            new FreezeRequest(indexMetaData.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
+            new FreezeRequest(indexMetaData.getIndex().getName()),
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 }

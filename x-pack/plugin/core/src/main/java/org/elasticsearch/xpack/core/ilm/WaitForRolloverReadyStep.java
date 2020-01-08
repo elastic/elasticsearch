@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -49,7 +48,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Settings settings, IndexMetaData indexMetaData, Listener listener) {
+    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 
         if (Strings.isNullOrEmpty(rolloverAlias)) {
@@ -114,8 +113,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 "index [%s] is not the write index for alias [%s]", indexMetaData.getIndex().getName(), rolloverAlias)));
         }
 
-        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null)
-            .masterNodeTimeout(ILM_STEP_MASTER_TIMEOUT_SETTING.get(settings));
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
         rolloverRequest.dryRun(true);
         if (maxAge != null) {
             rolloverRequest.addMaxIndexAgeCondition(maxAge);

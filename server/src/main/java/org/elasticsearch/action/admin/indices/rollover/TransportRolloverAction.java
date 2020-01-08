@@ -62,7 +62,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.*;
+import static org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.findTemplates;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions

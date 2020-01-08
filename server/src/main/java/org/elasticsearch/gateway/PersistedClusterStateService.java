@@ -178,6 +178,10 @@ public class PersistedClusterStateService {
         return new Writer(metaDataIndexWriters, nodeId, bigArrays);
     }
 
+    /**
+     * Remove all persisted cluster states from the given data paths, for use in tests. Should only be called when there is no open
+     * {@link Writer} on these paths.
+     */
     public static void deleteAll(Path[] dataPaths) throws IOException {
         for (Path dataPath : dataPaths) {
             Lucene.cleanLuceneIndex(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));

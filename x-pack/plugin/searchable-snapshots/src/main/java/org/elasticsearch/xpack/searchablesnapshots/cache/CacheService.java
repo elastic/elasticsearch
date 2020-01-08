@@ -66,7 +66,7 @@ public class CacheService extends AbstractLifecycleComponent {
     public CacheService(final Settings settings, final ThreadPool threadPool) {
         this.cache = CacheBuilder.<String, CacheEntry>builder()
             .setMaximumWeight(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes())
-            .weigher((key, entry) -> entry.estimateWeight()) // TODO only evaluated on promotion/eviction...
+            .weigher((key, entry) -> entry.estimateWeight())
             .removalListener(notification -> markAsEvicted(notification.getValue()))
             .build();
         this.threadPool = threadPool;
@@ -238,8 +238,7 @@ public class CacheService extends AbstractLifecycleComponent {
         }
 
         private long estimateWeight() {
-            final long lengthOfRanges = tracker.getLengthOfRanges();
-            return (lengthOfRanges == 0L) ? sizeOfRange : lengthOfRanges;
+            return tracker.getLength();
         }
 
         private synchronized void markAsEvicted() {

@@ -47,13 +47,6 @@ public class SparseFileTracker {
         return length;
     }
 
-    public long getLengthOfRanges() {
-        synchronized (mutex) {
-            assert invariant();
-            return computeLengthOfRanges();
-        }
-    }
-
     /**
      * @return the sum of the length of the ranges
      */

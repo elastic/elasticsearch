@@ -265,14 +265,26 @@ public class MetaStateService {
     }
 
     /**
+     * Creates empty cluster state file on disk, deleting global metadata and unreferencing all index metadata
+     * (only used for dangling indices at that point).
+     */
+    public void unreferenceAll() throws IOException {
+        MANIFEST_FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
+        META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+    }
+
+    /**
      * Removes manifest file, global metadata and all index metadata
      */
     public void deleteAll() throws IOException {
-        MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
-        META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        // To ensure that the metadata is never reimported by loadFullStateBWC in case where the deletions here fail mid-way through,
+        // we first write an empty manifest file so that the indices become unreferenced, then clean up the indices, and only then delete
+        // the manifest file.
+        unreferenceAll();
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
             // delete meta state directories of indices
             MetaDataStateFormat.deleteMetaState(nodeEnv.resolveIndexFolder(indexFolderName));
         }
+        MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths()); // finally delete manifest
     }
 }

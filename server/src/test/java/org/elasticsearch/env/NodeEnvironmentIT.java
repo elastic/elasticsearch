@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -47,11 +48,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeEnvironmentIT extends ESIntegTestCase {
-    public void testStartFailureOnDataForNonDataNode() {
+    public void testStartFailureOnDataForNonDataNode() throws Exception {
         final String indexName = "test-fail-on-data";
 
         logger.info("--> starting one node");
-        String node = internalCluster().startNode();
+        final boolean writeDanglingIndices = randomBoolean();
+        String node = internalCluster().startNode(Settings.builder()
+            .put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), writeDanglingIndices).build());
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
         logger.info("--> creating index");
@@ -60,6 +63,10 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             .put("index.number_of_replicas", 0)
         ).get();
         final String indexUUID = resolveIndex(indexName).getUUID();
+        if (writeDanglingIndices) {
+            assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
+                indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+        }
 
         logger.info("--> restarting the node with node.data=false and node.master=false");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
@@ -74,10 +81,19 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                             .build();
                     }
                 }));
-        assertThat(ex.getMessage(),
-            startsWith("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false, but has shard data"));
+        if (writeDanglingIndices) {
+            assertThat(ex.getMessage(),
+                startsWith("Node is started with "
+                    + Node.NODE_DATA_SETTING.getKey()
+                    + "=false and "
+                    + Node.NODE_MASTER_SETTING.getKey()
+                    + "=false, but has index metadata"));
+        } else {
+            assertThat(ex.getMessage(),
+                startsWith("Node is started with "
+                    + Node.NODE_DATA_SETTING.getKey()
+                    + "=false, but has shard data"));
+        }
 
         logger.info("--> start the node again with node.data=true and node.master=true");
         internalCluster().startNode(dataPathSettings);

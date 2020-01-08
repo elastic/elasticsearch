@@ -109,7 +109,11 @@ public class GatewayMetaState implements Closeable {
                             .build());
                     lucenePersistedState = new LucenePersistedState(
                         persistenceWriter, currentTerm, clusterState);
-                    metaStateService.deleteAll(); // delete legacy files
+                    if (DiscoveryNode.isDataNode(settings)) {
+                        metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
+                    } else {
+                        metaStateService.deleteAll(); // delete legacy files
+                    }
                     success = true;
                 } finally {
                     if (success == false) {

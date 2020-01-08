@@ -30,6 +30,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -322,6 +323,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         logger.info("--> index 1 doc and ensure index is green");
         client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen("test");
+        assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
+            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
 
         logger.info("--> verify 1 doc in the index");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
@@ -346,15 +349,14 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
         ensureStableCluster(2);
 
-        // TODO: @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701") // dangling indices
-//        logger.info("--> verify that the dangling index exists and has green status");
-//        assertBusy(() -> {
-//            assertThat(indexExists("test"), equalTo(true));
-//        });
-//        ensureGreen("test");
-//
-//        logger.info("--> verify the doc is there");
-//        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
+        logger.info("--> verify that the dangling index exists and has green status");
+        assertBusy(() -> {
+            assertThat(indexExists("test"), equalTo(true));
+        });
+        ensureGreen("test");
+
+        logger.info("--> verify the doc is there");
+        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {

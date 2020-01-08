@@ -84,21 +84,8 @@ public class MappingUpdatedAction {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(unwrapException(e));
+                    listener.onFailure(e);
                 }
             });
-    }
-
-    // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.
-    private static Exception unwrapException(Exception cause) {
-        return cause instanceof ElasticsearchException ? unwrapEsException((ElasticsearchException) cause) : cause;
-    }
-
-    private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
-        Throwable root = esEx.unwrapCause();
-        if (root instanceof RuntimeException) {
-            return (RuntimeException) root;
-        }
-        return new UncategorizedExecutionException("Failed execution", root);
     }
 }

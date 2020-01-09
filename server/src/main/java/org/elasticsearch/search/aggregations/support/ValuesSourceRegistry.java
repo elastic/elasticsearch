@@ -98,9 +98,10 @@ public enum ValuesSourceRegistry {
                 for (ValuesSourceType validVST : innerMap.keySet()) {
                     validSourceTypes.add(validVST.toString());
                 }
+                throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() +
+                    " is not supported for aggregation" + aggregationName + ".  Valid choices are " + validSourceTypes.toString());
             }
-            throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() +
-                " is not supported for aggregation" + aggregationName + ".  Valid choices are " + validSourceTypes.toString());
+            throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
         }
 
         @Override

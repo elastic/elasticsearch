@@ -176,7 +176,7 @@ forecasts related to this job. If there are no forecasts, this property is omitt
 
 `forecasts_stats`.`status`:::
 (object) The count of forecasts by their status. For example: 
-{"finished" : 2, "started" : 1}. Omitted if forecasts do not exist.
+{"finished" : 2, "started" : 1}. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`total`:::
 (long) The number of individual forecasts currently available for this job. A 

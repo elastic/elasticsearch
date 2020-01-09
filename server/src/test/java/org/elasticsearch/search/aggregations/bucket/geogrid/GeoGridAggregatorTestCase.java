@@ -29,18 +29,29 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoTestUtils;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
@@ -76,13 +88,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             // Intentionally not writing any docs
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
-        }, new GeoPointFieldMapper.GeoPointFieldType());
+        }, new GeoPointFieldMapper.GeoPointFieldType(), new NoneCircuitBreakerService());
 
         testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), iw -> {
             // Intentionally not writing any docs
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
-        }, new GeoShapeFieldMapper.GeoShapeFieldType());
+        }, new GeoShapeFieldMapper.GeoShapeFieldType(), new NoneCircuitBreakerService());
     }
 
     public void testFieldMissing() throws IOException {
@@ -90,7 +102,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
-        }, new GeoPointFieldMapper.GeoPointFieldType());
+        }, new GeoPointFieldMapper.GeoPointFieldType(), new NoneCircuitBreakerService());
 
         testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), iw -> {
             iw.addDocument(Collections.singleton(
@@ -98,7 +110,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                     new CentroidCalculator(new Point(10D, 10D)))));
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
-        }, new GeoShapeFieldMapper.GeoShapeFieldType());
+        }, new GeoShapeFieldMapper.GeoShapeFieldType(), new NoneCircuitBreakerService());
     }
 
     public void testGeoPointWithSeveralDocs() throws IOException {
@@ -140,7 +152,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
             }
             assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
-        }, new GeoPointFieldMapper.GeoPointFieldType());
+        }, new GeoPointFieldMapper.GeoPointFieldType(), new NoneCircuitBreakerService());
     }
 
     public void testGeoShapeWithSeveralDocs() throws IOException {
@@ -191,11 +203,40 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
             }
             assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
-        }, new GeoShapeFieldMapper.GeoShapeFieldType());
+        }, new GeoShapeFieldMapper.GeoShapeFieldType(), new NoneCircuitBreakerService());
+    }
+
+    public void testGeoShapeTrippedCircuitBreaker() throws IOException {
+        int precision = randomIntBetween(1, 10);
+
+        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometryGen = ESTestCase.randomFrom(
+            GeometryTestUtils::randomLine,
+            GeometryTestUtils::randomPoint,
+            GeometryTestUtils::randomPolygon,
+            GeometryTestUtils::randomMultiLine,
+            GeometryTestUtils::randomMultiPoint
+        );
+
+        Geometry geometry = new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometryGen.apply(false));
+
+        CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        // TODO: randomize
+        BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, 5200, 1.0);
+        circuitBreakerService.registerBreaker(settings);
+
+        expectThrows(CircuitBreakingException.class, () -> testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, iw -> {
+            Document document = new Document();
+            document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
+                GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
+            iw.addDocument(document);
+            document.clear();
+        }, internalGeoGrid -> {}, new GeoShapeFieldMapper.GeoShapeFieldType(), circuitBreakerService));
     }
 
     private void testCase(Query query, String field, int precision, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalGeoGrid<T>> verify, MappedFieldType fieldType) throws IOException {
+                          Consumer<InternalGeoGrid<T>> verify, MappedFieldType fieldType,
+                          CircuitBreakerService circuitBreakerService) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -209,13 +250,15 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         fieldType.setHasDocValues(true);
         fieldType.setName(FIELD_NAME);
 
-        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        verify.accept((InternalGeoGrid<T>) aggregator.buildAggregation(0L));
-
-        indexReader.close();
-        directory.close();
+        try {
+            Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, circuitBreakerService, fieldType);
+            aggregator.preCollection();
+            indexSearcher.search(query, aggregator);
+            aggregator.postCollection();
+            verify.accept((InternalGeoGrid<T>) aggregator.buildAggregation(0L));
+        } finally {
+            indexReader.close();
+            directory.close();
+        }
     }
 }

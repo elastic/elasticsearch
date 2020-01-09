@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -113,7 +114,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             ValuesSource.Geo geoValue = (ValuesSource.Geo) orig;
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, GeoGridTiler.GeoTileGridTiler.INSTANCE);
+            CircuitBreaker breaker = queryShardContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, GeoGridTiler.GeoTileGridTiler.INSTANCE, breaker);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
                 missingBucket(), script() != null);
         } else {

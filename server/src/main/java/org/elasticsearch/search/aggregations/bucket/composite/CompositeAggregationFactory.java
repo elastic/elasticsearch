@@ -47,6 +47,7 @@ class CompositeAggregationFactory extends AggregatorFactory {
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        // create sources
         return new CompositeAggregator(name, factories, searchContext, parent, pipelineAggregators, metaData,
             size, sources, afterKey);
     }

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
@@ -46,6 +45,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     protected final int shardSize;
     protected final CellIdSource valuesSource;
     protected final LongHash bucketOrds;
+    private CellIdSource.BytesTrackingSortingNumericDocValues values;
 
     GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
@@ -66,9 +66,23 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     }
 
     @Override
+    public void preGetSubLeafCollectors() {
+        if (values != null) {
+            addRequestCircuitBreakerBytes(-values.getValuesBytes());
+        }
+    }
+
+    @Override
+    public void doPostCollection() {
+        if (values != null) {
+            addRequestCircuitBreakerBytes(-values.getValuesBytes());
+        }
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        values = (CellIdSource.BytesTrackingSortingNumericDocValues) valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

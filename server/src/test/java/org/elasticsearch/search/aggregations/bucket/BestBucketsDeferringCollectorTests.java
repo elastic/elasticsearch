@@ -34,6 +34,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -67,7 +68,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
+        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null,
+            new NoneCircuitBreakerService());
         when(searchContext.query()).thenReturn(rewrittenQuery);
         BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
             @Override

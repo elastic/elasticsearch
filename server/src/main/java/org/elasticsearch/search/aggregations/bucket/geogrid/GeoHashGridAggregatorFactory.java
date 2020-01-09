@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -77,7 +78,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoGridTiler.GeoHashGridTiler.INSTANCE,
-            searchContext.aggregations().multiBucketConsumer());
+            searchContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST));
         return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, searchContext, parent,
             pipelineAggregators, metaData);
     }

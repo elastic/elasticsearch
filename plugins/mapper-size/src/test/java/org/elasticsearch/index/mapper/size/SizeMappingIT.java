@@ -103,7 +103,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     }
 
     public void testBasic() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
+        assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":10}";
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));

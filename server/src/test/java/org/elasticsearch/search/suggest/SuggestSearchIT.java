@@ -84,7 +84,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         indexDoc("test", "1", "text", "abcd");
@@ -98,7 +98,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .text("abcd");
         logger.info("--> run suggestions with one index");
         searchSuggest("test", termSuggest);
-        assertAcked(prepareCreate("test_1").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test_1").setMapping("text", "type=text"));
         ensureGreen();
 
         indexDoc("test_1", "1", "text", "ab cd");
@@ -303,7 +303,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         indexDoc("test", "1", "text", "abcd");
@@ -328,7 +328,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testEmpty() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         indexDoc("test", "1", "text", "bar");
@@ -347,7 +347,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testEmptyIndex() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         // use SuggestMode.ALWAYS, otherwise the results can vary between requests.
@@ -375,7 +375,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testWithMultipleCommands() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("typ1", "field1", "type=text", "field2", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         indexDoc("test", "1", "field1", "prefix_abcd", "field2", "prefix_efgh");
@@ -454,7 +454,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     // see #2817
     public void testStopwordsOnlyPhraseSuggest() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd").setSettings(
+        assertAcked(prepareCreate("test").setMapping("body", "type=text,analyzer=stopwd").setSettings(
                 Settings.builder()
                         .put("index.analysis.analyzer.stopwd.tokenizer", "standard")
                         .putList("index.analysis.analyzer.stopwd.filter", "stop")

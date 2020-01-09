@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
+import java.util.Collections;
+
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse> {
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
@@ -54,8 +56,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             new SearchHit(2, "222", null),
         });
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(new EqlSearchResponse.Sequences(new EqlSearchResponse.Sequence[]{
-            new EqlSearchResponse.Sequence(new String[]{"4021"}, events),
-            new EqlSearchResponse.Sequence(new String[]{"2343"}, events)
+            new EqlSearchResponse.Sequence(Collections.singletonList("4021"), events),
+            new EqlSearchResponse.Sequence(Collections.singletonList("2343"), events)
         }), new TotalHits(0,  TotalHits.Relation.EQUAL_TO));
         return new EqlSearchResponse(hits, 0, false);
     }

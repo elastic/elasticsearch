@@ -25,22 +25,20 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -136,13 +134,9 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         }
     }
 
-    public void testBootstrapNoNodeMetaData() throws IOException {
+    public void testBootstrapNoNodeMetaData() {
         Settings envSettings = buildEnvSettings(Settings.EMPTY);
         Environment environment = TestEnvironment.newEnvironment(envSettings);
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(envSettings, environment)) {
-            NodeMetaData.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
-        }
-
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
@@ -175,11 +169,9 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths())
-            .map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
-            .toArray(Path[]::new));
+        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
-        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
     public void testDetachNoClusterState() throws IOException {
@@ -191,11 +183,9 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        IOUtils.rm(Stream.of(nodeEnvironment.nodeDataPaths())
-            .map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
-            .toArray(Path[]::new));
+        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
-        expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
+        expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
     public void testBootstrapAbortedByUser() throws IOException {
@@ -270,6 +260,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         logger.info("--> stop 1st master-eligible node and data-only node");
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
+        assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
         internalCluster().stopRandomDataNode();
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
@@ -329,6 +320,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         logger.info("--> index 1 doc and ensure index is green");
         client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen("test");
+        assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
+            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
 
         logger.info("--> verify 1 doc in the index");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
@@ -336,6 +329,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> stop data-only node and detach it from the old cluster");
         Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
+        assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode));
         final Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataNodeDataPathSettings).build());
@@ -353,15 +347,14 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
         ensureStableCluster(2);
 
-        // TODO: @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701") // dangling indices
-//        logger.info("--> verify that the dangling index exists and has green status");
-//        assertBusy(() -> {
-//            assertThat(indexExists("test"), equalTo(true));
-//        });
-//        ensureGreen("test");
-//
-//        logger.info("--> verify the doc is there");
-//        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
+        logger.info("--> verify that the dangling index exists and has green status");
+        assertBusy(() -> {
+            assertThat(indexExists("test"), equalTo(true));
+        });
+        ensureGreen("test");
+
+        logger.info("--> verify the doc is there");
+        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {

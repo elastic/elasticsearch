@@ -31,8 +31,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -117,8 +117,6 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         removePaths(terminal, indexPaths); // clean-up shard dirs
         // clean-up all metadata dirs
-        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
-            .toArray(Path[]::new));
         MetaDataStateFormat.deleteMetaState(dataPaths);
         IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
 

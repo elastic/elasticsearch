@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -201,20 +202,24 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
         }
 
-        for (Path dataPath : dataPaths2) {
-            IOUtils.rm(dataPath.resolve(MetaDataStateFormat.STATE_DIR_NAME));
-        }
+        NodeMetaData.FORMAT.cleanupOldFiles(Long.MAX_VALUE, dataPaths2);
 
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
-            assertThat(message,
-                allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
-            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
-                Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
-        }
+        final String failure = expectThrows(IllegalStateException.class, () -> newNodeEnvironment(combinedPaths)).getMessage();
+        assertThat(failure,
+            allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
+        assertTrue("[" + failure + "] should match " + Arrays.toString(dataPaths2),
+            Arrays.stream(dataPaths2).anyMatch(p -> failure.contains(p.toString())));
+
+        // verify that loadBestOnDiskState has same check
+        final String message = expectThrows(IllegalStateException.class,
+            () -> new PersistedClusterStateService(combinedPaths, nodeIds[0], xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                randomBoolean()).loadBestOnDiskState()).getMessage();
+        assertThat(message,
+            allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
+        assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
+            Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
     }
 
     public void testFailsOnMismatchedCommittedClusterUUIDs() throws IOException {

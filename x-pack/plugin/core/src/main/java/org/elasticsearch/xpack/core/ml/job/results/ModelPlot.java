@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
@@ -183,12 +184,8 @@ public class ModelPlot implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
-                (overFieldValue == null ? 0 : overFieldValue.length()) +
-                (partitionFieldValue == null ? 0 : partitionFieldValue.length());
         return jobId + "_model_plot_" + timestamp.getTime() + "_" + bucketSpan
-                + "_" + detectorIndex + "_" + valuesHash + "_" + length;
+                + "_" + detectorIndex + "_" + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
     }
 
     public Date getTimestamp() {

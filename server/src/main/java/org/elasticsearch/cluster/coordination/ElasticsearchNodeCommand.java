@@ -73,7 +73,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     public static PersistedClusterStateService createPersistedClusterStateService(Path[] dataPaths) throws IOException {
-        final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
+        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(dataPaths);
         if (nodeMetaData == null) {
             throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
         }

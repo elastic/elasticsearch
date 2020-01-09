@@ -115,8 +115,8 @@ public class CardinalityIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
 
-        prepareCreate("idx").addMapping("type",
-                jsonBuilder().startObject().startObject("type").startObject("properties")
+        prepareCreate("idx").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                     .startObject("str_value")
                         .field("type", "keyword")
                     .endObject()

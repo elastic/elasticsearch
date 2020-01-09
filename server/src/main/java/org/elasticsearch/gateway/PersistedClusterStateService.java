@@ -51,9 +51,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -63,6 +65,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.index.Index;
 
 import java.io.Closeable;
@@ -117,7 +120,7 @@ public class PersistedClusterStateService {
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
     private static final int COMMIT_DATA_SIZE = 4;
 
-    public static final String METADATA_DIRECTORY_NAME = "_metadata";
+    public static final String METADATA_DIRECTORY_NAME = MetaDataStateFormat.STATE_DIR_NAME;
 
     private final Path[] dataPaths;
     private final String nodeId;
@@ -154,17 +157,7 @@ public class PersistedClusterStateService {
                 final Directory directory = createDirectory(path.resolve(METADATA_DIRECTORY_NAME));
                 closeables.add(directory);
 
-                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-                // start empty since we re-write the whole cluster state to ensure it is all using the same format version
-                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-                // only commit when specifically instructed, we must not write any intermediate states
-                indexWriterConfig.setCommitOnClose(false);
-                // most of the data goes into stored fields which are not buffered, so we only really need a tiny buffer
-                indexWriterConfig.setRAMBufferSizeMB(1.0);
-                // merge on the write thread (e.g. while flushing)
-                indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
-
-                final IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig);
+                final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
                 metaDataIndexWriters.add(new MetaDataIndexWriter(directory, indexWriter));
             }
@@ -177,12 +170,40 @@ public class PersistedClusterStateService {
         return new Writer(metaDataIndexWriters, nodeId, bigArrays);
     }
 
+    private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
+        final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        // start empty since we re-write the whole cluster state to ensure it is all using the same format version
+        indexWriterConfig.setOpenMode(openExisting ? IndexWriterConfig.OpenMode.APPEND : IndexWriterConfig.OpenMode.CREATE);
+        // only commit when specifically instructed, we must not write any intermediate states
+        indexWriterConfig.setCommitOnClose(false);
+        // most of the data goes into stored fields which are not buffered, so we only really need a tiny buffer
+        indexWriterConfig.setRAMBufferSizeMB(1.0);
+        // merge on the write thread (e.g. while flushing)
+        indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
+
+        return new IndexWriter(directory, indexWriterConfig);
+    }
+
+    /**
+     * Remove all persisted cluster states from the given data paths, for use in tests. Should only be called when there is no open
+     * {@link Writer} on these paths.
+     */
+    public static void deleteAll(Path[] dataPaths) throws IOException {
+        for (Path dataPath : dataPaths) {
+            Lucene.cleanLuceneIndex(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));
+        }
+    }
+
     // exposed for tests
     Directory createDirectory(Path path) throws IOException {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
         // use a MMapDirectory here, which might happen with FSDirectory.open(path). Concurrency is of no concern here so a
         // SimpleFSDirectory is fine:
         return new SimpleFSDirectory(path);
+    }
+
+    public Path[] getDataPaths() {
+        return dataPaths;
     }
 
     public static class OnDiskState {
@@ -204,6 +225,66 @@ public class PersistedClusterStateService {
 
         public boolean empty() {
             return this == NO_ON_DISK_STATE;
+        }
+    }
+
+    /**
+     * Returns the node metadata for the given data paths, and checks if the node ids are unique
+     * @param dataPaths the data paths to scan
+     */
+    @Nullable
+    public static NodeMetaData nodeMetaData(Path... dataPaths) throws IOException {
+        String nodeId = null;
+        Version version = null;
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    assert userData.get(NODE_VERSION_KEY) != null;
+
+                    final String thisNodeId = userData.get(NODE_ID_KEY);
+                    assert thisNodeId != null;
+                    if (nodeId != null && nodeId.equals(thisNodeId) == false) {
+                        throw new IllegalStateException("unexpected node ID in metadata, found [" + thisNodeId +
+                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
+                    } else if (nodeId == null) {
+                        nodeId = thisNodeId;
+                        version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+                    }
+                } catch (IndexNotFoundException e) {
+                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                }
+            }
+        }
+        if (nodeId == null) {
+            return null;
+        }
+        return new NodeMetaData(nodeId, version);
+    }
+
+    /**
+     * Overrides the version field for the metadata in the given data path
+     */
+    public static void overrideVersion(Version newVersion, Path... dataPaths) throws IOException {
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    assert userData.get(NODE_VERSION_KEY) != null;
+
+                    try (IndexWriter indexWriter =
+                             createIndexWriter(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
+                        final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id));
+                        indexWriter.setLiveCommitData(commitData.entrySet());
+                        indexWriter.commit();
+                    }
+                } catch (IndexNotFoundException e) {
+                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                }
+            }
         }
     }
 

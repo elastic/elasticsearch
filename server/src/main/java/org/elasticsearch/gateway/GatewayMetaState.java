@@ -20,11 +20,14 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,19 +40,31 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
@@ -99,7 +114,7 @@ public class GatewayMetaState implements Closeable {
                 }
 
                 final PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter();
-                final LucenePersistedState lucenePersistedState;
+                final PersistedState persistedState;
                 boolean success = false;
                 try {
                     final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
@@ -107,9 +122,20 @@ public class GatewayMetaState implements Closeable {
                             .version(lastAcceptedVersion)
                             .metaData(upgradeMetaDataForNode(metaData, metaDataIndexUpgradeService, metaDataUpgrader))
                             .build());
-                    lucenePersistedState = new LucenePersistedState(
-                        persistenceWriter, currentTerm, clusterState);
-                    metaStateService.deleteAll(); // delete legacy files
+                    if (DiscoveryNode.isMasterNode(settings)) {
+                        persistedState = new LucenePersistedState(persistenceWriter, currentTerm, clusterState);
+                    } else {
+                        persistedState = new AsyncLucenePersistedState(settings, transportService.getThreadPool(),
+                            new LucenePersistedState(persistenceWriter, currentTerm, clusterState));
+                    }
+                    if (DiscoveryNode.isDataNode(settings)) {
+                        metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
+                    } else {
+                        metaStateService.deleteAll(); // delete legacy files
+                    }
+                    // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
+                    NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        persistedClusterStateService.getDataPaths());
                     success = true;
                 } finally {
                     if (success == false) {
@@ -117,13 +143,32 @@ public class GatewayMetaState implements Closeable {
                     }
                 }
 
-                persistedState.set(lucenePersistedState);
+                this.persistedState.set(persistedState);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to load metadata", e);
             }
         } else {
-            persistedState.set(
-                new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build()));
+            final long currentTerm = 0L;
+            final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build();
+            if (persistedClusterStateService.getDataPaths().length > 0) {
+                // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
+                // cluster uuid as coordinating-only nodes do not snap into a cluster as they carry no state
+                try (PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter()) {
+                    persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
+                } catch (IOException e) {
+                    throw new ElasticsearchException("failed to load metadata", e);
+                }
+                try {
+                    // delete legacy cluster state files
+                    metaStateService.deleteAll();
+                    // write legacy node metadata to prevent downgrades from spawning empty cluster state
+                    NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        persistedClusterStateService.getDataPaths());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            persistedState.set(new InMemoryPersistedState(currentTerm, clusterState));
         }
     }
 
@@ -198,6 +243,146 @@ public class GatewayMetaState implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(persistedState.get());
+    }
+
+    // visible for testing
+    public boolean allPendingAsyncStatesWritten() {
+        final PersistedState ps = persistedState.get();
+        if (ps instanceof AsyncLucenePersistedState) {
+            return ((AsyncLucenePersistedState) ps).allPendingAsyncStatesWritten();
+        } else {
+            return true;
+        }
+    }
+
+    static class AsyncLucenePersistedState extends InMemoryPersistedState {
+
+        private static final Logger logger = LogManager.getLogger(AsyncLucenePersistedState.class);
+
+        static final String THREAD_NAME = "AsyncLucenePersistedState#updateTask";
+
+        private final EsThreadPoolExecutor threadPoolExecutor;
+        private final PersistedState persistedState;
+
+        boolean newCurrentTermQueued = false;
+        boolean newStateQueued = false;
+
+        private final Object mutex = new Object();
+
+        AsyncLucenePersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
+            super(persistedState.getCurrentTerm(), persistedState.getLastAcceptedState());
+            final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
+            threadPoolExecutor = EsExecutors.newFixed(
+                nodeName + "/" + THREAD_NAME,
+                1, 1,
+                daemonThreadFactory(nodeName, THREAD_NAME),
+                threadPool.getThreadContext());
+            this.persistedState = persistedState;
+        }
+
+        @Override
+        public void setCurrentTerm(long currentTerm) {
+            synchronized (mutex) {
+                super.setCurrentTerm(currentTerm);
+                if (newCurrentTermQueued) {
+                    logger.trace("term update already queued (setting term to {})", currentTerm);
+                } else {
+                    logger.trace("queuing term update (setting term to {})", currentTerm);
+                    newCurrentTermQueued = true;
+                    scheduleUpdate();
+                }
+            }
+        }
+
+        @Override
+        public void setLastAcceptedState(ClusterState clusterState) {
+            synchronized (mutex) {
+                super.setLastAcceptedState(clusterState);
+                if (newStateQueued) {
+                    logger.trace("cluster state update already queued (setting cluster state to {})", clusterState.version());
+                } else {
+                    logger.trace("queuing cluster state update (setting cluster state to {})", clusterState.version());
+                    newStateQueued = true;
+                    scheduleUpdate();
+                }
+            }
+        }
+
+        private void scheduleUpdate() {
+            assert Thread.holdsLock(mutex);
+            try {
+                threadPoolExecutor.execute(new AbstractRunnable() {
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Exception occurred when storing new meta data", e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        final Long term;
+                        final ClusterState clusterState;
+                        synchronized (mutex) {
+                            if (newCurrentTermQueued) {
+                                term = getCurrentTerm();
+                                newCurrentTermQueued = false;
+                            } else {
+                                term = null;
+                            }
+                            if (newStateQueued) {
+                                clusterState = getLastAcceptedState();
+                                newStateQueued = false;
+                            } else {
+                                clusterState = null;
+                            }
+                        }
+                        // write current term before last accepted state so that it is never below term in last accepted state
+                        if (term != null) {
+                            persistedState.setCurrentTerm(term);
+                        }
+                        if (clusterState != null) {
+                            persistedState.setLastAcceptedState(resetVotingConfiguration(clusterState));
+                        }
+                    }
+                });
+            } catch (EsRejectedExecutionException e) {
+                // ignore cases where we are shutting down..., there is really nothing interesting to be done here...
+                if (threadPoolExecutor.isShutdown() == false) {
+                    assert false : "only expect rejections when shutting down";
+                    throw e;
+                }
+            }
+        }
+
+        static final CoordinationMetaData.VotingConfiguration staleStateConfiguration =
+            new CoordinationMetaData.VotingConfiguration(Collections.singleton("STALE_STATE_CONFIG"));
+
+        static ClusterState resetVotingConfiguration(ClusterState clusterState) {
+            CoordinationMetaData newCoordinationMetaData = CoordinationMetaData.builder(clusterState.coordinationMetaData())
+                .lastAcceptedConfiguration(staleStateConfiguration)
+                .lastCommittedConfiguration(staleStateConfiguration)
+                .build();
+            return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
+                .coordinationMetaData(newCoordinationMetaData).build()).build();
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+            } finally {
+                persistedState.close();
+            }
+        }
+
+        boolean allPendingAsyncStatesWritten() {
+            synchronized (mutex) {
+                if (newCurrentTermQueued || newStateQueued) {
+                    return false;
+                }
+                return threadPoolExecutor.getActiveCount() == 0;
+            }
+        }
     }
 
     /**

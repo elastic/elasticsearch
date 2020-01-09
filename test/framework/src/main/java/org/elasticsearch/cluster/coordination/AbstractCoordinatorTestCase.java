@@ -56,6 +56,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SeedHostsProvider;
@@ -63,6 +64,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
@@ -740,12 +742,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
                         final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
-                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
-                            throw new AssertionError("TODO adapting persistent metadata is not supported yet");
-                        }
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
-                        if (updatedTerm != oldState.getCurrentTerm()) {
-                            throw new AssertionError("TODO adapting persistent current term is not supported yet");
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData() || updatedTerm != oldState.getCurrentTerm()) {
+                            try (PersistedClusterStateService.Writer writer =
+                                     new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE)
+                                         .createWriter()) {
+                                writer.writeFullStateAndCommit(updatedTerm,
+                                    ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build());
+                            }
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());

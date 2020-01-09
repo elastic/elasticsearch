@@ -56,6 +56,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -477,6 +478,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         final Settings node1PathSettings = internalCluster().dataPathSettings(node1);
         final Settings node2PathSettings = internalCluster().dataPathSettings(node2);
+
+        assertBusy(() -> internalCluster().getInstances(GatewayMetaState.class)
+            .forEach(gw -> assertTrue(gw.allPendingAsyncStatesWritten())));
 
         // stop data nodes
         internalCluster().stopRandomDataNode();

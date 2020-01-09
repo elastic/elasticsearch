@@ -20,21 +20,17 @@ package org.elasticsearch.env;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 
 public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
-    private static final Logger logger = LogManager.getLogger(OverrideNodeVersionCommand.class);
-
     private static final String TOO_NEW_MESSAGE =
         DELIMITER +
             "\n" +
@@ -75,8 +71,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetaData nodeMetaData
-            = new NodeMetaData.NodeMetaDataStateFormat(true).loadLatestState(logger, NamedXContentRegistry.EMPTY, nodePaths);
+        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(nodePaths);
         if (nodeMetaData == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
@@ -94,7 +89,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
             .replace("V_NEW", nodeMetaData.nodeVersion().toString())
             .replace("V_CUR", Version.CURRENT.toString()));
 
-        NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeMetaData.nodeId(), Version.CURRENT), nodePaths);
+        PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPaths);
 
         terminal.println(SUCCESS_MESSAGE);
     }

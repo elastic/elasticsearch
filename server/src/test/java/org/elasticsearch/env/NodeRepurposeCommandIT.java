@@ -21,6 +21,7 @@ package org.elasticsearch.env;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
@@ -36,7 +37,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
         logger.info("--> starting two nodes");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        final String dataNode = internalCluster().startDataOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build());
 
         logger.info("--> creating index");
         prepareCreate(indexName, Settings.builder()

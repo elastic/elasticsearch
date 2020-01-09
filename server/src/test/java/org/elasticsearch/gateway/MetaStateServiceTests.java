@@ -202,7 +202,11 @@ public class MetaStateServiceTests extends ESTestCase {
         assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
         assertThat(loadedMetaData.index("test1"), equalTo(index));
 
-        metaStateService.deleteAll();
+        if (randomBoolean()) {
+            metaStateService.unreferenceAll();
+        } else {
+            metaStateService.deleteAll();
+        }
         manifestAndMetaData = metaStateService.loadFullState();
         assertTrue(manifestAndMetaData.v1().isEmpty());
         metaData = manifestAndMetaData.v2();

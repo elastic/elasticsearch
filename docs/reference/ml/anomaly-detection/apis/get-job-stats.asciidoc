@@ -230,25 +230,16 @@ this value indicates the latest size.
 (string) For internal use. The type of result.
 
 `model_size_stats`.`total_by_field_count`:::
-(long) The number of `by` field values that were analyzed by the models.
-+
---
-NOTE: The `by` field values are counted separately for each detector and
-partition.
-
---
+(long) The number of `by` field values that were analyzed by the models. This 
+value is cumulative for all detectors.
 
 `model_size_stats`.`total_over_field_count`:::
-(long) The number of `over` field values that were analyzed by the models.
-+
---
-NOTE: The `over` field values are counted separately for each detector and
-partition.
-
---
+(long) The number of `over` field values that were analyzed by the models. This 
+value is cumulative for all detectors.
 
 `model_size_stats`.`total_partition_field_count`:::
-(long) The number of `partition` field values that were analyzed by the models.
+(long) The number of `partition` field values that were analyzed by the models. 
+This value is cumulative for all detectors.
 
 `model_size_stats`.`timestamp`:::
 (date) The timestamp of the `model_size_stats` according to the timestamp of the

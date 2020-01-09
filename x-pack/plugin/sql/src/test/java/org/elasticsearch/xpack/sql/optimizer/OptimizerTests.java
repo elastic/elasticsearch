@@ -1012,6 +1012,57 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(FIVE, r.right());
     }
 
+    // 2 < a AND (2 <= a < 3) -> 2 < a < 3
+    public void testCombineBinaryComparisonsAndRangeLower() {
+        FieldAttribute fa = getFieldAttribute();
+
+        GreaterThan gt = new GreaterThan(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, TWO, true, THREE, false);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(new And(EMPTY, gt, range));
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range)exp;
+        assertEquals(TWO, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a < 4 AND (1 < a < 3) -> 1 < a < 3
+    public void testCombineBinaryComparisonsAndRangeUpper() {
+        FieldAttribute fa = getFieldAttribute();
+
+        LessThan lt = new LessThan(EMPTY, fa, FOUR);
+        Range range = new Range(EMPTY, fa, ONE, false, THREE, false);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(new And(EMPTY, range, lt));
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range)exp;
+        assertEquals(ONE, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a <= 2 AND (1 < a < 3) -> 1 < a <= 2
+    public void testCombineBinaryComparisonsAndRangeUpperEqual() {
+        FieldAttribute fa = getFieldAttribute();
+
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, ONE, false, THREE, false);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(new And(EMPTY, lte, range));
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range)exp;
+        assertEquals(ONE, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(TWO, r.upper());
+        assertTrue(r.includeUpper());
+    }
+
     // 3 <= a AND 4 < a AND a <= 7 AND a < 6 -> 4 < a < 6
     public void testCombineMultipleBinaryComparisons() {
         FieldAttribute fa = getFieldAttribute();

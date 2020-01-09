@@ -202,7 +202,8 @@ Privilege to index and update documents. Also grants access to the update
 mapping action.
 
 `maintenance`::
-Privilege to refresh, flush, synced_flush, force merge
+Permits refresh, flush, synced flush, force merge operations. No privilege
+to read or write index data or otherwise manage the index.
 
 `manage`::
 All `monitor` privileges plus index administration (aliases, analyze, cache clear,

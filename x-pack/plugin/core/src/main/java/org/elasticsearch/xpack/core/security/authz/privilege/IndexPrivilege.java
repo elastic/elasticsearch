@@ -66,8 +66,8 @@ public final class IndexPrivilege extends Privilege {
         CloseIndexAction.NAME + "*");
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
-    private static final Automaton MAINTENANCE_AUTOMATON = patterns("indices:admin/refresh", "indices:admin/flush",
-        "indices:admin/synced_flush", "indices:admin/forcemerge");
+    private static final Automaton MAINTENANCE_AUTOMATON = patterns("indices:admin/refresh*", "indices:admin/flush*",
+        "indices:admin/synced_flush", "indices:admin/forcemerge*");
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",                Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",                 ALL_AUTOMATON);

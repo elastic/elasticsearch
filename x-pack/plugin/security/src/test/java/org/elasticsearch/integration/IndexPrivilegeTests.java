@@ -391,16 +391,11 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
 
-    public void testUser15() throws Exception {
+    public void testUserU15() throws Exception {
         assertUserIsAllowed("u15", "maintenance", "a");
+        assertUserIsDenied("u15", "crud", "a");
 
-        assertAccessIsAllowed("u15",
-            "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u15", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsDenied("u15", "PUT",
-            "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
-        assertAccessIsAllowed("u15",
-            "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertUserIsDenied("u11", "maintenance", "a");
     }
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
@@ -446,10 +441,9 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_forcemerge");
                 } else {
                     assertUserIsDenied(user, "crud", index);
-                    assertAccessIsDenied(user, "PUT", "/" + index);
                     assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/_flush/synced");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_flush/synced");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_forcemerge");
                 }
                 break;

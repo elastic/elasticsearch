@@ -620,11 +620,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
             if (preserveReposUponCompletion() == false) {
-                logger.debug("wiping snapshot repository [{}]", repoName);
-                adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+                deleteRepository(repoName);
             }
         }
         return inProgressSnapshots;
+    }
+
+    protected void deleteRepository(String repoName) throws IOException {
+        logger.debug("wiping snapshot repository [{}]", repoName);
+        adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
     }
 
     /**
@@ -1008,10 +1012,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         final List<String> expectedWarnings = List.of(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
             "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
             request.setOptions(RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false));
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
             request.setOptions(RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false));
         }

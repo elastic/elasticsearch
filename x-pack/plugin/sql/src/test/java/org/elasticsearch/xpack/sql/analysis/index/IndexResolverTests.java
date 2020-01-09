@@ -125,6 +125,33 @@ public class IndexResolverTests extends ESTestCase {
         assertEquals(DataType.INTEGER, esIndex.mapping().get("_meta_field").getDataType());
         assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
     }
+    
+    public void testFlattenedHiddenSubfieldIsIgnored() throws Exception {
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "some_field", "flattened", false, false);
+        addFieldCaps(fieldCaps, "some_field._keyed", "flattened", false, false);
+        addFieldCaps(fieldCaps, "another_field", "object", true, false);
+        addFieldCaps(fieldCaps, "another_field._keyed", "keyword", true, false);
+        addFieldCaps(fieldCaps, "nested_field", "object", false, false);
+        addFieldCaps(fieldCaps, "nested_field.sub_field", "flattened", true, true);
+        addFieldCaps(fieldCaps, "nested_field.sub_field._keyed", "flattened", true, true);
+        addFieldCaps(fieldCaps, "text", "keyword", true, true);
+        
+        String wildcard = "*";
+        IndexResolution resolution = IndexResolver.mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertNull(esIndex.mapping().get("some_field").getProperties().get("_keyed"));
+        assertNull(esIndex.mapping().get("nested_field").getProperties().get("sub_field").getProperties().get("_keyed"));
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
+        assertEquals(DataType.OBJECT, esIndex.mapping().get("nested_field").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field").getDataType());
+        assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
+        assertEquals(DataType.OBJECT, esIndex.mapping().get("another_field").getDataType());
+        assertEquals(DataType.KEYWORD, esIndex.mapping().get("another_field").getProperties().get("_keyed").getDataType());
+    }
 
     public void testMergeIncompatibleCapabilitiesOfObjectFields() throws Exception {
         Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
@@ -327,7 +354,7 @@ public class IndexResolverTests extends ESTestCase {
     private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps, String name, String type, boolean isSearchable,
             boolean isAggregatable) {
         Map<String, FieldCapabilities> cap = new HashMap<>();
-        cap.put(name, new FieldCapabilities(name, type, isSearchable, isAggregatable, Collections.emptyMap()));
+        cap.put(type, new FieldCapabilities(name, type, isSearchable, isAggregatable, Collections.emptyMap()));
         fieldCaps.put(name, cap);
     }
 }

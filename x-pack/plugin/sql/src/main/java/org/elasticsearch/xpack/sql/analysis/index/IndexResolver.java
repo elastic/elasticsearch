@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DateEsField;
@@ -151,6 +152,7 @@ public class IndexResolver {
 
     private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
     private static final String UNMAPPED = "unmapped";
+    private static final String FLATTENED_FIELD_SUFFIX = "_keyed";
 
     private final Client client;
     private final String clusterName;
@@ -491,6 +493,12 @@ public class IndexResolver {
                 // Skip internal fields (name starting with underscore and its type reported by field_caps starts
                 // with underscore as well). A meta field named "_version", for example, has the type named "_version".
                 if (typeEntry.getKey().startsWith("_") && typeCap.getType().startsWith("_")) {
+                    continue;
+                }
+                
+                // skip the "flattened" type of field's "_keyed" subfield
+                if (fieldName.endsWith("." + FLATTENED_FIELD_SUFFIX) && typeEntry.getKey().equals(FlatObjectFieldMapper.CONTENT_TYPE)
+                        && typeCap.getType().equals(FlatObjectFieldMapper.CONTENT_TYPE)) {
                     continue;
                 }
 

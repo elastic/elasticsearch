@@ -35,6 +35,8 @@ You will be prompted to enter the keystore password and the file `elasticsearch.
 
 NOTE: If you don't specify the `-p` flag or if you enter an empty password, the {es} keystore will be obfuscated but not password protected.
 
+Once the keystore is password-protected, Elasticsearch will prompt for a password at startup.
+
 [float]
 [[changing-keystore-password]]
 === Changing the password of the keystore

@@ -29,7 +29,8 @@ experimental[]
 [[ml-get-inference-stats-prereq]]
 ==== {api-prereq-title}
 
-Required privileges which should be added to a custom role:
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
 
 * cluster: `monitor_ml`
   

@@ -163,6 +163,13 @@ public enum DataType {
 
     private final int size;
 
+    /**
+     * Precision
+     * <p>
+     * Specified column size. For numeric data, this is the maximum precision. For character
+     * data, this is the length in characters. For datetime datatypes, this is the length in characters of the
+     * String representation (assuming the maximum allowed defaultPrecision of the fractional milliseconds component).
+     */
     public final int defaultPrecision;
 
     /**
@@ -217,6 +224,11 @@ public enum DataType {
         return sqlType;
     }
 
+    /**
+     * Size of the type in bytes
+     * <p>
+     * -1 if the size can vary
+     */
     public int size() {
         return size;
     }

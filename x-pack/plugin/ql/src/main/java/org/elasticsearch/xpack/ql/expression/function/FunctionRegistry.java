@@ -39,6 +39,8 @@ public class FunctionRegistry {
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
 
+    public FunctionRegistry() {}
+
     /**
      * Register the given function definitions with this registry.
      */

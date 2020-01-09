@@ -278,7 +278,7 @@ public class IndexResolver {
                         listener::onFailure));
     }
 
-    public static IndexResolution mergedMappings(String indexPattern, String[] indexNames,
+    public static IndexResolution mergedMappings(String indexPattern, String[] indexNames, 
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
 
         if (fieldCaps == null || fieldCaps.isEmpty()) {

@@ -18,6 +18,9 @@ import java.time.ZonedDateTime;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_TIME;
 
+//FIXME: Taken from sql-proto.
+//Ideally it should be shared but the dependencies across projects and and SQL-client make it tricky.
+//Maybe a gradle task would fix that...
 public final class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");

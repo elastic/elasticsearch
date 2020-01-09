@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
-import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;

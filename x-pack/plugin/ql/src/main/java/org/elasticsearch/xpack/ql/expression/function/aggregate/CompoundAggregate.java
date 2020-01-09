@@ -10,7 +10,9 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.List;
 
-//marker type for compound aggregates, that is aggregate that provide multiple values (like Stats or Matrix)
+/**
+ * Marker type for compound aggregates, that is an aggregate that provides multiple values (like Stats or Matrix)
+ */
 public interface CompoundAggregate {
 
     Expression field();

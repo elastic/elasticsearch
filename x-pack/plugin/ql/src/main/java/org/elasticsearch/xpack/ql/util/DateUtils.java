@@ -25,6 +25,10 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
+
+//FIXME: Taken from sql-proto. 
+//Ideally it should be shared but the dependencies across projects and and SQL-client make it tricky.
+// Maybe a gradle task would fix that...
 public class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");

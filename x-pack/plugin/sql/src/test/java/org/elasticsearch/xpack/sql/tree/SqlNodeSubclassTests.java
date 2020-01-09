@@ -51,13 +51,13 @@ import java.util.List;
 @AwaitsFix(bugUrl = "classpath inside tests is different")
 public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
-    public SqlNodeSubclassTests(Class<T> subclass) {
-        super(subclass);
-    }
-
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = CollectionUtils.combine(
             NodeSubclassTests.CLASSES_WITH_MIN_TWO_CHILDREN, Arrays.asList(Percentile.class, Percentiles.class, PercentileRanks.class));
 
+
+    public SqlNodeSubclassTests(Class<T> subclass) {
+        super(subclass);
+    }
 
     @Override
     protected boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {

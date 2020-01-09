@@ -129,6 +129,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     @BeforeClass
     public static void init() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49742",System.getProperty("java.vendor", "").contains("Azul"));
         // TODO: Refactor the signing to use org.opensaml.xmlsec.signature.support.Signer so that we can run the tests
         SamlUtils.initialize(LogManager.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.

@@ -126,7 +126,7 @@ public class GatewayMetaState implements Closeable {
                         persistedState = new LucenePersistedState(persistenceWriter, currentTerm, clusterState);
                     } else {
                         persistedState = new AsyncLucenePersistedState(settings, transportService.getThreadPool(),
-                            persistenceWriter, currentTerm, clusterState);
+                            new LucenePersistedState(persistenceWriter, currentTerm, clusterState));
                     }
                     if (DiscoveryNode.isDataNode(settings)) {
                         metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
@@ -262,24 +262,22 @@ public class GatewayMetaState implements Closeable {
         static final String THREAD_NAME = "AsyncLucenePersistedState#updateTask";
 
         private final EsThreadPoolExecutor threadPoolExecutor;
-        private final LucenePersistedState lucenePersistedState;
+        private final PersistedState persistedState;
 
         boolean newCurrentTermQueued = false;
         boolean newStateQueued = false;
 
         private final Object mutex = new Object();
 
-        AsyncLucenePersistedState(Settings settings, ThreadPool threadPool, PersistedClusterStateService.Writer persistenceWriter,
-                                  long currentTerm, ClusterState lastAcceptedState) throws IOException {
-            super(currentTerm, lastAcceptedState);
+        AsyncLucenePersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
+            super(persistedState.getCurrentTerm(), persistedState.getLastAcceptedState());
             final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
-            threadPoolExecutor = EsExecutors.newScaling(
+            threadPoolExecutor = EsExecutors.newFixed(
                 nodeName + "/" + THREAD_NAME,
                 1, 1,
-                0, TimeUnit.MILLISECONDS,
                 daemonThreadFactory(nodeName, THREAD_NAME),
                 threadPool.getThreadContext());
-            lucenePersistedState = new LucenePersistedState(persistenceWriter, currentTerm, lastAcceptedState);
+            this.persistedState = persistedState;
         }
 
         @Override
@@ -340,16 +338,17 @@ public class GatewayMetaState implements Closeable {
                         }
                         // write current term before last accepted state so that it is never below term in last accepted state
                         if (term != null) {
-                            lucenePersistedState.setCurrentTerm(term);
+                            persistedState.setCurrentTerm(term);
                         }
                         if (clusterState != null) {
-                            lucenePersistedState.setLastAcceptedState(resetVotingConfiguration(clusterState));
+                            persistedState.setLastAcceptedState(resetVotingConfiguration(clusterState));
                         }
                     }
                 });
             } catch (EsRejectedExecutionException e) {
                 // ignore cases where we are shutting down..., there is really nothing interesting to be done here...
                 if (threadPoolExecutor.isShutdown() == false) {
+                    assert false : "only expect rejections when shutting down";
                     throw e;
                 }
             }
@@ -372,7 +371,7 @@ public class GatewayMetaState implements Closeable {
             try {
                 ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
             } finally {
-                lucenePersistedState.close();
+                persistedState.close();
             }
         }
 

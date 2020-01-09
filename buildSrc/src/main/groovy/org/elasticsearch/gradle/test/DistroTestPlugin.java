@@ -75,7 +75,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
-    private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691";
+    private static final String GRADLE_JDK_VERSION = "13.0.1+9@cec27d702aa74d5a8630c65ae61e4305";
     private static final String GRADLE_JDK_VENDOR = "openjdk";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
@@ -498,6 +498,13 @@ public class DistroTestPlugin implements Plugin<Project> {
                 return true;
 
             case LINUX:
+                // We don't attempt to check the current flavor and version of Linux unless we're
+                // running in CI, because we don't want to stop people running the Docker tests in
+                // their own environments if they really want to.
+                if (BuildParams.isCi() == false) {
+                    return true;
+                }
+
                 // Only some hosts in CI are configured with Docker. We attempt to work out the OS
                 // and version, so that we know whether to expect to find Docker. We don't attempt
                 // to probe for whether Docker is available, because that doesn't tell us whether

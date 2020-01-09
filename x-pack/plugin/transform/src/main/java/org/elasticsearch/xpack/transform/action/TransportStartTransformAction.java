@@ -24,17 +24,23 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -45,7 +51,6 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
-import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -66,6 +71,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
+    private final SourceDestValidator sourceDestValidator;
+    private final IngestService ingestService;
 
     @Inject
     public TransportStartTransformAction(
@@ -77,7 +84,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        Settings settings,
+        IngestService ingestService
     ) {
         this(
             StartTransformAction.NAME,
@@ -89,7 +98,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             indexNameExpressionResolver,
             transformServices,
             persistentTasksService,
-            client
+            client,
+            settings,
+            ingestService
         );
     }
 
@@ -103,7 +114,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        Settings settings,
+        IngestService ingestService
     ) {
         super(
             name,
@@ -119,6 +132,16 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = transformServices.getAuditor();
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
+                : null,
+            clusterService.getNodeName(),
+            License.OperationMode.BASIC.description()
+        );
+        this.ingestService = ingestService;
     }
 
     @Override
@@ -143,8 +166,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             return;
         }
         final AtomicReference<TransformTaskParams> transformTaskHolder = new AtomicReference<>();
+        final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 
-        // <4> Wait for the allocated task's state to STARTED
+        // <5> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
             .wrap(task -> {
                 TransformTaskParams transformTask = transformTaskHolder.get();
@@ -157,7 +181,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
             }, listener::onFailure);
 
-        // <3> Create the task in cluster state so that it will start executing on the node
+        // <4> Create the task in cluster state so that it will start executing on the node
         ActionListener<Void> createOrGetIndexListener = ActionListener.wrap(unused -> {
             TransformTaskParams transformTask = transformTaskHolder.get();
             assert transformTask != null;
@@ -194,26 +218,13 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         }, listener::onFailure);
 
         // <2> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
-        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
-            if (config.isValid() == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIG_INVALID, request.getId()),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-                return;
-            }
-            // Validate source and destination indices
-            SourceDestValidator.validate(config, clusterService.state(), indexNameExpressionResolver, false);
-
-            transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
-            final String destinationIndex = config.getDestination().getIndex();
+        ActionListener<Boolean> validationListener = ActionListener.wrap(validationResponse -> {
+            final String destinationIndex = transformConfigHolder.get().getDestination().getIndex();
             String[] dest = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), destinationIndex);
 
             if (dest.length == 0) {
                 auditor.info(request.getId(), "Creating destination index [" + destinationIndex + "] with deduced mappings.");
-                createDestinationIndex(config, createOrGetIndexListener);
+                createDestinationIndex(transformConfigHolder.get(), createOrGetIndexListener);
             } else {
                 auditor.info(request.getId(), "Using existing destination index [" + destinationIndex + "].");
                 ClientHelper.executeAsyncWithOrigin(
@@ -238,6 +249,39 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     client.admin().indices()::stats
                 );
             }
+        }, listener::onFailure);
+
+        // <2> run transform validations
+        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
+            if (config.isValid() == false) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIG_INVALID, request.getId()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+                return;
+            }
+            transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
+            transformConfigHolder.set(config);
+            if (config.getDestination().getPipeline() != null) {
+                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                        RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+            }
+
+            sourceDestValidator.validate(
+                clusterService.state(),
+                config.getSource().getIndex(),
+                config.getDestination().getIndex(),
+                SourceDestValidator.ALL_VALIDATIONS,
+                validationListener
+            );
         }, listener::onFailure);
 
         // <1> Get the config to verify it exists and is valid

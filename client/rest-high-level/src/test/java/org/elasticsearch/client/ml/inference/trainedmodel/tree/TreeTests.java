@@ -57,10 +57,10 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
         for (int i = 0; i < numberOfFeatures; i++) {
             featureNames.add(randomAlphaOfLength(10));
         }
-        return buildRandomTree(featureNames,  6);
+        return buildRandomTree(featureNames,  6, randomFrom(TargetType.values()));
     }
 
-    public static Tree buildRandomTree(List<String> featureNames, int depth) {
+    public static Tree buildRandomTree(List<String> featureNames, int depth, TargetType targetType) {
         int numFeatures = featureNames.size();
         Tree.Builder builder = Tree.builder();
         builder.setFeatureNames(featureNames);
@@ -88,7 +88,7 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
         return builder.setClassificationLabels(categoryLabels)
-            .setTargetType(randomFrom(TargetType.values()))
+            .setTargetType(targetType)
             .build();
     }
 

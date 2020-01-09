@@ -31,7 +31,6 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 
@@ -136,7 +135,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
         Set<HighlightFlag> highlightFlags = getFlags(field);
         PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
-        CharacterRunAutomaton[] automata = getAutomata(field, query, highlightFlags);
+        LabelledCharArrayMatcher[] automata = getAutomata(field, query, highlightFlags);
         UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false , highlightFlags);
         OffsetSource offsetSource = getOptimizedOffsetSource(components);
         BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),

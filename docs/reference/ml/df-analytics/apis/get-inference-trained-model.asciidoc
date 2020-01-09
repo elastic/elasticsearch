@@ -1,0 +1,100 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-inference]]
+=== Get {infer} trained model API
+[subs="attributes"]
+++++
+<titleabbrev>Get {infer} trained model</titleabbrev>
+++++
+
+Retrieves configuration information for a trained {infer} model.
+
+experimental[]
+
+
+[[ml-get-inference-request]]
+==== {api-request-title}
+
+`GET _ml/inference/` +
+
+`GET _ml/inference/<model_id>` +
+
+`GET _ml/inference/_all` +
+
+`GET _ml/inference/<model_id1>,<model_id2>` +
+
+`GET _ml/inference/<model_id_pattern*>`
+
+
+[[ml-get-inference-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-get-inference-desc]]
+==== {api-description-title}
+
+You can get information for multiple trained models in a single API request by 
+using a comma-separated list of model IDs or a wildcard expression.
+
+
+[[ml-get-inference-path-params]]
+==== {api-path-parms-title}
+
+`<model_id>`::
+(Optional, string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
+
+
+[[ml-get-inference-query-params]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+`decompress_definition`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=decompress-definition]
+
+`from`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=from]
+
+`include_model_definition`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=include-model-definition]
+
+`size`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=size]
+
+
+[[ml-get-inference-response-codes]]
+==== {api-response-codes-title}
+
+`400`::
+  If `include_model_definition` is `true`, this code indicates that more than 
+  one models match the ID pattern.
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+  
+
+[[ml-get-inference-example]]
+==== {api-examples-title}
+
+The following example gets configuration information for all the trained models:
+
+[source,console]
+--------------------------------------------------
+GET _ml/inference/
+--------------------------------------------------
+// TEST[skip:TBD]

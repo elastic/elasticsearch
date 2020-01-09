@@ -14,7 +14,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.AttributeMap;
+import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
@@ -26,6 +30,9 @@ import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -79,7 +86,11 @@ public class SourceGeneratorTests extends ESTestCase {
     }
 
     public void testSelectScoreForcesTrackingScore() {
-        QueryContainer container = new QueryContainer().addColumn(new Score(Source.EMPTY).toAttribute());
+        Score score = new Score(Source.EMPTY);
+        ReferenceAttribute attr = new ReferenceAttribute(score.source(), "score", score.dataType());
+        Map<Attribute, Expression> alias = new LinkedHashMap<>();
+        alias.put(attr, score);
+        QueryContainer container = new QueryContainer().withAliases(new AttributeMap<>(alias)).addColumn(attr);
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertTrue(sourceBuilder.trackScores());
     }

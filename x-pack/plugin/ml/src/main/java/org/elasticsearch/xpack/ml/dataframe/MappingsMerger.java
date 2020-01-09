@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.Collections;
@@ -32,22 +33,22 @@ public final class MappingsMerger {
 
     private MappingsMerger() {}
 
-    public static void mergeMappings(Client client, Map<String, String> headers, String[] index,
-                                     ActionListener<ImmutableOpenMap<String, MappingMetaData>> listener) {
+    public static void mergeMappings(Client client, Map<String, String> headers, DataFrameAnalyticsSource source,
+                                     ActionListener<MappingMetaData> listener) {
         ActionListener<GetMappingsResponse> mappingsListener = ActionListener.wrap(
-            getMappingsResponse -> listener.onResponse(MappingsMerger.mergeMappings(getMappingsResponse)),
+            getMappingsResponse -> listener.onResponse(MappingsMerger.mergeMappings(source, getMappingsResponse)),
             listener::onFailure
         );
 
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
-        getMappingsRequest.indices(index);
+        getMappingsRequest.indices(source.getIndex());
         ClientHelper.executeWithHeadersAsync(headers, ML_ORIGIN, client, GetMappingsAction.INSTANCE, getMappingsRequest, mappingsListener);
     }
 
-    static ImmutableOpenMap<String, MappingMetaData> mergeMappings(GetMappingsResponse getMappingsResponse) {
+    static MappingMetaData mergeMappings(DataFrameAnalyticsSource source,
+                                                                   GetMappingsResponse getMappingsResponse) {
         ImmutableOpenMap<String, MappingMetaData> indexToMappings = getMappingsResponse.getMappings();
 
-        String type = null;
         Map<String, Object> mergedMappings = new HashMap<>();
 
         Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = indexToMappings.iterator();
@@ -61,23 +62,23 @@ public final class MappingsMerger {
                     Map<String, Object> fieldMappings = (Map<String, Object>) currentMappings.get("properties");
 
                     for (Map.Entry<String, Object> fieldMapping : fieldMappings.entrySet()) {
-                        if (mergedMappings.containsKey(fieldMapping.getKey())) {
-                            if (mergedMappings.get(fieldMapping.getKey()).equals(fieldMapping.getValue()) == false) {
-                                throw ExceptionsHelper.badRequestException("cannot merge mappings because of differences for field [{}]",
-                                    fieldMapping.getKey());
+                        String field = fieldMapping.getKey();
+                        if (source.isFieldExcluded(field) == false) {
+                            if (mergedMappings.containsKey(field)) {
+                                if (mergedMappings.get(field).equals(fieldMapping.getValue()) == false) {
+                                    throw ExceptionsHelper.badRequestException(
+                                        "cannot merge mappings because of differences for field [{}]", field);
+                                }
+                            } else {
+                                mergedMappings.put(field, fieldMapping.getValue());
                             }
-                        } else {
-                            mergedMappings.put(fieldMapping.getKey(), fieldMapping.getValue());
                         }
                     }
                 }
             }
         }
 
-        MappingMetaData mappingMetaData = createMappingMetaData(MapperService.SINGLE_MAPPING_NAME, mergedMappings);
-        ImmutableOpenMap.Builder<String, MappingMetaData> result = ImmutableOpenMap.builder();
-        result.put(MapperService.SINGLE_MAPPING_NAME, mappingMetaData);
-        return result.build();
+        return createMappingMetaData(MapperService.SINGLE_MAPPING_NAME, mergedMappings);
     }
 
     private static MappingMetaData createMappingMetaData(String type, Map<String, Object> mappings) {

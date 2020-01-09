@@ -161,5 +161,6 @@ curl -XPUT -u elastic 'http://<host>:<port>/_license?acknowledge=true' -H "Conte
 ------------------------------------------------------------
 // NOTCONSOLE
 
-For more information about the features that are disabled when you downgrade
-your license, see {stack-ov}/license-expiration.html[License Expiration].
+For more information about the features that are disabled when your license
+expires, see
+{kibana-ref}/managing-licenses.html#license-expiration[License expiration].

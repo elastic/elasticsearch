@@ -290,7 +290,7 @@ available on AWS-based infrastructure from http://www.elastic.co/cloud.
 ===== Storage
 
 EC2 instances offer a number of different kinds of storage. Please be aware of
-the folowing when selecting the storage for your cluster:
+the following when selecting the storage for your cluster:
 
 * http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance
 Store] is recommended for {es} clusters as it offers excellent performance and
@@ -338,7 +338,7 @@ connections are unreliable or slow, it is not optimised for this case and its
 performance may suffer. If you wish to geographically distribute your data, you
 should provision multiple clusters and use features such as
 {ref}/modules-cross-cluster-search.html[cross-cluster search] and
-{stack-ov}/xpack-ccr.html[cross-cluster replication].
+{ref}/xpack-ccr.html[cross-cluster replication].
 
 ===== Other recommendations
 

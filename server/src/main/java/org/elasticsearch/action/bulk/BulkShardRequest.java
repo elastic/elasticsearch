@@ -119,6 +119,11 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     }
 
     @Override
+    protected BulkShardRequest routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+        return super.routedBasedOnClusterVersion(routedBasedOnClusterVersion);
+    }
+
+    @Override
     public void onRetry() {
         for (BulkItemRequest item : items) {
             if (item.request() instanceof ReplicationRequest) {

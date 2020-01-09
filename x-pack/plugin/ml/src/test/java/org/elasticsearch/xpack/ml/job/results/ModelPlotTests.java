@@ -12,11 +12,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Date;
-import java.util.Objects;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -221,28 +225,23 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         String overFieldValue = null;
         String partitionFieldValue = null;
 
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("job-foo_model_plot_100_60_33_" + valuesHash + "_0", plot.getId());
+        assertEquals("job-foo_model_plot_100_60_33_0_0", plot.getId());
 
-        int length = 0;
         if (randomBoolean()) {
             byFieldValue = randomAlphaOfLength(10);
-            length += byFieldValue.length();
             plot.setByFieldValue(byFieldValue);
         }
         if (randomBoolean()) {
             overFieldValue = randomAlphaOfLength(10);
-            length += overFieldValue.length();
             plot.setOverFieldValue(overFieldValue);
         }
         if (randomBoolean()) {
             partitionFieldValue = randomAlphaOfLength(10);
-            length += partitionFieldValue.length();
             plot.setPartitionFieldValue(partitionFieldValue);
         }
 
-        valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("job-foo_model_plot_100_60_33_" + valuesHash + "_" + length, plot.getId());
+        String valuesPart = MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
+        assertEquals("job-foo_model_plot_100_60_33_" + valuesPart, plot.getId());
     }
 
     public void testStrictParser() throws IOException {
@@ -260,6 +259,43 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ModelPlot.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testIdUniqueness() {
+        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 3600, 0);
+
+        String[] partitionFieldValues =  { "730", "132", "358", "552", "888", "236", "224", "674",
+                                           "438", "128", "722", "560", "228", "628", "226", "656" };
+        String[] byFieldValues = { "S000", "S001", "S002", "S003", "S004", "S005", "S006", "S007", "S008", "S009",
+                                   "S010", "S011", "S012", "S013", "S014", "S015", "S016", "S017", "S018", "S019",
+                                   "S020", "S021", "S022", "S023", "S024", "S025", "S026", "S027", "S028", "S029",
+                                   "S057", "S058", "S059", "M020", "M021", "M026", "M027", "M028", "M029", "M030",
+                                   "M031", "M032", "M033", "M056", "M057", "M058", "M059", "M060", "M061", "M062",
+                                   "M063", "M086", "M087", "M088", "M089", "M090", "M091", "M092", "M093", "M116",
+                                   "M117", "M118", "M119", "L012", "L013", "L014", "L017", "L018", "L019", "L023",
+                                   "L024", "L025", "L029", "L030", "L031" };
+
+        Map<String, List<String>> uniqueIds = new HashMap<>();
+
+        for (String partitionFieldValue : partitionFieldValues) {
+            modelPlot.setPartitionFieldValue(partitionFieldValue);
+            for (String byFieldValue : byFieldValues) {
+                modelPlot.setByFieldValue(byFieldValue);
+                String id = modelPlot.getId();
+                uniqueIds.compute(id, (k, v) -> {
+                   if (v == null) {
+                       v = new ArrayList<>();
+                   }
+                   v.add(partitionFieldValue + "/" + byFieldValue);
+                   if (v.size() > 1) {
+                       logger.error("Duplicates for ID [" + id + "]: " + v);
+                   }
+                   return v;
+                });
+            }
+        }
+
+        assertEquals(partitionFieldValues.length * byFieldValues.length, uniqueIds.size());
     }
 
     private ModelPlot createFullyPopulated() {

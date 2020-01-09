@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -21,8 +22,8 @@ public class MatchProcessor extends AbstractEnrichProcessor {
         String tag,
         Client client,
         String policyName,
-        String field,
-        String targetField,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
         boolean overrideEnabled,
         boolean ignoreMissing,
         String matchField,
@@ -36,8 +37,8 @@ public class MatchProcessor extends AbstractEnrichProcessor {
         String tag,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
-        String field,
-        String targetField,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
         boolean overrideEnabled,
         boolean ignoreMissing,
         String matchField,

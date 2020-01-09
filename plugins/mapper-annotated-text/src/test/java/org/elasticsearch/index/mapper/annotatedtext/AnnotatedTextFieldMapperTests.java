@@ -672,6 +672,4 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
-
-
 }

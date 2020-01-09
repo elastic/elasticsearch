@@ -25,7 +25,7 @@ Painless also supports the `for in` syntax from Groovy:
 
 [source,painless]
 ---------------------------------------------------------
-for (item : list) {
+for (def item : list) {
   ...
 }
 ---------------------------------------------------------

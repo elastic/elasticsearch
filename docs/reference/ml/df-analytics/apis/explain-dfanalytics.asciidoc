@@ -1,0 +1,145 @@
+[role="xpack"]
+[testenv="platinum"]
+[[explain-dfanalytics]]
+=== Explain {dfanalytics} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Explain {dfanalytics} API</titleabbrev>
+++++
+
+Explains a {dataframe-analytics-config}.
+
+experimental[]
+
+
+[[ml-explain-dfanalytics-request]]
+==== {api-request-title}
+
+`GET _ml/data_frame/analytics/_explain` +
+
+`POST _ml/data_frame/analytics/_explain` +
+
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>/_explain` +
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>/_explain`
+
+
+[[ml-explain-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-explain-dfanalytics-desc]]
+==== {api-description-title}
+
+This API provides explanations for a {dataframe-analytics-config} that either 
+exists already or one that has not been created yet.
+The following explanations are provided:
+
+* which fields are included or not in the analysis and why,
+* how much memory is estimated to be required. The estimate can be used when 
+  deciding the appropriate value for `model_memory_limit` setting later on,
+
+about either an existing {dfanalytics-job} or one that has not been created yet.
+
+
+[[ml-explain-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+
+
+[[ml-explain-dfanalytics-request-body]]
+==== {api-request-body-title}
+
+`data_frame_analytics_config`::
+  (Optional, object) Intended configuration of {dfanalytics-job}. Note that `id` 
+  and `dest` don't need to be provided in the context of this API.
+
+
+[[ml-explain-dfanalytics-results]]
+==== {api-response-body-title}
+
+The API returns a response that contains the following:
+
+`field_selection`::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=field-selection]
+
+`memory_estimation`::
+(object) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=memory-estimation]
+
+
+[[ml-explain-dfanalytics-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/analytics/_explain
+{
+  "data_frame_analytics_config": {
+    "source": {
+      "index": "houses_sold_last_10_yrs"
+    },
+    "analysis": {
+      "regression": {
+        "dependent_variable": "price"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "field_selection": [
+    {
+      "field": "number_of_bedrooms",
+      "mappings_types": ["integer"],
+      "is_included": true,
+      "is_required": false,
+      "feature_type": "numerical"
+    },
+    {
+      "field": "postcode",
+      "mappings_types": ["text"],
+      "is_included": false,
+      "is_required": false,
+      "reason": "[postcode.keyword] is preferred because it is aggregatable"
+    },
+    {
+      "field": "postcode.keyword",
+      "mappings_types": ["keyword"],
+      "is_included": true,
+      "is_required": false,
+      "feature_type": "categorical"
+    },
+    {
+      "field": "price",
+      "mappings_types": ["float"],
+      "is_included": true,
+      "is_required": true,
+      "feature_type": "numerical"
+    }
+  ],
+  "memory_estimation": {
+    "expected_memory_without_disk": "128MB",
+    "expected_memory_with_disk": "32MB"
+  }
+}
+----

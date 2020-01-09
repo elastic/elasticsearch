@@ -82,7 +82,7 @@ public class SharedSignificantTermsTestMethods {
             textMappings += ",fielddata=true";
         }
         assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
-                .addMapping("_doc", "text", textMappings, CLASS_FIELD, "type=keyword"));
+                .setMapping("text", textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1")

@@ -34,7 +34,7 @@ public class LicenseOperationModeUpdateTests extends ESTestCase {
     }
 
     public void testLicenseOperationModeUpdate() throws Exception {
-        String type = randomFrom("trial", "basic", "standard", "gold", "platinum");
+        License.LicenseType type = randomFrom(License.LicenseType.values());
         License license = License.builder()
                 .uid("id")
                 .expiryDate(0)

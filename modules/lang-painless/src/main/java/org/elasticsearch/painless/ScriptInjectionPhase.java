@@ -29,6 +29,7 @@ import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.MemberCallNode;
 import org.elasticsearch.painless.ir.MemberFieldNode;
+import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.ThrowNode;
@@ -57,8 +58,6 @@ import java.util.Map;
 public class ScriptInjectionPhase {
 
     public static void phase(ScriptRoot scriptRoot, ClassNode classNode) {
-        injectStaticFields(classNode);
-
         FunctionNode executeFunctionNode = null;
 
         // look up the execute method for decoration
@@ -73,13 +72,14 @@ public class ScriptInjectionPhase {
             throw new IllegalStateException("all scripts must have an [execute] method");
         }
 
-        injectGetsDeclarations(scriptRoot, classNode, executeFunctionNode);
-        injectSandboxExceptions(classNode, executeFunctionNode);
+        injectStaticFieldsAndGetters(classNode);
+        injectGetsDeclarations(scriptRoot, executeFunctionNode);
+        injectSandboxExceptions(executeFunctionNode);
     }
 
-    // adds static fields required by PainlessScript for exception handling
-    protected static void injectStaticFields(ClassNode classNode) {
-        Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectStaticFields", 0);
+    // adds static fields and getter methods required by PainlessScript for exception handling
+    protected static void injectStaticFieldsAndGetters(ClassNode classNode) {
+        Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectStaticFieldsAndGetters", 0);
         int modifiers = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
 
         FieldNode fieldNode = new FieldNode();
@@ -105,13 +105,106 @@ public class ScriptInjectionPhase {
         fieldNode.setName("$STATEMENTS");
 
         classNode.addFieldNode(fieldNode);
+
+        FunctionNode functionNode = new FunctionNode();
+        functionNode.setLocation(internalLocation);
+        functionNode.setName("getName");
+        functionNode.setReturnType(String.class);
+        functionNode.setStatic(false);
+        functionNode.setVarArgs(false);
+        functionNode.setSynthetic(true);
+        functionNode.setMaxLoopCounter(0);
+
+        classNode.addFunctionNode(functionNode);
+
+        BlockNode blockNode = new BlockNode();
+        blockNode.setLocation(internalLocation);
+        blockNode.setAllEscape(true);
+        blockNode.setStatementCount(1);
+
+        functionNode.setBlockNode(blockNode);
+
+        ReturnNode returnNode = new ReturnNode();
+        returnNode.setLocation(internalLocation);
+
+        blockNode.addStatementNode(returnNode);
+
+        MemberFieldNode memberFieldNode = new MemberFieldNode();
+        memberFieldNode.setLocation(internalLocation);
+        memberFieldNode.setExpressionType(String.class);
+        memberFieldNode.setName("$NAME");
+        memberFieldNode.setStatic(true);
+
+        returnNode.setExpressionNode(memberFieldNode);
+
+        functionNode = new FunctionNode();
+        functionNode.setLocation(internalLocation);
+        functionNode.setName("getSource");
+        functionNode.setReturnType(String.class);
+        functionNode.setStatic(false);
+        functionNode.setVarArgs(false);
+        functionNode.setSynthetic(true);
+        functionNode.setMaxLoopCounter(0);
+
+        classNode.addFunctionNode(functionNode);
+
+        blockNode = new BlockNode();
+        blockNode.setLocation(internalLocation);
+        blockNode.setAllEscape(true);
+        blockNode.setStatementCount(1);
+
+        functionNode.setBlockNode(blockNode);
+
+        returnNode = new ReturnNode();
+        returnNode.setLocation(internalLocation);
+
+        blockNode.addStatementNode(returnNode);
+
+        memberFieldNode = new MemberFieldNode();
+        memberFieldNode.setLocation(internalLocation);
+        memberFieldNode.setExpressionType(String.class);
+        memberFieldNode.setName("$SOURCE");
+        memberFieldNode.setStatic(true);
+
+        returnNode.setExpressionNode(memberFieldNode);
+
+        functionNode = new FunctionNode();
+        functionNode.setLocation(internalLocation);
+        functionNode.setName("getStatements");
+        functionNode.setReturnType(BitSet.class);
+        functionNode.setStatic(false);
+        functionNode.setVarArgs(false);
+        functionNode.setSynthetic(true);
+        functionNode.setMaxLoopCounter(0);
+
+        classNode.addFunctionNode(functionNode);
+
+        blockNode = new BlockNode();
+        blockNode.setLocation(internalLocation);
+        blockNode.setAllEscape(true);
+        blockNode.setStatementCount(1);
+
+        functionNode.setBlockNode(blockNode);
+
+        returnNode = new ReturnNode();
+        returnNode.setLocation(internalLocation);
+
+        blockNode.addStatementNode(returnNode);
+
+        memberFieldNode = new MemberFieldNode();
+        memberFieldNode.setLocation(internalLocation);
+        memberFieldNode.setExpressionType(BitSet.class);
+        memberFieldNode.setName("$STATEMENTS");
+        memberFieldNode.setStatic(true);
+
+        returnNode.setExpressionNode(memberFieldNode);
     }
 
     // convert gets methods to a new set of inserted ir nodes as necessary -
     // requires the gets method name be modified from "getExample" to "example"
     // if a get method variable isn't used it's declaration node is removed from
     // the ir tree permanently so there is no frivolous variable slotting
-    protected static void injectGetsDeclarations(ScriptRoot scriptRoot, ClassNode classNode, FunctionNode functionNode) {
+    protected static void injectGetsDeclarations(ScriptRoot scriptRoot, FunctionNode functionNode) {
         Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectGetsDeclarations", 0);
         BlockNode blockNode = functionNode.getBlockNode();
         int statementIndex = 0;
@@ -164,7 +257,7 @@ public class ScriptInjectionPhase {
     // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
     //     throw this.convertToScriptException(e, e.getHeaders())
     // }
-    protected static void injectSandboxExceptions(ClassNode classNode, FunctionNode functionNode) {
+    protected static void injectSandboxExceptions(FunctionNode functionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);
             BlockNode blockNode = functionNode.getBlockNode();

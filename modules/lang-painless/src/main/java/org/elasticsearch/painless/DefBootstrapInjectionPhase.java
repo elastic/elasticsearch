@@ -37,6 +37,13 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Arrays;
 
+/**
+ * This injects additional ir nodes required for
+ * resolving the def type at runtime. This includes injection
+ * of ir nodes to add a function to call
+ * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Lookup, String, MethodType, int, int, Object...)}
+ * to do the runtime resolution.
+ */
 public class DefBootstrapInjectionPhase {
 
     public static void phase(ClassNode classNode) {
@@ -66,6 +73,7 @@ public class DefBootstrapInjectionPhase {
         classNode.addFieldNode(fieldNode);
     }
 
+    // adds the bootstrap method required for dynamic binding for def type resolution
     protected static void injectDefBootstrapMethod(ClassNode classNode) {
         Location internalLocation = new Location("$internal$DefBootstrapInjectionPhase$injectDefBootstrapMethod", 0);
 

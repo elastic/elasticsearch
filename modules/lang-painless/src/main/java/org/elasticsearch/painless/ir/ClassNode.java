@@ -40,12 +40,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
-import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
-import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
-import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 
 public class ClassNode extends IRNode {
 
@@ -156,27 +151,6 @@ public class ClassNode extends IRNode {
         constructor.invokeConstructor(Type.getType(scriptClassInfo.getBaseClass()), init);
         constructor.returnValue();
         constructor.endMethod();
-
-        // Write a method to get static variable source
-        MethodWriter nameMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, GET_NAME_METHOD);
-        nameMethod.visitCode();
-        nameMethod.getStatic(CLASS_TYPE, "$NAME", STRING_TYPE);
-        nameMethod.returnValue();
-        nameMethod.endMethod();
-
-        // Write a method to get static variable source
-        MethodWriter sourceMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, GET_SOURCE_METHOD);
-        sourceMethod.visitCode();
-        sourceMethod.getStatic(CLASS_TYPE, "$SOURCE", STRING_TYPE);
-        sourceMethod.returnValue();
-        sourceMethod.endMethod();
-
-        // Write a method to get static variable statements
-        MethodWriter statementsMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, GET_STATEMENTS_METHOD);
-        statementsMethod.visitCode();
-        statementsMethod.getStatic(CLASS_TYPE, "$STATEMENTS", BITSET_TYPE);
-        statementsMethod.returnValue();
-        statementsMethod.endMethod();
 
         // Write all fields:
         for (FieldNode fieldNode : fieldNodes) {

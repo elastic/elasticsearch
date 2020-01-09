@@ -118,17 +118,20 @@ public class SqlFunctionRegistry extends FunctionRegistry {
         super(functions());
     }
 
-    private static FunctionDefinition[] functions() {
-        return new FunctionDefinition[] {
+    private static FunctionDefinition[][] functions() {
+        return new FunctionDefinition[][] {
         // Aggregate functions
+            new FunctionDefinition[] {
                 def(Avg.class, Avg::new, "AVG"),
                 def(Count.class, Count::new, "COUNT"),
                 def(First.class, First::new, "FIRST", "FIRST_VALUE"),
                 def(Last.class, Last::new, "LAST", "LAST_VALUE"),
                 def(Max.class, Max::new, "MAX"),
                 def(Min.class, Min::new, "MIN"),
-                def(Sum.class, Sum::new, "SUM"),
+                def(Sum.class, Sum::new, "SUM")
+                },
         // Statistics
+            new FunctionDefinition[] {
                 def(Kurtosis.class, Kurtosis::new, "KURTOSIS"),
                 def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "MAD"),
                 def(Percentile.class, Percentile::new, "PERCENTILE"),
@@ -136,20 +139,25 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
-                def(VarPop.class, VarPop::new, "VAR_POP"),
+                def(VarPop.class, VarPop::new, "VAR_POP")
+                },
         // histogram
-                def(Histogram.class, Histogram::new, "HISTOGRAM"),
-
+            new FunctionDefinition[] {
+                def(Histogram.class, Histogram::new, "HISTOGRAM")
+                },
         // Scalar functions
         // Conditional
+            new FunctionDefinition[] {
                 def(Case.class, Case::new, "CASE"),
                 def(Coalesce.class, Coalesce::new, "COALESCE"),
                 def(Iif.class, Iif::new, "IIF"),
                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
-                def(Least.class, Least::new, "LEAST"),
+                def(Least.class, Least::new, "LEAST")
+                },
         // Date
+            new FunctionDefinition[] {
                 def(CurrentDate.class, CurrentDate::new, "CURRENT_DATE", "CURDATE", "TODAY"),
                 def(CurrentTime.class, CurrentTime::new, "CURRENT_TIME", "CURTIME"),
                 def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
@@ -171,8 +179,10 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(SecondOfMinute.class, SecondOfMinute::new, "SECOND_OF_MINUTE", "SECOND"),
                 def(Quarter.class, Quarter::new, "QUARTER"),
                 def(Year.class, Year::new, "YEAR"),
-                def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK"),
+                def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK")
+            },
         // Math
+            new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "ABS"),
                 def(ACos.class, ACos::new, "ACOS"),
                 def(ASin.class, ASin::new, "ASIN"),
@@ -202,8 +212,10 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Sinh.class, Sinh::new, "SINH"),
                 def(Sqrt.class, Sqrt::new, "SQRT"),
                 def(Tan.class, Tan::new, "TAN"),
-                def(Truncate.class, Truncate::new, "TRUNCATE", "TRUNC"),
+                def(Truncate.class, Truncate::new, "TRUNCATE", "TRUNC")
+            },
         // String
+            new FunctionDefinition[] {
                 def(Ascii.class, Ascii::new, "ASCII"),
                 def(BitLength.class, BitLength::new, "BIT_LENGTH"),
                 def(Char.class, Char::new, "CHAR"),
@@ -223,22 +235,31 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(RTrim.class, RTrim::new, "RTRIM"),
                 def(Space.class, Space::new, "SPACE"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
-                def(UCase.class, UCase::new, "UCASE"),
+                def(UCase.class, UCase::new, "UCASE")
+            },
         // DataType conversion
-                def(Cast.class, Cast::new, "CAST", "CONVERT"),
+            new FunctionDefinition[] {
+                def(Cast.class, Cast::new, "CAST", "CONVERT")
+            },
         // Scalar "meta" functions
+            new FunctionDefinition[] {
                 def(Database.class, Database::new, "DATABASE"),
-                def(User.class, User::new, "USER"),
+                def(User.class, User::new, "USER")
+            },
         // Geo Functions
+            new FunctionDefinition[] {
                 def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
                 def(StDistance.class, StDistance::new, "ST_DISTANCE"),
                 def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
                 def(StGeometryType.class, StGeometryType::new, "ST_GEOMETRYTYPE"),
                 def(StX.class, StX::new, "ST_X"),
                 def(StY.class, StY::new, "ST_Y"),
-                def(StZ.class, StZ::new, "ST_Z"),
+                def(StZ.class, StZ::new, "ST_Z")
+            },
         // Special
+            new FunctionDefinition[] {
                 def(Score.class, Score::new, "SCORE")
+            }
         };
     }
 }

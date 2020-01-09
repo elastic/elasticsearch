@@ -53,7 +53,6 @@ public class ShowFunctions extends Command {
     public void execute(SqlSession session, ActionListener<Page> listener) {
         FunctionRegistry registry = session.functionRegistry();
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.asJavaRegex() : null);
-
         listener.onResponse(of(session, functions.stream()
                 .map(f -> asList(f.name(), SqlFunctionTypeRegistry.INSTANCE.type(f.clazz())))
                 .collect(toList())));

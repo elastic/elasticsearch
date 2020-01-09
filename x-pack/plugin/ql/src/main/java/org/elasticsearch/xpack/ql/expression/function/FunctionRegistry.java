@@ -46,6 +46,12 @@ public class FunctionRegistry {
         register(functions);
     }
 
+    public FunctionRegistry(FunctionDefinition[]... groupFunctions) {
+        for (FunctionDefinition[] group : groupFunctions) {
+            register(group);
+        }
+    }
+
     protected void register(FunctionDefinition... functions) {
         // temporary map to hold [function_name/alias_name : function instance]
         Map<String, FunctionDefinition> batchMap = new HashMap<>();
@@ -89,10 +95,7 @@ public class FunctionRegistry {
 
     public Collection<FunctionDefinition> listFunctions() {
         // It is worth double checking if we need this copy. These are immutable anyway.
-        return defs.entrySet().stream()
-                .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
-                .collect(toList());
+        return defs.values();
     }
 
     public Collection<FunctionDefinition> listFunctions(String pattern) {
@@ -260,7 +263,7 @@ public class FunctionRegistry {
      * requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, 
+    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef,
             String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 2) {
@@ -283,7 +286,7 @@ public class FunctionRegistry {
      * requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef, 
+    public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef,
             String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 3) {

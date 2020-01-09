@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.BiFunction;
 
 /*
@@ -88,15 +89,18 @@ public enum ValuesSourceRegistry {
 
         @Override
         public AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName) {
+            StringJoiner validSourceTypes = new StringJoiner(",", "[", "]");
             if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
                 Map<ValuesSourceType, AggregatorSupplier> innerMap = aggregatorRegistry.get(aggregationName);
                 if (valuesSourceType != null && innerMap.containsKey(valuesSourceType)) {
                     return innerMap.get(valuesSourceType);
                 }
+                for (ValuesSourceType validVST : innerMap.keySet()) {
+                    validSourceTypes.add(validVST.toString());
+                }
             }
-            // TODO: Error message should list valid ValuesSource types
             throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() +
-                " is not supported for aggregation" + aggregationName);
+                " is not supported for aggregation" + aggregationName + ".  Valid choices are " + validSourceTypes.toString());
         }
 
         @Override

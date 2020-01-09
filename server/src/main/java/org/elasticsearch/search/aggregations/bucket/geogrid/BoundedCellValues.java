@@ -42,7 +42,8 @@ class BoundedCellValues extends CellValues {
     int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
         if (geoBoundingBox.pointInBounds(target.getLon(), target.getLat())) {
             values[valuesIdx] = encoder.encode(target.getLon(), target.getLat(), precision);
+            return valuesIdx + 1;
         }
-        return valuesIdx + 1;
+        return valuesIdx;
     }
 }

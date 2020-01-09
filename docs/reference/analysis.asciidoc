@@ -150,11 +150,11 @@ include::analysis/testing.asciidoc[]
 
 include::analysis/analyzers.asciidoc[]
 
-include::analysis/normalizers.asciidoc[]
-
 include::analysis/tokenizers.asciidoc[]
 
 include::analysis/tokenfilters.asciidoc[]
 
 include::analysis/charfilters.asciidoc[]
+
+include::analysis/normalizers.asciidoc[]
 

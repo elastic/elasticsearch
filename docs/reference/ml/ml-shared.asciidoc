@@ -963,10 +963,11 @@ is `shared`, which generates an index named `.ml-anomalies-shared`.
 end::results-index-name[]
 
 tag::results-retention-days[]
-Advanced configuration option. The number of days for which job results are 
-retained. Once per day at 00:30 (server time), results older than this period
-are deleted from {es}. The default value is null, which means results are
-retained.
+Advanced configuration option. When set this option will prune results older
+than a certain age. The age of a result is calculated as the time difference
+from the result to the latest result. Once per day at 00:30 (server time),
+results older than this period are deleted from {es}. The default value is
+null, which means all results are retained.
 end::results-retention-days[]
 
 tag::retain[]

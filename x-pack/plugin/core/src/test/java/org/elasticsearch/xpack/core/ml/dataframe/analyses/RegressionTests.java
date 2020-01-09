@@ -19,7 +19,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -99,8 +101,16 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
             equalTo(Map.of("dependent_variable", "foo", "prediction_field_name", "foo_prediction")));
     }
 
-    public void testFieldCardinalityLimitsIsNonNull() {
-        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
+    public void testRequiredFieldsIsNonEmpty() {
+        assertThat(createTestInstance().getRequiredFields(), is(not(empty())));
+    }
+
+    public void testFieldCardinalityLimitsIsEmpty() {
+        assertThat(createTestInstance().getFieldCardinalityLimits(), is(anEmptyMap()));
+    }
+
+    public void testFieldMappingsToCopyIsNonEmpty() {
+        assertThat(createTestInstance().getExplicitlyMappedFields(""), is(not(anEmptyMap())));
     }
 
     public void testGetStateDocId() {

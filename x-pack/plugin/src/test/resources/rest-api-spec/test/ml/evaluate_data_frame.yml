@@ -620,16 +620,13 @@ setup:
 
   - match:
       classification.accuracy:
-        actual_classes:
-          - actual_class: "cat"
-            actual_class_doc_count: 3
-            accuracy: 0.6666666666666666  # 2 out of 3
-          - actual_class: "dog"
-            actual_class_doc_count: 3
-            accuracy: 0.6666666666666666  # 2 out of 3
-          - actual_class: "mouse"
-            actual_class_doc_count: 2
-            accuracy: 0.5  # 1 out of 2
+        classes:
+          - class_name: "cat"
+            accuracy: 0.625  # 5 out of 8
+          - class_name: "dog"
+            accuracy: 0.75  # 6 out of 8
+          - class_name: "mouse"
+            accuracy: 0.875  # 7 out of 8
         overall_accuracy: 0.625  # 5 out of 8
 ---
 "Test classification precision":

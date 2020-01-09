@@ -34,7 +34,7 @@ public class ParsedDateRange extends ParsedRange {
         return DateRangeAggregationBuilder.NAME;
     }
 
-    private static ObjectParser<ParsedDateRange, Void> PARSER =
+    private static final ObjectParser<ParsedDateRange, Void> PARSER =
             new ObjectParser<>(ParsedDateRange.class.getSimpleName(), true, ParsedDateRange::new);
     static {
         declareParsedRangeFields(PARSER,

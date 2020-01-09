@@ -42,14 +42,13 @@ import java.util.Map;
 public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregationBuilder> {
     public static final String NAME = "avg";
 
-    private static final ObjectParser<AvgAggregationBuilder, Void> PARSER;
+    private static final ObjectParser<AvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, AvgAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(AvgAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new AvgAggregationBuilder(aggregationName), null);
+        return PARSER.parse(parser, aggregationName);
     }
 
     public AvgAggregationBuilder(String name) {

@@ -29,7 +29,7 @@ import java.util.Map;
 
 public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDanglingIndexRequest> {
     private String indexUuid;
-    private boolean acceptDataLoss;
+    private boolean acceptDataLoss = false;
 
     public DeleteDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
@@ -52,12 +52,6 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         if (this.indexUuid == null) {
             ActionRequestValidationException e = new ActionRequestValidationException();
             e.addValidationError("No index ID specified");
-            return e;
-        }
-
-        if (this.acceptDataLoss == false) {
-            ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError("accept_data_loss must be true");
             return e;
         }
 

@@ -365,22 +365,63 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     /**
      * Check that when deleting a dangling index, it is required that the "accept_data_loss" flag is set.
      */
-    public void testDeleteDanglingIndicesRequiresDataLossFlagToBeTrue() {
+    public void testDeleteDanglingIndicesRequiresDataLossFlagToBeTrue() throws Exception {
         final Settings settings = buildSettings(1, false);
-        internalCluster().startNodes(1, settings);
+        internalCluster().startNodes(3, settings);
+
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        createIndex(INDEX_NAME + "-other", Settings.builder().put("number_of_replicas", 2).build());
+
+        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
+
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                stoppedNodeName.set(nodeName);
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME + "-other"));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        final AtomicReference<IndexMetaData> danglingIndex = new AtomicReference<>();
+
+        // Wait for the dangling index to be noticed
+        assertBusy(() -> {
+            final ListDanglingIndicesResponse response = client().admin()
+                .cluster()
+                .listDanglingIndices(new ListDanglingIndicesRequest())
+                .actionGet();
+            assertThat(response.status(), equalTo(RestStatus.OK));
+
+            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+
+            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+                if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
+                    final IndexMetaData danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
+                    assertThat(danglingIndexInfo.getIndex().getName(), equalTo(INDEX_NAME));
+
+                    danglingIndex.set(danglingIndexInfo);
+                    break;
+                }
+            }
+        });
+
+        final IndexMetaData indexMetaData = danglingIndex.get();
 
         Exception caughtException = null;
 
         try {
-            internalCluster().client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest("fred", false)).actionGet();
+            client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(indexMetaData.getIndexUUID(), false)).actionGet();
         } catch (Exception e) {
             caughtException = e;
         }
 
         assertNotNull("No exception thrown", caughtException);
-
         assertThat(caughtException, instanceOf(IllegalArgumentException.class));
-        assertThat(caughtException.getMessage(), containsString("accept_data_loss must be true"));
+        assertThat(caughtException.getMessage(), containsString("accept_data_loss must be set to true"));
     }
 
     private List<IndexMetaData> listDanglingIndices() {

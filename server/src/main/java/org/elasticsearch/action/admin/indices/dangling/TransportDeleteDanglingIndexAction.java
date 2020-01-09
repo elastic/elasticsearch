@@ -115,7 +115,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
             }
         };
 
-        // This is checked now so that
+        // This flag is checked at this point so that we always check that the supplied index ID
+        // does correspond to a dangling index.
         if (request.isAcceptDataLoss() == false) {
             throw new IllegalArgumentException("accept_data_loss must be set to true");
         }

@@ -201,7 +201,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
         }
     }
 
-    public void testAssertBlocked() throws IOException {
+    public void testAssertBlocked() {
         {
             List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
             Set<ClusterBlock> clusterBlocks = new HashSet<>();

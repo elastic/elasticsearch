@@ -341,7 +341,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 20, TimeUnit.SECONDS);
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
 
         request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
         assertOK(client().performRequest(request));
@@ -372,7 +373,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 20, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
 
         request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
         assertOK(client().performRequest(request));
@@ -1614,6 +1615,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .field("repository", repo)
                 .field("name", "snap" + randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT))
                 .startObject("config")
+                    .field("include_global_state", false)
                 .endObject()
                 .endObject()));
 

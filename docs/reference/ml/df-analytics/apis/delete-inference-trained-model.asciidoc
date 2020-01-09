@@ -22,7 +22,7 @@ experimental[]
 [[ml-delete-inference-prereq]]
 ==== {api-prereq-title}
 
-Required build-in roles:
+If the {es} {security-features} are enabled, you must have the following built-in roles or equivalent privileges:
 
 * `machine_learning_admin`
 * `kibana_user` (UI only)
@@ -67,5 +67,4 @@ The API returns the following result:
   "acknowledged" : true
 }
 ----
-
 

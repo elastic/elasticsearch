@@ -83,11 +83,15 @@ indices and shards by passing the verbose (`-v`) option.
 [float]
 ==== Removing persistent cluster settings
 
-There may be situations where a node contains incompatible persistent cluster
-settings that prevent the cluster from forming. The `elasticsearch-node
-remove-settings` tool allows you to forcefully remove those persistent
-settings from the on-disk cluster state. The tool takes a list of settings
-as parameters that should be removed, and also supports wildcard patterns.
+There may be situations where a node contains persistent cluster
+settings that prevent the cluster from forming. Since the cluster cannot form,
+it is not possible to remove these settings using the
+<<cluster-update-settings>> API.
+
+The `elasticsearch-node remove-settings` tool allows you to forcefully remove
+those persistent settings from the on-disk cluster state. The tool takes a
+list of settings as parameters that should be removed, and also supports
+wildcard patterns.
 
 The intended use is:
 
@@ -95,14 +99,6 @@ The intended use is:
 * Run `elasticsearch-node remove-settings name-of-setting-to-remove` on the node
 * Repeat for all other master-eligible nodes
 * Start the nodes
-
-Example commands:
-
-[source,txt]
-----
-node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.exporters.my_exporter.host
-node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
-----
 
 [float]
 ==== Recovering data after a disaster
@@ -375,6 +371,40 @@ Node is being re-purposed as no-master and no-data. Clean-up of index data will 
 Do you want to proceed?
 Confirm [y/N] y
 Node successfully repurposed to no-master and no-data.
+----
+
+[float]
+==== Removing persistent cluster settings
+
+If your nodes contain persistent cluster settings that prevent the cluster
+from forming, i.e., can't be removed using the <<cluster-update-settings>> API,
+you can run the following commands to remove one or more cluster settings.
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.exporters.my_exporter.host
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+The following settings will be removed:
+xpack.monitoring.exporters.my_exporter.host: "10.1.2.3"
+
+You should only run this tool if you have incompatible settings in the
+cluster state that prevent the cluster from forming.
+This tool can cause data loss and its use should be your last resort.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+
+Settings were successfully removed from the cluster state
+----
+
+You can also use wildcards to remove multiple settings, for example using
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
 ----
 
 [float]

@@ -75,12 +75,16 @@ public class RemoveSettingsCommand extends ElasticsearchNodeCommand {
             for (String settingKey : oldPersistentSettings.keySet()) {
                 if (Regex.simpleMatch(settingToRemove, settingKey)) {
                     newPersistentSettingsBuilder.remove(settingKey);
+                    if (matched == false) {
+                        terminal.println("The following settings will be removed:");
+                    }
                     matched = true;
-                    terminal.println("Matched persistent cluster setting to remove: " + settingKey);
+                    terminal.println(settingKey + ": " + oldPersistentSettings.get(settingKey));
                 }
             }
             if (matched == false) {
-                throw new UserException(ExitCodes.USAGE, "Must match at least one setting to remove: " + settingToRemove);
+                throw new UserException(ExitCodes.USAGE,
+                    "No persistent cluster settings matching [" + settingToRemove + "] were found on this node");
             }
         }
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)

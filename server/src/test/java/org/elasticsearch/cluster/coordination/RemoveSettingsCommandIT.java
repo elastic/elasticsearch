@@ -70,8 +70,9 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
                 new String[]{ "cluster.routing.allocation.disk.*" }
             );
         assertThat(terminal.getOutput(), containsString(RemoveSettingsCommand.SETTINGS_REMOVED_MSG));
-        assertThat(terminal.getOutput(), containsString("Matched persistent cluster setting to remove: " +
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()));
+        assertThat(terminal.getOutput(), containsString("The following settings will be removed:"));
+        assertThat(terminal.getOutput(), containsString(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() + ": "  + false));
 
         internalCluster().startNode(dataPathSettings);
         assertThat(client().admin().cluster().prepareState().get().getState().metaData().persistentSettings().keySet(),
@@ -93,7 +94,8 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         UserException ex = expectThrows(UserException.class, () -> removeSettings(environment, false,
             new String[]{ "cluster.routing.allocation.disk.bla.*" }));
-        assertThat(ex.getMessage(), containsString("Must match at least one setting to remove: cluster.routing.allocation.disk.bla.*"));
+        assertThat(ex.getMessage(), containsString("No persistent cluster settings matching [cluster.routing.allocation.disk.bla.*] were " +
+            "found on this node"));
     }
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort, String... args)

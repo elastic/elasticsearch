@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -93,8 +92,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
             .setWaitForCompletion(true).get();
 
-        final RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        final BlobStoreRepository repository = (BlobStoreRepository) service.repository(repoName);
+        final BlobStoreRepository repository = getRepository(repoName);
 
         logger.info("--> creating a garbage data blob");
         final PlainActionFuture<Void> garbageFuture = PlainActionFuture.newFuture();
@@ -129,8 +127,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
             assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         }
 
-        final RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        final BlobStoreRepository repository = (BlobStoreRepository) service.repository(repoName);
+        final BlobStoreRepository repository = getRepository(repoName);
 
         logger.info("--> write two outdated index-N blobs");
         for (int i = 0; i < 2; ++i) {

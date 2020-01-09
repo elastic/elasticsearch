@@ -217,9 +217,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertSettingValue.accept("new value");
 
         logger.info("--> create repository");
-        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRandomFsRepo("test-repo", randomRepoPath());
 
         logger.info("--> start snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -268,9 +266,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         });
 
         logger.info("--> create repository");
-        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder().put("location", tempDir)).execute().actionGet();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRandomFsRepo("test-repo", tempDir);
 
         logger.info("--> start snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -307,9 +303,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(client.admin().cluster().prepareDeleteRepository("test-repo"));
 
         logger.info("--> create repository");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(Settings.builder().put("location", tempDir)).execute().actionGet();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRandomFsRepo("test-repo-2", tempDir);
 
         logger.info("--> restore snapshot");
         client.admin().cluster().prepareRestoreSnapshot("test-repo-2", "test-snap").setRestoreGlobalState(true).setIndices("-*")
@@ -554,9 +548,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertTrue(indexExists("test-idx-none"));
 
         logger.info("--> creating repository");
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRandomFsRepo("test-repo", randomRepoPath());
 
         logger.info("--> start snapshot with default settings without a closed index - should fail");
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
@@ -676,9 +668,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRandomFsRepo("test-repo", randomRepoPath());
         int numberOfShards = 6;
         logger.info("--> create an index that will have some unallocated shards");
         assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_shards", numberOfShards)
@@ -746,10 +736,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                     .put("location", randomRepoPath())).setVerify(false).get();
         }
         logger.info("--> make sure that properly setup repository can be registered on all nodes");
-        client().admin().cluster().preparePutRepository("test-repo-0")
-                .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())).get();
-
+        createRandomFsRepo("test-repo-0", randomRepoPath());
     }
 
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
@@ -817,14 +804,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(2);
 
-        final Client client = client();
-
         logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder()
-                        .put("location", randomRepoPath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRandomFsRepo("test-repo", randomRepoPath());
 
         assertAcked(prepareCreate("test-idx", 0, Settings.builder().put("number_of_shards", between(1, 20))
                 .put("number_of_replicas", 0)));
@@ -897,7 +878,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
 
-        final String masterNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
+        ((MockRepository) getRepository("test-repo")).setBlockAndFailOnWriteSnapFiles(true);
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
 
         dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false)
@@ -905,7 +886,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> stopping data node {}", dataNode);
         stopNode(dataNode);
-        logger.info("--> stopping master node {} ", masterNode);
+        logger.info("--> stopping master node {} ", internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
 
         logger.info("--> wait until the snapshot is done");
@@ -1009,9 +990,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String shrunkIdx = "test-idx-shrunk";
 
         logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository(repo).setType("fs")
-            .setSettings(Settings.builder().put("location", randomRepoPath())
-                             .put("compress", randomBoolean())));
+        createRandomFsRepo(repo, randomRepoPath());
 
         assertAcked(prepareCreate(sourceIdx, 0, Settings.builder()
             .put("number_of_shards", between(2, 10)).put("number_of_replicas", 0)));
@@ -1067,9 +1046,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
-        assertAcked(admin.cluster().preparePutRepository(repo).setType("fs")
-            .setSettings(Settings.builder().put("location", randomRepoPath())
-                .put("compress", randomBoolean())));
+        createRandomFsRepo(repo, randomRepoPath());
 
         final String expression1 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
         logger.info("-->  creating date math snapshot");
@@ -1108,9 +1085,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> register a repository");
 
         final Path repoPath = randomRepoPath();
-        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", repoPath)));
+        // Huge chunk size to avoid splitting files so file counts reported from APIs are equal to file counts in the repo
+        createRandomFsRepo(repositoryName, repoPath, Integer.MAX_VALUE);
 
         logger.info("--> create a snapshot");
         client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot0)
@@ -1286,11 +1262,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testRetentionLeasesClearedOnRestore() throws Exception {
         final String repoName = "test-repo-retention-leases";
-        assertAcked(client().admin().cluster().preparePutRepository(repoName)
-            .setType("fs")
-            .setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())));
+        createRandomFsRepo(repoName, randomRepoPath());
 
         final String indexName = "index-retention-leases";
         final int shardCount = randomIntBetween(1, 5);

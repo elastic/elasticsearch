@@ -30,8 +30,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
@@ -50,8 +48,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         Client client = client();
 
         logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
-            Settings.builder().put("location", randomRepoPath()).build()));
+        createRandomFsRepo("test-repo", randomRepoPath());
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -125,8 +122,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
-            Settings.builder().put("location", repoPath).build()));
+        createRandomFsRepo("test-repo", repoPath);
 
         logger.info("--> snapshot");
         final CreateSnapshotResponse response =
@@ -145,8 +141,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
-            Settings.builder().put("location", repoPath).build()));
+        createRandomFsRepo("test-repo", repoPath);
 
         createIndex("test-idx-1");
         ensureGreen();
@@ -162,9 +157,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).get();
 
         logger.info("--> delete shard-level snap-${uuid}.dat file for one shard in this snapshot to simulate concurrent delete");
-        final RepositoriesService service = internalCluster().getMasterNodeInstance(RepositoriesService.class);
-        final Repository repository = service.repository("test-repo");
-        final String indexRepoId = getRepositoryData(repository).resolveIndexId(response.getSnapshotInfo().indices().get(0)).getId();
+        final String indexRepoId = getRepositoryData("test-repo").resolveIndexId(response.getSnapshotInfo().indices().get(0)).getId();
         IOUtils.rm(repoPath.resolve("indices").resolve(indexRepoId).resolve("0").resolve(
             BlobStoreRepository.SNAPSHOT_PREFIX + response.getSnapshotInfo().snapshotId().getUUID() + ".dat"));
 

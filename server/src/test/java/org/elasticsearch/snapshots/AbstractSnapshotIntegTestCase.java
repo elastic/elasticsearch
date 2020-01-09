@@ -18,20 +18,21 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
@@ -87,18 +89,39 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    protected void createRandomFsRepo(String name, Path path) {
+        createRandomFsRepo(name, path, randomBoolean());
+    }
+
+    protected void createRandomFsRepo(String name, Path path, boolean compress) {
+        createFsRepo(name, path, compress, randomBoolean() ? null : randomIntBetween(100, 1000));
+    }
+
+    protected void createRandomFsRepo(String name, Path path, int chunkSizeInBytes) {
+        createFsRepo(name, path, randomBoolean(), chunkSizeInBytes);
+    }
+
+    private void createFsRepo(String name, Path path, boolean compress, @Nullable Integer chunkSizeInBytes) {
+        assertAcked(client().admin().cluster().preparePutRepository(name)
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", path)
+                .put("compress", compress)
+                .put("chunk_size", chunkSizeInBytes == null ? null : chunkSizeInBytes + "b")));
+    }
+
     protected void disableRepoConsistencyCheck(String reason) {
         assertNotNull(reason);
         skipRepoConsistencyCheckReason = reason;
     }
 
-    protected RepositoryData getRepositoryData(Repository repository) {
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
-        final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            repository.getRepositoryData(repositoryData);
-        });
-        return repositoryData.actionGet();
+    protected static BlobStoreRepository getRepository(String name) {
+        return (BlobStoreRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(name);
+    }
+
+    protected RepositoryData getRepositoryData(String repoName) {
+        final BlobStoreRepository repository = getRepository(repoName);
+        return PlainActionFuture.get(
+            f -> repository.threadPool().generic().execute(ActionRunnable.wrap(f, repository::getRepositoryData)));
     }
 
     public static long getFailureCount(String repository) {
@@ -185,17 +208,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockOnWriteIndexFile(true);
-        return masterName;
-    }
-
-    public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockAndFailOnWriteSnapFiles(true);
-        return masterName;
+        ((MockRepository) getRepository(repositoryName)).setBlockOnWriteIndexFile(true);
+        return internalCluster().getMasterName();
     }
 
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -165,11 +164,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
     }
 
     private CountingMockRepository getCountingMockRepository() {
-        String master = internalCluster().getMasterName();
-        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, master);
-        Repository repository = repositoriesService.repository("repository");
+        Repository repository = getRepository("repository");
         assertThat(repository, instanceOf(CountingMockRepository.class));
-        return  (CountingMockRepository) repository;
+        return (CountingMockRepository) repository;
     }
 
     /** Compute a map key for the given snapshot and index names **/

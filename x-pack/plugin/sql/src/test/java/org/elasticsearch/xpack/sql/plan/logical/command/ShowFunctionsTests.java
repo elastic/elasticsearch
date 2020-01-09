@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
-public class ShowFunctionsTest extends ESTestCase {
+public class ShowFunctionsTests extends ESTestCase {
 
     public void testShowFunctions() throws Exception {
         ShowFunctions showFunctions = new ShowFunctions(Source.EMPTY, null);

@@ -180,6 +180,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void cliSetup(String binTool, CharSequence... args) {
+        nodes.all(each -> each.cliSetup(binTool, args));
+    }
+
+    @Override
     public void setting(String key, String value) {
         nodes.all(each -> each.setting(key, value));
     }

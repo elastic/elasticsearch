@@ -119,8 +119,7 @@ included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
 ordinal variable values to a  single number. For example, in case of age ranges,
 you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 If `analyzed_fields` is not set, only the relevant fields will be included. For
-example, all the numeric fields for {oldetection}. For more information about
-field selection, see <<explain-dfanalytics>>.
+example, all the numeric fields for {oldetection}.
 --
 end::analyzed-fields[]
 

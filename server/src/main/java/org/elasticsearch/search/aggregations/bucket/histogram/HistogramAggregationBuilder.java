@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -86,6 +87,14 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     public static HistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new HistogramAggregationBuilder(aggregationName), null);
+    }
+
+    private static boolean wasRegistered = false;
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        if (wasRegistered == false) {
+            HistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
+            wasRegistered = true;
+        }
     }
 
     private double interval;

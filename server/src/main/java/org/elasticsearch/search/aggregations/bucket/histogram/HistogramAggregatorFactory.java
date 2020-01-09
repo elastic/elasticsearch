@@ -55,8 +55,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final double minBound, maxBound;
 
     // TODO: Registration should happen on the actual aggregator classes, but I don't want to set up the whole dynamic loading thing yet
-    static {
-        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
+    static public void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
@@ -76,7 +76,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             (fieldType, indexFieldData) -> fieldType instanceof RangeFieldMapper.RangeFieldType
         );
 
-        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC,
+        valuesSourceRegistry.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC,
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,

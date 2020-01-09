@@ -11,15 +11,3 @@ services:
     ports:
       - "9000"
     command: ["server", "/minio/data"]
-
-  minio-fixture-for-snapshot-tool:
-      build:
-        context: .
-        args:
-          bucket: "bucket"
-          accessKey: "sn_tool_access_key"
-          secretKey: "sn_tool_secret_key"
-        dockerfile: Dockerfile
-      ports:
-        - "9000"
-      command: ["server", "/minio/data"]

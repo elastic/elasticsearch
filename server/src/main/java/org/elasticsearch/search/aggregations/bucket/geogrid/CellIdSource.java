@@ -21,13 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-
-import java.io.IOException;
 
 /**
  * Wrapper class to help convert {@link MultiGeoPointValues}
@@ -58,7 +55,10 @@ public class CellIdSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return new CellValues(valuesSource.geoPointValues(ctx), precision, geoBoundingBox, encoder);
+        if (geoBoundingBox.isUnbounded()) {
+            return new UnboundedCellValues(valuesSource.geoPointValues(ctx), precision, encoder);
+        }
+        return new BoundedCellValues(valuesSource.geoPointValues(ctx), precision, encoder, geoBoundingBox);
     }
 
     @Override
@@ -80,37 +80,4 @@ public class CellIdSource extends ValuesSource.Numeric {
         long encode(double lon, double lat, int precision);
     }
 
-    private static class CellValues extends AbstractSortingNumericDocValues {
-        private MultiGeoPointValues geoValues;
-        private int precision;
-        private GeoPointLongEncoder encoder;
-        private GeoBoundingBox geoBoundingBox;
-
-        protected CellValues(MultiGeoPointValues geoValues, int precision, GeoBoundingBox geoBoundingBox, GeoPointLongEncoder encoder) {
-            this.geoValues = geoValues;
-            this.precision = precision;
-            this.encoder = encoder;
-            this.geoBoundingBox = geoBoundingBox;
-        }
-
-        @Override
-        public boolean advanceExact(int docId) throws IOException {
-            if (geoValues.advanceExact(docId)) {
-                int docValueCount = geoValues.docValueCount();
-                resize(docValueCount);
-                int j = 0;
-                for (int i = 0; i < docValueCount; i++) {
-                    org.elasticsearch.common.geo.GeoPoint target = geoValues.nextValue();
-                    if (geoBoundingBox.isUnbounded() || geoBoundingBox.pointInBounds(target.getLon(), target.getLat())) {
-                        values[j++] = encoder.encode(target.getLon(), target.getLat(), precision);
-                    }
-                }
-                resize(j);
-                sort();
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
 }

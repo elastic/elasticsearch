@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
@@ -446,8 +447,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNull isNullOpt = (IsNull) foldNull.rule(isNull);
         assertEquals(isNull, isNullOpt);
 
-        SqlIllegalArgumentException sqlIAE =
-                expectThrows(SqlIllegalArgumentException.class, () -> isNullOpt.asPipe().asProcessor().process(null));
+        QlIllegalArgumentException sqlIAE = expectThrows(QlIllegalArgumentException.class,
+                () -> isNullOpt.asPipe().asProcessor().process(null));
         assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
 
         isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataType.values())));
@@ -472,8 +473,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNotNull isNotNullOpt = (IsNotNull) foldNull.rule(isNotNull);
         assertEquals(isNotNull, isNotNullOpt);
 
-        SqlIllegalArgumentException sqlIAE =
-                expectThrows(SqlIllegalArgumentException.class, () -> isNotNullOpt.asPipe().asProcessor().process(null));
+        QlIllegalArgumentException sqlIAE = expectThrows(QlIllegalArgumentException.class,
+                () -> isNotNullOpt.asPipe().asProcessor().process(null));
         assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
 
         isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataType.values())));

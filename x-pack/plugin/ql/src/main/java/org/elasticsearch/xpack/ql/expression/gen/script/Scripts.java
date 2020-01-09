@@ -26,8 +26,8 @@ public final class Scripts {
     public static final String DOC_VALUE = "doc[{}].value";
     public static final String SQL_SCRIPTS = "{sql}";
     public static final String PARAM = "{}";
-    // NB: predefined name for loading utility scripts in a pluggable way
-    public static final String INTERNAL_SCRIPT_UTILS = "InternalScriptUtils";
+    // FIXME: this needs to be either renamed (drop Sql) or find a pluggable approach (through ScriptWeaver)
+    public static final String INTERNAL_SCRIPT_UTILS = "InternalSqlScriptUtils";
 
     private Scripts() {}
 

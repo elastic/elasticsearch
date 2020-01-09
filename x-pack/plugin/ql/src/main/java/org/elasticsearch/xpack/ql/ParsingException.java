@@ -21,7 +21,7 @@ public class ParsingException extends QlClientException {
         this.charPositionInLine = charPositionInLine;
     }
 
-    ParsingException(String message, Object... args) {
+    public ParsingException(String message, Object... args) {
         this(Source.EMPTY, message, args);
     }
 

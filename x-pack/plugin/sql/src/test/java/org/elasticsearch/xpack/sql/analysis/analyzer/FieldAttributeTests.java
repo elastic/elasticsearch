@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -129,7 +129,7 @@ public class FieldAttributeTests extends ESTestCase {
         assertFalse(attr.getExactInfo().hasExact());
         assertThat(attr.getExactInfo().errorMsg(),
             is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> attr.exactAttribute());
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> attr.exactAttribute());
         assertThat(e.getMessage(),
                 is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
     }

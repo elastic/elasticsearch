@@ -12,14 +12,15 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType;
@@ -60,7 +61,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
@@ -668,7 +668,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         try {
             return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataType.DOUBLE);
-        } catch (SqlIllegalArgumentException siae) {
+        } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
     }
@@ -680,7 +680,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         long value;
         try {
             value = Long.valueOf(StringUtils.parseLong(tuple.v2()));
-        } catch (SqlIllegalArgumentException siae) {
+        } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
 
@@ -706,7 +706,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         final DataType sourceType;
         try {
             sourceType = DataTypes.fromJava(param.value);
-        } catch (SqlIllegalArgumentException ex) {
+        } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", param.value.getClass().getName(),
                     param.type);
         }
@@ -717,7 +717,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
             return new Literal(source, conversionFor(sourceType, dataType).convert(param.value), dataType);
-        } catch (SqlIllegalArgumentException ex) {
+        } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }
     }

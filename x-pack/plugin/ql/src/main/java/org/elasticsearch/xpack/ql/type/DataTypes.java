@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.expression.literal.Interval;
 
 import java.time.OffsetTime;
@@ -71,6 +72,10 @@ public final class DataTypes {
         if (value instanceof Interval) {
             return ((Interval<?>) value).dataType();
         }
+        if (value instanceof GeoShape) {
+            return DataType.GEO_SHAPE;
+        }
+
         throw new QlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
 

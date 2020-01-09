@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.expression.literal;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.expression.literal.Literals;
-import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 
 import java.util.ArrayList;
 import java.util.Collection;

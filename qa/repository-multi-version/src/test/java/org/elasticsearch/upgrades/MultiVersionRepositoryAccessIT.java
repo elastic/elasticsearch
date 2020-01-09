@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Tests that verify that a snapshot repository is not getting corrupted and continues to function properly when accessed by multiple
- * clusters of different versions. Concretely this test suit is simulating the following scenario:
+ * clusters of different versions. Concretely this test suite is simulating the following scenario:
  * <ul>
  *     <li>Start and run against a cluster in an old version: {@link TestStep#STEP1_OLD_CLUSTER}</li>
  *     <li>Start and run against a cluster running the current version: {@link TestStep#STEP2_NEW_CLUSTER}</li>
@@ -111,7 +111,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testCreateAndRestoreSnapshot() throws IOException {
-        final String repoName = "testCreateAndRestoreSnapshot";
+        final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
             final int shards = 3;
             createIndex(client, "test-index", shards);
@@ -129,11 +129,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             deleteSnapshot(client, repoName, snapshotToDeleteName);
             final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
-            final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
-                snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)), RequestOptions.DEFAULT);
-            for (SnapshotStatus status : statusResponse.getSnapshots()) {
-                assertThat(status.getShardsStats().getFailedShards(), is(0));
-            }
+            assertSnapshotStatusSuccessful(client, repoName, snapshots);
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
@@ -147,7 +143,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testReadOnlyRepo() throws IOException {
-        final String repoName = "testReadOnlyRepo";
+        final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
             final int shards = 3;
             final boolean readOnly = TEST_STEP.ordinal() > 1; // only restore from read-only repo in steps 3 and 4
@@ -167,11 +163,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     assertThat(snapshots, hasSize(2));
                     break;
             }
-            final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
-                snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)), RequestOptions.DEFAULT);
-            for (SnapshotStatus status : statusResponse.getSnapshots()) {
-                assertThat(status.getShardsStats().getFailedShards(), is(0));
-            }
+            assertSnapshotStatusSuccessful(client, repoName, snapshots);
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
@@ -186,7 +178,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // Only testing the first 2 steps here
             return;
         }
-        final String repoName = "testUpgradeMovesRepoToNewMetaVersion";
+        final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
             final int shards = 3;
             createIndex(client, "test-index", shards);
@@ -195,11 +187,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             // Every step creates one snapshot
             assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
-            final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
-                snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)), RequestOptions.DEFAULT);
-            for (SnapshotStatus status : statusResponse.getSnapshots()) {
-                assertThat(status.getShardsStats().getFailedShards(), is(0));
-            }
+            assertSnapshotStatusSuccessful(client, repoName, snapshots);
             if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else {
@@ -216,8 +204,17 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    private static void assertSnapshotStatusSuccessful(RestHighLevelClient client, String repoName,
+                                                     List<Map<String, Object>> snapshots) throws IOException {
+        final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
+            snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)), RequestOptions.DEFAULT);
+        for (SnapshotStatus status : statusResponse.getSnapshots()) {
+            assertThat(status.getShardsStats().getFailedShards(), is(0));
+        }
+    }
+
     private void deleteSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {
-        client.snapshot().delete(new DeleteSnapshotRequest(repoName, name), RequestOptions.DEFAULT);
+        assertThat(client.snapshot().delete(new DeleteSnapshotRequest(repoName, name), RequestOptions.DEFAULT).isAcknowledged(), is(true));
     }
 
     @SuppressWarnings("unchecked")

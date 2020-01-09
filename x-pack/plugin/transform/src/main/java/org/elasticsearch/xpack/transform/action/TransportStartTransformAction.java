@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -279,7 +280,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 clusterService.state(),
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
-                SourceDestValidator.ALL_VALIDATIONS,
+                SourceDestValidations.ALL_VALIDATIONS,
                 validationListener
             );
         }, listener::onFailure);

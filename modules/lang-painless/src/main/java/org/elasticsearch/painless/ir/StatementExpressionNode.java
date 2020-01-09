@@ -41,6 +41,7 @@ public class StatementExpressionNode extends StatementNode {
     /* ---- end tree structure, begin node data ---- */
 
     private boolean methodEscape;
+    private boolean doNoop;
 
     public void setMethodEscape(boolean methodEscape) {
         this.methodEscape = methodEscape;
@@ -50,6 +51,14 @@ public class StatementExpressionNode extends StatementNode {
         return methodEscape;
     }
 
+    public void setNoop(boolean doNoop) {
+        this.doNoop = doNoop;
+    }
+
+    public boolean doNoop() {
+        return doNoop;
+    }
+
     /* ---- end node data ---- */
 
     @Override
@@ -57,10 +66,12 @@ public class StatementExpressionNode extends StatementNode {
         methodWriter.writeStatementOffset(location);
         expressionNode.write(classWriter, methodWriter, globals, scopeTable);
 
-        if (methodEscape) {
-            methodWriter.returnValue();
-        } else {
-            methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
+        if (doNoop == false) {
+            if (methodEscape) {
+                methodWriter.returnValue();
+            } else {
+                methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
+            }
         }
     }
 }

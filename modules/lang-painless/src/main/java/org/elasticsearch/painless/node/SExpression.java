@@ -72,6 +72,7 @@ public final class SExpression extends AStatement {
 
         statementExpressionNode.setLocation(location);
         statementExpressionNode.setMethodEscape(methodEscape);
+        statementExpressionNode.setNoop(false);
 
         return statementExpressionNode;
     }

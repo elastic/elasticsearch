@@ -29,25 +29,31 @@ import java.util.Map;
 
 public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglingIndexRequest> {
     private String indexUuid;
+    private boolean acceptDataLoss;
     private String nodeId;
-    private String renameTo;
 
     public RestoreDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
         this.indexUuid = in.readString();
+        this.acceptDataLoss = in.readBoolean();
         this.nodeId = in.readOptionalString();
-        this.renameTo = in.readOptionalString();
     }
 
     public RestoreDanglingIndexRequest() {
         super(new String[0]);
     }
 
+    public RestoreDanglingIndexRequest(String indexUuid, boolean acceptDataLoss) {
+        this();
+        this.indexUuid = indexUuid;
+        this.acceptDataLoss = acceptDataLoss;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
-        if (this.indexUuid == null) {
+        if (this.indexUuid == null || this.indexUuid.isEmpty()) {
             ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError("No index ID specified");
+            e.addValidationError("No index UUID specified");
             return e;
         }
 
@@ -62,20 +68,20 @@ public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglin
         this.indexUuid = indexUuid;
     }
 
-    public String getRenameTo() {
-        return renameTo;
-    }
-
-    public void setRenameTo(String renameTo) {
-        this.renameTo = renameTo;
-    }
-
     public String getNodeId() {
         return nodeId;
     }
 
     public void setNodeId(String nodeId) {
         this.nodeId = nodeId;
+    }
+
+    public boolean isAcceptDataLoss() {
+        return acceptDataLoss;
+    }
+
+    public void setAcceptDataLoss(boolean acceptDataLoss) {
+        this.acceptDataLoss = acceptDataLoss;
     }
 
     @Override
@@ -88,19 +94,9 @@ public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglin
             switch (name) {
                 case "accept_data_loss":
                     if (value instanceof Boolean) {
-                        if ((boolean) value == false) {
-                            throw new IllegalArgumentException("accept_data_loss must be set to true");
-                        }
+                        this.acceptDataLoss = (boolean) value;
                     } else {
                         throw new IllegalArgumentException("malformed accept_data_loss");
-                    }
-                    break;
-
-                case "rename_to":
-                    if (value instanceof String) {
-                        this.setRenameTo((String) value);
-                    } else {
-                        throw new IllegalArgumentException("malformed rename_to");
                     }
                     break;
 
@@ -122,7 +118,7 @@ public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglin
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(this.indexUuid);
+        out.writeBoolean(this.acceptDataLoss);
         out.writeOptionalString(this.nodeId);
-        out.writeOptionalString(this.renameTo);
     }
 }

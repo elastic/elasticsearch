@@ -37,10 +37,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-
-import static org.elasticsearch.common.util.CollectionUtils.filter;
-import static org.elasticsearch.common.util.CollectionUtils.map;
 
 public class TransportRestoreDanglingIndexAction extends HandledTransportAction<RestoreDanglingIndexRequest, RestoreDanglingIndexResponse> {
 
@@ -68,6 +64,12 @@ public class TransportRestoreDanglingIndexAction extends HandledTransportAction<
             return;
         }
 
+        // This flag is checked at this point so that we always check that the supplied index UUID
+        // does correspond to a dangling index.
+        if (request.isAcceptDataLoss() == false) {
+            throw new IllegalArgumentException("accept_data_loss must be set to true");
+        }
+
         this.danglingIndexAllocator.allocateDangled(List.of(indexMetaDataToRestore), new ActionListener<>() {
             @Override
             public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
@@ -85,15 +87,6 @@ public class TransportRestoreDanglingIndexAction extends HandledTransportAction<
         String indexUuid = request.getIndexUuid();
         String nodeId = request.getNodeId();
 
-        if (indexUuid == null || indexUuid.isEmpty()) {
-            throw new IllegalArgumentException("No index UUID specified in request");
-        }
-
-        final List<IndexMetaData> allMetaData = new ArrayList<>();
-        for (NodeDanglingIndicesResponse response : fetchDanglingIndices().actionGet().getNodes()) {
-            allMetaData.addAll(response.getDanglingIndices());
-        }
-
         List<IndexMetaData> matchingMetaData = new ArrayList<>();
 
         for (NodeDanglingIndicesResponse response : fetchDanglingIndices().actionGet().getNodes()) {
@@ -109,8 +102,9 @@ public class TransportRestoreDanglingIndexAction extends HandledTransportAction<
         }
 
         if (matchingMetaData.size() > 1) {
-            throw new IllegalArgumentException("Multiple nodes contain dangling index [" + indexUuid + "]. "
-                + "Specify a node ID to import a specific dangling index.");
+            throw new IllegalArgumentException(
+                "Multiple nodes contain dangling index [" + indexUuid + "]. " + "Specify a node ID to import a specific dangling index."
+            );
         }
 
         return matchingMetaData.get(0);

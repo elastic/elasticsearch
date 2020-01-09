@@ -1,7 +1,7 @@
 {
   "dangling_indices.restore": {
     "documentation": {
-      "description": "Restores the specified dangling index"
+      "description": "Deletes the specified dangling index"
     },
     "stability": "experimental",
     "url": {
@@ -9,7 +9,7 @@
         {
           "path": "/_dangling/{indexUuid}",
           "methods": [
-            "POST"
+            "DELETE"
           ],
           "parts": {
             "indexUuid": {
@@ -23,7 +23,7 @@
     "params": {
       "accept_data_loss": {
         "type": "boolean",
-        "description": "Must be set to true in order to restore the dangling index"
+        "description": "Must be set to true in order to delete the dangling index"
       }
     },
     "body": {

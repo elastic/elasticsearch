@@ -18,146 +18,84 @@
  */
 package org.elasticsearch.indices;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardIT;
-import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.Scheduler.Cancellable;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Optional;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
-    // #10312
-    public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        createIndex("index",
-                    Settings.builder().put("index.number_of_shards", 1)
-                                      .put("index.number_of_replicas", 0)
-                                      .put("index.refresh_interval", -1)
-                                      .build());
-        ensureGreen();
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings())
+            // small indexing buffer so that we can trigger refresh after buffering 100 deletes
+            .put("indices.memory.index_buffer_size", "1kb").build();
+    }
 
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexService(resolveIndex("index"));
-        IndexShard shard = indexService.getShardOrNull(0);
-        assertNotNull(shard);
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.add(TestEnginePlugin.class);
+        return plugins;
+    }
 
-        for (int i = 0; i < 100; i++) {
-            String id = Integer.toString(i);
-            client().prepareIndex("index").setId(id).setSource("field", "value").get();
+    public static class TestEnginePlugin extends Plugin implements EnginePlugin {
+
+        EngineConfig engineConfigWithLargerIndexingMemory(EngineConfig config) {
+            // We need to set a larger buffer for the IndexWriter; otherwise, it will flush before the IndexingMemoryController.
+            Settings settings = Settings.builder().put(config.getIndexSettings().getSettings())
+                .put("indices.memory.index_buffer_size", "10mb").build();
+            IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetaData(), settings);
+            return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+                indexSettings, config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
+                config.getSimilarity(), new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
+                config.getEventListener(), config.getQueryCache(),
+                config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
+                config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
+                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
         }
 
+        @Override
+        public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+            return Optional.of(config -> new InternalEngine(engineConfigWithLargerIndexingMemory(config)));
+        }
+    }
+
+    // #10312
+    public void testDeletesAloneCanTriggerRefresh() throws Exception {
+        IndexService indexService = createIndex("index", Settings.builder().put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build());
+        IndexShard shard = indexService.getShard(0);
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
+        }
         // Force merge so we know all merges are done before we start deleting:
         ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         assertNoFailures(r);
-
-        // Make a shell of an IMC to check up on indexing buffer usage:
-        Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "1kb").build();
-
-        // TODO: would be cleaner if I could pass this 1kb setting to the single node this test created....
-        IndexingMemoryController imc = new IndexingMemoryController(settings, null, null) {
-            @Override
-            protected List<IndexShard> availableShards() {
-                return Collections.singletonList(shard);
-            }
-
-            @Override
-            protected long getIndexBufferRAMBytesUsed(IndexShard shard) {
-                return shard.getIndexBufferRAMBytesUsed();
-            }
-
-            @Override
-            protected void writeIndexingBufferAsync(IndexShard shard) {
-                // just do it sync'd for this test
-                shard.writeIndexingBuffer();
-            }
-
-            @Override
-            protected Cancellable scheduleTask(ThreadPool threadPool) {
-                return null;
-            }
-        };
-
+        final RefreshStats refreshStats = shard.refreshStats();
         for (int i = 0; i < 100; i++) {
-            String id = Integer.toString(i);
-            client().prepareDelete("index", id).get();
+            client().prepareDelete("index", Integer.toString(i)).get();
         }
-
-        final long indexingBufferBytes1 = shard.getIndexBufferRAMBytesUsed();
-
-        imc.forceCheck();
-
-        // We must assertBusy because the writeIndexingBufferAsync is done in background (REFRESH) thread pool:
-        assertBusy(() -> {
-            try (Engine.Searcher s2 = shard.acquireSearcher("index")) {
-                // 100 buffered deletes will easily exceed our 1 KB indexing buffer so it should trigger a write:
-                final long indexingBufferBytes2 = shard.getIndexBufferRAMBytesUsed();
-                assertTrue(indexingBufferBytes2 < indexingBufferBytes1);
-            }
-        });
+        // need to assert busily as IndexingMemoryController refreshes in background
+        assertBusy(() -> assertThat(shard.refreshStats().getTotal(), greaterThan(refreshStats.getTotal() + 1)));
     }
-
-    public void testTranslogRecoveryWorksWithIMC() throws IOException {
-        createIndex("test");
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexService(resolveIndex("test"));
-        IndexShard shard = indexService.getShardOrNull(0);
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        }
-
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        shard.close("simon says", false);
-        AtomicReference<IndexShard> shardRef = new AtomicReference<>();
-        Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
-        Iterable<IndexShard> iterable = () -> (shardRef.get() == null) ? Collections.<IndexShard>emptyList().iterator()
-            : Collections.singleton(shardRef.get()).iterator();
-        AtomicInteger flushes = new AtomicInteger();
-        IndexingMemoryController imc = new IndexingMemoryController(settings, client().threadPool(), iterable) {
-            @Override
-            protected void writeIndexingBufferAsync(IndexShard shard) {
-                assertEquals(shard, shardRef.get());
-                flushes.incrementAndGet();
-                shard.writeIndexingBuffer();
-            }
-        };
-        final IndexShard newShard = IndexShardIT.newIndexShard(indexService, shard, wrapper, new NoneCircuitBreakerService(), imc);
-        shardRef.set(newShard);
-        try {
-            assertEquals(0, imc.availableShards().size());
-            ShardRouting routing = newShard.routingEntry();
-            DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-
-            assertEquals(1, imc.availableShards().size());
-            assertTrue(IndexShardTestCase.recoverFromStore(newShard));
-            assertTrue("we should have flushed in IMC at least once but did: " + flushes.get(), flushes.get() >= 1);
-            IndexShardTestCase.updateRoutingEntry(newShard, routing.moveToStarted());
-        } finally {
-            newShard.close("simon says", false);
-        }
-    }
-
 }

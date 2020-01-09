@@ -20,15 +20,19 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -42,8 +46,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
@@ -329,6 +338,37 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         controller.assertNotThrottled(shard0);
         controller.assertNotThrottled(shard1);
         closeShards(shard0, shard1);
+    }
+
+    public void testTranslogRecoveryWorksWithIMC() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        for (int i = 0; i < 100; i++) {
+            indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}", XContentType.JSON, null);
+        }
+        shard.close("simon says", false);
+        AtomicReference<IndexShard> shardRef = new AtomicReference<>();
+        Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
+        Iterable<IndexShard> iterable = () -> (shardRef.get() == null) ? Collections.emptyIterator()
+            : Collections.singleton(shardRef.get()).iterator();
+        AtomicInteger flushes = new AtomicInteger();
+        IndexingMemoryController imc = new IndexingMemoryController(settings, threadPool, iterable) {
+            @Override
+            protected void writeIndexingBufferAsync(IndexShard shard) {
+                assertEquals(shard, shardRef.get());
+                flushes.incrementAndGet();
+                shard.writeIndexingBuffer();
+            }
+        };
+        shard = reinitShard(shard, imc);
+        shardRef.set(shard);
+        assertEquals(0, imc.availableShards().size());
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+
+        assertEquals(1, imc.availableShards().size());
+        assertTrue(recoverFromStore(shard));
+        assertThat("we should have flushed in IMC at least once", flushes.get(), greaterThanOrEqualTo(1));
+        closeShards(shard);
     }
 
     EngineConfig configWithRefreshListener(EngineConfig config, ReferenceManager.RefreshListener listener) {

@@ -324,6 +324,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -358,7 +359,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(index, policy);
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
-        
+
         request = new Request("PUT", "/_slm/policy/slm/_execute");
         assertOK(client().performRequest(request));
 

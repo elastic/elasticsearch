@@ -62,7 +62,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                         .put("analysis.filter.synonym_graph_filter.type", "synonym_graph")
                         .put("analysis.filter.synonym_graph_filter.updateable", "true")
                         .put("analysis.filter.synonym_graph_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
+                .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
 
         client().prepareIndex(indexName).setId("1").setSource("field", "Foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
@@ -131,7 +131,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
                         .put("analysis.filter.my_multiplexer.type", "multiplexer")
                         .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
+                .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
 
         client().prepareIndex(indexName).setId("1").setSource("field", "foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
@@ -192,6 +192,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
         final String indexName = "test";
         final String analyzerName = "my_synonym_analyzer";
+
         MapperException ex = expectThrows(MapperException.class,
                 () -> client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
                         .put("index.number_of_shards", 5)
@@ -201,7 +202,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                         .put("analysis.filter.synonym_filter.type", "synonym")
                         .put("analysis.filter.synonym_filter.updateable", "true")
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName))
-                        .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
+                        .setMapping("field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals("Failed to parse mapping: analyzer [my_synonym_analyzer] "
                 + "contains filters [synonym_filter] that are not allowed to run in all mode.", ex.getMessage());
@@ -218,7 +219,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
                         .put("analysis.filter.my_multiplexer.type", "multiplexer")
                         .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
-                        .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
+                        .setMapping("field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals("Failed to parse mapping: analyzer [my_synonym_analyzer] "
                 + "contains filters [my_multiplexer] that are not allowed to run in all mode.", ex.getMessage());

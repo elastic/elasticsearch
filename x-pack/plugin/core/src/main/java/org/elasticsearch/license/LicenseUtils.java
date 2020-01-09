@@ -62,7 +62,7 @@ public class LicenseUtils {
     }
 
     public static int getMaxLicenseVersion(Version version) {
-        if (version.before(Version.V_7_6_0)) {
+        if (version != null && version.before(Version.V_7_6_0)) {
             return License.VERSION_CRYPTO_ALGORITHMS;
         } else {
             assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";

@@ -22,8 +22,10 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,6 +61,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -113,8 +116,7 @@ public class GatewayMetaState implements Closeable {
                     }
                 }
 
-                final PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter();
-                final PersistedState persistedState;
+                PersistedState persistedState = null;
                 boolean success = false;
                 try {
                     final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
@@ -123,10 +125,10 @@ public class GatewayMetaState implements Closeable {
                             .metaData(upgradeMetaDataForNode(metaData, metaDataIndexUpgradeService, metaDataUpgrader))
                             .build());
                     if (DiscoveryNode.isMasterNode(settings)) {
-                        persistedState = new LucenePersistedState(persistenceWriter, currentTerm, clusterState);
+                        persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
                         persistedState = new AsyncLucenePersistedState(settings, transportService.getThreadPool(),
-                            new LucenePersistedState(persistenceWriter, currentTerm, clusterState));
+                            new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState));
                     }
                     if (DiscoveryNode.isDataNode(settings)) {
                         metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
@@ -139,7 +141,7 @@ public class GatewayMetaState implements Closeable {
                     success = true;
                 } finally {
                     if (success == false) {
-                        IOUtils.closeWhileHandlingException(persistenceWriter);
+                        IOUtils.closeWhileHandlingException(persistedState);
                     }
                 }
 
@@ -392,11 +394,15 @@ public class GatewayMetaState implements Closeable {
 
         private long currentTerm;
         private ClusterState lastAcceptedState;
-        private final PersistedClusterStateService.Writer persistenceWriter;
+        private final PersistedClusterStateService persistedClusterStateService;
 
-        LucenePersistedState(PersistedClusterStateService.Writer persistenceWriter, long currentTerm, ClusterState lastAcceptedState)
+        // As the close method can be concurrently called to the other PersistedState methods, this class has extra protection in place.
+        private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
+        boolean writeNextStateFully;
+
+        LucenePersistedState(PersistedClusterStateService persistedClusterStateService, long currentTerm, ClusterState lastAcceptedState)
             throws IOException {
-            this.persistenceWriter = persistenceWriter;
+            this.persistedClusterStateService = persistedClusterStateService;
             this.currentTerm = currentTerm;
             this.lastAcceptedState = lastAcceptedState;
             // Write the whole state out to be sure it's fresh and using the latest format. Called during initialisation, so that
@@ -406,7 +412,14 @@ public class GatewayMetaState implements Closeable {
             // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance,
             // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
             // by this version of Elasticsearch. TODO TBD should we avoid indexing when possible?
-            persistenceWriter.writeFullStateAndCommit(currentTerm, lastAcceptedState);
+            final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
+            try {
+                writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);
+            } catch (Exception e) {
+                writer.close();
+                throw e;
+            }
+            persistenceWriter.set(writer);
         }
 
         @Override
@@ -419,34 +432,77 @@ public class GatewayMetaState implements Closeable {
             return lastAcceptedState;
         }
 
+        private PersistedClusterStateService.Writer getWriterSafe() {
+            PersistedClusterStateService.Writer writer = persistenceWriter.get();
+            if (writer == null) {
+                throw new AlreadyClosedException("persisted state has been closed");
+            }
+            return writer;
+        }
+
         @Override
         public void setCurrentTerm(long currentTerm) {
-            persistenceWriter.commit(currentTerm, lastAcceptedState.version());
+            reloadWriterIfNecessary();
+            try {
+                if (writeNextStateFully) {
+                    getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
+                    writeNextStateFully = false;
+                } else {
+                    getWriterSafe().commit(currentTerm, lastAcceptedState.version());
+                }
+            } catch (Exception e) {
+                handleExceptionOnWrite(e);
+            }
             this.currentTerm = currentTerm;
         }
 
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
+            reloadWriterIfNecessary();
             try {
-                if (clusterState.term() != lastAcceptedState.term()) {
-                    assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
-                    // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state, so
-                    // it's simplest to write everything again.
-                    persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
+                if (writeNextStateFully) {
+                    getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
+                    writeNextStateFully = false;
                 } else {
-                    // Within the same currentTerm, we _can_ use metadata versions to skip unnecessary writing.
-                    persistenceWriter.writeIncrementalStateAndCommit(currentTerm, lastAcceptedState, clusterState);
+                    if (clusterState.term() != lastAcceptedState.term()) {
+                        assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
+                        // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state, so
+                        // it's simplest to write everything again.
+                        getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
+                    } else {
+                        // Within the same currentTerm, we _can_ use metadata versions to skip unnecessary writing.
+                        getWriterSafe().writeIncrementalStateAndCommit(currentTerm, lastAcceptedState, clusterState);
+                    }
                 }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+            } catch (Exception e) {
+                handleExceptionOnWrite(e);
             }
 
             lastAcceptedState = clusterState;
         }
 
+        private void reloadWriterIfNecessary() {
+            final PersistedClusterStateService.Writer writer = getWriterSafe();
+            if (writer.isOpen() == false) {
+                try {
+                    final PersistedClusterStateService.Writer newWriter = persistedClusterStateService.createWriter();
+                    if (persistenceWriter.compareAndSet(writer, newWriter) == false) {
+                        newWriter.close();
+                    }
+                } catch (Exception e) {
+                    throw ExceptionsHelper.convertToRuntime(e);
+                }
+            }
+        }
+
+        private void handleExceptionOnWrite(Exception e) {
+            writeNextStateFully = true;
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
+
         @Override
         public void close() throws IOException {
-            persistenceWriter.close();
+            IOUtils.close(persistenceWriter.getAndSet(null));
         }
     }
 }

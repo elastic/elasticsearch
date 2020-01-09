@@ -865,8 +865,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
-        toClose.add(() -> stopWatch.stop().start("gateway_meta_state"));
-        toClose.add(injector.getInstance(GatewayMetaState.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
@@ -882,8 +880,11 @@ public class Node implements Closeable {
         // Don't call shutdownNow here, it might break ongoing operations on Lucene indices.
         // See https://issues.apache.org/jira/browse/LUCENE-7248. We call shutdownNow in
         // awaitClose if the node doesn't finish closing within the specified time.
-        toClose.add(() -> stopWatch.stop().start("node_environment"));
 
+        toClose.add(() -> stopWatch.stop().start("gateway_meta_state"));
+        toClose.add(injector.getInstance(GatewayMetaState.class));
+
+        toClose.add(() -> stopWatch.stop().start("node_environment"));
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
 

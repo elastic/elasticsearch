@@ -124,20 +124,20 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
                         stateBuilder.metaData(MetaData.builder(currentState.getMetaData())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
-                        ClusterState updatedState = stateBuilder.build();
-                        if (oldPolicy != null) {
+                        ClusterState nonRefreshedState = stateBuilder.build();
+                        if (oldPolicy == null) {
+                            return nonRefreshedState;
+                        } else {
                             try {
-                                updatedState = updateIndicesForPolicy(stateBuilder.build(), xContentRegistry,
+                                return updateIndicesForPolicy(nonRefreshedState, xContentRegistry,
                                     oldPolicy.getPolicy(), lifecyclePolicyMetadata);
                             } catch (Exception e) {
                                 logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
                                     oldPolicy.getName()), e);
                                 // Revert to the non-refreshed state
-                                updatedState = stateBuilder.build();
+                                return nonRefreshedState;
                             }
                         }
-
-                        return updatedState;
                     }
                 });
     }

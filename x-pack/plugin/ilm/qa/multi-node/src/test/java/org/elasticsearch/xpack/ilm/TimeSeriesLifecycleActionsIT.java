@@ -40,12 +40,12 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
-import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -327,7 +327,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        String smlPolicy = randomAlphaOfLengthBetween(4,10);
+        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
         createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
         updatePolicy(index, policy);
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
@@ -338,10 +338,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
 
-        Request request = new Request("PUT", "/_slm/policy/"+smlPolicy+"/_execute");
+        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")),20, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 20, TimeUnit.SECONDS);
 
         request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
         assertOK(client().performRequest(request));

@@ -168,7 +168,7 @@ related to this job. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`records`:::
 (object) The `avg`, `min`, `max` and `total` number of model_forecast documents 
-written for forecasts related to this job. Omitted if forecasts do not exist.
+written for forecasts related to this job. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`processing_time_ms`:::
 (object) The `avg`, `min`, `max` and `total` runtime in milliseconds for 

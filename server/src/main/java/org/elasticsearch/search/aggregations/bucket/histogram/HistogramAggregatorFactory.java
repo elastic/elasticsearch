@@ -55,7 +55,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final double minBound, maxBound;
 
     // TODO: Registration should happen on the actual aggregator classes, but I don't want to set up the whole dynamic loading thing yet
-    static public void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
             new HistogramAggregatorSupplier() {
                 @Override

@@ -36,6 +36,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/ml/anomaly-detection/apis/post-data.asciidoc',
   'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
   'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
 testClusters.integTest {

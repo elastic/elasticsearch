@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.junit.Before;
@@ -207,11 +208,10 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover() {
-        final String executorName = "expired-remover-test";
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
-        when(threadPool.executor(eq(executorName))).thenReturn(executor);
+        when(threadPool.executor(eq(MachineLearning.UTILITY_THREAD_POOL_NAME))).thenReturn(executor);
 
         doAnswer(invocationOnMock -> {
                 Runnable run = (Runnable) invocationOnMock.getArguments()[0];
@@ -220,6 +220,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             }
         ).when(executor).execute(any());
 
-        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class), threadPool, executorName);
+        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class), threadPool);
     }
 }

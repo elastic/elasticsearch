@@ -218,6 +218,10 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_1"));
     }
 
+    public void testCalcCutoffEpochMs() {
+
+    }
+
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover() {
         return new ExpiredModelSnapshotsRemover(originSettingClient, threadPool);
     }
@@ -283,5 +287,4 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             }
         }).when(client).execute(same(DeleteModelSnapshotAction.INSTANCE), any(), any());
     }
-
 }

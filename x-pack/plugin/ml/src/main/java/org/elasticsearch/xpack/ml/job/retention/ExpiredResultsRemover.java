@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
@@ -73,14 +74,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private final OriginSettingClient client;
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
-    private final String executor;
 
-    public ExpiredResultsRemover(OriginSettingClient client, AnomalyDetectionAuditor auditor, ThreadPool threadPool, String executor) {
+    public ExpiredResultsRemover(OriginSettingClient client, AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
         super(client);
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.executor= Objects.requireNonNull(executor);
     }
 
     @Override
@@ -137,7 +136,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
-        ThreadedActionListener<Long> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool, executor, listener, false);
+        ThreadedActionListener<Long> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
+                MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
         latestBucketTime(jobId, ActionListener.wrap(
                 latestTime -> {
                     long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
@@ -182,8 +182,6 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                             }
                         }, listener::onFailure
                 ), client::search);
-
-
     }
 
     private void auditResultsWereDeleted(String jobId, long cutoffEpochMs) {

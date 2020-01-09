@@ -11,7 +11,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 
 public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearchResponse> {
 
@@ -58,9 +60,9 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             seq = new EqlSearchResponse.Sequence[size];
             for (int i = 0; i < size; i++) {
-                String[] joins = null;
+                List<String> joins = null;
                 if (randomBoolean()) {
-                    joins = generateRandomStringArray(6, 11, false);
+                    joins = Arrays.asList(generateRandomStringArray(6, 11, false));
                 }
                 seq[i] = new EqlSearchResponse.Sequence(joins, randomEvents());
             }
@@ -82,9 +84,9 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             cn = new EqlSearchResponse.Count[size];
             for (int i = 0; i < size; i++) {
-                String[] keys = null;
+                List<String> keys = null;
                 if (randomBoolean()) {
-                    keys = generateRandomStringArray(6, 11, false);
+                    keys = Arrays.asList(generateRandomStringArray(6, 11, false));
                 }
                 cn[i] = new EqlSearchResponse.Count(randomIntBetween(0, 41), keys, randomFloat());
             }

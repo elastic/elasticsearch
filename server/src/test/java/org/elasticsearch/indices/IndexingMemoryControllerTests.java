@@ -343,6 +343,16 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
     }
 
+    ThreadPoolStats.Stats getRefreshThreadPoolStats() {
+        final ThreadPoolStats stats = threadPool.stats();
+        for (ThreadPoolStats.Stats s : stats) {
+            if (s.getName().equals(ThreadPool.Names.REFRESH)) {
+                return s;
+            }
+        }
+        throw new AssertionError("refresh thread pool stats not found [" + stats + "]");
+    }
+
     public void testSkipRefreshIfShardIsRefreshingAlready() throws Exception {
         SetOnce<CountDownLatch> refreshLatch = new SetOnce<>();
         ReferenceManager.RefreshListener refreshListener = new ReferenceManager.RefreshListener() {
@@ -386,21 +396,15 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             controller.forceCheck();
         }
         assertBusy(() -> {
-            for (ThreadPoolStats.Stats stats : threadPool.stats()) {
-                if (stats.getName().equals(ThreadPool.Names.REFRESH)) {
-                    assertThat(stats.getQueue(), equalTo(0));
-                    assertThat(stats.getActive(), equalTo(1));
-                }
-            }
+            ThreadPoolStats.Stats stats = getRefreshThreadPoolStats();
+            assertThat(stats.getQueue(), equalTo(0));
+            assertThat(stats.getActive(), equalTo(1));
         });
         refreshLatch.get().countDown(); // allow refresh
         assertBusy(() -> {
-            for (ThreadPoolStats.Stats stats : threadPool.stats()) {
-                if (stats.getName().equals(ThreadPool.Names.REFRESH)) {
-                    assertThat(stats.getActive(), equalTo(0));
-                    assertThat(stats.getQueue(), equalTo(0));
-                }
-            }
+            ThreadPoolStats.Stats stats = getRefreshThreadPoolStats();
+            assertThat(stats.getQueue(), equalTo(0));
+            assertThat(stats.getActive(), equalTo(0));
         });
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshStats.getTotal() + 1));
         closeShards(shard);

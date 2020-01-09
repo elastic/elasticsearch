@@ -466,8 +466,8 @@ public class GatewayMetaState implements Closeable {
                 } else {
                     if (clusterState.term() != lastAcceptedState.term()) {
                         assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
-                        // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state, so
-                        // it's simplest to write everything again.
+                        // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state,
+                        // so it's simplest to write everything again.
                         getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
                     } else {
                         // Within the same currentTerm, we _can_ use metadata versions to skip unnecessary writing.

@@ -71,7 +71,6 @@ import org.elasticsearch.index.Index;
 
 import java.io.Closeable;
 import java.io.FilterOutputStream;
-import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

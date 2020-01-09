@@ -41,6 +41,7 @@ import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallatio
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
+import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
@@ -273,6 +274,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
         runContainer(distribution(), volumes, envVars);
+        waitForElasticsearch(installation);
+        ServerUtils.runElasticsearchTests();
     }
 
     /**

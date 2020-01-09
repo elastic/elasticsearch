@@ -194,16 +194,13 @@ public class ElasticsearchAssertions {
     }
 
     private static boolean checkRetryableBlock(Set<ClusterBlock> clusterBlocks){
-        boolean found = false;
         // check only retryable blocks exist in the set
         for (ClusterBlock clusterBlock : clusterBlocks) {
-            if (clusterBlock.id() == IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
-                found = true;
-            } else {
+            if (clusterBlock.id() != IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
                 return false;
             }
         }
-        return found;
+        return true;
     }
 
     public static String formatShardStatus(BroadcastResponse response) {

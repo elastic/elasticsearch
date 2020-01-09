@@ -19,6 +19,11 @@
 
 package org.elasticsearch.test.hamcrest;
 
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,7 +32,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 
@@ -186,6 +198,51 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
                     () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
                             builder.contentType()));
             assertThat(error.getMessage(), containsString("expected [1] more entries"));
+        }
+    }
+
+    public void testAssertBlocked() throws IOException {
+        {
+            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
+            Set<ClusterBlock> clusterBlocks = new HashSet<>();
+            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_BLOCK);
+            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
+            indexLevelBlocks.put("test", clusterBlocks);
+            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
+            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
+            assertBlocked(broadcastResponse);
+        }
+        {
+            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
+            Set<ClusterBlock> clusterBlocks = new HashSet<>();
+            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
+            indexLevelBlocks.put("test", clusterBlocks);
+            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
+            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
+            assertBlocked(broadcastResponse);
+        }
+        {
+            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
+            Set<ClusterBlock> clusterBlocks = new HashSet<>();
+            clusterBlocks.add(IndexMetaData.INDEX_READ_BLOCK);
+            clusterBlocks.add(IndexMetaData.INDEX_METADATA_BLOCK);
+            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
+            indexLevelBlocks.put("test", clusterBlocks);
+            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
+            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
+            assertBlocked(broadcastResponse);
+        }
+        {
+            List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
+            Set<ClusterBlock> clusterBlocks = new HashSet<>();
+            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_BLOCK);
+            clusterBlocks.add(IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
+            indexLevelBlocks.put("test", clusterBlocks);
+            shardFailures.add(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)));
+            BroadcastResponse broadcastResponse = new BroadcastResponse(1, 0, 1, shardFailures);
+            assertBlocked(broadcastResponse);
         }
     }
 }

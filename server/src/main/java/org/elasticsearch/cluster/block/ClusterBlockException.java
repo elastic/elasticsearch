@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
@@ -111,19 +110,23 @@ public class ClusterBlockException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         RestStatus status = null;
-        boolean onlyRetryableBlocks = false;
+        boolean onlyRetryableBlocks = true;
         for (ClusterBlock block : blocks) {
-            if (status == null) {
-                status = block.status();
-            } else if (status.getStatus() < block.status().getStatus()) {
-                status = block.status();
+            boolean isRetryableBlock = block.status() == RestStatus.TOO_MANY_REQUESTS;
+            if (!isRetryableBlock) {
+                if (status == null) {
+                    status = block.status();
+                } else if (status.getStatus() < block.status().getStatus()) {
+                    status = block.status();
+                }
             }
-            onlyRetryableBlocks = block.id() == IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id();
+            onlyRetryableBlocks = onlyRetryableBlocks && isRetryableBlock;
         }
         // return retryable status if there are only retryable blocks
         if (onlyRetryableBlocks) {
-            return IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.status();
+            return RestStatus.TOO_MANY_REQUESTS;
         }
+        // return status which has the maximum code of all status except the retryable blocks'
         return status;
     }
 }

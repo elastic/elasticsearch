@@ -161,6 +161,13 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    // disabled temporarily for backporting serialization change
+    if (bwcVersion.before('8.0.0')) {
+      systemProperty 'tests.rest.blacklist', [
+        'upgraded_cluster/80_transform_jobs_crud/Get start, stop mixed cluster batch transform',
+        'upgraded_cluster/80_transform_jobs_crud/Test GET, mixed continuous transforms',
+      ].join(',')
+    }
   }
 
   tasks.register("${baseName}#bwcTest") {

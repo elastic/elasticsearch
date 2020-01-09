@@ -120,9 +120,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
 `detectors`.`description`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
+
 `detectors`.`detector_index`:::
++
+--
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+If you want to update a specific detector, you must use this identifier. You
+cannot, however, change the `detector_index` value for a detector.
+--
 
 `groups`::
 (array of strings)
@@ -164,83 +170,52 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_update
+POST _ml/anomaly_detectors/low_request_rate/_update
 {
   "description":"An updated job",
-  "groups": ["group1","group2"],
+  "detectors": {
+    "detector_index": 0,
+    "description": "An updated detector description"
+  },
+  "groups": ["kibana_sample_data","kibana_sample_web_logs"],
   "model_plot_config": {
     "enabled": true
-  },
-  "analysis_limits": {
-    "model_memory_limit": "1024mb"
   },
   "renormalization_window_days": 30,
   "background_persist_interval": "2h",
   "model_snapshot_retention_days": 7,
-  "results_retention_days": 60,
-  "custom_settings": {
-    "custom_urls" : [{
-      "url_name" : "Lookup IP",
-      "url_value" : "http://geoiplookup.net/ip/$clientip$"
-    }]
-  }
+  "results_retention_days": 60
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_job]
+// TEST[skip:setup:Kibana sample data]
 
 When the {anomaly-job} is updated, you receive a summary of the job
 configuration information, including the updated property values. For example:
 
-[source,console-result]
+[source,js]
 ----
 {
-  "job_id": "total-requests",
-  "job_type": "anomaly_detector",
-  "job_version": "7.0.0-alpha1",
-  "groups": [
-    "group1",
-    "group2"
+  "job_id" : "low_request_rate",
+  "job_type" : "anomaly_detector",
+  "job_version" : "8.0.0",
+  "groups" : [
+    "kibana_sample_data",
+    "kibana_sample_web_logs"
   ],
-  "description": "An updated job",
-  "create_time": 1518808660505,
-  "analysis_config": {
-    "bucket_span": "10m",
-    "detectors": [
+  "description" : "An updated job",
+  "create_time" : 1576623023709,
+  "analysis_config" : {
+    "bucket_span" : "1h",
+    "summary_count_field_name" : "doc_count",
+    "detectors" : [
       {
-        "detector_description": "Sum of total",
-        "function": "sum",
-        "field_name": "total",
-        "detector_index": 0
+        "detector_description" : "An updated detector description",
+        "function" : "low_count",
+        "detector_index" : 0
       }
     ],
-    "influencers": []
+    "influencers" : [ ]
   },
-  "analysis_limits": {
-    "model_memory_limit": "1024mb",
-    "categorization_examples_limit": 4
-  },
-  "data_description": {
-    "time_field": "timestamp",
-    "time_format": "epoch_ms"
-  },
-  "model_plot_config": {
-    "enabled": true
-  },
-  "renormalization_window_days": 30,
-  "background_persist_interval": "2h",
-  "model_snapshot_retention_days": 7,
-  "results_retention_days": 60,
-  "custom_settings": {
-    "custom_urls": [
-      {
-        "url_name": "Lookup IP",
-        "url_value": "http://geoiplookup.net/ip/$clientip$"
-      }
-    ]
-  },
-  "results_index_name": "shared",
-  "allow_lazy_open": false
+  ...
 }
 ----
-// TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
-// TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]

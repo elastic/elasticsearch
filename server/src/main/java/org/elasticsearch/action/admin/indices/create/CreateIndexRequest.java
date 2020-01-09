@@ -231,17 +231,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @param xContentType the content type of the mapping source
-     */
-    private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
+    private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
-        return mapping(type, mappingAsMap);
+        return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
     }
 
     /**
@@ -253,22 +246,24 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
+     * Set the mapping for this index
      *
-     * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, BytesReference.bytes(source), source.contentType());
+    public CreateIndexRequest mapping(XContentBuilder source) {
+        return mapping(BytesReference.bytes(source), source.contentType());
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
+     * Set the mapping for this index
      *
-     * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, Map<String, ?> source) {
+    public CreateIndexRequest mapping(Map<String, ?> source) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, source);
+    }
+
+    private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
@@ -291,7 +286,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * ("field1", "type=string,store=true").
      */
     public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        mapping(PutMappingRequest.buildFromSimplifiedDef(MapperService.SINGLE_MAPPING_NAME, source));
         return this;
     }
 

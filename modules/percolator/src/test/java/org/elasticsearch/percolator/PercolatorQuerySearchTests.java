@@ -107,7 +107,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         createIndex("test", client().admin().indices().prepareCreate("test")
             // to avoid normal document from being cached by BitsetFilterCache
             .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
-            .addMapping("employee", mapping)
+            .setMapping(mapping)
         );
         client().prepareIndex("test").setId("q1").setSource(jsonBuilder().startObject()
             .field("query", QueryBuilders.nestedQuery("employee",
@@ -175,7 +175,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         }
         mapping.endObject();
         createIndex("test", client().admin().indices().prepareCreate("test")
-            .addMapping("employee", mapping)
+            .setMapping(mapping)
         );
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "use_fielddata_please", Collections.emptyMap());
         client().prepareIndex("test").setId("q1").setSource(jsonBuilder().startObject()

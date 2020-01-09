@@ -19,7 +19,7 @@ import java.util.List;
  * In a SQL statement, an Expression is whatever a user specifies inside an
  * action, so for instance:
  *
- * {@code SELECT a, b, MAX(c, d) FROM i}
+ * {@code SELECT a, b, ABS(c) FROM i}
  *
  * a, b, ABS(c), and i are all Expressions, with ABS(c) being a Function
  * (which is a type of expression) with a single child, c.

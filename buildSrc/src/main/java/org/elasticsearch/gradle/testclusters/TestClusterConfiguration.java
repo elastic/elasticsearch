@@ -58,6 +58,8 @@ public interface TestClusterConfiguration {
 
     void keystore(String key, FileSupplier valueSupplier);
 
+    void cliSetup(String binTool, CharSequence... args);
+
     void setting(String key, String value);
 
     void setting(String key, String value, PropertyNormalization normalization);

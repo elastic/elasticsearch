@@ -139,7 +139,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -200,7 +200,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -293,7 +293,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -424,7 +424,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     private void run(String jobId, CheckedRunnable<Exception> disrupt) throws Exception {
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();

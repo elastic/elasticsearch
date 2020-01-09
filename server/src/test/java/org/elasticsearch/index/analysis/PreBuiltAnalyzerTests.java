@@ -90,10 +90,10 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX,
             randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("field").field("type", "text")
                 .field("analyzer", analyzerName).endObject().endObject().endObject().endObject();
-        MapperService mapperService = createIndex("test", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", indexSettings, mapping).mapperService();
 
         MappedFieldType fieldType = mapperService.fullName("field");
         assertThat(fieldType.searchAnalyzer(), instanceOf(NamedAnalyzer.class));

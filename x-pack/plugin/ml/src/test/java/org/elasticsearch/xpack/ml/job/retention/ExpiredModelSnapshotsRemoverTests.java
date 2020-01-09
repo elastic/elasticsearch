@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 
 public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
-    private Client client;
+    private OriginSettingClient client;
     private ThreadPool threadPool;
     private List<SearchRequest> capturedSearchRequests;
     private List<DeleteModelSnapshotAction.Request> capturedDeleteModelSnapshotRequests;
@@ -59,7 +59,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         capturedDeleteModelSnapshotRequests = new ArrayList<>();
         searchResponsesPerCall = new ArrayList<>();
-        client = mock(Client.class);
+        client = mock(OriginSettingClient.class);
         listener = new TestListener();
 
         // Init thread pool

@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,7 +41,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     private static final String INDEX_NAME = ".ml-anomalies-foo";
     private static final String SCROLL_ID = "someScrollId";
 
-    private Client client;
+    private OriginSettingClient client;
     private boolean wasScrollCleared;
 
     private TestIterator testIterator;
@@ -51,7 +51,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        client = Mockito.mock(Client.class);
+        client = Mockito.mock(OriginSettingClient.class);
         wasScrollCleared = false;
         testIterator = new TestIterator(client, INDEX_NAME);
         givenClearScrollRequest();
@@ -224,7 +224,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     private static class TestIterator extends BatchedDocumentsIterator<String> {
-        TestIterator(Client client, String jobId) {
+        TestIterator(OriginSettingClient client, String jobId) {
             super(client, jobId);
         }
 

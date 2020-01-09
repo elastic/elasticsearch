@@ -9,7 +9,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,7 +44,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         private int getRetentionDaysCallCount = 0;
 
-        ConcreteExpiredJobDataRemover(Client client) {
+        ConcreteExpiredJobDataRemover(OriginSettingClient client) {
             super(client);
         }
 
@@ -61,11 +61,11 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
     }
 
-    private Client client;
+    private OriginSettingClient client;
 
     @Before
     public void setUpTests() {
-        client = mock(Client.class);
+        client = mock(OriginSettingClient.class);
     }
 
     static SearchResponse createSearchResponse(List<? extends ToXContent> toXContents) throws IOException {

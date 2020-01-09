@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 
 public class ExpiredResultsRemoverTests extends ESTestCase {
 
-    private Client client;
+    private OriginSettingClient client;
     private List<DeleteByQueryRequest> capturedDeleteByQueryRequests;
     private ActionListener<Boolean> listener;
 
@@ -50,7 +50,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUpTests() {
         capturedDeleteByQueryRequests = new ArrayList<>();
-        client = mock(Client.class);
+        client = mock(OriginSettingClient.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));

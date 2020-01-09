@@ -31,14 +31,14 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
+import static org.elasticsearch.common.util.CollectionUtils.map;
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -46,26 +46,32 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
+/**
+ * This class tests how dangling indices are handled, in terms of how they
+ * are discovered, and how they can be accessed and manipulated through the
+ * API.
+ */
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class DanglingIndicesIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test-idx-1";
 
-    private Settings buildSettings(boolean importDanglingIndices) {
+    private Settings buildSettings(int maxTombstones, boolean importDanglingIndices) {
         return Settings.builder()
-            // Don't keep any indices in the graveyard, so that when we delete an index,
-            // it's definitely considered to be dangling.
-            .put(SETTING_MAX_TOMBSTONES.getKey(), 0)
+            // Limit the indices kept in the graveyard. This can be set to zero, so that
+            // when we delete an index, it's definitely considered to be dangling.
+            .put(SETTING_MAX_TOMBSTONES.getKey(), maxTombstones)
             .put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), importDanglingIndices)
             .build();
     }
 
     /**
-     * Check that when dangling indices are discovered, then they are recovered into
-     * the cluster, so long as the recovery setting is enabled.
+     * Check that when the auto-recovery setting is enabled and a dangling index is
+     * discovered, then that index is recovered into the cluster.
      */
     public void testDanglingIndicesAreRecoveredWhenSettingIsEnabled() throws Exception {
-        final Settings settings = buildSettings(true);
+        final Settings settings = buildSettings(0, true);
         internalCluster().startNodes(3, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
@@ -88,7 +94,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * the cluster when the recovery setting is disabled.
      */
     public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
-        internalCluster().startNodes(3, buildSettings(false));
+        internalCluster().startNodes(3, buildSettings(0, false));
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
@@ -114,7 +120,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that when dangling indices are discovered, then they can be listed.
      */
     public void testDanglingIndicesCanBeListed() throws Exception {
-        internalCluster().startNodes(3, buildSettings(false));
+        internalCluster().startNodes(3, buildSettings(0, false));
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
@@ -162,7 +168,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that dangling indices can be restored.
      */
     public void testDanglingIndicesCanBeRestored() throws Exception {
-        internalCluster().startNodes(3, buildSettings(false));
+        internalCluster().startNodes(3, buildSettings(0, false));
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
@@ -217,7 +223,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * being dangling.
      */
     public void testDanglingIndicesMustExistToBeRestored() {
-        internalCluster().startNodes(1, buildSettings(false));
+        internalCluster().startNodes(1, buildSettings(0, false));
 
         final RestoreDanglingIndexRequest request = new RestoreDanglingIndexRequest();
         request.setIndexUuid("NonExistentUUID");
@@ -234,13 +240,14 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         assertFalse("No exception thrown", noExceptionThrown);
     }
 
-    public void testDeleteDanglingIndex() throws Exception {
-        final Settings settings = Settings.builder()
-            // Don't keep any indices in the graveyard, so that when we delete an index,
-            // it's definitely considered to be dangling.
-            .put(SETTING_MAX_TOMBSTONES.getKey(), 1)
-            .put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), false)
-            .build();
+    /**
+     * Check that dangling indices can be deleted. To do this, we set the index graveyard size to 1, then create
+     * two indices and delete them both while one node in the cluster is stopped. When the stopped node is resumed,
+     * only one index will be found into the graveyard, while the the other will be considered dangling, and can
+     * therefore be listed and deleted through the API
+     */
+    public void testDanglingIndexCanBeDeleted() throws Exception {
+        final Settings settings = buildSettings(1, false);
         internalCluster().startNodes(3, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
@@ -285,10 +292,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final IndexMetaData indexMetaData = danglingIndex.get();
 
-        client().admin()
-            .cluster()
-            .deleteDanglingIndex(new DeleteDanglingIndexRequest(indexMetaData.getIndexUUID(), stoppedNodeName.get()))
-            .actionGet();
+        client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(indexMetaData.getIndexUUID(), true)).actionGet();
 
         // Check that the dangling index goes away
         assertBusy(() -> {
@@ -302,15 +306,98 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
                 assertThat(
-                    nodeResponse.getDanglingIndices()
-                        .stream()
-                        .map(each -> each.getIndex().getName())
-                        .collect(Collectors.toList())
-                        .toString(),
+                    map(nodeResponse.getDanglingIndices(), each -> each.getIndex().getName()).toString(),
                     nodeResponse.getDanglingIndices(),
                     empty()
                 );
             }
         });
+    }
+
+    public void testDanglingIndexOverMultipleNodesCanBeDeleted() throws Exception {
+        final Settings settings = buildSettings(1, false);
+        internalCluster().startNodes(5, settings);
+
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 4).build());
+        createIndex(INDEX_NAME + "-other", Settings.builder().put("number_of_replicas", 4).build());
+
+        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
+
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNodes(2, new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public void onAllNodesStopped() {
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME + "-other"));
+            }
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                // We don't care which node name we store
+                stoppedNodeName.set(nodeName);
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        final AtomicReference<List<IndexMetaData>> danglingIndices = new AtomicReference<>();
+
+        // Wait for the dangling indices to be noticed
+        assertBusy(() -> {
+            final List<IndexMetaData> results = listDanglingIndices();
+
+            assertThat(results, not(empty()));
+            danglingIndices.set(results);
+        });
+
+        // Both the stopped nodes should have found a dangling index.
+        assertThat(danglingIndices.get(), hasSize(2));
+
+        // Try to delete the index - this request should succeed
+        client().admin()
+            .cluster()
+            .deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndices.get().get(0).getIndexUUID(), true))
+            .actionGet();
+
+        assertBusy(() -> assertThat(listDanglingIndices(), empty()));
+    }
+
+    /**
+     * Check that when deleting a dangling index, it is required that the "accept_data_loss" flag is set.
+     */
+    public void testDeleteDanglingIndicesRequiresDataLossFlagToBeTrue() {
+        final Settings settings = buildSettings(1, false);
+        internalCluster().startNodes(1, settings);
+
+        Exception caughtException = null;
+
+        try {
+            internalCluster().client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest("fred", false)).actionGet();
+        } catch (Exception e) {
+            caughtException = e;
+        }
+
+        assertNotNull("No exception thrown", caughtException);
+
+        assertThat(caughtException, instanceOf(IllegalArgumentException.class));
+        assertThat(caughtException.getMessage(), containsString("accept_data_loss must be true"));
+    }
+
+    private List<IndexMetaData> listDanglingIndices() {
+        final ListDanglingIndicesResponse response = client().admin()
+            .cluster()
+            .listDanglingIndices(new ListDanglingIndicesRequest())
+            .actionGet();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+
+        final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+
+        final List<IndexMetaData> results = new ArrayList<>();
+
+        for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+            results.addAll(nodeResponse.getDanglingIndices());
+        }
+
+        return results;
     }
 }

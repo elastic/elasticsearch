@@ -29,22 +29,22 @@ import java.util.Map;
 
 public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDanglingIndexRequest> {
     private String indexUuid;
-    private String nodeId;
+    private boolean acceptDataLoss;
 
     public DeleteDanglingIndexRequest(StreamInput in) throws IOException {
         super(in);
         this.indexUuid = in.readString();
-        this.nodeId = in.readOptionalString();
+        this.acceptDataLoss = in.readBoolean();
     }
 
     public DeleteDanglingIndexRequest() {
         super();
     }
 
-    public DeleteDanglingIndexRequest(String indexUuid, String nodeId) {
+    public DeleteDanglingIndexRequest(String indexUuid, boolean acceptDataLoss) {
         super();
         this.indexUuid = indexUuid;
-        this.nodeId = nodeId;
+        this.acceptDataLoss = acceptDataLoss;
     }
 
     @Override
@@ -52,6 +52,12 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         if (this.indexUuid == null) {
             ActionRequestValidationException e = new ActionRequestValidationException();
             e.addValidationError("No index ID specified");
+            return e;
+        }
+
+        if (this.acceptDataLoss == false) {
+            ActionRequestValidationException e = new ActionRequestValidationException();
+            e.addValidationError("accept_data_loss must be true");
             return e;
         }
 
@@ -66,42 +72,29 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
         this.indexUuid = indexUuid;
     }
 
-    public String getNodeId() {
-        return nodeId;
+    public boolean isAcceptDataLoss() {
+        return acceptDataLoss;
     }
 
-    public void setNodeId(String nodeId) {
-        this.nodeId = nodeId;
+    public void setAcceptDataLoss(boolean acceptDataLoss) {
+        this.acceptDataLoss = acceptDataLoss;
     }
 
     @Override
     public String toString() {
-        return "restore dangling index";
+        return "delete dangling index";
     }
 
     public void source(Map<String, Object> source) {
         source.forEach((name, value) -> {
-            switch (name) {
-                case "accept_data_loss":
-                    if (value instanceof Boolean) {
-                        if ((boolean) value == false) {
-                            throw new IllegalArgumentException("accept_data_loss must be set to true");
-                        }
-                    } else {
-                        throw new IllegalArgumentException("malformed accept_data_loss");
-                    }
-                    break;
-
-                case "node_id":
-                    if (value instanceof String) {
-                        this.setNodeId((String) value);
-                    } else {
-                        throw new IllegalArgumentException("malformed node_id");
-                    }
-                    break;
-
-                default:
-                    throw new IllegalArgumentException("Unknown parameter " + name);
+            if ("accept_data_loss".equals(name)) {
+                if (value instanceof Boolean) {
+                    this.acceptDataLoss = (boolean) value;
+                } else {
+                    throw new IllegalArgumentException("malformed accept_data_loss");
+                }
+            } else {
+                throw new IllegalArgumentException("Unknown parameter " + name);
             }
         });
     }
@@ -110,6 +103,6 @@ public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDangling
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(this.indexUuid);
-        out.writeOptionalString(this.nodeId);
+        out.writeBoolean(this.acceptDataLoss);
     }
 }

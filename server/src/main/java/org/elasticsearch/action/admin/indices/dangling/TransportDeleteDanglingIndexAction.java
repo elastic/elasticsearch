@@ -115,6 +115,11 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
             }
         };
 
+        // This is checked now so that
+        if (request.isAcceptDataLoss() == false) {
+            throw new IllegalArgumentException("accept_data_loss must be set to true");
+        }
+
         this.clusterService.submitStateUpdateTask(
             "delete-dangling-index " + indexName,
             new AckedClusterStateUpdateTask<>(Priority.NORMAL, new DeleteIndexRequest(), actionListener) {
@@ -152,7 +157,6 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
     private IndexMetaData getIndexMetaDataToDelete(DeleteDanglingIndexRequest request) {
         String indexUuid = request.getIndexUuid();
-        String nodeId = request.getNodeId();
 
         if (indexUuid == null || indexUuid.isEmpty()) {
             throw new IllegalArgumentException("No index UUID specified in request");
@@ -164,7 +168,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
         for (NodeDanglingIndicesResponse response : nodes) {
             for (IndexMetaData danglingIndex : response.getDanglingIndices()) {
-                if (danglingIndex.getIndexUUID().equals(indexUuid) && (nodeId == null || response.getNode().getName().equals(nodeId))) {
+                if (danglingIndex.getIndexUUID().equals(indexUuid)) {
                     matchingMetaData.add(danglingIndex);
                 }
             }
@@ -174,12 +178,9 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
             throw new IllegalArgumentException("No dangling index found for UUID [" + indexUuid + "]");
         }
 
-        if (matchingMetaData.size() > 1) {
-            throw new IllegalArgumentException(
-                "Multiple nodes contain dangling index [" + indexUuid + "]. " + "Specify a node ID to import a specific dangling index."
-            );
-        }
-
+        // Although we could find metadata for the same index on multiple nodes, we return the first
+        // metadata here because only the index part goes into the graveyard, which is basically the
+        // name and UUID.
         return matchingMetaData.get(0);
     }
 

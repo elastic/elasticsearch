@@ -1728,10 +1728,22 @@ public final class InternalTestCluster extends TestCluster {
      * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
      */
     public synchronized void fullRestart(RestartCallback callback) throws Exception {
+        restartNodes(callback, nodes.values());
+    }
+
+    public synchronized void restartRandomDataNodes(int numberOfDataNodes, RestartCallback callback) throws Exception {
+        final ArrayList<NodeAndClient> nodeAndClients = new ArrayList<>(nodes.values());
+        Randomness.shuffle(nodeAndClients);
+        final List<NodeAndClient> nodesToRestart = nodeAndClients.subList(0, numberOfDataNodes);
+
+        restartNodes(callback, nodesToRestart);
+    }
+
+    private synchronized void restartNodes(RestartCallback callback, Collection<NodeAndClient> nodesToRestart) throws Exception {
         int numNodesRestarted = 0;
         final Settings[] newNodeSettings = new Settings[nextNodeId.get()];
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go
-        for (NodeAndClient nodeAndClient : nodes.values()) {
+        for (NodeAndClient nodeAndClient : nodesToRestart) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
             logger.info("Stopping and resetting node [{}] ", nodeAndClient.name);
             if (activeDisruptionScheme != null) {

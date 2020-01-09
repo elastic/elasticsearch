@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
-import org.apache.lucene.spatial3d.geom.GeoShape;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -14,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.type.DataType;

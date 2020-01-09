@@ -70,7 +70,8 @@ public class DieWithDignityIT extends ESRestTestCase {
                 if( containsAll(line,".*ERROR.*", ".*ExceptionsHelper.*", ".*integTest-0.*", ".*fatal error.*")) {
                     fatalError = true;
                 } else if (containsAll(line,".*ERROR.*",".*ElasticsearchUncaughtExceptionHandler.*",
-                    ".*integTest-0.*",".*fatal error in thread \\[Thread-\\d+\\], exiting.*",".*java.lang.OutOfMemoryError: die with dignity.*")) {
+                    ".*integTest-0.*",".*fatal error in thread \\[Thread-\\d+\\], exiting.*",
+                    ".*java.lang.OutOfMemoryError: die with dignity.*")) {
                     fatalErrorInThreadExiting = true;
                 }
             }

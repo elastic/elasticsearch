@@ -257,7 +257,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return searchContext;
     }
 
-    protected static IndexSettings createIndexSettings() {
+    protected IndexSettings createIndexSettings() {
         return new IndexSettings(
                 IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                         .numberOfShards(1)

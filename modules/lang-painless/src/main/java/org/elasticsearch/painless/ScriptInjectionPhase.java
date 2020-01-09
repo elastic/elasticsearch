@@ -24,6 +24,7 @@ import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.FunctionNode;
@@ -74,6 +75,7 @@ public class ScriptInjectionPhase {
 
         injectStaticFieldsAndGetters(classNode);
         injectGetsDeclarations(scriptRoot, executeFunctionNode);
+        injectNeedsMethods(scriptRoot, classNode);
         injectSandboxExceptions(executeFunctionNode);
     }
 
@@ -245,6 +247,47 @@ public class ScriptInjectionPhase {
             } else {
                 ++statementIndex;
             }
+        }
+    }
+
+    // injects needs methods as defined by ScriptClassInfo
+    protected static void injectNeedsMethods(ScriptRoot scriptRoot, ClassNode classNode) {
+        Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectNeedsMethods", 0);
+
+        for (org.objectweb.asm.commons.Method needsMethod : scriptRoot.getScriptClassInfo().getNeedsMethods()) {
+            String name = needsMethod.getName();
+            name = name.substring(5);
+            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+
+            FunctionNode functionNode = new FunctionNode();
+            functionNode.setLocation(internalLocation);
+            functionNode.setName(needsMethod.getName());
+            functionNode.setReturnType(boolean.class);
+            functionNode.setStatic(false);
+            functionNode.setVarArgs(false);
+            functionNode.setSynthetic(true);
+            functionNode.setMaxLoopCounter(0);
+
+            classNode.addFunctionNode(functionNode);
+
+            BlockNode blockNode = new BlockNode();
+            blockNode.setLocation(internalLocation);
+            blockNode.setAllEscape(true);
+            blockNode.setStatementCount(1);
+
+            functionNode.setBlockNode(blockNode);
+
+            ReturnNode returnNode = new ReturnNode();
+            returnNode.setLocation(internalLocation);
+
+            blockNode.addStatementNode(returnNode);
+
+            ConstantNode constantNode = new ConstantNode();
+            constantNode.setLocation(internalLocation);
+            constantNode.setExpressionType(boolean.class);
+            constantNode.setConstant(scriptRoot.getUsedVariables().contains(name));
+
+            returnNode.setExpressionNode(constantNode);
         }
     }
 

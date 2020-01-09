@@ -60,7 +60,7 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
         final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
-
+        System.out.println(PathUtils.get(System.getProperty("log")));
         final Iterator<String> it = lines.iterator();
 
         boolean fatalError = false;
@@ -74,7 +74,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                     ".*integTest-0.*",".*fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
                     fatalErrorInThreadExiting = true;
                     assertTrue(it.hasNext());
-                    assertThat(it.next(), containsString("java.lang.OutOfMemoryError: die with dignity"));
+                    assertThat(it.next(), containsString("java.lang.OutOfMemoryError2: die with dignity"));
                 }
             }
 

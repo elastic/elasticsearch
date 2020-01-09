@@ -46,7 +46,7 @@ abstract class CellValues extends AbstractSortingNumericDocValues {
             resize(docValueCount);
             int j = 0;
             for (int i = 0; i < docValueCount; i++) {
-                advanceValue(geoValues.nextValue(), j);
+                j = advanceValue(geoValues.nextValue(), j);
             }
             resize(j);
             sort();

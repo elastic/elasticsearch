@@ -60,7 +60,7 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
         final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
-        System.out.println(PathUtils.get(System.getProperty("log")));
+        logger.info("he"+PathUtils.get(System.getProperty("log")));
         final Iterator<String> it = lines.iterator();
 
         boolean fatalError = false;

@@ -454,7 +454,7 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
                 ScriptedMetricAggregationBuilder::parse).addResultReader(InternalScriptedMetric::new));
         registerAggregation((new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new,
-            CompositeAggregationBuilder::parse).addResultReader(InternalComposite::new)));
+                (name, p) -> CompositeAggregationBuilder.PARSER.parse(p, name)).addResultReader(InternalComposite::new)));
         registerFromPlugin(plugins, SearchPlugin::getAggregations, this::registerAggregation);
     }
 
@@ -540,7 +540,7 @@ public class SearchModule {
                 BucketScriptPipelineAggregationBuilder.NAME,
                 BucketScriptPipelineAggregationBuilder::new,
                 BucketScriptPipelineAggregator::new,
-                BucketScriptPipelineAggregationBuilder::parse));
+                (name, p) -> BucketScriptPipelineAggregationBuilder.PARSER.parse(p, name)));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 BucketSelectorPipelineAggregationBuilder.NAME,
                 BucketSelectorPipelineAggregationBuilder::new,
@@ -557,10 +557,10 @@ public class SearchModule {
                 SerialDiffPipelineAggregator::new,
                 SerialDiffPipelineAggregationBuilder::parse));
         registerPipelineAggregation(new PipelineAggregationSpec(
-            MovFnPipelineAggregationBuilder.NAME,
-            MovFnPipelineAggregationBuilder::new,
-            MovFnPipelineAggregator::new,
-            MovFnPipelineAggregationBuilder::parse));
+                MovFnPipelineAggregationBuilder.NAME,
+                MovFnPipelineAggregationBuilder::new,
+                MovFnPipelineAggregator::new,
+                (name, p) -> MovFnPipelineAggregationBuilder.PARSER.parse(p, name)));
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }

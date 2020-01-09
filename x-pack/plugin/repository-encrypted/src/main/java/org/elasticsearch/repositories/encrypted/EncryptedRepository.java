@@ -25,6 +25,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -87,6 +88,22 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
+    public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
+        super.cleanup(repositoryStateId, writeShardGens, new ActionListener<RepositoryCleanupResult>() {
+            @Override
+            public void onResponse(RepositoryCleanupResult repositoryCleanupResult) {
+
+                listener.onResponse(repositoryCleanupResult);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    @Override
     protected BlobStore createBlobStore() {
         return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryptor,
                 secureRandom, consistentSettingsService);
@@ -141,11 +158,7 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            BlobPath encryptionMetadataBlobPath = BlobPath.cleanPath();
-            encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(ENCRYPTION_METADATA_PREFIX);
-            for (String pathComponent : path) {
-                encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(pathComponent);
-            }
+            BlobPath encryptionMetadataBlobPath = path.prepend(ENCRYPTION_METADATA_PREFIX);
             return new EncryptedBlobContainerDecorator(delegatedBlobStore.blobContainer(path),
                     delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), dataEncryptionKeyGenerator, metadataEncryptor,
                     secureRandom, consistentSettingsService);

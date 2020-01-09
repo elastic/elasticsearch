@@ -62,6 +62,13 @@ public class BlobPath implements Iterable<String> {
         return new BlobPath(Collections.unmodifiableList(paths));
     }
 
+    public BlobPath prepend(String path) {
+        List<String> paths = new ArrayList<>(this.paths.size() + 1);
+        paths.add(path);
+        paths.addAll(this.paths);
+        return new BlobPath(Collections.unmodifiableList(paths));
+    }
+
     public String buildAsString() {
         String p = String.join(SEPARATOR, paths);
         if (p.isEmpty() || p.endsWith(SEPARATOR)) {

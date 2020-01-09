@@ -210,7 +210,7 @@ structure finder does not consider by default.
 If this parameter is not specified, the structure finder chooses the best
 format from a built-in set.
 
-Timeformat examples:
+The following table provides the appropriate `timeformat` values for some example timestamps:
 
 |===
 | Timeformat                 | Presentation 

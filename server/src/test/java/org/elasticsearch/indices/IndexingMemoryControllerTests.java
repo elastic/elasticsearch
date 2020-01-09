@@ -364,6 +364,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         };
         IndexShard shard = newStartedShard(randomBoolean(), Settings.EMPTY,
             config -> new InternalEngine(configWithRefreshListener(config, refreshListener)));
+        refreshLatch.set(new CountDownLatch(1)); // block refresh
         final RefreshStats refreshStats = shard.refreshStats();
         final IndexingMemoryController controller = new IndexingMemoryController(
             Settings.builder().put("indices.memory.interval", "200h") // disable it
@@ -380,7 +381,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
                 return 0L;
             }
         };
-        refreshLatch.set(new CountDownLatch(1)); // block refresh
         int iterations = randomIntBetween(10, 100);
         for (int i = 0; i < iterations; i++) {
             controller.forceCheck();
@@ -388,7 +388,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stats : threadPool.stats()) {
                 if (stats.getName().equals(ThreadPool.Names.REFRESH)) {
-                    assertThat(stats.getRejected(), equalTo(0L));
                     assertThat(stats.getQueue(), equalTo(0));
                     assertThat(stats.getActive(), equalTo(1));
                 }
@@ -400,7 +399,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
                 if (stats.getName().equals(ThreadPool.Names.REFRESH)) {
                     assertThat(stats.getActive(), equalTo(0));
                     assertThat(stats.getQueue(), equalTo(0));
-                    assertThat(stats.getRejected(), equalTo(0L));
                 }
             }
         });

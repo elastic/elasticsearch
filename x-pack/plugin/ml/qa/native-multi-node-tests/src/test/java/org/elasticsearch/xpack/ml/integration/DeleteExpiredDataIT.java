@@ -57,15 +57,15 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 .setMapping("time", "type=date,format=epoch_millis")
                 .get();
 
-        // We are going to create data for last 2 days
-        long nowMillis = System.currentTimeMillis();
+        // We are going to create 2 days of data starting 24 hrs ago
+        long lastestBucketTime = System.currentTimeMillis() - TimeValue.timeValueHours(1).millis();
         int totalBuckets = 3 * 24;
         int normalRate = 10;
         int anomalousRate = 100;
         int anomalousBucket = 30;
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int bucket = 0; bucket < totalBuckets; bucket++) {
-            long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
+            long timestamp = lastestBucketTime - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
                 IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
@@ -208,7 +208,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("no-retention").size(), equalTo(2));
 
         List<Bucket> buckets = getBuckets("results-retention");
-        assertThat(buckets.size(), is(lessThanOrEqualTo(24)));
+        assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
         assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
         assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
         assertThat(getRecords("results-retention").size(), equalTo(0));
@@ -223,7 +223,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("snapshots-retention-with-retain").size(), equalTo(2));
 
         buckets = getBuckets("results-and-snapshots-retention");
-        assertThat(buckets.size(), is(lessThanOrEqualTo(24)));
+        assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
         assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
         assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
         assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));

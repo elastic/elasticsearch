@@ -68,9 +68,12 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             removeData(jobIterator, listener, isTimedOutSupplier);
             return;
         }
-        long cutoffEpochMs = calcCutoffEpochMs(retentionDays);
-        removeDataBefore(job, cutoffEpochMs,
-            ActionListener.wrap(response -> removeData(jobIterator, listener, isTimedOutSupplier), listener::onFailure));
+
+        calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(
+                cutoffEpochMs -> removeDataBefore(job, cutoffEpochMs,
+                        ActionListener.wrap(response -> removeData(jobIterator, listener, isTimedOutSupplier), listener::onFailure)),
+                listener::onFailure
+        ));
     }
 
     private WrappedBatchedJobsIterator newJobIterator() {
@@ -78,9 +81,9 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
-    private long calcCutoffEpochMs(long retentionDays) {
+    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
         long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
-        return nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+        listener.onResponse(nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis());
     }
 
     protected abstract Long getRetentionDays(Job job);

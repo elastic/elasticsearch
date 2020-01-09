@@ -5,28 +5,34 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.junit.Before;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -50,7 +56,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     public void setUpTests() {
         capturedDeleteByQueryRequests = new ArrayList<>();
 
-        client = org.mockito.Mockito.mock(Client.class);
+        client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
     }
@@ -88,6 +94,8 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+
         createExpiredResultsRemover().remove(listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
@@ -105,6 +113,8 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
             JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
+
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
 
         final int timeoutAfter = randomIntBetween(0, 1);
         AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
@@ -124,12 +134,30 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+
         createExpiredResultsRemover().remove(listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
         assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-1")}));
         verify(listener).onFailure(any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCalcCutoffEpochMs() throws IOException {
+        String jobId = "calc-cutoff";
+        givenJobs(Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build()));
+
+        Date latest = new Date();
+        givenBucket(new Bucket(jobId, latest, 60));
+
+        ActionListener<Long> cutoffListener = mock(ActionListener.class);
+        createExpiredResultsRemover().calcCutoffEpochMs(jobId, 1L, cutoffListener);
+
+        long dayInMills = 60 * 60 * 24 * 1000;
+        long expectedCutoffTime = latest.getTime() - dayInMills;
+        verify(cutoffListener).onResponse(eq(expectedCutoffTime));
     }
 
     private void givenClientRequestsSucceed() {
@@ -142,9 +170,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void givenClientRequests(boolean shouldSucceed) {
-        doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocationOnMock) {
+        doAnswer(invocationOnMock -> {
                 capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
                 ActionListener<BulkByScrollResponse> listener =
                         (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
@@ -157,10 +183,43 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 }
                 return null;
             }
-        }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
+        ).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void givenJobs(List<Job> jobs) throws IOException {
+        SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
+
+        ActionFuture<SearchResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        when(client.search(any())).thenReturn(future);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void givenBucket(Bucket bucket) throws IOException {
+        SearchResponse searchResponse = AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket));
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
+            listener.onResponse(searchResponse);
+            return null;
+        }).when(client).search(any(SearchRequest.class), any(ActionListener.class));
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover() {
-        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class));
+        final String executorName = "expired-remover-test";
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executor = mock(ExecutorService.class);
+
+        when(threadPool.executor(eq(executorName))).thenReturn(executor);
+
+        doAnswer(invocationOnMock -> {
+                Runnable run = (Runnable) invocationOnMock.getArguments()[0];
+                run.run();
+                return null;
+            }
+        ).when(executor).execute(any());
+
+        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class), threadPool, executorName);
     }
 }

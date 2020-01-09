@@ -81,7 +81,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                    Supplier<Boolean> isTimedOutSupplier) {
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
         List<MlDataRemover> dataRemovers = Arrays.asList(
-                new ExpiredResultsRemover(client, auditor),
+                new ExpiredResultsRemover(client, auditor, threadPool, MachineLearning.UTILITY_THREAD_POOL_NAME),
                 new ExpiredForecastsRemover(client, threadPool),
                 new ExpiredModelSnapshotsRemover(client, threadPool),
                 new UnusedStateRemover(client, clusterService)

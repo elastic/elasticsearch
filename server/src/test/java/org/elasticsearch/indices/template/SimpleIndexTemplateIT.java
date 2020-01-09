@@ -446,8 +446,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "}"), XContentType.JSON).get();
 
 
-        assertAcked(prepareCreate("test_index")
-                .addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -482,8 +481,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "        \"alias3\" : { \"routing\" : \"1\" }" +
                         "    }\n").get();
 
-        assertAcked(prepareCreate("test_index")
-                .addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();

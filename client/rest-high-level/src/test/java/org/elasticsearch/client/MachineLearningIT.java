@@ -151,6 +151,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -201,6 +202,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -2276,6 +2278,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertThat(getTrainedModelsResponse.getCount(), equalTo(0L));
         assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(0));
+    }
+
+    public void testGetPrepackagedModels() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest("lang_ident_model_1").setIncludeDefinition(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo("lang_ident_model_1"));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition().getTrainedModel(),
+            instanceOf(LangIdentNeuralNetwork.class));
     }
 
     public void testPutFilter() throws Exception {

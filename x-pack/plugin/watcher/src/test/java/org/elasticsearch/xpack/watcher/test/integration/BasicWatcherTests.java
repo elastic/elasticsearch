@@ -336,7 +336,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().clock().setTime(ZonedDateTime.now(Clock.systemUTC()));
 
         String watchName = "_name";
-        assertAcked(prepareCreate("events").addMapping("event", "level", "type=text"));
+        assertAcked(prepareCreate("events").setMapping("level", "type=text"));
 
         new PutWatchRequestBuilder(client()).setId(watchName)
                 .setSource(watchBuilder()

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -33,9 +34,11 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -229,6 +232,50 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client().admin().cluster().prepareGetSnapshots(repoName)
             .addSnapshots(snapshot).get().getSnapshots(repoName));
+    }
+
+    public void testHandlingMissingRootLevelSnapshotMetadata() throws Exception {
+        Path repo = randomRepoPath();
+        final String repoName = "test-repo";
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
+        assertAcked(client().admin().cluster().preparePutRepository(repoName)
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", repo)
+                .put("compress", false)
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        final String snapshotPrefix = "test-snap-";
+        final int snapshots = randomIntBetween(1, 2);
+        logger.info("--> creating [{}] snapshots", snapshots);
+        for (int i = 0; i < snapshots; ++i) {
+            // Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
+            // generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
+            CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(repoName, snapshotPrefix + i)
+                .setIndices().setWaitForCompletion(true).get();
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), is(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        }
+        final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+
+        final SnapshotId snapshotToCorrupt = randomFrom(repositoryData.getSnapshotIds());
+        logger.info("--> delete root level snapshot metadata blob for snapshot [{}]", snapshotToCorrupt);
+        Files.delete(repo.resolve(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotToCorrupt.getUUID())));
+
+        logger.info("--> verify that repo is assumed in old metadata format");
+        final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+        final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
+        assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
+            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, repositoryData, null)))), is(true));
+
+        logger.info("--> verify that snapshot with missing root level metadata can be deleted");
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
+
+        logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
+        assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
+            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
+            is(false));
     }
 
     private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {

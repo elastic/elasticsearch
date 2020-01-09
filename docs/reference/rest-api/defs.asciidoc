@@ -3,7 +3,7 @@
 == Definitions
 
 The role mappings resource definition you can find below is used in APIs related 
-to security features.
+to {security-features}.
 
   * <<role-mapping-resources,Role mappings>>
 

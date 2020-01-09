@@ -172,7 +172,7 @@ written for forecasts related to this job. If there are no forecasts, this prope
 
 `forecasts_stats`.`processing_time_ms`:::
 (object) The `avg`, `min`, `max` and `total` runtime in milliseconds for 
-forecasts related to this job. Omitted if forecasts do not exist.
+forecasts related to this job. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`status`:::
 (object) The count of forecasts by their status. For example: 

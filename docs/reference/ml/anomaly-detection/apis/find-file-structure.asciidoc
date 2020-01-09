@@ -172,7 +172,7 @@ formats, it is not compulsory to have a timestamp in the file.
   (Optional, string) The Java time format of the timestamp field in the file.
 +
 --
-NOTE: Only a subset of Java time format letter groups are supported:
+Only a subset of Java time format letter groups are supported:
 
 * `a`
 * `d`

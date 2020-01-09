@@ -190,7 +190,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public Builder() {
 
         }
-        
+
         public Builder(CoordinationMetaData state) {
             this.term = state.term;
             this.lastCommittedConfiguration = state.lastCommittedConfiguration;
@@ -244,6 +244,11 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public VotingConfigExclusion(String nodeId, String nodeName) {
             this.nodeId = nodeId;
             this.nodeName = nodeName;
+        }
+
+        public VotingConfigExclusion(String nodeIdAndName) {
+            this.nodeId = nodeIdAndName;
+            this.nodeName = nodeIdAndName;
         }
 
         @Override

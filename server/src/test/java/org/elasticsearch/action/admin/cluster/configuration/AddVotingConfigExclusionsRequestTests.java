@@ -93,10 +93,6 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
                 contains(localNodeExclusion));
         assertThat(makeRequest("other*").resolveVotingConfigExclusions(clusterState),
                 containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
-
-        assertThat(expectThrows(IllegalArgumentException.class,
-                () -> makeRequest("not-a-node").resolveVotingConfigExclusions(clusterState)).getMessage(),
-                    equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes"));
     }
 
     public void testResolveAndCheckMaximum() {

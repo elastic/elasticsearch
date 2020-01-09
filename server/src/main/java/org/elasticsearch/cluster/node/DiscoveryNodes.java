@@ -317,6 +317,24 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return nodes.get(resolvedNodeIds[0]);
     }
 
+    public static class NodeResolutionResults {
+        private String[] resolvedNodes;
+        private String[] unresolvedNodes;
+
+        public NodeResolutionResults(String[] resolvedNodes, String[] unresolvedNodes) {
+            this.resolvedNodes = resolvedNodes;
+            this.unresolvedNodes = unresolvedNodes;
+        }
+
+        public String[] getResolvedNodes() {
+            return resolvedNodes;
+        }
+
+        public String[] getUnresolvedNodes() {
+            return unresolvedNodes;
+        }
+    }
+
     /**
      * resolves a set of node "descriptions" to concrete and existing node ids. "descriptions" can be (resolved in this order):
      * - "_local" or "_master" for the relevant nodes
@@ -326,60 +344,76 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *   or a generic node attribute name in which case value will be treated as a wildcard and matched against the node attribute values.
      */
     public String[] resolveNodes(String... nodes) {
+        return resolveNodes(nodes, false).getResolvedNodes();
+    }
+
+    public NodeResolutionResults resolveNodes(String[] nodes, boolean returnUnresolved) {
         if (nodes == null || nodes.length == 0) {
-            return StreamSupport.stream(this.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
+            return new NodeResolutionResults(StreamSupport.stream(this.spliterator(), false)
+                                                            .map(DiscoveryNode::getId).toArray(String[]::new), new String[0]);
         } else {
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
-            for (String nodeId : nodes) {
-                if (nodeId.equals("_local")) {
+            ObjectHashSet<String> unresolvedNodesIds = new ObjectHashSet<>();
+            boolean nodeIdResolved = false;
+
+            for (String nodeIdToBeProcessed : nodes) {
+                if (nodeIdToBeProcessed.equals("_local")) {
                     String localNodeId = getLocalNodeId();
                     if (localNodeId != null) {
                         resolvedNodesIds.add(localNodeId);
+                        nodeIdResolved = true;
                     }
-                } else if (nodeId.equals("_master")) {
+                } else if (nodeIdToBeProcessed.equals("_master")) {
                     String masterNodeId = getMasterNodeId();
                     if (masterNodeId != null) {
                         resolvedNodesIds.add(masterNodeId);
+                        nodeIdResolved = true;
                     }
-                } else if (nodeExists(nodeId)) {
-                    resolvedNodesIds.add(nodeId);
+                } else if (nodeExists(nodeIdToBeProcessed)) {
+                    resolvedNodesIds.add(nodeIdToBeProcessed);
+                    nodeIdResolved = true;
                 } else {
                     for (DiscoveryNode node : this) {
-                        if ("_all".equals(nodeId)
-                                || Regex.simpleMatch(nodeId, node.getName())
-                                || Regex.simpleMatch(nodeId, node.getHostAddress())
-                                || Regex.simpleMatch(nodeId, node.getHostName())) {
+                        if ("_all".equals(nodeIdToBeProcessed)
+                            || Regex.simpleMatch(nodeIdToBeProcessed, node.getName())
+                            || Regex.simpleMatch(nodeIdToBeProcessed, node.getHostAddress())
+                            || Regex.simpleMatch(nodeIdToBeProcessed, node.getHostName())) {
                             resolvedNodesIds.add(node.getId());
+                            nodeIdResolved = true;
                         }
                     }
-                    int index = nodeId.indexOf(':');
+                    int index = nodeIdToBeProcessed.indexOf(':');
                     if (index != -1) {
-                        String matchAttrName = nodeId.substring(0, index);
-                        String matchAttrValue = nodeId.substring(index + 1);
+                        String matchAttrName = nodeIdToBeProcessed.substring(0, index);
+                        String matchAttrValue = nodeIdToBeProcessed.substring(index + 1);
                         if (DiscoveryNodeRole.DATA_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(dataNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
+                            nodeIdResolved = true;
                         } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(masterNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(masterNodes.keys());
                             }
+                            nodeIdResolved = true;
                         } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(ingestNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(ingestNodes.keys());
                             }
+                            nodeIdResolved = true;
                         } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
                             } else {
                                 resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
                             }
+                            nodeIdResolved = true;
                         } else {
                             for (DiscoveryNode node : this) {
                                 for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
@@ -389,6 +423,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                         } else {
                                             resolvedNodesIds.remove(node.getId());
                                         }
+                                        nodeIdResolved = true;
                                     }
                                 }
                             }
@@ -398,14 +433,19 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                     String attrValue = entry.getValue();
                                     if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
                                         resolvedNodesIds.add(node.getId());
+                                        nodeIdResolved = true;
                                     }
                                 }
                             }
                         }
                     }
                 }
+
+                if(!nodeIdResolved) {
+                    unresolvedNodesIds.add(nodeIdToBeProcessed);
+                }
             }
-            return resolvedNodesIds.toArray(String.class);
+            return new NodeResolutionResults(resolvedNodesIds.toArray(String.class), unresolvedNodesIds.toArray(String.class));
         }
     }
 

@@ -243,42 +243,19 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
                 contains(otherNode1Exclusion));
     }
 
-    public void testReturnsErrorIfNoMatchingNodes() throws InterruptedException {
+    public void testMatchesAbsentNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
         transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[]{"not-a-node"}),
-            expectError(e -> {
-                exceptionHolder.set(e);
+            new AddVotingConfigExclusionsRequest(new String[]{"absent_node"}),
+            expectSuccess(e -> {
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        final Throwable rootCause = exceptionHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-        assertThat(rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes"));
-    }
-
-    public void testOnlyMatchesMasterEligibleNodes() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
-
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[]{"_all", "master:false"}),
-            expectError(e -> {
-                exceptionHolder.set(e);
-                countDownLatch.countDown();
-            })
-        );
-
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        final Throwable rootCause = exceptionHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-        assertThat(rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [_all, master:false] matched no master-eligible nodes"));
+        assertEquals(Set.of(new VotingConfigExclusion("absent_node")),
+                    clusterService.getClusterApplierService().state().getVotingConfigExclusions());
     }
 
     public void testSucceedsEvenIfAllExclusionsAlreadyAdded() throws InterruptedException {

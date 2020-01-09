@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -72,16 +74,22 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     Set<VotingConfigExclusion> resolveVotingConfigExclusions(ClusterState currentState) {
         final DiscoveryNodes allNodes = currentState.nodes();
-        final Set<VotingConfigExclusion> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
-                .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
+        final DiscoveryNodes.NodeResolutionResults nodeResolutionResults = allNodes.resolveNodes(nodeDescriptions, true);
 
-        if (resolvedNodes.isEmpty()) {
+        final Set<VotingConfigExclusion> resolvedNodes = Arrays.stream(nodeResolutionResults.getResolvedNodes())
+                .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
+        final Set<VotingConfigExclusion> unresolvedNodes = Arrays.stream(nodeResolutionResults.getUnresolvedNodes())
+                .map(VotingConfigExclusion::new).collect(Collectors.toSet());
+
+        Set<VotingConfigExclusion> allProcessedNodes = Sets.newHashSet(Iterables.concat(resolvedNodes, unresolvedNodes));
+
+        if (allProcessedNodes.isEmpty()) {
             throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
-                + " matched no master-eligible nodes");
+                + " matched no master-eligible nodes or absent nodes");
         }
 
-        resolvedNodes.removeIf(n -> currentState.getVotingConfigExclusions().contains(n));
-        return resolvedNodes;
+        allProcessedNodes.removeIf(n -> currentState.getVotingConfigExclusions().contains(n));
+        return allProcessedNodes;
     }
 
     Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(ClusterState currentState, int maxExclusionsCount,

@@ -136,7 +136,7 @@ public class CreateIndexRequestBuilder
      * ("field1", "type=string,store=true").
      */
     public CreateIndexRequestBuilder setMapping(Object... source) {
-        request.mappingFromSimplifiedDef(source);
+        request.simpleMapping(source);
         return this;
     }
 

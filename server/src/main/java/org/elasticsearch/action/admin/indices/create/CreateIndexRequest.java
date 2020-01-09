@@ -253,7 +253,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public CreateIndexRequest mappingFromSimplifiedDef(Object... source) {
+    public CreateIndexRequest simpleMapping(Object... source) {
         mapping(PutMappingRequest.buildFromSimplifiedDef(MapperService.SINGLE_MAPPING_NAME, source));
         return this;
     }

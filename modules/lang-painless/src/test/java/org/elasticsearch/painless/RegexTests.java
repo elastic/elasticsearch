@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.script.ScriptException;
 
 import java.nio.CharBuffer;
@@ -99,10 +100,14 @@ public class RegexTests extends ScriptTestCase {
     }
 
     public void testReturnRegexFromFunction() {
-        assertEquals(true, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} m(true).matcher('foo').matches()"));
-        assertEquals(true, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} 'foo' ==~ m(true)"));
-        assertEquals(false, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} m(false).matcher('foo').matches()"));
-        assertEquals(false, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} 'foo' ==~ m(false)"));
+        //assertEquals(true, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} m(true).matcher('foo').matches()"));
+        //assertEquals(true, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} 'foo' ==~ m(true)"));
+        CompilerSettings settings = new CompilerSettings();
+        settings.setRegexesEnabled(true);
+        throw new IllegalArgumentException(Debugger.toString(PainlessExecuteAction.PainlessTestScript.class,
+                "Pattern m(boolean a) {a ? /foo/ : /bar/} m(false).matcher('foo').matches()", settings));
+        //assertEquals(false, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} m(false).matcher('foo').matches()"));
+        //assertEquals(false, exec("Pattern m(boolean a) {a ? /foo/ : /bar/} 'foo' ==~ m(false)"));
     }
 
     public void testCallMatcherDirectly() {

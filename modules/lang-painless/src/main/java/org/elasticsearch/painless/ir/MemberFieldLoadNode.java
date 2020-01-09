@@ -26,7 +26,7 @@ import org.elasticsearch.painless.symbol.ScopeTable;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
-public class MemberFieldNode extends ExpressionNode {
+public class MemberFieldLoadNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
@@ -50,10 +50,6 @@ public class MemberFieldNode extends ExpressionNode {
     }
 
     /* ---- end node data ---- */
-
-    public MemberFieldNode() {
-        // do nothing
-    }
 
     @Override
     public void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {

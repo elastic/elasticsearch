@@ -42,9 +42,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-
 /**
  * Deletes all model snapshots that have expired the configured retention time
  * of their respective job with the exception of the currently used snapshot.
@@ -109,19 +106,19 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
-                ActionListener.<SearchResponse>wrap(
-                        response -> {
-                            SearchHit[] hits = response.getHits().getHits();
-                            if (hits.length == 0) {
-                                // no snapshots found
-                                listener.onResponse(null);
-                            } else {
-                                ModelSnapshot snapshot = ModelSnapshot.fromJson(hits[0].getSourceRef());
-                                listener.onResponse(snapshot.getTimestamp().getTime());
-                            }
-                        }, listener::onFailure
-                ), client::search);
+        client.search(searchRequest, ActionListener.wrap(
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    if (hits.length == 0) {
+                        // no snapshots found
+                        listener.onResponse(null);
+                    } else {
+                        ModelSnapshot snapshot = ModelSnapshot.fromJson(hits[0].getSourceRef());
+                        listener.onResponse(snapshot.getTimestamp().getTime());
+                    }
+                },
+                listener::onFailure)
+        );
     }
 
     @Override

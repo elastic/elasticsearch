@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -53,9 +52,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Removes all results that have expired the configured retention time
@@ -162,26 +158,25 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
-                ActionListener.<SearchResponse>wrap(
-                        response -> {
-                            SearchHit[] hits = response.getHits().getHits();
-                            if (hits.length == 0) {
-                                // no buckets found
-                                listener.onResponse(null);
-                            } else {
+        client.search(searchRequest, ActionListener.wrap(
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    if (hits.length == 0) {
+                        // no buckets found
+                        listener.onResponse(null);
+                    } else {
 
-                                try (InputStream stream = hits[0].getSourceRef().streamInput();
-                                     XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                                    Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
-                                    listener.onResponse(bucket.getTimestamp().getTime());
-                                } catch (IOException e) {
-                                    listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
-                                }
-                            }
-                        }, listener::onFailure
-                ), client::search);
+                        try (InputStream stream = hits[0].getSourceRef().streamInput();
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                            Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
+                            listener.onResponse(bucket.getTimestamp().getTime());
+                        } catch (IOException e) {
+                            listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
+                        }
+                    }
+                }, listener::onFailure
+        ));
     }
 
     private void auditResultsWereDeleted(String jobId, long cutoffEpochMs) {

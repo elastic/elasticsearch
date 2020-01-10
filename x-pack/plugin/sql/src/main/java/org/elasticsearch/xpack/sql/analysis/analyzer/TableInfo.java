@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.xpack.sql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 
 public class TableInfo {
 

@@ -252,7 +252,7 @@ public interface SearchPlugin {
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
-        private Consumer<ValuesSourceRegistry> registerAggregators;
+        private Consumer<ValuesSourceRegistry> aggregatorRegistrar;
 
         /**
          * Specification for an {@link Aggregation}.
@@ -308,16 +308,16 @@ public interface SearchPlugin {
          * Get the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
          * this aggregation
          */
-        public Consumer<ValuesSourceRegistry> getRegisterAggregators() {
-            return registerAggregators;
+        public Consumer<ValuesSourceRegistry> getAggregatorRegistrar() {
+            return aggregatorRegistrar;
         }
 
         /**
          * Set the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
          * this aggregation
          */
-        public AggregationSpec setRegisterAggregators(Consumer<ValuesSourceRegistry> registerAggregators) {
-            this.registerAggregators = registerAggregators;
+        public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry> aggregatorRegistrar) {
+            this.aggregatorRegistrar = aggregatorRegistrar;
             return this;
         }
     }

@@ -402,7 +402,7 @@ public class SearchModule {
                 IpRangeAggregationBuilder::parse).addResultReader(InternalBinaryRange::new));
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,
                 HistogramAggregationBuilder::parse).addResultReader(InternalHistogram::new)
-            .setRegisterAggregators(HistogramAggregationBuilder::registerAggregators));
+            .setAggregatorRegistrar(HistogramAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder::new,
                 DateHistogramAggregationBuilder::parse).addResultReader(InternalDateHistogram::new));
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
@@ -442,7 +442,7 @@ public class SearchModule {
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
             namedWriteables.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, writeableName, internalReader));
         }
-        Consumer<ValuesSourceRegistry> register = spec.getRegisterAggregators();
+        Consumer<ValuesSourceRegistry> register = spec.getAggregatorRegistrar();
         if (register != null) {
             register.accept(ValuesSourceRegistry.getInstance());
         }

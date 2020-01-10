@@ -27,7 +27,7 @@
 "Test get models":
   - do:
       ml.put_trained_model:
-        model_id: regression-model-0
+        model_id: a-regression-model-0
         body: >
           {
             "description": "empty model for tests",
@@ -45,11 +45,11 @@
                }
             }
           }
-  - match: { model_id: "regression-model-0" }
+  - match: { model_id: "a-regression-model-0" }
 
   - do:
       ml.put_trained_model:
-        model_id: regression-model-1
+        model_id: a-regression-model-1
         body: >
           {
             "description": "empty model for tests",
@@ -67,11 +67,11 @@
                }
             }
           }
-  - match: { model_id: "regression-model-1" }
+  - match: { model_id: "a-regression-model-1" }
 
   - do:
       ml.put_trained_model:
-        model_id: classification-model
+        model_id: a-classification-model
         body: >
           {
             "description": "empty model for tests",
@@ -90,39 +90,39 @@
                }
             }
           }
-  - match: { model_id: "classification-model" }
+  - match: { model_id: "a-classification-model" }
 
   - do:
       ml.get_trained_models:
         model_id: "*"
-  - match: { count: 3 }
-  - match: { trained_model_configs.0.model_id: "classification-model" }
-  - match: { trained_model_configs.1.model_id: "regression-model-0" }
-  - match: { trained_model_configs.2.model_id: "regression-model-1" }
+  - match: { count: 4 }
+  - match: { trained_model_configs.0.model_id: "a-classification-model" }
+  - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
+  - match: { trained_model_configs.2.model_id: "a-regression-model-1" }
 
   - do:
       ml.get_trained_models:
-        model_id: "regression*"
+        model_id: "a-regression*"
   - match: { count: 2 }
-  - match: { trained_model_configs.0.model_id: "regression-model-0" }
-  - match: { trained_model_configs.1.model_id: "regression-model-1" }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+  - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
 
   - do:
       ml.get_trained_models:
         model_id: "*"
         from: 0
         size: 2
-  - match: { count: 3 }
-  - match: { trained_model_configs.0.model_id: "classification-model" }
-  - match: { trained_model_configs.1.model_id: "regression-model-0" }
+  - match: { count: 4 }
+  - match: { trained_model_configs.0.model_id: "a-classification-model" }
+  - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
 
   - do:
       ml.get_trained_models:
         model_id: "*"
         from: 1
         size: 1
-  - match: { count: 3 }
-  - match: { trained_model_configs.0.model_id: "regression-model-0" }
+  - match: { count: 4 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
 ---
 "Test delete given unused trained model":
   - do:

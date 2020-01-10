@@ -35,8 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testFollowIndex() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(2, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(2, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
@@ -104,7 +103,6 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();

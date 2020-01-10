@@ -60,7 +60,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollow() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -94,7 +93,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -133,7 +131,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowManyIndices() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -215,7 +212,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowParameterAreDelegated() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -318,7 +314,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testConflictingPatterns() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -362,12 +357,12 @@ public class AutoFollowIT extends CcrIntegTestCase {
         putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
 
         // Soft deletes are disabled:
-        Settings leaderIndexSettings = Settings.builder()
+        Settings.Builder leaderIndexSettings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
-        createLeaderIndex("logs-20200101", leaderIndexSettings);
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+
+        createLeaderIndex("logs-20200101", leaderIndexSettings.build());
         assertBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
@@ -381,11 +376,9 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // Soft deletes are enabled:
         leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
-        createLeaderIndex("logs-20200102", leaderIndexSettings);
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+        createLeaderIndex("logs-20200102", leaderIndexSettings.build());
         assertBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
@@ -395,7 +388,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testPauseAndResumeAutoFollowPattern() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
@@ -465,7 +457,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testPauseAndResumeWithMultipleAutoFollowPatterns() throws Exception {
         final Settings leaderIndexSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();

@@ -133,15 +133,15 @@ selected nodes.
 
 `indices.docs.count`::
 (integer)
-Number of non-deleted documents in total across all primary shards assigned to
-the selected nodes.
+Total number of non-deleted documents across all primary shards assigned to the
+selected nodes.
 +
 This number is based on documents in Lucene segments and may include documents
 from nested fields.
 
 `indices.docs.deleted`::
 (integer)
-Number of deleted documents in total across all primary shards assigned to the
+Total number of deleted documents across all primary shards assigned to the
 selected nodes.
 +
 This number is based on documents in Lucene segments. {es} reclaims the disk

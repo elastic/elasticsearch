@@ -268,11 +268,12 @@ across all selected nodes.
 
 `indices.segments.points_memory`::
 (<<byte-units, byte units>>)
-Size of points in segments.
+Total amount of memory used for points on all shards across all selected nodes.
 
 `indices.segments.points_memory_in_bytes`::
 (integer)
-Size, in bytes, of points in segments.
+Total amount, in bytes, of memory used for points on all shards across all
+selected nodes.
 
 `indices.segments.doc_values_memory`::
 (<<byte-units, byte units>>)

@@ -73,68 +73,68 @@ See <<cluster-health>>.
 
 `indices.count`::
 (integer)
-Total number of indices in the selected nodes.
+Total number of indices with shards assigned to selected nodes.
 
 `indices.shards.total`::
 (integer)
-Total number of shards assigned to the selected nodes.
+Total number of shards assigned to selected nodes.
 
 `indices.shards.primaries`::
 (integer)
-Number of primary shards assigned to the selected nodes.
+Number of primary shards assigned to selected nodes.
 
 `indices.shards.replication`::
 (integer)
-Ratio of replica shards to primary shards across the selected nodes.
+Ratio of replica shards to primary shards across all selected nodes.
 
 `indices.shards.index.shards.min`::
 (integer)
-Minimum number of shards in an index, counting only shards assigned to the
+Minimum number of shards in an index, counting only shards assigned to
 selected nodes.
 
 `indices.shards.index.shards.max`::
 (integer)
-Maximum number of shards in an index, counting only shards assigned to the
+Maximum number of shards in an index, counting only shards assigned to
 selected nodes.
 
 `indices.shards.index.shards.avg`::
 (integer)
-Mean number of shards in an index, counting only the shards assigned to the
+Mean number of shards in an index, counting only shards assigned to
 selected nodes.
 
 `indices.shards.index.primaries.min`::
 (integer)
-Minimum number of primary shards in an index, counting only the shards assigned
-to the selected nodes.
+Minimum number of primary shards in an index, counting only shards assigned
+to selected nodes.
 
 `indices.shards.index.primaries.max`::
 (integer)
-Maximum number of primary shards in an index, counting only the shards assigned
-to the selected nodes.
+Maximum number of primary shards in an index, counting only shards assigned
+to selected nodes.
 
 `indices.shards.index.primaries.avg`::
 (integer)
-Mean number of primary shards in an index, counting only the shards assigned to
-the selected nodes.
+Mean number of primary shards in an index, counting only shards assigned to
+selected nodes.
 
 `indices.shards.index.replication.min`::
 (integer)
-Minimum replication factor in an index, counting only the shards assigned to the
+Minimum replication factor in an index, counting only shards assigned to
 selected nodes.
 
 `indices.shards.index.replication.max`::
 (integer)
-Maximum replication factor in an index, counting only the shards assigned to the
+Maximum replication factor in an index, counting only shards assigned to
 selected nodes.
 
 `indices.shards.index.replication.avg`::
 (integer)
-Mean replication factor in an index, counting only the shards assigned to the
-selected nodes.
+Mean replication factor in an index, counting only shards assigned to selected
+nodes.
 
 `indices.docs.count`::
 (integer)
-Total number of non-deleted documents across all primary shards assigned to the
+Total number of non-deleted documents across all primary shards assigned to
 selected nodes.
 +
 This number is based on documents in Lucene segments and may include documents
@@ -142,7 +142,7 @@ from nested fields.
 
 `indices.docs.deleted`::
 (integer)
-Total number of deleted documents across all primary shards assigned to the
+Total number of deleted documents across all primary shards assigned to
 selected nodes.
 +
 This number is based on documents in Lucene segments. {es} reclaims the disk
@@ -150,30 +150,30 @@ space of deleted Lucene documents when a segment is merged.
 
 `indices.store.size`::
 (<<byte-units, byte units>>)
-Total size of all shards across the selected nodes.
+Total size of all shards across selected nodes.
 
 `indices.store.size_in_bytes`::
 (integer)
-Total size, in bytes, of all shards across the selected nodes.
+Total size, in bytes, of all shards across selected nodes.
 
 `indices.fielddata.memory_size`::
 (<<byte-units, byte units>>)
-Total size of the memory used for field data cache on all shards across the
+Total size of the memory used for field data cache on all shards across
 selected nodes.
 
 `indices.fielddata.memory_size_in_bytes`::
 (integer)
 Total size, in bytes, of the memory used for field data cache on all shards
-across the selected nodes.
+across selected nodes.
 
 `indices.fielddata.evictions`::
 (integer)
-Total number of evictions from the field data cache on all shards across the
+Total number of evictions from the field data cache on all shards across
 selected nodes.
 
 `indices.query_cache.memory_size`::
 (<<byte-units, byte units>>)
-Total memory used for the query cache on all shards across all selected nodes.
+Total memory used for the query cache on all shards across selected nodes.
 
 `indices.query_cache.memory_size_in_bytes`::
 (integer)
@@ -195,12 +195,12 @@ Total count of query cache misses on all shards across all selected nodes.
 
 `indices.query_cache.cache_size`::
 (integer)
-Total number of entries _currently_ in the query cache on all shards across all
+Total number of entries currently in the query cache on all shards across all
 selected nodes.
 
 `indices.query_cache.cache_count`::
 (integer)
-Total number of entries _ever_ added to the query cache on all shards across all
+Total number of entries ever added to the query cache on all shards across all
 selected nodes.
 
 `indices.query_cache.evictions`::

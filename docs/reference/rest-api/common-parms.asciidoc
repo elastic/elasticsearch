@@ -101,8 +101,8 @@ end::bytes[]
 
 tag::cluster-health-status[]
 (string)
-Health status of the cluster based on the state of its
-primary and replica shards. Statuses are:
+Health status of the cluster, based on the state of its primary and replica
+shards. Statuses are:
 
   `green`:::
   All shards are assigned.

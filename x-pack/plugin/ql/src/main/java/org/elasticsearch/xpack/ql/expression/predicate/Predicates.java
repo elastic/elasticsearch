@@ -112,8 +112,4 @@ public abstract class Predicates {
         }
         return diff.isEmpty() ? emptyList() : diff;
     }
-
-    //    public static boolean canEvaluate(Expression exp, LogicalPlan plan) {
-    //        return exp.references().subsetOf(plan.outputSet());
-    //    }
 }

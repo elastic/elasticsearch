@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.ql.util;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 /**
- * Utility class used for checking various conditions at runtime, inside SQL (hence the specific exception) with
- * minimum amount of code
+ * Utility class used for checking various conditions at runtime, with minimum amount of code.
  */
 public abstract class Check {
 

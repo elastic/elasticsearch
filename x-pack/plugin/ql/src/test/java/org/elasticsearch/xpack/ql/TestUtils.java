@@ -17,10 +17,10 @@ public final class TestUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
 
+    public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
+
     private TestUtils() {}
 
-    public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
-    
     public static Configuration randomConfiguration() {
         return new Configuration(randomZone(),
                 randomAlphaOfLength(10),

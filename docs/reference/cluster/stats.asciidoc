@@ -307,12 +307,14 @@ all selected nodes.
 
 `indices.segments.fixed_bit_set_memory`::
 (<<byte-units, byte units>>)
-Memory used by fixed bit sets for nested object field types and type
-filters for <<parent-join,join>> fields.
+Total amount of memory used by fixed bit sets for nested object field types and
+type filters for <<parent-join,join>> fields on all shards across all selected
+nodes.
 
 `indices.segments.fixed_bit_set_memory_in_bytes`::
 (integer)
-Memory, in bytes, used by fixed bit sets.
+Total amount of memory, in bytes, used by fixed bit sets  on all shards across
+all selected nodes.
 
 `indices.segments.max_unsafe_auto_id_timestamp`::
 (integer)

@@ -36,7 +36,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-filter]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 [[cluster-stats-api-response-body]]
 ==== {api-response-body-title}

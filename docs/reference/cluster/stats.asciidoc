@@ -108,7 +108,8 @@ to the selected nodes.
 
 `indices.shards.index.primaries.max`::
 (integer)
-Highest historic number of primary shards for the cluster.
+Maximum number of primary shards in an index, counting only the shards assigned
+to the selected nodes.
 
 `indices.shards.index.primaries.avg`::
 (integer)

@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractorTests;
 import org.elasticsearch.xpack.sql.session.Cursors;
 

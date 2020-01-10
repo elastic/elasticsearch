@@ -12,13 +12,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;

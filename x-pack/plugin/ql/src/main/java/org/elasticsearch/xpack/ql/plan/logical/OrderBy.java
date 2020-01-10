@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ql.plan.logical;
 
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+
+import java.util.List;
+import java.util.Objects;
 
 public class OrderBy extends UnaryPlan {
 

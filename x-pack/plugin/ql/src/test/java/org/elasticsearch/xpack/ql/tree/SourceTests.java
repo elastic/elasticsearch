@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ql.tree;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;

@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+
+import java.util.List;
+import java.util.Objects;
 
 public class ProjectExec extends UnaryExec implements Unexecutable {
 

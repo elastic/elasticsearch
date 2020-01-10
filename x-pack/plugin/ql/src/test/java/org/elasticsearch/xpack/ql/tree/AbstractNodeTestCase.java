@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ql.tree;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.ql.tree.Node;
 
 /**
  * Superclass for tests of subclasses of {@link Node}.

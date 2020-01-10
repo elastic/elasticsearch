@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Arrays;

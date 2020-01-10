@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ql.rule;
 
-import java.util.function.UnaryOperator;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Rules that apply transformation to a tree. In addition, performs

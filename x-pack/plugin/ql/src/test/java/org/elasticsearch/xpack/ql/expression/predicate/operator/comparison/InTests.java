@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 
 import java.util.Arrays;
 

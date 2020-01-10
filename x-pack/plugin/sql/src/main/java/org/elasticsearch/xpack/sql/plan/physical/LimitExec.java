@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+
+import java.util.Objects;
 
 public class LimitExec extends UnaryExec implements Unexecutable {
 

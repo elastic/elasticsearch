@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.fulltext;
 
-import java.util.Map;
-import java.util.List;
-
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 

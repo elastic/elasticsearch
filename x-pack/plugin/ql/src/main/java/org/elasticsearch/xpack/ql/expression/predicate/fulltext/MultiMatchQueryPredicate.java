@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.fulltext;
 
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import static java.util.Collections.emptyList;
-
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static java.util.Collections.emptyList;
 
 public class MultiMatchQueryPredicate extends FullTextPredicate {
 

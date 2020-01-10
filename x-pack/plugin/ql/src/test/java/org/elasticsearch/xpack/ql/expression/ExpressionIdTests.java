@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.NameId;
 
 import java.util.concurrent.atomic.AtomicLong;
 

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.Nullability;
 
 import static org.elasticsearch.xpack.ql.expression.Nullability.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Nullability.TRUE;

@@ -122,7 +122,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             if (metrics.contains(Defaults.DEFAULT_METRIC.value())) {
                 return Defaults.DEFAULT_METRIC;
             }
-            throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC.getPreferredName() + "] must be set.");
+            throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC.getPreferredName()
+                + "] must be set for field [" + name() + "].");
         }
 
         public AggregateDoubleMetricFieldMapper.Builder metrics(EnumSet<Metric> metrics) {
@@ -140,6 +141,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public AggregateDoubleMetricFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+
+            if (metrics == null || metrics.isEmpty()) {
+                throw new IllegalArgumentException("Property [" + Names.METRICS.getPreferredName()
+                    + "] must be set for field [" + name() + "].");
+            }
 
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
             // Instantiate one NumberFieldMapper instance for each metric

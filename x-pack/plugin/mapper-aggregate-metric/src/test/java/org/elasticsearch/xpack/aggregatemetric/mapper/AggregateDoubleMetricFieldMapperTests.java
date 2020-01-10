@@ -72,6 +72,25 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     }
 
     /**
+     * Test parsing field mapping and adding simple field
+     */
+    public void testInvalidMapping() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties").startObject("metric")
+            .field("type", CONTENT_TYPE)
+            .endObject().endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), containsString("Property [metrics] must be set for field [metric]."));
+    }
+
+    /**
      * Test parsing an aggregate_metric field that contains no values
      */
     public void testParseEmptyValue() throws Exception {
@@ -524,7 +543,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> createIndex("test").mapperService().documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping)));
-        assertThat(e.getMessage(), containsString("Property [default_metric] must be set"));
+        assertThat(e.getMessage(), containsString("Property [default_metric] must be set for field [metric]."));
     }
 
     /**

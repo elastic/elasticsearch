@@ -80,7 +80,7 @@ Total number of shards assigned to the selected nodes.
 
 `indices.shards.primaries`::
 (integer)
-Number of primary shards.
+Number of primary shards assigned to the selected nodes.
 
 `indices.shards.replication`::
 (integer)

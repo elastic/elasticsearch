@@ -1109,12 +1109,12 @@ See <<ml-get-bucket>>,
 
 See <<snapshot-restore>>.
 
-[role="exclude", id="_read_only_url_repository"
+[role="exclude", id="_read_only_url_repository"]
 ==== Read only URL repository
 
 See <<snapshots-read-only-repository>>.
 
-[role="exclude", id="_repository_plugins"
+[role="exclude", id="_repository_plugins"]
 ==== Repository plugins
 
 See <<snapshots-repository-plugins>>.

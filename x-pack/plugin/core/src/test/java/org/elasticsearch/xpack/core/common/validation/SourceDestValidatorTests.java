@@ -41,7 +41,9 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Remote
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +54,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_IN_SOURCE_VALIDATION;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_SINGLE_INDEX_VALIDATION;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_SOURCE_VALIDATION;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SOURCE_MISSING_VALIDATION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.spy;
 
@@ -67,6 +73,14 @@ public class SourceDestValidatorTests extends ESTestCase {
     private static final String REMOTE_PLATINUM = "remote-platinum";
 
     private static final ClusterState CLUSTER_STATE;
+
+    private static final List<SourceDestValidator.SourceDestValidation> TEST_VALIDATIONS = Arrays.asList(
+        SOURCE_MISSING_VALIDATION,
+        DESTINATION_IN_SOURCE_VALIDATION,
+        DESTINATION_SINGLE_INDEX_VALIDATION,
+        REMOTE_SOURCE_VALIDATION
+    );
+
     private Client clientWithBasicLicense;
     private Client clientWithExpiredBasicLicense;
     private Client clientWithPlatinumLicense;
@@ -184,13 +198,13 @@ public class SourceDestValidatorTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() throws InterruptedException {
+    public void testValidate_GivenSimpleSourceIndexAndValidDestIndex() throws InterruptedException {
         assertValidation(
             listener -> simpleNonRemoteValidator.validate(
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 "dest",
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             true,
@@ -204,7 +218,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] {},
                 "dest",
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -221,7 +235,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "missing" },
                 "dest",
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -236,7 +250,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "missing" },
                 "dest",
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
             true,
@@ -250,7 +264,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "missing" },
                 "dest",
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -265,7 +279,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "missing" },
                 "dest",
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
             true,
@@ -279,7 +293,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "wildcard*", "missing" },
                 "dest",
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -294,7 +308,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "wildcard*", "missing" },
                 "dest",
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
             true,
@@ -308,7 +322,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "wildcard*" },
                 "dest",
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             true,
@@ -322,7 +336,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -340,7 +354,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1,
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
             true,
@@ -354,7 +368,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-*" },
                 SOURCE_2,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -372,7 +386,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-*" },
                 SOURCE_2,
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
             true,
@@ -386,7 +400,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-1", "source-*" },
                 SOURCE_2,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -404,7 +418,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-1", "source-*" },
                 SOURCE_2,
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
             true,
@@ -418,7 +432,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-1", "source-*", "sou*" },
                 SOURCE_2,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -442,7 +456,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 DEST_ALIAS,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -464,21 +478,11 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 DEST_ALIAS,
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
-            (Boolean) null,
-            e -> {
-                assertEquals(1, e.validationErrors().size());
-                assertThat(
-                    e.validationErrors().get(0),
-                    equalTo(
-                        "no write index is defined for alias [dest-alias]. "
-                            + "The write index may be explicitly disabled using is_write_index=false or the alias points "
-                            + "to multiple indices without one being designated as a write index"
-                    )
-                );
-            }
+            true,
+            null
         );
     }
 
@@ -488,7 +492,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 ALIAS_READ_WRITE_DEST,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -514,7 +518,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1_ALIAS,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,
@@ -532,7 +536,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1_ALIAS,
-                SourceDestValidator.NON_DEFERABLE_VALIDATIONS,
+                Collections.emptyList(),
                 listener
             ),
             true,
@@ -546,7 +550,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "missing" },
                 SOURCE_1_ALIAS,
-                SourceDestValidator.ALL_VALIDATIONS,
+                TEST_VALIDATIONS,
                 listener
             ),
             (Boolean) null,

@@ -100,7 +100,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,ignore_malformed=true").get());
+            .setMapping("shape", "type=geo_shape,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -127,7 +127,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testMappingUpdate() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape").get());
+            .setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
         String update ="{\n" +

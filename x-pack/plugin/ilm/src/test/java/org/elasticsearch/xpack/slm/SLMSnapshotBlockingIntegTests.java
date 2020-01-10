@@ -425,7 +425,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final String policyName = "test-policy";
         int docCount = 20;
         for (int i = 0; i < docCount; i++) {
-            index(indexName, i + "", Collections.singletonMap("foo", "bar"));
+            index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
         }
 
         // Create a snapshot repo
@@ -468,7 +468,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                         .prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
-                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                    assertThat(snapshotsStatusResponse.getSnapshots(), empty());
                 } catch (SnapshotMissingException e) {
                     // This is what we want to happen
                 }

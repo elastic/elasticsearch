@@ -47,11 +47,12 @@ Total number of nodes selected by the request's node filters.
 
 `_nodes.successful`::
 (integer)
-Number of nodes that responded succesfully to the request.
+Number of nodes that responded successfully to the request.
 
 `_nodes.failed`::
 (integer)
-Number of nodes that failed to start.
+Number of nodes that rejected or timed out the request. If this value is not `0`,
+the failure reasonis included in the response.
 
 `cluster_name`::
 (string)

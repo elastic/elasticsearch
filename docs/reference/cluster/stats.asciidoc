@@ -149,7 +149,7 @@ space of deleted Lucene documents when a segment is merged.
 
 `indices.store.size`::
 (<<byte-units, byte units>>)
-Size of the indices store.
+Total size of all shards across the selected nodes.
 
 `indices.store.size_in_bytes`::
 (integer)

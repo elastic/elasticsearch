@@ -118,7 +118,8 @@ the selected nodes.
 
 `indices.shards.index.replication.min`::
 (integer)
-Lowest historic number of replica shards for the cluster.
+Minimum replication factor in an index, counting only the shards assigned to the
+selected nodes.
 
 `indices.shards.index.replication.max`::
 (integer)

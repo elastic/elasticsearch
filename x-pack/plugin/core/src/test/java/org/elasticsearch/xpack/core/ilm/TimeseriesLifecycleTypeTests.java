@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.codecs.Codec;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -35,8 +34,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final AllocateAction TEST_ALLOCATE_ACTION =
         new AllocateAction(2, Collections.singletonMap("node", "node1"),null, null);
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
-    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, Codec.getDefault());
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
+    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();

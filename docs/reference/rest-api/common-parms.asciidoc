@@ -114,8 +114,7 @@ primary and replica shards. Statuses are:
 
   `red`:::
   One or more primary shards are unassigned, so some data is unavailable. This
-  can occur briefly during cluster startup as primary shards are assigned during
-  cluster startup.
+  can occur briefly during cluster startup as primary shards are assigned.
 end::cluster-health-status[]
 
 tag::committed[]

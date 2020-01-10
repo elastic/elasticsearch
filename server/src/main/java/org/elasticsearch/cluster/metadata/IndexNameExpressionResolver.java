@@ -670,8 +670,9 @@ public class IndexNameExpressionResolver {
         public List<String> resolve(Context context, List<String> expressions) {
             IndicesOptions options = context.getOptions();
             MetaData metaData = context.getState().metaData();
-            if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false &&
-                options.expandWildcardsHidden() == false) {
+            // only check open/closed since if we do not expand to open or closed it doesn't make sense to
+            // expand to hidden
+            if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
                 return expressions;
             }
 

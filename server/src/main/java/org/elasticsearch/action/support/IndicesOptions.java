@@ -30,10 +30,8 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -216,7 +214,12 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        return new IndicesOptions(in.readEnumSet(Option.class), in.readEnumSet(WildcardStates.class));
+        EnumSet<Option> options = in.readEnumSet(Option.class);
+        EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            states.add(WildcardStates.HIDDEN);
+        }
+        return new IndicesOptions(options, states);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
@@ -243,8 +246,8 @@ public class IndicesOptions implements ToXContentFragment {
                                              boolean expandToClosedIndices, boolean expandToHiddenIndices,
                                              boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases,
                                              boolean ignoreThrottled) {
-        final Set<Option> opts = new HashSet<>();
-        final Set<WildcardStates> wildcards = new HashSet<>();
+        final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
+        final EnumSet<WildcardStates> wildcards = EnumSet.noneOf(WildcardStates.class);
 
         if (ignoreUnavailable) {
             opts.add(Option.IGNORE_UNAVAILABLE);

@@ -258,11 +258,13 @@ all selected nodes.
 
 `indices.segments.norms_memory`::
 (<<byte-units, byte units>>)
-Size of normalization factors in segments.
+Total amount of memory used for normalization factors on all shards across all
+selected nodes.
 
 `indices.segments.norms_memory_in_bytes`::
 (integer)
-Size, in bytes, of normalization factors in segments.
+Total amount, in bytes, of memory used for normalization factors on all shards
+across all selected nodes.
 
 `indices.segments.points_memory`::
 (<<byte-units, byte units>>)

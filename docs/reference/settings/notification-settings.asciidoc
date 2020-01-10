@@ -117,7 +117,7 @@ can specify the following email account attributes:
   The SMTP server port to connect to. Defaults to 25.
 
   `smtp.user` (<<cluster-update-settings,Dynamic>>);;
-  The user name for SMTP. Required.
+  The user name for SMTP.
 
   `smtp.secure_password` (<<secure-settings,Secure>>);;
   The password for the specified SMTP user.

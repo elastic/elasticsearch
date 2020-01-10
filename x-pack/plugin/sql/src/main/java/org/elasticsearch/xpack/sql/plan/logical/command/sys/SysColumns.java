@@ -8,20 +8,20 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
@@ -31,8 +31,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataType.SHORT;
 
 /**
  * System command designed to be used by JDBC / ODBC for column metadata, such as
@@ -167,11 +167,11 @@ public class SysColumns extends Command {
                             null,
                             indexName,
                             name,
-                            odbcCompatible(type.sqlType.getVendorTypeNumber(), isOdbcClient),
+                            odbcCompatible(type.sqlType().getVendorTypeNumber(), isOdbcClient),
                             type.toString(),
                             type.displaySize,
                             // TODO: is the buffer_length correct?
-                            type.size,
+                            type.size(),
                             // no DECIMAL support
                             null,
                             odbcCompatible(DataTypes.metaSqlRadix(type), isOdbcClient),
@@ -186,7 +186,7 @@ public class SysColumns extends Command {
                             // SQL_DATETIME_SUB ?
                             odbcCompatible(DataTypes.metaSqlDateTimeSub(type), isOdbcClient),
                             // char octet length
-                            type.isString() || type == DataType.BINARY ? type.size : null,
+                            type.isString() || type == DataType.BINARY ? type.size() : null,
                             // position
                             (int) position.get(),
                             "YES",

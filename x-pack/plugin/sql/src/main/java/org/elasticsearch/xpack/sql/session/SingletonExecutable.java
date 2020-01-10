@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.util.Check;
 
@@ -35,7 +35,7 @@ public class SingletonExecutable implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<Page> listener) {
+    public void execute(Session session, ActionListener<Page> listener) {
         listener.onResponse(Page.last(Rows.singleton(output, values)));
     }
 

@@ -89,10 +89,10 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         aliasField = randomAlphaOfLength(4);
 
         docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                 queryField, "type=percolator", aliasField, "type=alias,path=" + queryField
         ))), MapperService.MergeReason.MAPPING_UPDATE);
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                 STRING_FIELD_NAME, "type=text"
         ))), MapperService.MergeReason.MAPPING_UPDATE);
     }

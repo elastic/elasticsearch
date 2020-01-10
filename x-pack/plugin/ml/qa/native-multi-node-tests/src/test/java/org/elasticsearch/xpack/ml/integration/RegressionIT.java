@@ -314,7 +314,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows) {
         client().admin().indices().prepareCreate(sourceIndex)
-            .addMapping("_doc", NUMERICAL_FEATURE_FIELD, "type=double", DEPENDENT_VARIABLE_FIELD, "type=double")
+            .setMapping(NUMERICAL_FEATURE_FIELD, "type=double", DEPENDENT_VARIABLE_FIELD, "type=double")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()

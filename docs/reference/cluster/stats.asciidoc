@@ -76,7 +76,7 @@ shards. Returned values include:
 
   `yellow`:::
   All primary shards are assigned, but one or more replica shards are
-  unassigned. If a node in the cluster fails, data could be lost.
+  unassigned. If a node in the cluster fails, some data could be unavailable until that node is repaired.
 
   `red`:::
   One or more primary shards are unassigned. This can occur briefly during

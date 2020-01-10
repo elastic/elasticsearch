@@ -276,8 +276,7 @@ public class TransportStartDataFrameAnalyticsAction
                 new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(startContext.config);
 
                 // Validate extraction is possible
-                boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
-                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, isTaskRestarting, ActionListener.wrap(
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, ActionListener.wrap(
                     extractedFieldsDetector -> {
                         startContext.extractedFields = extractedFieldsDetector.detect().v1();
                         toValidateDestEmptyListener.onResponse(startContext);

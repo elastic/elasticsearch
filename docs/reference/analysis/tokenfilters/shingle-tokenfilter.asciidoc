@@ -1,5 +1,8 @@
 [[analysis-shingle-tokenfilter]]
-=== Shingle Token Filter
+=== Shingle token filter
+++++
+<titleabbrev>Shingle</titleabbrev>
+++++
 
 NOTE: Shingles are generally used to help speed up phrase queries.  Rather
 than building filter chains by hand, you may find it easier to use the

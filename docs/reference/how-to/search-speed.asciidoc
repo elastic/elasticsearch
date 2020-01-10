@@ -31,7 +31,7 @@ If your search is CPU-bound, you should investigate buying faster CPUs.
 Documents should be modeled so that search-time operations are as cheap as possible.
 
 In particular, joins should be avoided. <<nested,`nested`>> can make queries
-several times slower and <<mapping-parent-field,parent-child>> relations can make
+several times slower and <<parent-join,parent-child>> relations can make
 queries hundreds of times slower. So if the same questions can be answered without
 joins by denormalizing documents, significant speedups can be expected.
 

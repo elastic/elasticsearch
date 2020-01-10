@@ -1334,11 +1334,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         // note that if there was no cluster state update between start of the engine of this shard and the call to
         // initializeWithPrimaryContext, we might still have missed a cluster state update. This is best effort.
         runAfter.run();
-
-        if (indexSettings.isSoftDeleteEnabled()) {
-            addPeerRecoveryRetentionLeaseForSolePrimary();
-        }
-
+        addPeerRecoveryRetentionLeaseForSolePrimary();
         assert invariant();
     }
 

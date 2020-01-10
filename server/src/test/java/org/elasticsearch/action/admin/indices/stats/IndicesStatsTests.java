@@ -59,7 +59,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         IndexModule.Type storeType = IndexModule.defaultStoreType(true);
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "keyword")
@@ -76,7 +76,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping)
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping)
             .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey())));
         ensureGreen("test");
         client().prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();

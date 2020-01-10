@@ -236,7 +236,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             mappings.addAll(Arrays.asList("nested", "type=nested", "incorrect", "type=object"));
         }
         if (mappings.isEmpty() == false) {
-            createIndexRequestBuilder.addMapping("_doc", mappings.toArray());
+            createIndexRequestBuilder.setMapping(mappings.toArray());
         }
         assertAcked(createIndexRequestBuilder);
         ensureGreen();

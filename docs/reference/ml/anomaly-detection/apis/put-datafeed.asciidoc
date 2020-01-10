@@ -96,8 +96,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 [[ml-put-datafeed-example]]
 ==== {api-examples-title}
 
-The following example creates the `datafeed-total-requests` {dfeed}:
-
 [source,console]
 --------------------------------------------------
 PUT _ml/datafeeds/datafeed-total-requests

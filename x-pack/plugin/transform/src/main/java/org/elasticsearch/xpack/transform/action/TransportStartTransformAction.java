@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -71,6 +72,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final Client client;
     private final TransformAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final IngestService ingestService;
 
     @Inject
     public TransportStartTransformAction(
@@ -83,7 +85,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
         Client client,
-        Settings settings
+        Settings settings,
+        IngestService ingestService
     ) {
         this(
             StartTransformAction.NAME,
@@ -96,7 +99,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             transformServices,
             persistentTasksService,
             client,
-            settings
+            settings,
+            ingestService
         );
     }
 
@@ -111,7 +115,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
         Client client,
-        Settings settings
+        Settings settings,
+        IngestService ingestService
     ) {
         super(
             name,
@@ -136,6 +141,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.ingestService = ingestService;
     }
 
     @Override
@@ -258,6 +264,16 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             }
             transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
             transformConfigHolder.set(config);
+            if (config.getDestination().getPipeline() != null) {
+                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                        RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+            }
 
             sourceDestValidator.validate(
                 clusterService.state(),

@@ -323,14 +323,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("template")) {
-                // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
-                if(entry.getValue() instanceof String) {
-                    deprecationLogger.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
-                    patterns(Collections.singletonList((String) entry.getValue()));
-                }
-            } else if (name.equals("index_patterns")) {
-                if(entry.getValue() instanceof String) {
+            if (name.equals("index_patterns")) {
+                if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());

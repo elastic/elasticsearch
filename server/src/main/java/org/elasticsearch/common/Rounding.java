@@ -164,6 +164,14 @@ public abstract class Rounding implements Writeable {
      */
     public abstract long nextRoundingValue(long value);
 
+    /**
+     * How "offset" this rounding is from the traditional "start" of the period.
+     * @deprecated We're in the process of abstracting offset *into* Rounding
+     *             so keep any usage to migratory shims
+     */
+    @Deprecated
+    public abstract long offset();
+
     @Override
     public abstract boolean equals(Object obj);
 
@@ -421,6 +429,11 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
+        public long offset() {
+            return 0;
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(unit, timeZone);
         }
@@ -547,6 +560,11 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
+        public long offset() {
+            return 0;
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(interval, timeZone);
         }
@@ -607,8 +625,12 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public long nextRoundingValue(long value) {
-            // This isn't needed by the current users. We'll implement it when we migrate other users to it.
-            throw new UnsupportedOperationException("not yet supported");
+            return delegate.nextRoundingValue(value - offset) + offset;
+        }
+
+        @Override
+        public long offset() {
+            return offset;
         }
 
         @Override

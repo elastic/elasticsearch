@@ -32,11 +32,13 @@ configuration and contains the following arguments:
 include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
 <1> The {infer} definition for the model
-<2> The unique model id
-<3> The input field names for the model definition
-<4> Optionally, a human-readable description
-<5> Optionally, an object map contain metadata about the model
-<6> Optionally, an array of tags to organize the model
+<2> Optionally, if the {infer} definition is large, you may choose to compress it for transport.
+    Do not supply both the compressed and uncompressed definitions.
+<3> The unique model id
+<4> The input field names for the model definition
+<5> Optionally, a human-readable description
+<6> Optionally, an object map contain metadata about the model
+<7> Optionally, an array of tags to organize the model
 
 include::../execution.asciidoc[]
 

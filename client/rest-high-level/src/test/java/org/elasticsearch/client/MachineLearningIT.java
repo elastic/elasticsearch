@@ -148,6 +148,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Recal
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
+import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
@@ -2193,6 +2194,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testPutTrainedModel() throws Exception {
         String modelId = "test-put-trained-model";
+        String modelIdCompressed = "test-put-trained-model-compressed-definition";
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
@@ -2208,6 +2210,30 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::putTrainedModelAsync);
         TrainedModelConfig createdModel = putTrainedModelResponse.getResponse();
         assertThat(createdModel.getModelId(), equalTo(modelId));
+
+        definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
+        trainedModelConfig = TrainedModelConfig.builder()
+            .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition))
+            .setModelId(modelIdCompressed)
+            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setDescription("test model")
+            .build();
+        putTrainedModelResponse = execute(new PutTrainedModelRequest(trainedModelConfig),
+            machineLearningClient::putTrainedModel,
+            machineLearningClient::putTrainedModelAsync);
+        createdModel = putTrainedModelResponse.getResponse();
+        assertThat(createdModel.getModelId(), equalTo(modelIdCompressed));
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest(modelIdCompressed).setDecompressDefinition(true).setIncludeDefinition(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(nullValue()));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(not(nullValue())));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdCompressed));
     }
 
     public void testGetTrainedModelsStats() throws Exception {

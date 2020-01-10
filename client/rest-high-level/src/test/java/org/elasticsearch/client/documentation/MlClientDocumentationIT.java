@@ -164,6 +164,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Recal
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
+import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
@@ -3631,13 +3632,23 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::put-trained-model-config
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition) // <1>
-            .setModelId("my-new-trained-model") // <2>
-            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <3>
-            .setDescription("test model") // <4>
-            .setMetadata(new HashMap<>()) // <5>
-            .setTags("my_regression_models") // <6>
+            .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition)) // <2>
+            .setModelId("my-new-trained-model") // <3>
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <4>
+            .setDescription("test model") // <5>
+            .setMetadata(new HashMap<>()) // <6>
+            .setTags("my_regression_models") // <7>
             .build();
         // end::put-trained-model-config
+
+        trainedModelConfig = TrainedModelConfig.builder()
+            .setDefinition(definition)
+            .setModelId("my-new-trained-model")
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4"))
+            .setDescription("test model")
+            .setMetadata(new HashMap<>())
+            .setTags("my_regression_models")
+            .build();
 
         RestHighLevelClient client = highLevelClient();
         {

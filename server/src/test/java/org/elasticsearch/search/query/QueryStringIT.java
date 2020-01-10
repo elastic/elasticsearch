@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -275,10 +274,7 @@ public class QueryStringIT extends ESIntegTestCase {
         builder.endObject(); // type1
         builder.endObject();
 
-        assertAcked(prepareCreate("toomanyfields")
-                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-                        CLUSTER_MAX_CLAUSE_COUNT + 100))
-                .addMapping("type1", builder));
+        assertAcked(prepareCreate("toomanyfields").addMapping("type1", builder));
 
         client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();
@@ -293,6 +289,35 @@ public class QueryStringIT extends ESIntegTestCase {
         assertThat(ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
                 containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
                         + (CLUSTER_MAX_CLAUSE_COUNT + 1)));
+    }
+
+    // The only expectation for this test is to not throw exception
+    public void testLimitOnExpandedFieldsButIgnoreUnmappedFields() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.startObject("type1");
+        builder.startObject("properties");
+        for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
+            builder.startObject("field" + i).field("type", "text").endObject();
+        }
+        builder.endObject(); // properties
+        builder.endObject(); // type1
+        builder.endObject();
+
+        assertAcked(prepareCreate("ignoreunmappedfields").addMapping("type1", builder));
+
+        client().prepareIndex("ignoreunmappedfields").setId("1").setSource("field1", "foo bar baz").get();
+        refresh();
+
+        QueryStringQueryBuilder qb = queryStringQuery("bar");
+        if (randomBoolean()) {
+            qb.field("*")
+                .field("unmappedField1")
+                .field("unmappedField2")
+                .field("unmappedField3")
+                .field("unmappedField4");
+        }
+        client().prepareSearch("ignoreunmappedfields").setQuery(qb).get();
     }
 
     public void testFieldAlias() throws Exception {

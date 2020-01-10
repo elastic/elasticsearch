@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -28,7 +26,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,12 +78,19 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         if (randomBoolean()) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
+        double[] thresholds = randomBoolean() ?
+            null :
+            Stream.generate(ESTestCase::randomDouble)
+                .limit(categoryLabels == null ? randomIntBetween(1, 10) : categoryLabels.size())
+                .mapToDouble(Double::valueOf)
+                .toArray();
 
         return new Ensemble(featureNames,
             models,
             outputAggregator,
             randomFrom(TargetType.values()),
-            categoryLabels);
+            categoryLabels,
+            thresholds);
     }
 
     @Override
@@ -101,17 +105,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
-        return new NamedXContentRegistry(namedXContent);
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 
     public void testEnsembleWithAggregatedOutputDifferingFromTrainedModels() {
@@ -262,34 +261,41 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
             .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}))
+            .setClassificationWeights(Arrays.asList(0.7, 0.3))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
         List<Double> expected = Arrays.asList(0.768524783, 0.231475216);
+        List<Double> scores   = Arrays.asList(0.230557435, 0.162032651);
         double eps = 0.000001;
         List<ClassificationInferenceResults.TopClassEntry> probabilities =
             ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getScore(), closeTo(scores.get(i), eps));
         }
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        expected = Arrays.asList(0.689974481, 0.3100255188);
+        expected = Arrays.asList(0.310025518, 0.6899744811);
+        scores   = Arrays.asList(0.217017863, 0.2069923443);
         probabilities =
             ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getScore(), closeTo(scores.get(i), eps));
         }
 
         featureVector = Arrays.asList(0.0, 1.0);
         featureMap = zipObjMap(featureNames, featureVector);
         expected = Arrays.asList(0.768524783, 0.231475216);
+        scores   = Arrays.asList(0.230557435, 0.162032651);
         probabilities =
             ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getScore(), closeTo(scores.get(i), eps));
         }
 
         // This should handle missing values and take the default_left path
@@ -298,10 +304,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             put("bar", null);
         }};
         expected = Arrays.asList(0.6899744811, 0.3100255188);
+        scores   = Arrays.asList(0.482982136, 0.0930076556);
         probabilities =
             ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getScore(), closeTo(scores.get(i), eps));
         }
     }
 

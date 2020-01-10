@@ -78,11 +78,18 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
         if (randomBoolean()) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
+        double[] thresholds = randomBoolean() ?
+            null :
+            Stream.generate(ESTestCase::randomDouble)
+                .limit(categoryLabels == null ? randomIntBetween(1, 10) : categoryLabels.size())
+                .mapToDouble(Double::valueOf)
+                .toArray();
         return new Ensemble(featureNames,
             models,
             outputAggregator,
             targetType,
-            categoryLabels);
+            categoryLabels,
+            thresholds);
     }
 
     @Override

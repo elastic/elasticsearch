@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicenseUtils;
@@ -37,7 +36,7 @@ import java.util.function.Function;
 
 public final class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
-    static final Logger LOGGER = LogManager.getLogger(EncryptedRepository.class);
+    static final Logger logger = LogManager.getLogger(EncryptedRepositoryPlugin.class);
     static final String REPOSITORY_TYPE_NAME = "encrypted";
     static final String CIPHER_ALGO = "AES";
     static final String RAND_ALGO = "SHA1PRNG";
@@ -49,7 +48,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
 
     public EncryptedRepositoryPlugin(Settings settings) {
         if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
-            LOGGER.warn("Encrypted snapshot repositories are not allowed for the current license." +
+            logger.warn("Encrypted snapshot repositories are not allowed for the current license." +
                     "Snapshotting to any encrypted repository is not permitted and will fail.",
                     LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
         }
@@ -83,7 +82,7 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
             @Override
             public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
                 if (false == EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
-                    LOGGER.warn("Encrypted snapshot repositories are not allowed for the current license." +
+                    logger.warn("Encrypted snapshot repositories are not allowed for the current license." +
                                     "Snapshots to the [" + metaData.name() + "] encrypted repository are not permitted and will fail.",
                             LicenseUtils.newComplianceException(EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
                 }

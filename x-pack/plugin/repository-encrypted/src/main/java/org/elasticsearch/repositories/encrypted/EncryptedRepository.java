@@ -6,6 +6,8 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -27,7 +29,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -40,17 +41,21 @@ import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
+    static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
     static final int GCM_TAG_LENGTH_IN_BYTES = 16;
     static final int GCM_IV_LENGTH_IN_BYTES = 12;
     static final int AES_BLOCK_SIZE_IN_BYTES = 128;
-    static final String DEK_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
-    static final int DEK_KEY_SIZE_IN_BITS = 256;
+    static final String DATA_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
+    static final int DATA_KEY_SIZE_IN_BITS = 256;
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
     static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 20; // 1MB
     static final int PACKET_LENGTH_IN_BYTES = 64 * (1 << 10); // 64KB
@@ -69,7 +74,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         super(metadata, namedXContentRegistry, clusterService, delegatedRepository.basePath());
         this.delegatedRepository = delegatedRepository;
         this.dataEncryptionKeyGenerator = KeyGenerator.getInstance(EncryptedRepositoryPlugin.CIPHER_ALGO);
-        this.dataEncryptionKeyGenerator.init(DEK_KEY_SIZE_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
+        this.dataEncryptionKeyGenerator.init(DATA_KEY_SIZE_IN_BITS, SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO));
         this.metadataEncryptor = metadataEncryptor;
         this.consistentSettingsService = consistentSettingsService;
         this.secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
@@ -89,24 +94,28 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     public void cleanup(long repositoryStateId, boolean writeShardGens, ActionListener<RepositoryCleanupResult> listener) {
-        super.cleanup(repositoryStateId, writeShardGens, new ActionListener<RepositoryCleanupResult>() {
-            @Override
-            public void onResponse(RepositoryCleanupResult repositoryCleanupResult) {
+        super.cleanup(repositoryStateId, writeShardGens, ActionListener.wrap(repositoryCleanupResult -> {
+            EncryptedBlobContainerDecorator encryptedBlobContainer = (EncryptedBlobContainerDecorator) blobContainer();
+            cleanUpOrphanedMetadataRecursively(encryptedBlobContainer);
+            listener.onResponse(repositoryCleanupResult);
+        }, listener::onFailure));
+    }
 
-                listener.onResponse(repositoryCleanupResult);
+    private void cleanUpOrphanedMetadataRecursively(EncryptedBlobContainerDecorator encryptedBlobContainer) throws IOException{
+        encryptedBlobContainer.cleanUpOrphanedMetadata();
+        for (BlobContainer childEncryptedBlobContainer : encryptedBlobContainer.children().values()) {
+            try {
+                cleanUpOrphanedMetadataRecursively((EncryptedBlobContainerDecorator) childEncryptedBlobContainer);
+            } catch(IOException e) {
+                logger.warn("Exception while cleaning up [" + childEncryptedBlobContainer.path() + "]", e);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }
     }
 
     @Override
     protected BlobStore createBlobStore() {
         return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), dataEncryptionKeyGenerator, metadataEncryptor,
-                secureRandom, consistentSettingsService);
+                secureRandom);
     }
 
     @Override
@@ -139,16 +148,13 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryptor metadataEncryptor;
         private final SecureRandom secureRandom;
-        private final ConsistentSettingsService consistentSettingsService;
 
         EncryptedBlobStoreDecorator(BlobStore delegatedBlobStore, KeyGenerator dataEncryptionKeyGenerator,
-                                    PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom,
-                                    ConsistentSettingsService consistentSettingsService) {
+                                    PasswordBasedEncryptor metadataEncryptor, SecureRandom secureRandom) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
             this.secureRandom = secureRandom;
-            this.consistentSettingsService = consistentSettingsService;
         }
 
         @Override
@@ -158,31 +164,30 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            BlobPath encryptionMetadataBlobPath = path.prepend(ENCRYPTION_METADATA_PREFIX);
-            return new EncryptedBlobContainerDecorator(delegatedBlobStore.blobContainer(path),
-                    delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), dataEncryptionKeyGenerator, metadataEncryptor,
-                    secureRandom, consistentSettingsService);
+            return new EncryptedBlobContainerDecorator(delegatedBlobStore, path, dataEncryptionKeyGenerator, metadataEncryptor,
+                    secureRandom);
         }
     }
 
     private static class EncryptedBlobContainerDecorator implements BlobContainer {
 
-        private final BlobContainer delegatedBlobContainer;
-        private final BlobContainer encryptionMetadataBlobContainer;
+        private final BlobStore delegatedBlobStore;
         private final KeyGenerator dataEncryptionKeyGenerator;
         private final PasswordBasedEncryptor metadataEncryptor;
         private final SecureRandom secureRandom;
-        private final ConsistentSettingsService consistentSettingsService;
+        private final BlobContainer delegatedBlobContainer;
+        private final BlobContainer encryptionMetadataBlobContainer;
 
-        EncryptedBlobContainerDecorator(BlobContainer delegatedBlobContainer, BlobContainer encryptionMetadataBlobContainer,
+        EncryptedBlobContainerDecorator(BlobStore delegatedBlobStore, BlobPath path,
                                         KeyGenerator dataEncryptionKeyGenerator, PasswordBasedEncryptor metadataEncryptor,
-                                        SecureRandom secureRandom, ConsistentSettingsService consistentSettingsService) {
-            this.delegatedBlobContainer = delegatedBlobContainer;
-            this.encryptionMetadataBlobContainer = encryptionMetadataBlobContainer;
+                                        SecureRandom secureRandom) {
+            this.delegatedBlobStore = delegatedBlobStore;
             this.dataEncryptionKeyGenerator = dataEncryptionKeyGenerator;
             this.metadataEncryptor = metadataEncryptor;
             this.secureRandom = secureRandom;
-            this.consistentSettingsService = consistentSettingsService;
+            this.delegatedBlobContainer = delegatedBlobStore.blobContainer(path);
+            BlobPath encryptionMetadataBlobPath = path.prepend(ENCRYPTION_METADATA_PREFIX);
+            this.encryptionMetadataBlobContainer = delegatedBlobStore.blobContainer(encryptionMetadataBlobPath);
         }
 
         @Override
@@ -265,6 +270,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             // the encrypted data blob container is the source-of-truth for list operations
             // the metadata blob container mirrors its structure, but in some failure cases it might contain
             // additional orphaned metadata blobs
+            // can list blobs that cannot be decrypted (because metadata is missing or corrupted)
             return this.delegatedBlobContainer.listBlobs();
         }
 
@@ -273,7 +279,14 @@ public class EncryptedRepository extends BlobStoreRepository {
             // the encrypted data blob container is the source-of-truth for child container operations
             // the metadata blob container mirrors its structure, but in some failure cases it might contain
             // additional orphaned metadata blobs
-            return this.delegatedBlobContainer.children();
+            Map<String, BlobContainer> childEncryptedBlobContainers = this.delegatedBlobContainer.children();
+            Map<String, BlobContainer> result = new HashMap<>(childEncryptedBlobContainers.size());
+            for (Map.Entry<String, BlobContainer> encryptedBlobContainer : childEncryptedBlobContainers.entrySet()) {
+                // get an encrypted blob container for each
+                result.put(encryptedBlobContainer.getKey(), new EncryptedBlobContainerDecorator(this.delegatedBlobStore,
+                        encryptedBlobContainer.getValue().path(), dataEncryptionKeyGenerator, metadataEncryptor, secureRandom));
+            }
+            return result;
         }
 
         @Override
@@ -281,7 +294,33 @@ public class EncryptedRepository extends BlobStoreRepository {
             // the encrypted data blob container is the source-of-truth for list operations
             // the metadata blob container mirrors its structure, but in some failure cases it might contain
             // additional orphaned metadata blobs
+            // can list blobs that cannot be decrypted (because metadata is missing or corrupted)
             return this.delegatedBlobContainer.listBlobsByPrefix(blobNamePrefix);
+        }
+
+        public void cleanUpOrphanedMetadata() throws IOException{
+            // delete encryption metadata blobs which don't pair with any data blobs
+            Set<String> foundEncryptedBlobs = this.delegatedBlobContainer.listBlobs().keySet();
+            Set<String> foundMetadataBlobs = this.encryptionMetadataBlobContainer.listBlobs().keySet();
+            List<String> orphanedMetadataBlobs = new ArrayList<>(foundMetadataBlobs);
+            orphanedMetadataBlobs.removeAll(foundEncryptedBlobs);
+            try {
+                this.encryptionMetadataBlobContainer.deleteBlobsIgnoringIfNotExists(orphanedMetadataBlobs);
+            } catch (IOException e) {
+                logger.warn("Exception while deleting orphaned metadata blobs " + orphanedMetadataBlobs, e);
+            }
+            // delete Encryption metadata blob containers which don't par with any data blob containers
+            Set<String> foundEncryptedBlobContainers = this.delegatedBlobContainer.children().keySet();
+            Map<String, BlobContainer> foundMetadataBlobContainers = this.encryptionMetadataBlobContainer.children();
+            for (Map.Entry<String, BlobContainer> metadataBlobContainer : foundMetadataBlobContainers.entrySet()) {
+                if (false == foundEncryptedBlobContainers.contains(metadataBlobContainer.getKey())) {
+                    try {
+                        metadataBlobContainer.getValue().delete();
+                    } catch (IOException e) {
+                        logger.warn("Exception while deleting orphaned metadata blob container [" + metadataBlobContainer + "]", e);
+                    }
+                }
+            }
         }
     }
 

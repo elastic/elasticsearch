@@ -113,7 +113,8 @@ to the selected nodes.
 
 `indices.shards.index.primaries.avg`::
 (integer)
-Average number of primary shards for the cluster.
+Mean number of primary shards in an index, counting only the shards assigned to
+the selected nodes.
 
 `indices.shards.index.replication.min`::
 (integer)

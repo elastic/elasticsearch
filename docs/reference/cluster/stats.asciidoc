@@ -72,7 +72,7 @@ See <<cluster-health>>.
 
 `indices.count`::
 (integer)
-Total number of indices in the cluster.
+Total number of indices in the selected nodes.
 
 `indices.shards.total`::
 (integer)

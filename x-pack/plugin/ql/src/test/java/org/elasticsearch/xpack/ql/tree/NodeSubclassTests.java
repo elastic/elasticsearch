@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.tree;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -627,7 +628,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // https://bugs.openjdk.java.net/browse/JDK-8160798
             // so iterate the jar "by hand"
             if (path.endsWith(".jar") && path.contains("x-pack-ql")) {
-                try (JarInputStream jar = new JarInputStream(root.toUri().toURL().openStream())) {
+                try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;
                     while ((je = jar.getNextJarEntry()) != null) {
                         String name = je.getName();
@@ -658,6 +659,11 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
         subclassCache.put(clazz, results);
         return results;
+    }
+
+    @SuppressForbidden(reason = "test reads from jar")
+    private static JarInputStream jarStream(Path path) throws IOException {
+        return new JarInputStream(path.toUri().toURL().openStream());
     }
 
     /**

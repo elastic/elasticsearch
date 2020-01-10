@@ -238,11 +238,13 @@ selected nodes.
 
 `indices.segments.stored_fields_memory`::
 (<<byte-units, byte units>>)
-Size of stored fields in segments.
+Total amount of memory used for stored fields on all shards across all
+selected nodes.
 
 `indices.segments.stored_fields_memory_in_bytes`::
 (integer)
-Size, in bytes, of stored fields in segments.
+Total amount, in bytes, of memory used for stored fields on all shards across
+all selected nodes.
 
 `indices.segments.term_vectors_memory`::
 (<<byte-units, byte units>>)

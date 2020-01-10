@@ -172,11 +172,12 @@ selected nodes.
 
 `indices.query_cache.memory_size`::
 (<<byte-units, byte units>>)
-Memory used for query cache.
+Total memory used for the query cache on all shards across all selected nodes.
 
 `indices.query_cache.memory_size_in_bytes`::
 (integer)
-Memory, in bytes, used for query cache.
+Total memory, in bytes, used for the query cache on all shards across all
+selected nodes.
 
 `indices.query_cache.total_count`::
 (integer)

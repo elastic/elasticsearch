@@ -124,6 +124,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
     private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
+    private final LazyPropertyList<CliEntry> cliSetup = new LazyPropertyList<>("CLI setup commands", this);
     private final LazyPropertyMap<String, CharSequence> systemProperties = new LazyPropertyMap<>("System properties", this);
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
@@ -134,7 +135,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final Path confPathRepo;
     private final Path configFile;
-    private final Path confPathData;
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
@@ -151,6 +151,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
     private String transportPort = "0";
+    private Path confPathData;
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
         this.path = path;
@@ -299,6 +300,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void keystore(String key, FileSupplier valueSupplier) {
         keystoreFiles.put(key, valueSupplier);
+    }
+
+    @Override
+    public void cliSetup(String binTool, CharSequence... args) {
+        cliSetup.add(new CliEntry(binTool, args));
     }
 
     @Override
@@ -475,6 +481,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             ));
         }
 
+        if (cliSetup.isEmpty() == false) {
+            logToProcessStdout("Running " + cliSetup.size() + " setup commands");
+
+            for (CliEntry entry : cliSetup) {
+                runElasticsearchBinScript(entry.executable, entry.args);
+            }
+        }
+
         logToProcessStdout("Starting Elasticsearch process");
         startElasticsearchProcess();
     }
@@ -623,7 +637,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
-    private void runElasticsearchBinScriptWithInput(String input, String tool, String... args) {
+    private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
         if (
             Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false &&
                 Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false
@@ -642,12 +656,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         .supply()
                 );
                 spec.args(
-                    OS.<List<String>>conditional()
+                    OS.<List<CharSequence>>conditional()
                         .onWindows(() -> {
-                            ArrayList<String> result = new ArrayList<>();
+                            ArrayList<CharSequence> result = new ArrayList<>();
                             result.add("/c");
                             result.add("bin\\" + tool + ".bat");
-                            for (String arg : args) {
+                            for (CharSequence arg : args) {
                                 result.add(arg);
                             }
                             return result;
@@ -663,7 +677,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void runElasticsearchBinScript(String tool, String... args) {
+    private void runElasticsearchBinScript(String tool, CharSequence... args) {
         runElasticsearchBinScriptWithInput("", tool, args);
     }
 
@@ -807,6 +821,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
+        reaper.unregister(toString());
         if (tailLogs) {
             logFileContents("Standard output of node", esStdoutFile);
             logFileContents("Standard error of node", esStderrFile);
@@ -831,39 +846,43 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
-        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
+        // No-op if the process has already exited by itself.
         if (processHandle.isAlive() == false) {
             LOGGER.info("Process was not running when we tried to terminate it.");
             return;
         }
 
-        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
-        processHandle.children().forEach(each -> stopHandle(each, forcibly));
+        // Stop all children last - if the ML processes are killed before the ES JVM then
+        // they'll be recorded as having failed and won't restart when the cluster restarts.
+        // ES could actually be a child when there's some wrapper process like on Windows,
+        // and in that case the ML processes will be grandchildren of the wrapper.
+        List<ProcessHandle> children = processHandle.children().collect(Collectors.toList());
+        try {
+            logProcessInfo(
+                "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
+                processHandle.info()
+            );
 
-        logProcessInfo(
-            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
-            processHandle.info()
-        );
-
-        if (forcibly) {
-            processHandle.destroyForcibly();
-        } else {
-            processHandle.destroy();
-            waitForProcessToExit(processHandle);
-            if (processHandle.isAlive() == false) {
-                return;
+            if (forcibly) {
+                processHandle.destroyForcibly();
+            } else {
+                processHandle.destroy();
+                waitForProcessToExit(processHandle);
+                if (processHandle.isAlive() == false) {
+                    return;
+                }
+                LOGGER.info("process did not terminate after {} {}, stopping it forcefully",
+                    ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+                processHandle.destroyForcibly();
             }
-            LOGGER.info("process did not terminate after {} {}, stopping it forcefully",
-                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
-            processHandle.destroyForcibly();
-        }
 
-        waitForProcessToExit(processHandle);
-        if (processHandle.isAlive()) {
-            throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
+            waitForProcessToExit(processHandle);
+            if (processHandle.isAlive()) {
+                throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
+            }
+        } finally {
+            children.forEach(each -> stopHandle(each, forcibly));
         }
-
-        reaper.unregister(toString());
     }
 
     private void logProcessInfo(String prefix, ProcessHandle.Info info) {
@@ -1201,6 +1220,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Nested
+    public List<?> getCliSetup() {
+        return cliSetup.getNormalizedCollection();
+    }
+
+    @Nested
     public List<?> getSettings() {
         return settings.getNormalizedCollection();
     }
@@ -1336,6 +1360,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.transportPort = transportPort;
     }
 
+    void setDataPath(Path dataPath) {
+        this.confPathData = dataPath;
+    }
+
     @Internal
     Path getEsStdoutFile() {
         return esStdoutFile;
@@ -1365,6 +1393,26 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         @PathSensitive(PathSensitivity.NONE)
         public File getFile() {
             return file;
+        }
+    }
+
+    private static class CliEntry {
+        private String executable;
+        private CharSequence[] args;
+
+        CliEntry(String executable, CharSequence[] args) {
+            this.executable = executable;
+            this.args = args;
+        }
+
+        @Input
+        public String getExecutable() {
+            return executable;
+        }
+
+        @Input
+        public CharSequence[] getArgs() {
+            return args;
         }
     }
 }

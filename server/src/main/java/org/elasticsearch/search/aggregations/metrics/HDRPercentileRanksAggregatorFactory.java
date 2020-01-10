@@ -64,6 +64,7 @@ class HDRPercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
+
         return new HDRPercentileRanksAggregator(name, valuesSource, searchContext, parent, values,
             numberOfSignificantValueDigits, keyed, config.format(), pipelineAggregators, metaData);
     }

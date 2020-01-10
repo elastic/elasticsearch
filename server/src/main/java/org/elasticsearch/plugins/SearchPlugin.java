@@ -40,8 +40,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rescore.Rescorer;
@@ -54,6 +54,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -72,7 +74,7 @@ public interface SearchPlugin {
      * The new {@link SignificanceHeuristic}s defined by this plugin. {@linkplain SignificanceHeuristic}s are used by the
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
      */
-    default List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
+    default List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return emptyList();
     }
     /**
@@ -133,6 +135,19 @@ public interface SearchPlugin {
         }
 
         public ScoreFunctionSpec(String name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification of custom {@link SignificanceHeuristic}.
+     */
+    class SignificanceHeuristicSpec<T extends SignificanceHeuristic> extends SearchExtensionSpec<T, BiFunction<XContentParser, Void, T>> {
+        public SignificanceHeuristicSpec(ParseField name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
+            super(name, reader, parser);
+        }
+
+        public SignificanceHeuristicSpec(String name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
             super(name, reader, parser);
         }
     }
@@ -237,6 +252,7 @@ public interface SearchPlugin {
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+        private Consumer<ValuesSourceRegistry> aggregatorRegistrar;
 
         /**
          * Specification for an {@link Aggregation}.
@@ -286,6 +302,23 @@ public interface SearchPlugin {
          */
         public Map<String, Writeable.Reader<? extends InternalAggregation>> getResultReaders() {
             return resultReaders;
+        }
+
+        /**
+         * Get the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
+         * this aggregation
+         */
+        public Consumer<ValuesSourceRegistry> getAggregatorRegistrar() {
+            return aggregatorRegistrar;
+        }
+
+        /**
+         * Set the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
+         * this aggregation
+         */
+        public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry> aggregatorRegistrar) {
+            this.aggregatorRegistrar = aggregatorRegistrar;
+            return this;
         }
     }
 

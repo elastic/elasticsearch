@@ -44,7 +44,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
             "my_feature_field", "type=rank_feature",
             "my_negative_feature_field", "type=rank_feature,positive_score_impact=false",
             "my_feature_vector_field", "type=rank_features"))), MapperService.MergeReason.MAPPING_UPDATE);

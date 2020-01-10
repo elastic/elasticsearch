@@ -50,17 +50,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-open-job-example]]
 ==== {api-examples-title}
 
-The following example opens the `total-requests` job and sets an optional
-property:
-
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_open
+POST _ml/anomaly_detectors/low_request_rate/_open
 {
   "timeout": "35m"
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_job]
+// TEST[skip:Kibana sample data]
 
 When the job opens, you receive the following results:
 

@@ -39,12 +39,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
@@ -85,6 +87,13 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     public static HistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new HistogramAggregationBuilder(aggregationName), null);
+    }
+
+    private static AtomicBoolean wasRegistered = new AtomicBoolean(false);
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        if (wasRegistered.compareAndSet(false, true) == true) {
+            HistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
+        }
     }
 
     private double interval;

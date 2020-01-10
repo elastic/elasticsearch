@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -55,7 +54,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void setUpData() throws IOException {
         client().admin().indices().prepareCreate(DATA_INDEX)
-                .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis")
+                .setMapping("time", "type=date,format=epoch_millis")
                 .get();
 
         // We are going to create data for last 2 days
@@ -87,7 +86,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void testDeleteExpiredDataGivenNothingToDelete() throws Exception {
+    public void testDeleteExpiredData_GivenNothingToDelete() throws Exception {
         // Tests that nothing goes wrong when there's nothing to delete
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
@@ -201,10 +200,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(indexUnusedStateDocsResponse.get().status(), equalTo(RestStatus.OK));
 
         // Now call the action under test
-        client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
-
-        // We need to refresh to ensure the deletion is visible
-        client().admin().indices().prepareRefresh("*").get();
+        assertThat(deleteExpiredData().isDeleted(), is(true));
 
         // no-retention job should have kept all data
         assertThat(getBuckets("no-retention").size(), is(greaterThanOrEqualTo(70)));

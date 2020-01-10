@@ -70,7 +70,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
-    private static DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
+    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
@@ -282,7 +282,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         return offset(parseStringOffset(offset));
     }
 
-    static long parseStringOffset(String offset) {
+    /**
+     * Parse the string specification of an offset. 
+     */
+    public static long parseStringOffset(String offset) {
         if (offset.charAt(0) == '-') {
             return -TimeValue
                     .parseTimeValue(offset.substring(1), null, DateHistogramAggregationBuilder.class.getSimpleName() + ".parseOffset")
@@ -487,13 +490,14 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
-        final Rounding rounding = dateHistogramInterval.createRounding(tz);
+        // TODO use offset here rather than explicitly in the aggregation
+        final Rounding rounding = dateHistogramInterval.createRounding(tz, 0);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
         final Rounding shardRounding;
         if (tz == rewrittenTimeZone) {
             shardRounding = rounding;
         } else {
-            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone);
+            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone, 0);
         }
 
         ExtendedBounds roundedBounds = null;

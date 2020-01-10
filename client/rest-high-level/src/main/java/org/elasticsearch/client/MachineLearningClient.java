@@ -2301,7 +2301,7 @@ public final class MachineLearningClient {
      * Gets trained model configs
      * <p>
      * For additional info
-     * see <a href="TODO">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html">
      *     GET Trained Model Configs documentation</a>
      *
      * @param request The {@link GetTrainedModelsRequest}
@@ -2321,7 +2321,7 @@ public final class MachineLearningClient {
      * Gets trained model configs asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="TODO">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html">
      *     GET Trained Model Configs documentation</a>
      *
      * @param request The {@link GetTrainedModelsRequest}
@@ -2344,7 +2344,7 @@ public final class MachineLearningClient {
      * Gets trained model stats
      * <p>
      * For additional info
-     * see <a href="TODO">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html">
      *     GET Trained Model Stats documentation</a>
      *
      * @param request The {@link GetTrainedModelsStatsRequest}
@@ -2364,7 +2364,7 @@ public final class MachineLearningClient {
      * Gets trained model stats asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="TODO">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html">
      *     GET Trained Model Stats documentation</a>
      *
      * @param request The {@link GetTrainedModelsStatsRequest}
@@ -2387,7 +2387,7 @@ public final class MachineLearningClient {
      * Deletes the given Trained Model
      * <p>
      * For additional info
-     * see <a href="TODO">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-inference.html">
      *     DELETE Trained  Model documentation</a>
      *
      * @param request The {@link DeleteTrainedModelRequest}
@@ -2407,7 +2407,7 @@ public final class MachineLearningClient {
      * Deletes the given Trained Model asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="TODO">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-inference.html">
      *     DELETE Trained Model documentation</a>
      *
      * @param request The {@link DeleteTrainedModelRequest}

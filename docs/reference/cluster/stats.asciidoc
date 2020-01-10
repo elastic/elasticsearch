@@ -12,7 +12,7 @@ Returns cluster statistics.
 
 `GET /_cluster/stats` +
 
-`GET /_cluster/stats/nodes/<node_id>`
+`GET /_cluster/stats/nodes/<node_filter>`
 
 
 [[cluster-stats-api-desc]]
@@ -28,7 +28,7 @@ memory usage) and information about the current nodes that form the cluster
 ==== {api-path-parms-title}
 
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-filter]
 
 
 [[cluster-stats-api-query-params]]
@@ -43,7 +43,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `_nodes.total`::
 (integer)
-Total number of nodes in the cluster.
+Total number of nodes selected by the request's node filters.
 
 `_nodes.successful`::
 (integer)

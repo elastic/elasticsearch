@@ -62,7 +62,7 @@ Name of the cluster. See <<cluster.name>>.
 Unique identifier for the cluster.
 
 `timestamp`::
-(https://en.wikipedia.org/wiki/Unix_time[Unix timestamp])
+(https://en.wikipedia.org/wiki/Unix_time[Unix timestamp] in milliseconds)
 Last time the cluster statistics were refreshed.
 
 `status`::

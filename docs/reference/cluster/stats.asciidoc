@@ -204,35 +204,37 @@ selected nodes.
 
 `indices.query_cache.evictions`::
 (integer)
-Number of query cache evictions.
+Total number of query cache evictions on all shards across all selected nodes.
 
 `indices.completion.size_in_bytes`::
 (<<byte-units, byte units>>)
-Memory used for completion.
+Total memory used for completion on all shards across all selected nodes.
 
 `indices.completion.size_in_bytes`::
 (integer)
-Memory, in bytes, used for completion.
+Total memory, in bytes, used for completion on all shards across all selected
+nodes.
 
 `indices.segments.count`::
 (integer)
-Number of segments.
+Total number of segments on all shards across all selected nodes.
 
 `indices.segments.memory`::
 (<<byte-units, byte units>>)
-Size of segments.
+Total size of segments on all shards across all selected nodes.
 
 `indices.segments.memory_in_bytes`::
 (integer)
-Size, in bytes, of segments.
+Total size, in bytes, of segments on all shards across all selected nodes.
 
 `indices.segments.terms_memory`::
 (<<byte-units, byte units>>)
-Size of terms in segments.
+Total amount of segment memory used  on all shards across all selected nodes.
 
 `indices.segments.terms_memory_in_bytes`::
 (integer)
-Size, in bytes, of terms in segments.
+Total amount, in bytes, of segment memory used  on all shards across all
+selected nodes.
 
 `indices.segments.stored_fields_memory`::
 (<<byte-units, byte units>>)

@@ -699,7 +699,8 @@ public class PersistedClusterStateService {
                 // retry from the beginning.
                 try {
                     close();
-                } finally {
+                } catch (Exception e2) {
+                    e.addSuppressed(e2);
                     throw new IOError(e);
                 }
             } finally {

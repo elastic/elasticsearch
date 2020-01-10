@@ -694,6 +694,7 @@ setup:
   - match: { aggregations.test.buckets.3.key.geo: "12/2048/0" }
   - match: { aggregations.test.buckets.3.key.kw: "bar" }
   - match: { aggregations.test.buckets.3.doc_count: 1 }
+
 ---
 "Simple Composite aggregation with geotile grid add aggregate after":
   - skip:
@@ -735,3 +736,49 @@ setup:
   - match: { aggregations.test.buckets.2.key.geo: "12/2048/0" }
   - match: { aggregations.test.buckets.2.key.kw: "bar" }
   - match: { aggregations.test.buckets.2.doc_count: 1 }
+
+---
+"Mixed ip and unmapped fields":
+  - skip:
+      version: " - 7.99.99"
+      reason: This will fail against 7.x until the fix is backported there
+  # It is important that the index *without* the ip field be sorted *before*
+  # the index *with* the ip field because that has caused bugs in the past.
+  - do:
+      indices.create:
+        index: test_1
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          mappings:
+            properties:
+              f:
+                type: ip
+  - do:
+      index:
+        index:   test_2
+        id:      1
+        body:    { "f": "192.168.0.1" }
+        refresh: true
+
+  - do:
+      search:
+        index: test_*
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "f": {
+                    "terms": {
+                      "field": "f"
+                    }
+                  }
+                ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.f: "192.168.0.1" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }

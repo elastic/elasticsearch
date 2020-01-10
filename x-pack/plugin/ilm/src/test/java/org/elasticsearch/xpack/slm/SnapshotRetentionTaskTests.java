@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotRetentionTaskTests extends ESTestCase {
 
@@ -362,6 +363,14 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             .build();
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
+
+        restoreInProgress = mock(RestoreInProgress.class);
+        when(restoreInProgress.isEmpty()).thenReturn(true);
+        state = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(RestoreInProgress.TYPE, restoreInProgress)
+            .build();
+
+        assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(true));
     }
 
     public void testSkipWhileStopping() throws Exception {

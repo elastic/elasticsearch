@@ -32,7 +32,7 @@ PUT /index
                 "normalization" : "h2",
                 "normalization.h2.c" : "3.0"
               }
-            }
+           }
         }
     }
 }

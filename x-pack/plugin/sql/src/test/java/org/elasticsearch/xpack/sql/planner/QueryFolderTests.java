@@ -6,14 +6,16 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
@@ -22,8 +24,6 @@ import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -48,7 +48,7 @@ public class QueryFolderTests extends ESTestCase {
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(TestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         optimizer = new Optimizer();
         planner = new Planner();
     }

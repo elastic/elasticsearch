@@ -56,6 +56,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -604,6 +606,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * the test.
      */
     private static final Map<Class<?>, List<?>> subclassCache = new HashMap<>();
+
     /**
      * Find all subclasses of a particular class.
      */
@@ -618,43 +621,70 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         for (String path: paths) {
             Path root = PathUtils.get(path);
             int rootLength = root.toString().length() + 1;
-            Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
 
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
-                        String className = file.toString();
-                        // Chop off the root and file extension
-                        className = className.substring(rootLength, className.length() - ".class".length());
-                        // Go from "path" style to class style
-                        className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
-
-                        // filter the class that are not interested
-                        // (and IDE folders like eclipse)
-                        if (!className.startsWith("org.elasticsearch.xpack.ql") && !className.startsWith("org.elasticsearch.xpack.sql")) {
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        Class<?> c;
-                        try {
-                            c = Class.forName(className);
-                        } catch (ClassNotFoundException e) {
-                            throw new IOException("Couldn't find " + file, e);
-                        }
-
-                        if (false == Modifier.isAbstract(c.getModifiers())
-                                && false == c.isAnonymousClass()
-                                && clazz.isAssignableFrom(c)) {
-                            Class<? extends T> s = c.asSubclass(clazz);
-                            results.add(s);
+            // load classes from jar files
+            // NIO FileSystem API is not used since it trips the SecurityManager
+            // https://bugs.openjdk.java.net/browse/JDK-8160798
+            // so iterate the jar "by hand"
+            if (path.endsWith(".jar") && path.contains("x-pack-ql")) {
+                try (JarInputStream jar = new JarInputStream(root.toUri().toURL().openStream())) {
+                    JarEntry je = null;
+                    while ((je = jar.getNextJarEntry()) != null) {
+                        String name = je.getName();
+                        if (name.endsWith(".class")) {
+                            String className = name.substring(0, name.length() - ".class".length()).replace("/", ".");
+                            maybeLoadClass(clazz, className, root + "!/" + name, results);
                         }
                     }
-                    return FileVisitResult.CONTINUE;
                 }
-            });
+            }
+            // for folders, just use the FileSystems API
+            else {
+                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
+                            String fileName = file.toString();
+                            // Chop off the root and file extension
+                            String className = fileName.substring(rootLength, fileName.length() - ".class".length());
+                            // Go from "path" style to class style
+                            className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
+                            maybeLoadClass(clazz, className, fileName, results);
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            }
         }
         subclassCache.put(clazz, results);
         return results;
+    }
+
+    /**
+     * Load classes from predefined packages (hack to limit the scope) and if they match the hierarchy, add them to the cache
+     */
+    private static <T> void maybeLoadClass(Class<T> clazz, String className, String location, List<Class<? extends T>> results)
+            throws IOException {
+
+        // filter the class that are not interested
+        // (and IDE folders like eclipse)
+        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false) {
+            return;
+        }
+
+        Class<?> c;
+        try {
+            c = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Couldn't load " + location, e);
+        }
+
+        if (false == Modifier.isAbstract(c.getModifiers())
+                && false == c.isAnonymousClass()
+                && clazz.isAssignableFrom(c)) {
+            Class<? extends T> s = c.asSubclass(clazz);
+            results.add(s);
+        }
     }
 
     /**

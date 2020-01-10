@@ -186,11 +186,11 @@ selected nodes.
 
 `indices.query_cache.hit_count`::
 (integer)
-Number of query cache hits.
+Total count of of query cache hits on all shards across all selected nodes.
 
 `indices.query_cache.miss_count`::
 (integer)
-Number of query cache misses.
+Total count of of query cache misses on all shards across all selected nodes.
 
 `indices.query_cache.cache_size`::
 (integer)

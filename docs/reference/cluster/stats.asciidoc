@@ -84,6 +84,8 @@ Number of primary shards assigned to the selected nodes.
 
 `indices.shards.replication`::
 (integer)
+Ratio of replica shards to primary shards in the selected nodes.
+
 Number of replica shards.
 
 `indices.shards.index.shards.min`::

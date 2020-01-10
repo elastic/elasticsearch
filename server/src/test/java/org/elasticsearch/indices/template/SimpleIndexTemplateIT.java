@@ -433,7 +433,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testIndexTemplateWithAliasesInSource() {
         client().admin().indices().preparePutTemplate("template_1")
                 .setSource(new BytesArray("{\n" +
-                        "    \"template\" : \"*\",\n" +
+                        "    \"index_patterns\" : \"*\",\n" +
                         "    \"aliases\" : {\n" +
                         "        \"my_alias\" : {\n" +
                         "            \"filter\" : {\n" +

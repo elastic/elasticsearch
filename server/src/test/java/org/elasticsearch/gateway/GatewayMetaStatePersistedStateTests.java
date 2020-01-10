@@ -19,6 +19,9 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MockDirectoryWrapper;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,10 +49,14 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -253,7 +260,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         try {
             gateway = newGatewayPersistedState();
 
-            //generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
+            // generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
             CoordinationMetaData coordinationMetaData;
             do {
                 coordinationMetaData = createCoordinationMetaData(randomNonNegativeLong());
@@ -293,7 +300,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final ClusterState state = createClusterState(randomNonNegativeLong(),
             MetaData.builder().clusterUUID(randomAlphaOfLength(10)).build());
         try (GatewayMetaState.LucenePersistedState ignored = new GatewayMetaState.LucenePersistedState(
-            persistedClusterStateService.createWriter(), 42L, state)) {
+            persistedClusterStateService, 42L, state)) {
 
         }
 
@@ -407,6 +414,98 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
 
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    public void testStatePersistenceWithIOIssues() throws IOException {
+        final AtomicReference<Double> ioExceptionRate = new AtomicReference<>(0.01d);
+        final List<MockDirectoryWrapper> list = new ArrayList<>();
+        final PersistedClusterStateService persistedClusterStateService =
+            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+                @Override
+                Directory createDirectory(Path path) {
+                    final MockDirectoryWrapper wrapper = newMockFSDirectory(path);
+                    wrapper.setAllowRandomFileNotFoundException(randomBoolean());
+                    wrapper.setRandomIOExceptionRate(ioExceptionRate.get());
+                    wrapper.setRandomIOExceptionRateOnOpen(ioExceptionRate.get());
+                    list.add(wrapper);
+                    return wrapper;
+                }
+            };
+        ClusterState state = createClusterState(randomNonNegativeLong(),
+            MetaData.builder().clusterUUID(randomAlphaOfLength(10)).build());
+        long currentTerm = 42L;
+        try (GatewayMetaState.LucenePersistedState persistedState = new GatewayMetaState.LucenePersistedState(
+            persistedClusterStateService, currentTerm, state)) {
+
+            try {
+                if (randomBoolean()) {
+                    final ClusterState newState = createClusterState(randomNonNegativeLong(),
+                        MetaData.builder().clusterUUID(randomAlphaOfLength(10)).build());
+                    persistedState.setLastAcceptedState(newState);
+                    state = newState;
+                } else {
+                    final long newTerm = currentTerm + 1;
+                    persistedState.setCurrentTerm(newTerm);
+                    currentTerm = newTerm;
+                }
+            } catch (IOError | Exception e) {
+                assertNotNull(ExceptionsHelper.unwrap(e, IOException.class));
+            }
+
+            ioExceptionRate.set(0.0d);
+            for (MockDirectoryWrapper wrapper : list) {
+                wrapper.setRandomIOExceptionRate(ioExceptionRate.get());
+                wrapper.setRandomIOExceptionRateOnOpen(ioExceptionRate.get());
+            }
+
+            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                if (randomBoolean()) {
+                    final long version = randomNonNegativeLong();
+                    final String indexName = randomAlphaOfLength(10);
+                    final IndexMetaData indexMetaData = createIndexMetaData(indexName, randomIntBetween(1, 5), randomNonNegativeLong());
+                    final MetaData metaData = MetaData.builder().
+                        persistentSettings(Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build()).
+                        coordinationMetaData(createCoordinationMetaData(1L)).
+                        put(indexMetaData, false).
+                        build();
+                    state = createClusterState(version, metaData);
+                    persistedState.setLastAcceptedState(state);
+                } else {
+                    currentTerm += 1;
+                    persistedState.setCurrentTerm(currentTerm);
+                }
+            }
+
+            assertEquals(state, persistedState.getLastAcceptedState());
+            assertEquals(currentTerm, persistedState.getCurrentTerm());
+
+        } catch (IOError | Exception e) {
+            if (ioExceptionRate.get() == 0.0d) {
+                throw e;
+            }
+            assertNotNull(ExceptionsHelper.unwrap(e, IOException.class));
+            return;
+        }
+
+        nodeEnvironment.close();
+
+        // verify that the freshest state was rewritten to each data path
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(currentTerm));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metaData(onDiskState.metaData).build());
+            }
+        }
     }
 
 }

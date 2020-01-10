@@ -41,6 +41,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.Bits;
@@ -80,6 +81,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
 
 /**
@@ -497,13 +499,17 @@ public class PersistedClusterStateService {
             this.indexWriter.flush();
         }
 
-        void commit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
+        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
             final Map<String, String> commitData = new HashMap<>(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
             commitData.put(NODE_ID_KEY, nodeId);
             indexWriter.setLiveCommitData(commitData.entrySet());
+            indexWriter.prepareCommit();
+        }
+
+        void commit() throws IOException {
             indexWriter.commit();
         }
 
@@ -520,6 +526,7 @@ public class PersistedClusterStateService {
         private final BigArrays bigArrays;
 
         boolean fullStateWritten = false;
+        private final AtomicBoolean closed = new AtomicBoolean();
 
         private Writer(List<MetaDataIndexWriter> metaDataIndexWriters, String nodeId, BigArrays bigArrays) {
             this.metaDataIndexWriters = metaDataIndexWriters;
@@ -527,13 +534,39 @@ public class PersistedClusterStateService {
             this.bigArrays = bigArrays;
         }
 
+        private void ensureOpen() {
+            if (closed.get()) {
+                throw new AlreadyClosedException("cluster state writer is closed already");
+            }
+        }
+
+        public boolean isOpen() {
+            return closed.get() == false;
+        }
+
+        private void closeIfAnyIndexWriterHasTragedyOrIsClosed() {
+            if (metaDataIndexWriters.stream().map(writer -> writer.indexWriter)
+                .anyMatch(iw -> iw.getTragicException() != null || iw.isOpen() == false)) {
+                try {
+                    close();
+                } catch (Exception e) {
+                    logger.warn("failed on closing cluster state writer", e);
+                }
+            }
+        }
+
         /**
          * Overrides and commits the given current term and cluster state
          */
         public void writeFullStateAndCommit(long currentTerm, ClusterState clusterState) throws IOException {
-            overwriteMetaData(clusterState.metaData());
-            commit(currentTerm, clusterState.version());
-            fullStateWritten = true;
+            ensureOpen();
+            try {
+                overwriteMetaData(clusterState.metaData());
+                commit(currentTerm, clusterState.version());
+                fullStateWritten = true;
+            } finally {
+                closeIfAnyIndexWriterHasTragedyOrIsClosed();
+            }
         }
 
         /**
@@ -541,9 +574,14 @@ public class PersistedClusterStateService {
          */
         void writeIncrementalStateAndCommit(long currentTerm, ClusterState previousClusterState,
                                             ClusterState clusterState) throws IOException {
+            ensureOpen();
             assert fullStateWritten : "Need to write full state first before doing incremental writes";
-            updateMetaData(previousClusterState.metaData(), clusterState.metaData());
-            commit(currentTerm, clusterState.version());
+            try {
+                updateMetaData(previousClusterState.metaData(), clusterState.metaData());
+                commit(currentTerm, clusterState.version());
+            } finally {
+                closeIfAnyIndexWriterHasTragedyOrIsClosed();
+            }
         }
 
         /**
@@ -634,23 +672,48 @@ public class PersistedClusterStateService {
             }
         }
 
-        public void commit(long currentTerm, long lastAcceptedVersion) {
+        public void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
+            ensureOpen();
             try {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
-                    metaDataIndexWriter.commit(nodeId, currentTerm, lastAcceptedVersion);
+                    metaDataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion);
+                }
+            } catch (Exception e) {
+                try {
+                    close();
+                } catch (Exception e2) {
+                    logger.warn("failed on closing cluster state writer", e2);
+                    e.addSuppressed(e2);
+                }
+                throw e;
+            } finally {
+                closeIfAnyIndexWriterHasTragedyOrIsClosed();
+            }
+            try {
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.commit();
                 }
             } catch (IOException e) {
                 // The commit() call has similar semantics to a fsync(): although it's atomic, if it fails then we've no idea whether the
                 // data on disk is now the old version or the new version, and this is a disaster. It's safest to fail the whole node and
                 // retry from the beginning.
+                try {
+                    close();
+                } catch (Exception e2) {
+                    e.addSuppressed(e2);
+                }
                 throw new IOError(e);
+            } finally {
+                closeIfAnyIndexWriterHasTragedyOrIsClosed();
             }
         }
 
         @Override
         public void close() throws IOException {
-            logger.trace("closing");
-            IOUtils.close(metaDataIndexWriters);
+            logger.trace("closing PersistedClusterStateService.Writer");
+            if (closed.compareAndSet(false, true)) {
+                IOUtils.close(metaDataIndexWriters);
+            }
         }
 
         private ReleasableDocument makeIndexMetaDataDocument(IndexMetaData indexMetaData) throws IOException {

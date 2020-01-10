@@ -374,7 +374,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testThrowsIOErrorOnExceptionDuringCommit() throws IOException {
+    public void testClosesWriterOnFatalError() throws IOException {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
@@ -384,8 +384,53 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
-                        public void sync(Collection<String> names) throws IOException {
-                            if (throwException.get() && names.stream().anyMatch(n -> n.startsWith("pending_segments_"))) {
+                        public void sync(Collection<String> names) {
+                            throw new OutOfMemoryError("simulated");
+                        }
+                    };
+                }
+            };
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                final long newTerm = randomNonNegativeLong();
+                final ClusterState newState = ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData())
+                        .clusterUUID(UUIDs.randomBase64UUID(random()))
+                        .clusterUUIDCommitted(true)
+                        .version(randomLongBetween(1L, Long.MAX_VALUE)))
+                    .incrementVersion().build();
+                throwException.set(true);
+                assertThat(expectThrows(OutOfMemoryError.class, () -> {
+                        if (randomBoolean()) {
+                            writeState(writer, newTerm, newState, clusterState);
+                        } else {
+                            writer.commit(newTerm, newState.version());
+                        }
+                    }).getMessage(),
+                    containsString("simulated"));
+                assertFalse(writer.isOpen());
+            }
+
+            // check if we can open writer again
+            try (Writer ignored = persistedClusterStateService.createWriter()) {
+
+            }
+        }
+    }
+
+    public void testCrashesWithIOErrorOnCommitFailure() throws IOException {
+        final AtomicBoolean throwException = new AtomicBoolean();
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+                @Override
+                Directory createDirectory(Path path) throws IOException {
+                    return new FilterDirectory(super.createDirectory(path)) {
+                        @Override
+                        public void rename(String source, String dest) throws IOException {
+                            if (throwException.get() && dest.startsWith("segments")) {
                                 throw new IOException("simulated");
                             }
                         }
@@ -403,8 +448,20 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         .version(randomLongBetween(1L, Long.MAX_VALUE)))
                     .incrementVersion().build();
                 throwException.set(true);
-                assertThat(expectThrows(IOError.class, () -> writeState(writer, newTerm, newState, clusterState)).getMessage(),
+                assertThat(expectThrows(IOError.class, () -> {
+                        if (randomBoolean()) {
+                            writeState(writer, newTerm, newState, clusterState);
+                        } else {
+                            writer.commit(newTerm, newState.version());
+                        }
+                    }).getMessage(),
                     containsString("simulated"));
+                assertFalse(writer.isOpen());
+            }
+
+            // check if we can open writer again
+            try (Writer ignored = persistedClusterStateService.createWriter()) {
+
             }
         }
     }

@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 
 import java.util.Deque;
 import java.util.List;
@@ -25,7 +27,7 @@ public class MockBatchedDocumentsIterator<T> extends BatchedResultsIterator<T> {
     private Boolean requireIncludeInterim;
 
     public MockBatchedDocumentsIterator(List<Deque<Result<T>>> batches, String resultType) {
-        super(mock(OriginSettingClient.class), "foo", resultType);
+        super(MockOriginSettingClient.mockOriginSettingClient(mock(Client.class), ClientHelper.ML_ORIGIN), "foo", resultType);
         this.batches = batches;
         index = 0;
         wasTimeRangeCalled = false;

@@ -71,6 +71,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.Closeable;
 import java.io.FilterOutputStream;
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -498,13 +499,17 @@ public class PersistedClusterStateService {
             this.indexWriter.flush();
         }
 
-        void commit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
+        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
             final Map<String, String> commitData = new HashMap<>(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
             commitData.put(NODE_ID_KEY, nodeId);
             indexWriter.setLiveCommitData(commitData.entrySet());
+            indexWriter.prepareCommit();
+        }
+
+        void commit() throws IOException {
             indexWriter.commit();
         }
 
@@ -671,7 +676,31 @@ public class PersistedClusterStateService {
             ensureOpen();
             try {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
-                    metaDataIndexWriter.commit(nodeId, currentTerm, lastAcceptedVersion);
+                    metaDataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion);
+                }
+            } catch (Exception e) {
+                try {
+                    close();
+                } catch (Exception e2) {
+                    logger.warn("failed on closing cluster state writer", e2);
+                    e.addSuppressed(e2);
+                }
+                throw e;
+            } finally {
+                closeIfAnyIndexWriterHasTragedyOrIsClosed();
+            }
+            try {
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.commit();
+                }
+            } catch (IOException e) {
+                // The commit() call has similar semantics to a fsync(): although it's atomic, if it fails then we've no idea whether the
+                // data on disk is now the old version or the new version, and this is a disaster. It's safest to fail the whole node and
+                // retry from the beginning.
+                try {
+                    close();
+                } finally {
+                    throw new IOError(e);
                 }
             } finally {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();

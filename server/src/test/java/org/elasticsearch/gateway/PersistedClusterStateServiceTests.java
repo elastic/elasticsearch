@@ -46,6 +46,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -401,6 +402,53 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     .incrementVersion().build();
                 throwException.set(true);
                 assertThat(expectThrows(OutOfMemoryError.class, () -> {
+                        if (randomBoolean()) {
+                            writeState(writer, newTerm, newState, clusterState);
+                        } else {
+                            writer.commit(newTerm, newState.version());
+                        }
+                    }).getMessage(),
+                    containsString("simulated"));
+                assertFalse(writer.isOpen());
+            }
+
+            // check if we can open writer again
+            try (Writer ignored = persistedClusterStateService.createWriter()) {
+
+            }
+        }
+    }
+
+    public void testCrashesWithIOErrorOnCommitFailure() throws IOException {
+        final AtomicBoolean throwException = new AtomicBoolean();
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
+                @Override
+                Directory createDirectory(Path path) throws IOException {
+                    return new FilterDirectory(super.createDirectory(path)) {
+                        @Override
+                        public void rename(String source, String dest) throws IOException {
+                            if (throwException.get() && dest.startsWith("segments")) {
+                                throw new IOException("simulated");
+                            }
+                        }
+                    };
+                }
+            };
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+                final long newTerm = randomNonNegativeLong();
+                final ClusterState newState = ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData())
+                        .clusterUUID(UUIDs.randomBase64UUID(random()))
+                        .clusterUUIDCommitted(true)
+                        .version(randomLongBetween(1L, Long.MAX_VALUE)))
+                    .incrementVersion().build();
+                throwException.set(true);
+                assertThat(expectThrows(IOError.class, () -> {
                         if (randomBoolean()) {
                             writeState(writer, newTerm, newState, clusterState);
                         } else {

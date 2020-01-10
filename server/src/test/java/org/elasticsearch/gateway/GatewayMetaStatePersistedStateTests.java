@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -447,7 +448,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     persistedState.setCurrentTerm(newTerm);
                     currentTerm = newTerm;
                 }
-            } catch (Exception e) {
+            } catch (IOError | Exception e) {
                 assertNotNull(ExceptionsHelper.unwrap(e, IOException.class));
             }
 
@@ -478,7 +479,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertEquals(state, persistedState.getLastAcceptedState());
             assertEquals(currentTerm, persistedState.getCurrentTerm());
 
-        } catch (Exception e) {
+        } catch (IOError | Exception e) {
             if (ioExceptionRate.get() == 0.0d) {
                 throw e;
             }

@@ -4,7 +4,7 @@
 <titleabbrev>Restore the data</titleabbrev>
 ++++
 
-include::{es-repo-dir}/modules/snapshots.asciidoc[tag=restore-intro]
+include::../snapshot-restore/index.asciidoc[tag=restore-intro]
 
 [TIP]
 ====

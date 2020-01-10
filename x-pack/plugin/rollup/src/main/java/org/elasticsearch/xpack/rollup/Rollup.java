@@ -187,5 +187,4 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             schedulerEngine.get().stop();
         }
     }
-
 }

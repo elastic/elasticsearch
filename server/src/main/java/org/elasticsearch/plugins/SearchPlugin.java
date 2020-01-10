@@ -249,7 +249,7 @@ public interface SearchPlugin {
     /**
      * Specification for an {@link Aggregation}.
      */
-    class AggregationSpec<T extends AggregationBuilder> extends SearchExtensionSpec<T, ContextParser<String, T>> {
+    class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, ContextParser<String, ? extends AggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
 
         /**
@@ -262,7 +262,8 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public AggregationSpec(ParseField name, Writeable.Reader<T> reader, ContextParser<String, T> parser) {
+        public <T extends AggregationBuilder> AggregationSpec(ParseField name, Writeable.Reader<T> reader,
+                ContextParser<String, T> parser) {
             super(name, reader, parser);
         }
 
@@ -275,7 +276,7 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public AggregationSpec(String name, Writeable.Reader<T> reader, ContextParser<String, T> parser) {
+        public <T extends AggregationBuilder> AggregationSpec(String name, Writeable.Reader<T> reader, ContextParser<String, T> parser) {
             super(name, reader, parser);
         }
 
@@ -291,9 +292,8 @@ public interface SearchPlugin {
          * @deprecated Use the ctor that takes a {@link ContextParser} instead
          */
         @Deprecated
-        @SuppressWarnings("unchecked")
-        public AggregationSpec(ParseField name, Writeable.Reader<T> reader, Aggregator.Parser parser) {
-            super(name, reader, (p, aggName) -> (T) parser.parse(aggName, p));
+        public AggregationSpec(ParseField name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+            super(name, reader, (p, aggName) -> parser.parse(aggName, p));
         }
 
         /**
@@ -306,24 +306,23 @@ public interface SearchPlugin {
          * @param parser the parser the reads the aggregation builder from xcontent
          * @deprecated Use the ctor that takes a {@link ContextParser} instead
          */
-        @SuppressWarnings("unchecked")
         @Deprecated
-        public AggregationSpec(String name, Writeable.Reader<T> reader, Aggregator.Parser parser) {
-            super(name, reader, (p, aggName) -> (T) parser.parse(aggName, p));
+        public AggregationSpec(String name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+            super(name, reader, (p, aggName) -> parser.parse(aggName, p));
         }
 
         /**
          * Add a reader for the shard level results of the aggregation with {@linkplain #getName}'s {@link ParseField#getPreferredName()} as
          * the {@link NamedWriteable#getWriteableName()}.
          */
-        public AggregationSpec<T> addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
+        public AggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
             return addResultReader(getName().getPreferredName(), resultReader);
         }
 
         /**
          * Add a reader for the shard level results of the aggregation.
          */
-        public AggregationSpec<T> addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
+        public AggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
             resultReaders.put(writeableName, resultReader);
             return this;
         }

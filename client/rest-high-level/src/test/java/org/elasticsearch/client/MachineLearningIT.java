@@ -151,6 +151,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -201,6 +202,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -2168,8 +2170,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
                 GetTrainedModelsRequest.getAllTrainedModelConfigsRequest(),
                 machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
-            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels));
-            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L + 1));
         }
         {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
@@ -2192,7 +2194,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testGetTrainedModelsStats() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String modelIdPrefix = "get-trained-model-stats-";
+        String modelIdPrefix = "a-get-trained-model-stats-";
         int numberOfModels = 5;
         for (int i = 0; i < numberOfModels; ++i) {
             String modelId = modelIdPrefix + i;
@@ -2224,8 +2226,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
                 GetTrainedModelsStatsRequest.getAllTrainedModelStatsRequest(),
                 machineLearningClient::getTrainedModelsStats, machineLearningClient::getTrainedModelsStatsAsync);
-            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(numberOfModels));
-            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L));
+            assertThat(getTrainedModelsStatsResponse.getTrainedModelStats(), hasSize(numberOfModels + 1));
+            assertThat(getTrainedModelsStatsResponse.getCount(), equalTo(5L + 1));
             assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(0).getPipelineCount(), equalTo(1));
             assertThat(getTrainedModelsStatsResponse.getTrainedModelStats().get(1).getPipelineCount(), equalTo(0));
         }
@@ -2276,6 +2278,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertThat(getTrainedModelsResponse.getCount(), equalTo(0L));
         assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(0));
+    }
+
+    public void testGetPrepackagedModels() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest("lang_ident_model_1").setIncludeDefinition(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo("lang_ident_model_1"));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition().getTrainedModel(),
+            instanceOf(LangIdentNeuralNetwork.class));
     }
 
     public void testPutFilter() throws Exception {

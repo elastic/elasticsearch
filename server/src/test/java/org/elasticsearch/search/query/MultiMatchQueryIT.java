@@ -92,7 +92,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.category.tokenizer", "standard")
                 .put("index.analysis.analyzer.category.filter", "lowercase")
         );
-        assertAcked(builder.addMapping("test", createMapping()));
+        assertAcked(builder.setMapping(createMapping()));
         ensureGreen();
         int numDocs = scaledRandomIntBetween(50, 100);
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -163,7 +163,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("test")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("id")
                 .field("type", "keyword")
@@ -626,7 +626,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_SHARDS, 3)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 );
-        assertAcked(builder.addMapping("type", "title", "type=text", "body", "type=text"));
+        assertAcked(builder.setMapping("title", "type=text", "body", "type=text"));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex(idx).setId("1").setSource(

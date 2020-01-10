@@ -122,12 +122,12 @@ public class SplitIndexIT extends ESIntegTestCase {
             settings.put("index.routing_partition_size",
                 randomIntBetween(1, numRoutingShards));
             if (useNested) {
-                createInitialIndex.addMapping("_doc", "_routing", "required=true", "nested1", "type=nested");
+                createInitialIndex.setMapping("_routing", "required=true", "nested1", "type=nested");
             } else {
-                createInitialIndex.addMapping("_doc", "_routing", "required=true");
+                createInitialIndex.setMapping("_routing", "required=true");
             }
         } else if (useNested) {
-            createInitialIndex.addMapping("_doc", "nested1", "type=nested");
+            createInitialIndex.setMapping("nested1", "type=nested");
         }
         logger.info("use routing {} use mixed routing {} use nested {}", useRouting, useMixedRouting, useNested);
         createInitialIndex.setSettings(settings).get();
@@ -465,7 +465,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                     .put("number_of_shards", 2)
                     .put("number_of_replicas", 0)
             )
-            .addMapping("_doc", "id", "type=keyword,doc_values=true")
+            .setMapping("id", "type=keyword,doc_values=true")
             .get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source").setId(Integer.toString(i))

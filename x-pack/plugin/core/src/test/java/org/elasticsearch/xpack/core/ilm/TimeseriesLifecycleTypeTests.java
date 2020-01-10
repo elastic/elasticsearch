@@ -34,6 +34,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final AllocateAction TEST_ALLOCATE_ACTION =
         new AllocateAction(2, Collections.singletonMap("node", "node1"),null, null);
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
+    private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
@@ -556,6 +557,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         switch (actionName) {
             case AllocateAction.NAME:
                 return TEST_ALLOCATE_ACTION;
+            case WaitForSnapshotAction.NAME:
+                return TEST_WAIT_FOR_SNAPSHOT_ACTION;
             case DeleteAction.NAME:
                 return TEST_DELETE_ACTION;
             case ForceMergeAction.NAME:

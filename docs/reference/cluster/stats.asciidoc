@@ -206,7 +206,7 @@ selected nodes.
 (integer)
 Total number of query cache evictions on all shards across all selected nodes.
 
-`indices.completion.size_in_bytes`::
+`indices.completion.size`::
 (<<byte-units, byte units>>)
 Total memory used for completion on all shards across all selected nodes.
 

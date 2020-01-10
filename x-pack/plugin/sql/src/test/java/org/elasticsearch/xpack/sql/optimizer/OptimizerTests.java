@@ -1759,24 +1759,24 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(r.includeUpper());
     }
 
-    // a = 2 OR a != 5 -> TRUE
-    public void testPropagateEquals_VarEq2OrVarNeq5() {
+    // a = 2 OR a != 2 -> TRUE
+    public void testPropagateEquals_VarEq2OrVarNeq2() {
         FieldAttribute fa = getFieldAttribute();
         Equals eq = new Equals(EMPTY, fa, TWO);
-        NotEquals neq = new NotEquals(EMPTY, fa, FIVE);
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
 
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, neq));
         assertEquals(TRUE, exp);
     }
 
-    // a = 2 OR 3 < a < 4 OR a > 2 OR a!= 5 -> TRUE
-    public void testPropagateEquals_VarEq2OrVarRangeGt3Lt4OrVarGt2OrVarNe5() {
+    // a = 2 OR 3 < a < 4 OR a > 2 OR a!= 2 -> TRUE
+    public void testPropagateEquals_VarEq2OrVarRangeGt3Lt4OrVarGt2OrVarNe2() {
         FieldAttribute fa = getFieldAttribute();
         Equals eq = new Equals(EMPTY, fa, TWO);
         Range range = new Range(EMPTY, fa, THREE, false, FOUR, false);
-        NotEquals neq = new NotEquals(EMPTY, fa, FIVE);
         GreaterThan gt = new GreaterThan(EMPTY, fa, TWO);
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
 
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(Predicates.combineOr(Arrays.asList(eq, range, neq, gt)));

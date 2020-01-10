@@ -990,9 +990,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             List<Range> ranges = new ArrayList<>();
             // Only equalities, not-equalities and inequalities with a foldable .right are extracted separately;
             // the others go into the general 'exps'.
-            List<BinaryComparison> frEquals = new ArrayList<>();
-            List<NotEquals> frNotEquals = new ArrayList<>();
-            List<BinaryComparison> frInequalities = new ArrayList<>();
+            List<BinaryComparison> equals = new ArrayList<>();
+            List<NotEquals> notEquals = new ArrayList<>();
+            List<BinaryComparison> inequalities = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
 
             boolean changed = false;
@@ -1004,7 +1004,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     BinaryComparison otherEq = (BinaryComparison) ex;
                     // equals on different values evaluate to FALSE
                     if (otherEq.right().foldable()) {
-                        for (BinaryComparison eq : frEquals) {
+                        for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
                                 Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
                                 if (comp != null) {
@@ -1015,7 +1015,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 }
                             }
                         }
-                        frEquals.add(otherEq);
+                        equals.add(otherEq);
                     } else {
                         exps.add(otherEq);
                     }
@@ -1023,14 +1023,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     ex instanceof LessThan || ex instanceof LessThanOrEqual) {
                     BinaryComparison bc = (BinaryComparison) ex;
                     if (bc.right().foldable()) {
-                        frInequalities.add(bc);
+                        inequalities.add(bc);
                     } else {
                         exps.add(ex);
                     }
                 } else if (ex instanceof NotEquals) {
                     NotEquals otherNotEq = (NotEquals) ex;
                     if (otherNotEq.right().foldable()) {
-                        frNotEquals.add(otherNotEq);
+                        notEquals.add(otherNotEq);
                     } else {
                         exps.add(ex);
                     }
@@ -1040,7 +1040,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             // check
-            for (BinaryComparison eq : frEquals) {
+            for (BinaryComparison eq : equals) {
                 Object eqValue = eq.right().fold();
 
                 for (int i = 0; i < ranges.size(); i++) {
@@ -1078,10 +1078,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 // evaluate all NotEquals against the Equal
-                for (Iterator<NotEquals> iter = frNotEquals.iterator(); iter.hasNext(); ) {
+                for (Iterator<NotEquals> iter = notEquals.iterator(); iter.hasNext(); ) {
                     NotEquals neq = iter.next();
                     if (eq.left().semanticEquals(neq.left())) {
-                        Integer comp = BinaryComparison.compare(eq.right().fold(), neq.right().fold());
+                        Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
                         if (comp != null) {
                             if (comp == 0) {
                                 return FALSE; // clashing and conflicting: a = 1 AND a != 1
@@ -1094,35 +1094,31 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 // evaluate all inequalities against the Equal
-                for (Iterator<BinaryComparison> iter = frInequalities.iterator(); iter.hasNext(); ) {
+                for (Iterator<BinaryComparison> iter = inequalities.iterator(); iter.hasNext(); ) {
                     BinaryComparison bc = iter.next();
-                    if (! eq.left().semanticEquals(bc.left())) {
-                        continue;
-                    }
+                    if (eq.left().semanticEquals(bc.left())) {
+                        Integer compare = BinaryComparison.compare(eqValue, bc.right().fold());
+                        if (compare != null) {
+                            if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
+                                if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
+                                    0 < compare) { // a = 2 AND a </<= 1
+                                    return FALSE;
+                                }
+                            } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
+                                if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
+                                    compare < 0) { // a = 2 AND a >/>= 3
+                                    return FALSE;
+                                }
+                            }
 
-                    Integer compare = BinaryComparison.compare(eqValue, bc.right().fold());
-                    if (compare == null) {
-                        continue;
-                    }
-
-                    if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
-                        if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
-                            0 < compare) { // a = 2 AND a </<= 1
-                            return FALSE;
+                            iter.remove();
+                            changed = true;
                         }
-                    } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
-                        if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
-                            compare < 0) { // a = 2 AND a >/>= 3
-                            return FALSE;
-                        }
                     }
-
-                    iter.remove();
-                    changed = true;
                 }
             }
 
-            return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, frEquals, frNotEquals, frInequalities, ranges)) : and;
+            return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, equals, notEquals, inequalities, ranges)) : and;
         }
 
         // combine disjunction:
@@ -1132,24 +1128,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // a = 2 OR a != 5 -> TRUE; a = 2 OR a = 5 -> nop
         private Expression propagate(Or or) {
             List<Expression> exps = new ArrayList<>();
-            List<Equals> frEquals = new ArrayList<>(); // foldable right term Equals
-            List<NotEquals> frNotEquals = new ArrayList<>(); // foldable right term NotEquals
+            List<Equals> equals = new ArrayList<>(); // foldable right term Equals
+            List<NotEquals> notEquals = new ArrayList<>(); // foldable right term NotEquals
             List<Range> ranges = new ArrayList<>();
-            List<BinaryComparison> frInequalities = new ArrayList<>(); // foldable right term (=limit) BinaryComparision
+            List<BinaryComparison> inequalities = new ArrayList<>(); // foldable right term (=limit) BinaryComparision
 
             // split expressions by type
             for (Expression ex : Predicates.splitOr(or)) {
                 if (ex instanceof Equals) {
                     Equals eq = (Equals) ex;
                     if (eq.right().foldable()) {
-                        frEquals.add(eq);
+                        equals.add(eq);
                     } else {
                         exps.add(ex);
                     }
                 } else if (ex instanceof NotEquals) {
                     NotEquals neq = (NotEquals) ex;
                     if (neq.right().foldable()) {
-                        frNotEquals.add(neq);
+                        notEquals.add(neq);
                     } else {
                         exps.add(ex);
                     }
@@ -1158,7 +1154,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 } else if (ex instanceof BinaryComparison) {
                     BinaryComparison bc = (BinaryComparison) ex;
                     if (bc.right().foldable()) {
-                        frInequalities.add(bc);
+                        inequalities.add(bc);
                     } else {
                         exps.add(ex);
                     }
@@ -1170,22 +1166,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             boolean updated = false; // has the expression been modified?
 
             // evaluate the impact of each Equal over the different types of Expressions
-            for (Iterator<Equals> iterEq = frEquals.iterator(); iterEq.hasNext(); ) {
+            for (Iterator<Equals> iterEq = equals.iterator(); iterEq.hasNext(); ) {
                 Equals eq = iterEq.next();
+                Object eqValue = eq.right().fold();
 
                 // Equals OR NotEquals
-                for (NotEquals neq : frNotEquals) {
-                    if (eq.left().semanticEquals(neq.left())) { // a = 2 OR a != ? -> TRUE
-                        return TRUE;
+                for (NotEquals neq : notEquals) {
+                    if (eq.left().semanticEquals(neq.left())) { // a = 2 OR a != 2 -> TRUE
+                        Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
+                        if (comp != null && comp == 0) {
+                            return TRUE;
+                        }
                     }
                 }
-
-                Object eqValue = eq.right().fold();
 
                 // Equals OR Range
                 for (int i = 0; i < ranges.size(); i ++) { // might modify list, so use index loop
                     Range range = ranges.get(i);
-                    if (! eq.left().semanticEquals(range.value())) {
+                    if (eq.left().semanticEquals(range.value()) == false) {
                         continue;
                     }
 
@@ -1209,9 +1207,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 // Equals OR Inequality
-                for (int i = 0; i < frInequalities.size(); i ++) {
-                    BinaryComparison bc = frInequalities.get(i);
-                    if (! eq.left().semanticEquals(bc.left())) {
+                for (int i = 0; i < inequalities.size(); i ++) {
+                    BinaryComparison bc = inequalities.get(i);
+                    if (eq.left().semanticEquals(bc.left()) == false) {
                         continue;
                     }
 
@@ -1223,24 +1221,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (comp < 0) { // a = 1 OR a > 2 -> nop
                             continue;
                         } else if (comp == 0 && bc instanceof GreaterThan) { // a = 2 OR a > 2 -> a >= 2
-                                frInequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right()));
-                        } // else (0 < comp) : // a = 3 OR a > 2 -> a > 2
+                                inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right()));
+                        } // else (0 < comp || bc instanceof GreaterThanOrEqual) : a = 3 OR a > 2 -> a > 2
                         iterEq.remove(); // update range with equality instead or simply superfluous
                         updated = true;
                     } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                        if (0 < comp) { // a = 2 OR a < 1 -> nop
+                        if (comp > 0) { // a = 2 OR a < 1 -> nop
                             continue;
                         }
                         if (comp == 0 && bc instanceof LessThan) { // a = 2 OR a < 2 -> a <= 2
-                            frInequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right()));
-                        } // else (comp < 0) { // a = 2 OR a < 3 -> a < 3
+                            inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right()));
+                        } // else (comp < 0 || bc instanceof LessThanOrEqual) : a = 2 OR a < 3 -> a < 3
                         iterEq.remove(); // update range with equality instead or simply superfluous
                         updated = true;
                     }
                 }
             }
 
-            return updated ? Predicates.combineOr(CollectionUtils.combine(exps, frEquals, frNotEquals, frInequalities, ranges)) : or;
+            return updated ? Predicates.combineOr(CollectionUtils.combine(exps, equals, notEquals, inequalities, ranges)) : or;
         }
     }
 

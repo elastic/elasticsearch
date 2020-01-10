@@ -66,22 +66,9 @@ Unique identifier for the cluster.
 Last time the cluster statistics were refreshed.
 
 `status`::
-(string)
-Health status of the cluster based on the state of its primary and replica
-shards. Returned values include:
-
-  `green`:::
-  All primary shard and replica shards are assigned. There are at least two
-  copies of all shards.
-
-  `yellow`:::
-  All primary shards are assigned, but one or more replica shards are
-  unassigned. If a node in the cluster fails, some data could be unavailable until that node is repaired.
-
-  `red`:::
-  One or more primary shards are unassigned. This can occur briefly during
-  cluster startup as primary shards are assigned during cluster startup. At
-  other times, this status may indicate data loss.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
++
+See <<cluster-health>>.
 
 `indices.count`::
 (integer)

@@ -157,7 +157,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         private static final ParseField PROGRESS_ON_START = new ParseField("progress_on_start");
 
         @SuppressWarnings("unchecked")
-        public static ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
             a -> new TaskParams((String) a[0], (String) a[1], (List<PhaseProgress>) a[2], (Boolean) a[3]));
 

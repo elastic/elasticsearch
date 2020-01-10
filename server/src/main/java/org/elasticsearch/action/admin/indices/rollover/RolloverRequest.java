@@ -74,7 +74,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
-            request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappings);
+            request.createIndexRequest.mapping(mappings);
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
             CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);

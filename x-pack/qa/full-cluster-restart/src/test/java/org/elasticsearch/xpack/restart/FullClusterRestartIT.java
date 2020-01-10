@@ -123,7 +123,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48381")
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
@@ -143,13 +142,25 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createFunnyTimeout);
 
             logger.info("Waiting for watch results index to fill up...");
-            waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            try {
+                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
             waitForHits("bwc_watch_index", 2);
             waitForHits(".watcher-history*", 2);
             logger.info("Done creating watcher-related indices");
         } else {
             logger.info("testing against {}", getOldClusterVersion());
-            waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            try {
+                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
 
             logger.info("checking that the Watches index is the correct version");
 

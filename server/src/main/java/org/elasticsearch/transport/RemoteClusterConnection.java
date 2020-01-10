@@ -180,7 +180,6 @@ final class RemoteClusterConnection implements Closeable {
 
     @Override
     public void close() throws IOException {
-        remoteConnectionManager.getConnectionManager().removeListener(transportService);
         IOUtils.close(connectionStrategy, remoteConnectionManager);
     }
 

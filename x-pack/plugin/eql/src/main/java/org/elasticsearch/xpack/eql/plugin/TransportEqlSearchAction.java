@@ -22,7 +22,9 @@ import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse> {
     private final SecurityContext securityContext;
@@ -51,14 +53,14 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     static EqlSearchResponse createResponse(EqlSearchRequest request) {
         // Stubbed search response
         // TODO: implement actual search response processing once the parser/executor is in place
-        EqlSearchResponse.Events events = new EqlSearchResponse.Events(new SearchHit[]{
+        List<SearchHit> events = Arrays.asList(
             new SearchHit(1, "111", null),
-            new SearchHit(2, "222", null),
-        });
-        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(new EqlSearchResponse.Sequences(new EqlSearchResponse.Sequence[]{
+            new SearchHit(2, "222", null)
+        );
+        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, Arrays.asList(
             new EqlSearchResponse.Sequence(Collections.singletonList("4021"), events),
             new EqlSearchResponse.Sequence(Collections.singletonList("2343"), events)
-        }), new TotalHits(0,  TotalHits.Relation.EQUAL_TO));
+        ), null, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
         return new EqlSearchResponse(hits, 0, false);
     }
 }

@@ -58,7 +58,7 @@ import java.util.function.Predicate;
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse>
     extends HandledTransportAction<Request, Response> {
 
-    protected static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;

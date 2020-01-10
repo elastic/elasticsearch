@@ -65,7 +65,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     extends TransportTasksAction<DataFrameAnalyticsTask, GetDataFrameAnalyticsStatsAction.Request,
         GetDataFrameAnalyticsStatsAction.Response, QueryPage<Stats>> {
 
-    private static final Logger LOGGER = LogManager.getLogger(TransportGetDataFrameAnalyticsStatsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetDataFrameAnalyticsStatsAction.class);
 
     private final Client client;
 
@@ -95,7 +95,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     @Override
     protected void taskOperation(GetDataFrameAnalyticsStatsAction.Request request, DataFrameAnalyticsTask task,
                                  ActionListener<QueryPage<Stats>> listener) {
-        LOGGER.debug("Get stats for running task [{}]", task.getParams().getId());
+        logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
         ActionListener<List<PhaseProgress>> progressListener = ActionListener.wrap(
             progress -> {
@@ -118,7 +118,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     @Override
     protected void doExecute(Task task, GetDataFrameAnalyticsStatsAction.Request request,
                              ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
-        LOGGER.debug("Get stats for data frame analytics [{}]", request.getId());
+        logger.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
             getResponse -> {
@@ -221,7 +221,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             StoredProgress storedProgress = StoredProgress.PARSER.apply(parser, null);
             return storedProgress;
         } catch (IOException e) {
-            LOGGER.error(new ParameterizedMessage("failed to parse progress from doc with it [{}]", hit.getId()), e);
+            logger.error(new ParameterizedMessage("failed to parse progress from doc with it [{}]", hit.getId()), e);
             return new StoredProgress(Collections.emptyList());
         }
     }

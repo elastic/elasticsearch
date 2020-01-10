@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -225,12 +225,11 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         }
     }
 
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(AnalyticsPlugin.class);
-        plugins.add(XPackPlugin.class);
+        plugins.add(LocalStateCompositeXPackPlugin.class);
         return plugins;
     }
 

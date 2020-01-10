@@ -16,7 +16,7 @@ public class ScalarSubquery extends SubQueryExpression {
         this(source, query, null);
     }
 
-    public ScalarSubquery(Source source, LogicalPlan query, ExpressionId id) {
+    public ScalarSubquery(Source source, LogicalPlan query, NameId id) {
         super(source, query, id);
     }
 

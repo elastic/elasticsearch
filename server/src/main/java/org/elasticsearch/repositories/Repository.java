@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -224,4 +225,13 @@ public interface Repository extends LifecycleComponent {
      * @return snapshot status
      */
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+
+    /**
+     * Update the repository with the incoming cluster state. This method is invoked from {@link RepositoriesService#applyClusterState} and
+     * thus the same semantics as with {@link org.elasticsearch.cluster.ClusterStateApplier#applyClusterState} apply for the
+     * {@link ClusterState} that is passed here.
+     *
+     * @param state new cluster state
+     */
+    void updateState(ClusterState state);
 }

@@ -1,0 +1,216 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-dfa-analysis-objects]]
+=== Analysis configuration objects
+
+{dfanalytics-cap} resources contain `analysis` objects. For example, when you
+create a {dfanalytics-job}, you must define the type of analysis it performs. 
+This page lists all the available parameters that you can use in the `analysis` 
+object grouped by {dfanalytics} types.
+
+
+[discrete]
+[[oldetection-resources]]
+==== {oldetection-cap} configuration objects
+
+An `outlier_detection` configuration object has the following properties:
+
+`compute_feature_influence`::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
+  
+`feature_influence_threshold`:: 
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
+
+`method`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=method]
+  
+`n_neighbors`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
+  
+`outlier_fraction`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
+  
+`standardization_enabled`::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
+
+
+[discrete]
+[[reganalysis-resources]]
+==== {regression-cap} configuration objects
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/house_price_regression_analysis
+{
+  "source": {
+    "index": "houses_sold_last_10_yrs" <1>
+  },
+  "dest": {
+    "index": "house_price_predictions" <2>
+  },
+  "analysis": 
+    {
+      "regression": { <3>
+        "dependent_variable": "price" <4>
+      }
+    }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> Training data is taken from source index `houses_sold_last_10_yrs`.
+<2> Analysis results will be output to destination index 
+`house_price_predictions`.
+<3> The regression analysis configuration object.
+<4> Regression analysis will use field `price` to train on. As no other 
+parameters have been specified it will train on 100% of eligible data, store its 
+prediction in destination index field `price_prediction` and use in-built 
+hyperparameter optimization to give minimum validation errors.
+
+
+[float]
+[[regression-resources-standard]]
+===== Standard parameters
+
+`dependent_variable`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
++
+--
+The data type of the field must be numeric.
+--
+
+`prediction_field_name`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`training_percent`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+
+`randomize_seed`::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+
+[float]
+[[regression-resources-advanced]]
+===== Advanced parameters
+
+Advanced parameters are for fine-tuning {reganalysis}. They are set 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters. If these 
+parameters are not supplied, their values are automatically tuned to give 
+minimum validation error.
+
+`eta`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+`feature_bag_fraction`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+
+`maximum_number_trees`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+
+`gamma`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+`lambda`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+
+[discrete]
+[[classanalysis-resources]]
+==== {classification-cap} configuration objects 
+ 
+ 
+[float]
+[[classification-resources-standard]]
+===== Standard parameters
+ 
+`dependent_variable`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
++
+--
+The data type of the field must be numeric or boolean.
+--
+  
+`num_top_classes`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-classes]
+ 
+`prediction_field_name`::
+(Optional, string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`training_percent`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+
+`randomize_seed`::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+
+[float]
+[[classification-resources-advanced]]
+===== Advanced parameters
+
+Advanced parameters are for fine-tuning {classanalysis}. They are set 
+automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters. If these 
+parameters are not supplied, their values are automatically tuned to give 
+minimum validation error.
+
+`eta`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+`feature_bag_fraction`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+
+`maximum_number_trees`::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+
+`gamma`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+`lambda`::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+[discrete]
+[[ml-hyperparam-optimization]]
+==== Hyperparameter optimization
+
+If you don't supply {regression} or {classification} parameters, hyperparameter 
+optimization will be performed by default to set a value for the undefined 
+parameters. The starting point is calculated for data dependent parameters by 
+examining the loss on the training data. Subject to the size constraint, this 
+operation provides an upper bound on the improvement in validation loss.
+
+A fixed number of rounds is used for optimization which depends on the number of 
+parameters being optimized. The optimization starts with random search, then 
+Bayesian optimization is performed that is targeting maximum expected 
+improvement. If you override any parameters, then the optimization will 
+calculate the value of the remaining parameters accordingly and use the value 
+you provided for the overridden parameter. The number of rounds are reduced 
+respectively. The validation error is estimated in each round by using 4-fold 
+cross validation.

@@ -33,9 +33,6 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
-import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
-import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
-import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -48,8 +45,11 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -135,8 +135,6 @@ import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
-import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
@@ -1293,6 +1291,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression.builder("my_dependent_variable")
                 .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
+                .setRandomizeSeed(42L)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1328,6 +1327,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable")
                 .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
+                .setRandomizeSeed(42L)
                 .setNumTopClasses(1)
                 .build())
             .setDescription("this is a classification")
@@ -1822,10 +1822,77 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 accuracyResult.getActualClasses(),
                 equalTo(
                     List.of(
-                        new AccuracyMetric.ActualClass("cat", 5, 0.6),  // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new AccuracyMetric.ActualClass("dog", 4, 0.75),  // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new AccuracyMetric.ActualClass("ant", 1, 0.0))));  // no examples labeled as "ant" were classified correctly
+                        // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new AccuracyMetric.ActualClass("cat", 5, 0.6),
+                        // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new AccuracyMetric.ActualClass("dog", 4, 0.75),
+                        // no examples labeled as "ant" were classified correctly
+                        new AccuracyMetric.ActualClass("ant", 1, 0.0))));
             assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
+        }
+        {  // Precision
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(
+                        actualClassField,
+                        predictedClassField,
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.Result precisionResult =
+                evaluateDataFrameResponse.getMetricByName(
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME);
+            assertThat(
+                precisionResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME));
+            assertThat(
+                precisionResult.getClasses(),
+                equalTo(
+                    List.of(
+                        // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("cat", 0.6),
+                        // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("dog", 0.75))));
+            assertThat(precisionResult.getAvgPrecision(), equalTo(0.675));
+        }
+        {  // Recall
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName,
+                    null,
+                    new Classification(
+                        actualClassField,
+                        predictedClassField,
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result recallResult =
+                evaluateDataFrameResponse.getMetricByName(
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME);
+            assertThat(
+                recallResult.getMetricName(),
+                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME));
+            assertThat(
+                recallResult.getClasses(),
+                equalTo(
+                    List.of(
+                        // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("cat", 0.6),
+                        // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("dog", 0.75),
+                        // no examples labeled as "ant" were classified correctly
+                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("ant", 0.0))));
+            assertThat(recallResult.getAvgRecall(), equalTo(0.45));
         }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
             EvaluateDataFrameRequest evaluateDataFrameRequest =
@@ -1846,20 +1913,29 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 mcmResult.getConfusionMatrix(),
                 equalTo(
                     List.of(
-                        new ActualClass(
+                        new MulticlassConfusionMatrixMetric.ActualClass(
                             "ant",
                             1L,
-                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("ant", 0L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 1L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 0L)),
                             0L),
-                        new ActualClass(
+                        new MulticlassConfusionMatrixMetric.ActualClass(
                             "cat",
                             5L,
-                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("ant", 0L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 3L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 1L)),
                             1L),
-                        new ActualClass(
+                        new MulticlassConfusionMatrixMetric.ActualClass(
                             "dog",
                             4L,
-                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("ant", 0L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 1L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 3L)),
                             0L))));
             assertThat(mcmResult.getOtherActualClassCount(), equalTo(0L));
         }
@@ -1882,8 +1958,20 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 mcmResult.getConfusionMatrix(),
                 equalTo(
                     List.of(
-                        new ActualClass("cat", 5L, List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1L),
-                        new ActualClass("dog", 4L, List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0L)
+                        new MulticlassConfusionMatrixMetric.ActualClass(
+                            "cat",
+                            5L,
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 3L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 1L)),
+                            1L),
+                        new MulticlassConfusionMatrixMetric.ActualClass(
+                            "dog",
+                            4L,
+                            List.of(
+                                new MulticlassConfusionMatrixMetric.PredictedClass("cat", 1L),
+                                new MulticlassConfusionMatrixMetric.PredictedClass("dog", 3L)),
+                            0L)
                     )));
             assertThat(mcmResult.getOtherActualClassCount(), equalTo(1L));
         }

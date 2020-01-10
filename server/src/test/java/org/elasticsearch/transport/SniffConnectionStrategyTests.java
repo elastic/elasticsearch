@@ -487,7 +487,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testSniffStrategyWillNeedToBeRebuiltIfSeedsOrProxyChange() {
+    public void testSniffStrategyWillNeedToBeRebuiltIfNumOfConnectionsOrSeedsOrProxyChange() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
              MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
@@ -516,9 +516,12 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
                     Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias");
                     Setting<?> proxySetting = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> numConnections = SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS
+                        .getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(numConnections.getKey(), 3)
                         .build();
                     assertFalse(strategy.shouldRebuildConnection(noChange));
                     Settings seedsChanged = Settings.builder()
@@ -530,6 +533,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         .put(proxySetting.getKey(), "proxy_address:9300")
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(proxyChanged));
+                    Settings connectionsChanged = Settings.builder()
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(numConnections.getKey(), 4)
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(connectionsChanged));
                 }
             }
         }
@@ -644,14 +652,13 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
         List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
             new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, "192.168.0.1:8080"),
-            new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD, "192.168.0.1:8080"),
             new Tuple<>(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS, "2"));
 
-        RemoteConnectionStrategy.ConnectionStrategy simple = RemoteConnectionStrategy.ConnectionStrategy.SIMPLE;
+        RemoteConnectionStrategy.ConnectionStrategy proxy = RemoteConnectionStrategy.ConnectionStrategy.PROXY;
 
         String clusterName = "cluster_name";
         Settings settings = Settings.builder()
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), simple.name())
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), proxy.name())
             .build();
 
         Set<Setting<?>> clusterSettings = new HashSet<>();
@@ -667,7 +674,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
             String expected = "Setting \"" + concreteSetting.getKey() + "\" cannot be used with the configured " +
-                "\"cluster.remote.cluster_name.mode\" [required=SNIFF, configured=SIMPLE]";
+                "\"cluster.remote.cluster_name.mode\" [required=SNIFF, configured=PROXY]";
             assertEquals(expected, iae.getMessage());
         }
     }

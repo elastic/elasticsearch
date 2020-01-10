@@ -368,12 +368,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
-                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings);
+                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
             } catch (IllegalStateException ex) {
                 logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
                 try {
                     ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
-                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings);
+                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
                 } catch (Exception inner) {
                     ex.addSuppressed(inner);
                     throw ex;
@@ -820,9 +820,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void syncRetentionLeases() {
-        if (indexSettings.isSoftDeleteEnabled()) {
-            sync(IndexShard::syncRetentionLeases, "retention lease");
-        }
+        sync(IndexShard::syncRetentionLeases, "retention lease");
     }
 
     private void sync(final Consumer<IndexShard> sync, final String source) {

@@ -22,8 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.Compressor;
-import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -77,26 +75,24 @@ public final class TransportLogger {
                 final byte status = streamInput.readByte();
                 final boolean isRequest = TransportStatus.isRequest(status);
                 final String type = isRequest ? "request" : "response";
-                final String version = Version.fromId(streamInput.readInt()).toString();
+                Version version = Version.fromId(streamInput.readInt());
                 sb.append(" [length: ").append(messageLengthWithHeader);
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
                 sb.append(", version: ").append(version);
 
-                if (isRequest) {
-                    if (TransportStatus.isCompress(status)) {
-                        Compressor compressor;
-                        compressor = InboundMessage.getCompressor(message);
-                        if (compressor == null) {
-                            throw new IllegalStateException(new NotCompressedException());
-                        }
-                        streamInput = compressor.streamInput(streamInput);
-                    }
+                if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                    sb.append(", header size: ").append(streamInput.readInt()).append('B');
+                } else {
+                    streamInput = InboundMessage.Reader.decompressingStream(status, version, streamInput);
+                }
 
-                    // read and discard headers
-                    ThreadContext.readHeadersFromStream(streamInput);
-                    if (streamInput.getVersion().before(Version.V_8_0_0)) {
-                        // discard the features
+                // read and discard headers
+                ThreadContext.readHeadersFromStream(streamInput);
+
+                if (isRequest) {
+                    if (version.before(Version.V_8_0_0)) {
+                        // discard features
                         streamInput.readStringArray();
                     }
                     sb.append(", action: ").append(streamInput.readString());

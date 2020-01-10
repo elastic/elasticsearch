@@ -15,7 +15,7 @@ public abstract class TypedAttribute extends Attribute {
     private final DataType dataType;
 
     protected TypedAttribute(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
-            ExpressionId id, boolean synthetic) {
+            NameId id, boolean synthetic) {
         super(source, name, qualifier, nullability, id, synthetic);
         this.dataType = dataType;
     }

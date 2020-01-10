@@ -44,6 +44,8 @@ public class CronEvalTool extends LoggingAwareCommand {
             "The number of future times this expression will be triggered")
             .withRequiredArg().ofType(Integer.class).defaultsTo(10);
         this.arguments = parser.nonOptions("expression");
+
+        parser.accepts("E", "Unused. Only for compatibility with other CLI tools.").withRequiredArg();
     }
 
     @Override
@@ -56,7 +58,7 @@ public class CronEvalTool extends LoggingAwareCommand {
         execute(terminal, args.get(0), count);
     }
 
-    void execute(Terminal terminal, String expression, int count) throws Exception {
+    private void execute(Terminal terminal, String expression, int count) throws Exception {
         Cron.validate(expression);
         terminal.println("Valid!");
 

@@ -62,7 +62,7 @@ public class ForceMergeAction implements LifecycleAction {
         }
         this.maxNumSegments = maxNumSegments;
         if (codec != null && CodecService.BEST_COMPRESSION_CODEC.equals(codec.getName()) == false) {
-            throw new IllegalArgumentException("Compression type not found instead " + codec.getName() + " is used.");
+            throw new IllegalArgumentException("unknown index codec: [" + codec.getName() + "]");
         }
         this.codec = codec;
     }
@@ -70,7 +70,12 @@ public class ForceMergeAction implements LifecycleAction {
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.codec = Codec.forName(in.readOptionalString());
+            String codecStr = in.readOptionalString();
+            if (codecStr == null) {
+                this.codec = null;
+            } else {
+                this.codec = Codec.forName(codecStr);
+            }
         } else {
             this.codec = null;
         }
@@ -88,9 +93,11 @@ public class ForceMergeAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(codec.getName());
-        } else {
-            out.writeString(null);
+            if (codec == null) {
+                out.writeOptionalString(null);
+            } else {
+                out.writeOptionalString(codec.getName());
+            }
         }
     }
 
@@ -170,7 +177,7 @@ public class ForceMergeAction implements LifecycleAction {
         }
         ForceMergeAction other = (ForceMergeAction) obj;
         return Objects.equals(maxNumSegments, other.maxNumSegments)
-            && ((codec == null && other.codec == null) || Objects.equals(codec, other.codec));
+            && Objects.equals(codec, other.codec);
     }
 
     @Override

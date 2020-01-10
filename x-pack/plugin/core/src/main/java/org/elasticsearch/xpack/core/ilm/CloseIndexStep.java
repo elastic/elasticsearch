@@ -31,7 +31,9 @@ public class CloseIndexStep extends AsyncActionStep {
             CloseIndexRequest request = new CloseIndexRequest(indexMetaData.getIndex().getName());
             getClient().admin().indices()
                 .close(request, ActionListener.wrap(closeIndexResponse -> {
-                    assert closeIndexResponse.isAcknowledged() : "close index response is not acknowledged";
+                    if (closeIndexResponse.isAcknowledged() == false) {
+                       new ErrorStep(getKey());
+                    }
                     listener.onResponse(true);
                 }, listener::onFailure));
         }
@@ -40,5 +42,8 @@ public class CloseIndexStep extends AsyncActionStep {
         }
     }
 
-
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
 }

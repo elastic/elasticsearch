@@ -32,13 +32,20 @@ final class OpenIndexStep extends AsyncActionStep {
             OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
             getClient().admin().indices()
                 .open(request,
-                    ActionListener.wrap(openIndexResponse-> {
-                        assert openIndexResponse.isAcknowledged() : "open Index response is not acknowledged";
+                    ActionListener.wrap(openIndexResponse -> {
+                        if (openIndexResponse.isAcknowledged() == false) {
+                            new ErrorStep(getKey());
+                        }
                         listener.onResponse(true);
                     }, listener::onFailure));
 
         } else {
             listener.onResponse(true);
         }
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 }

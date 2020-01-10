@@ -27,7 +27,7 @@ import java.util.Objects;
 
 class WaitForIndexColorStep extends ClusterStateWaitStep {
 
-    static final String NAME = "wait-for-index-color-step";
+    static final String NAME = "wait-for-index-color";
 
     private final ClusterHealthStatus color;
 
@@ -77,6 +77,11 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
                 break;
         }
         return result;
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     private Result waitForRed(IndexRoutingTable indexRoutingTable) {

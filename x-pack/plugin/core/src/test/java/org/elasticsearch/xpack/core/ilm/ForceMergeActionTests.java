@@ -40,7 +40,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     static Codec createRandomCompressionSettings() {
-        if(randomBoolean()) {
+        if (randomBoolean()) {
             return null;
         }
         return Codec.forName(CodecService.BEST_COMPRESSION_CODEC);

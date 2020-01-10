@@ -421,17 +421,17 @@ public class SearchModule {
                 GeoBoundsAggregationBuilder::parse).addResultReader(InternalGeoBounds::new));
         registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder.NAME, GeoCentroidAggregationBuilder::new,
                 GeoCentroidAggregationBuilder::parse).addResultReader(InternalGeoCentroid::new));
-        registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
-                (name, p) -> ScriptedMetricAggregationBuilder.PARSER.parse(p, name)).addResultReader(InternalScriptedMetric::new));
-        registerAggregation((new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new,
-                (name, p) -> CompositeAggregationBuilder.PARSER.parse(p, name)).addResultReader(InternalComposite::new)));
+        registerAggregation(new AggregationSpec<>(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
+                ScriptedMetricAggregationBuilder.PARSER).addResultReader(InternalScriptedMetric::new));
+        registerAggregation((new AggregationSpec<>(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new,
+                CompositeAggregationBuilder.PARSER).addResultReader(InternalComposite::new)));
         registerFromPlugin(plugins, SearchPlugin::getAggregations, this::registerAggregation);
     }
 
-    private void registerAggregation(AggregationSpec spec) {
+    private void registerAggregation(AggregationSpec<?> spec) {
         namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
             String name = (String) c;
-            return spec.getParser().parse(name, p);
+            return spec.getParser().parse(p, name);
         }));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -248,7 +249,7 @@ public interface SearchPlugin {
     /**
      * Specification for an {@link Aggregation}.
      */
-    class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
+    class AggregationSpec<T extends AggregationBuilder> extends SearchExtensionSpec<T, ContextParser<String, T>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
 
         /**
@@ -261,7 +262,7 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public AggregationSpec(ParseField name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+        public AggregationSpec(ParseField name, Writeable.Reader<T> reader, ContextParser<String, T> parser) {
             super(name, reader, parser);
         }
 
@@ -274,22 +275,55 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public AggregationSpec(String name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+        public AggregationSpec(String name, Writeable.Reader<T> reader, ContextParser<String, T> parser) {
             super(name, reader, parser);
+        }
+
+        /**
+         * Specification for an {@link Aggregation}.
+         *
+         * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the {@link AggregationBuilder} should return
+         *        from {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the aggregation builder from xcontent
+         * @deprecated Use the ctor that takes a {@link ContextParser} instead
+         */
+        @Deprecated
+        @SuppressWarnings("unchecked")
+        public AggregationSpec(ParseField name, Writeable.Reader<T> reader, Aggregator.Parser parser) {
+            super(name, reader, (p, aggName) -> (T) parser.parse(aggName, p));
+        }
+
+        /**
+         * Specification for an {@link Aggregation}.
+         *
+         * @param name the name by which this aggregation might be parsed or deserialized. Make sure that the {@link AggregationBuilder}
+         *        returns this from {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the aggregation builder from xcontent
+         * @deprecated Use the ctor that takes a {@link ContextParser} instead
+         */
+        @SuppressWarnings("unchecked")
+        @Deprecated
+        public AggregationSpec(String name, Writeable.Reader<T> reader, Aggregator.Parser parser) {
+            super(name, reader, (p, aggName) -> (T) parser.parse(aggName, p));
         }
 
         /**
          * Add a reader for the shard level results of the aggregation with {@linkplain #getName}'s {@link ParseField#getPreferredName()} as
          * the {@link NamedWriteable#getWriteableName()}.
          */
-        public AggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
+        public AggregationSpec<T> addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
             return addResultReader(getName().getPreferredName(), resultReader);
         }
 
         /**
          * Add a reader for the shard level results of the aggregation.
          */
-        public AggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
+        public AggregationSpec<T> addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
             resultReaders.put(writeableName, resultReader);
             return this;
         }

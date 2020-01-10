@@ -76,7 +76,7 @@ Total number of indices in the selected nodes.
 
 `indices.shards.total`::
 (integer)
-Total number of shards for all indices.
+Total number of shards assigned to the selected nodes.
 
 `indices.shards.primaries`::
 (integer)

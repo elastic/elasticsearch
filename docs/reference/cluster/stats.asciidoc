@@ -153,7 +153,7 @@ Total size of all shards across the selected nodes.
 
 `indices.store.size_in_bytes`::
 (integer)
-Size, in bytes, of the store.
+Total size, in bytes, of all shards across the selected nodes.
 
 `indices.fielddata.memory_size`::
 (<<byte-units, byte units>>)

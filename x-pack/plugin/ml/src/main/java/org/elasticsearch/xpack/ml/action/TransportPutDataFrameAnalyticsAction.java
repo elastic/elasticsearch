@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -32,14 +33,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
+import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
@@ -66,6 +66,7 @@ public class TransportPutDataFrameAnalyticsAction
     private final SecurityContext securityContext;
     private final Client client;
     private final DataFrameAnalyticsAuditor auditor;
+    private final SourceDestValidator sourceDestValidator;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
@@ -86,6 +87,14 @@ public class TransportPutDataFrameAnalyticsAction
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            null,
+            clusterService.getNodeName(),
+            License.OperationMode.PLATINUM.description()
+        );
     }
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
@@ -110,9 +119,21 @@ public class TransportPutDataFrameAnalyticsAction
     @Override
     protected void masterOperation(Task task, PutDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        validateConfig(request.getConfig());
+
+        final DataFrameAnalyticsConfig config = request.getConfig();
+
+        ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
+            aBoolean -> putValidatedConfig(config, listener),
+            listener::onFailure
+        );
+
+        sourceDestValidator.validate(clusterService.state(), config.getSource().getIndex(), config.getDest().getIndex(),
+            SourceDestValidations.ALL_VALIDATIONS, sourceDestValidationListener);
+    }
+
+    private void putValidatedConfig(DataFrameAnalyticsConfig config, ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
         DataFrameAnalyticsConfig preparedForPutConfig =
-            new DataFrameAnalyticsConfig.Builder(request.getConfig(), maxModelMemoryLimit)
+            new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimit)
                 .setCreateTime(Instant.now())
                 .setVersion(Version.CURRENT)
                 .build();
@@ -200,19 +221,6 @@ public class TransportPutDataFrameAnalyticsAction
                     },
                     listener::onFailure)),
                 listener::onFailure));
-    }
-
-    private void validateConfig(DataFrameAnalyticsConfig config) {
-        if (MlStrings.isValidId(config.getId()) == false) {
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, DataFrameAnalyticsConfig.ID,
-                config.getId()));
-        }
-        if (!MlStrings.hasValidLengthForId(config.getId())) {
-            throw ExceptionsHelper.badRequestException("id [{}] is too long; must not contain more than {} characters", config.getId(),
-                MlStrings.ID_LENGTH_LIMIT);
-        }
-        config.getDest().validate();
-        new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
     }
 
     @Override

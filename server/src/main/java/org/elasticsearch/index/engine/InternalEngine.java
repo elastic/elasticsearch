@@ -1612,9 +1612,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-        // we obtain a read lock here, since we don't want a flush to happen while we are writing
-        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        refresh("write indexing buffer", SearcherScope.INTERNAL, true);
+        refresh("write indexing buffer", SearcherScope.INTERNAL, false);
     }
 
     @Override

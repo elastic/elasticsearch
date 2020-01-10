@@ -430,7 +430,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static void createIndex(String index) {
         client().admin().indices().prepareCreate(index)
-            .addMapping("_doc",
+            .setMapping(
                 BOOLEAN_FIELD, "type=boolean",
                 NUMERICAL_FIELD, "type=double",
                 DISCRETE_NUMERICAL_FIELD, "type=integer",

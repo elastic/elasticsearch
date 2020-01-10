@@ -36,6 +36,20 @@
       - ansicolor
       - timestamps
       - gradle-build-scan
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            WORKSPACE=/dev/shm/$JOB_NAME
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA7_HOME=$HOME/.java/java7
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA9_HOME=$HOME/.java/java9
+            JAVA10_HOME=$HOME/.java/java10
+            JAVA11_HOME=$HOME/.java/java11
+            JAVA12_HOME=$HOME/.java/openjdk12
+            JAVA13_HOME=$HOME/.java/openjdk13
+            GRADLE_OPTS=-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m
     properties:
         - github:
             url: https://github.com/elastic/elasticsearch/
@@ -76,4 +90,4 @@
 
 
 
-            
+

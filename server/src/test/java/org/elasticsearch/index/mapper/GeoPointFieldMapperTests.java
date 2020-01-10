@@ -337,16 +337,16 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testMultiField() throws Exception {
         int numDocs = randomIntBetween(10, 100);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("pin")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_point")
             .startObject("fields")
             .startObject("geohash").field("type", "keyword").endObject()  // test geohash as keyword
             .startObject("latlon").field("type", "keyword").endObject()  // test geohash as string
             .endObject()
-            .endObject().endObject().endObject().endObject());
+            .endObject().endObject().endObject());
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
-            .addMapping("pin", mapping, XContentType.JSON);
+            .setMapping(mapping);
         mappingRequest.execute().actionGet();
 
         // create index and add random test points

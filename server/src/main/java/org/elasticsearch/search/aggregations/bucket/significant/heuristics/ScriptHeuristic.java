@@ -21,13 +21,11 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -37,8 +35,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
 public class ScriptHeuristic extends SignificanceHeuristic {
     public static final String NAME = "script_heuristic";
+    public static final ConstructingObjectParser<ScriptHeuristic, Void> PARSER = new ConstructingObjectParser<>(NAME, args ->
+        new ScriptHeuristic((Script) args[0]));
+    static {
+        Script.declareScript(PARSER, constructorArg());
+    }
 
     private final Script script;
 
@@ -151,32 +156,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         }
         ScriptHeuristic other = (ScriptHeuristic) obj;
         return Objects.equals(script, other.script);
-    }
-
-    public static SignificanceHeuristic parse(XContentParser parser)
-            throws IOException, QueryShardException {
-        String heuristicName = parser.currentName();
-        Script script = null;
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token.equals(XContentParser.Token.FIELD_NAME)) {
-                currentFieldName = parser.currentName();
-            } else {
-                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    script = Script.parse(parser);
-                } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]",
-                            heuristicName, currentFieldName);
-                }
-            }
-        }
-
-        if (script == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic",
-                    heuristicName);
-        }
-        return new ScriptHeuristic(script);
     }
 
     public final class LongAccessor extends Number {

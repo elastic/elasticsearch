@@ -99,7 +99,7 @@ public class LdapRealmTests extends LdapTestCase {
         threadPool = new TestThreadPool("ldap realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
@@ -305,6 +305,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
                 .put(defaultGlobalSettings)
+
                 .putList(getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
                 .putList(getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
@@ -312,7 +313,8 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
-        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(settings, config.env()), threadPool);
+        final SSLService ssl = new SSLService(config.env());
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, ssl, threadPool);
         assertThat(sessionFactory, is(instanceOf(LdapSessionFactory.class)));
     }
 
@@ -332,7 +334,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .build();
         final RealmConfig config = getRealmConfig(identifier, settings);
-        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.settings(), config.env()), threadPool);
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.env()), threadPool);
         try {
             assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
         } finally {
@@ -530,7 +532,7 @@ public class LdapRealmTests extends LdapTestCase {
 
         RealmConfig config = getRealmConfig(identifier, settings.build());
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, new SSLService(config.settings(), config.env()), threadPool);
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, new SSLService(config.env()), threadPool);
         LdapRealm realm = new LdapRealm(config, ldapFactory, new DnRoleMapper(config, resourceWatcherService), threadPool);
         realm.initialize(Collections.singleton(realm), licenseState);
 

@@ -50,6 +50,11 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
+import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -200,8 +205,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved(RemoteMonitoringUser.COLLECTION_ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(RemoteMonitoringUser.INDEXING_ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved("snapshot_user"), is(true));
-        assertThat(ReservedRolesStore.isReserved("code_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("code_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("code_admin"), is(false));
+        assertThat(ReservedRolesStore.isReserved("code_user"), is(false));
     }
 
     public void testSnapshotUserRole() {
@@ -299,6 +304,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
         assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
+
+        // ILM
+        assertThat(kibanaRole.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(DeleteLifecycleAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(StartILMAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(StopILMAction.NAME, request, authentication), is(false));
 
         // SAML and token
         assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME, request, authentication), is(true));
@@ -1382,61 +1394,5 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
-    }
-
-    public void testCodeAdminRole() {
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("code_admin");
-        assertNotNull(roleDescriptor);
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-
-        Role codeAdminRole = Role.builder(roleDescriptor, null).build();
-
-        assertThat(codeAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, mock(TransportRequest.class),
-            mock(Authentication.class)), is(false));
-
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".code-"), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
-            is(false));
-
-        final String index = ".code-" + randomIntBetween(0, 5);
-
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
-        assertThat(codeAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
-    }
-
-    public void testCodeUserRole() {
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("code_user");
-        assertNotNull(roleDescriptor);
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-
-        Role codeUserRole = Role.builder(roleDescriptor, null).build();
-
-        assertThat(codeUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, mock(TransportRequest.class),
-            mock(Authentication.class)), is(false));
-
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".code-"), is(true));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
-            is(false));
-
-        final String index = ".code-" + randomIntBetween(0, 5);
-
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
     }
 }

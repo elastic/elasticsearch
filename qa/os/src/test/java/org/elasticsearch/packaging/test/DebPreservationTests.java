@@ -47,9 +47,9 @@ public class DebPreservationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         assertRemoved(distribution());
-        installation = installPackage(distribution());
+        installation = installPackage(sh, distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
     }
 
     public void test20Remove() throws Exception {

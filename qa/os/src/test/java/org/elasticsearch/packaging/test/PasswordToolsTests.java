@@ -62,7 +62,8 @@ public class PasswordToolsTests extends PackagingTestCase {
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
-                String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
+                String response = ServerUtils.makeRequest(
+                    Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
                 assertThat(response, containsString("You Know, for Search"));
             }
         });

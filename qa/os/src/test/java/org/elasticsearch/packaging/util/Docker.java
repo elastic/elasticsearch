@@ -503,6 +503,13 @@ public class Docker {
         }
     }
 
+    /**
+     * @return The ID of the container that this class will be operating on.
+     */
+    public static String getContainerId() {
+        return containerId;
+    }
+
     public static JsonNode getJson(String path) throws IOException {
         final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/" + path));
 

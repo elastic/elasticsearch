@@ -47,7 +47,7 @@ Total number of nodes in the cluster.
 
 `_nodes.successful`::
 (integer)
-Number of nodes that started succesfully.
+Number of nodes that responded succesfully to the request.
 
 `_nodes.failed`::
 (integer)

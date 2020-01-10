@@ -52,7 +52,7 @@ Number of nodes that responded successfully to the request.
 `_nodes.failed`::
 (integer)
 Number of nodes that rejected the request or failed to respond. If this value
-is not `0`, a reason for the rejection or failure is included in this response.
+is not `0`, a reason for the rejection or failure is included in the response.
 
 `cluster_name`::
 (string)
@@ -203,7 +203,7 @@ to selected nodes.
 `indices.query_cache.cache_count`::
 (integer)
 Total number of entries added to the query cache across all shards assigned
-to selected nodes. This includes current and removed query cache entries.
+to selected nodes. This number includes current and evicted entries.
 
 `indices.query_cache.evictions`::
 (integer)
@@ -256,12 +256,12 @@ assigned to selected nodes.
 
 `indices.segments.term_vectors_memory`::
 (<<byte-units, byte units>>)
-Total amount of memory used for terms vectors across all shards assigned to
+Total amount of memory used for term vectors across all shards assigned to
 selected nodes.
 
 `indices.segments.term_vectors_memory_in_bytes`::
 (integer)
-Total amount, in bytes, of memory used for terms vectors across all shards
+Total amount, in bytes, of memory used for term vectors across all shards
 assigned to selected nodes.
 
 `indices.segments.norms_memory`::

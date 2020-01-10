@@ -20,6 +20,7 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -113,6 +114,15 @@ public class PersistentTasksService {
         UpdatePersistentTaskStatusAction.Request request =
             new UpdatePersistentTaskStatusAction.Request(taskId, taskAllocationID, taskState);
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
+    }
+
+    public <Params extends PersistentTaskParams> void sendUpdateParamsRequest(final String taskId,
+                                                                              final PersistentTaskParamsUpdateFunction<Params> update,
+                                                                              final ActionListener<PersistentTask<?>> listener) {
+        // todo: version in backport
+        assert clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0);
+        UpdatePersistentTaskParamsAction.Request request = new UpdatePersistentTaskParamsAction.Request(taskId, update);
+        execute(request, UpdatePersistentTaskParamsAction.INSTANCE, listener);
     }
 
     /**

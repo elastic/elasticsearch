@@ -122,6 +122,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                         } else {
                             // The task is still running
                             notVisitedTasks.remove(allocationId);
+                            updateTaskParams(taskInProgress, persistentTask, previousTasks);
                         }
                     }
                 }
@@ -200,6 +201,21 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 logger.warn("Persistent task [{}] with id [{}] and allocation id [{}] failed to create", task.getAction(),
                         task.getPersistentTaskId(), task.getAllocationId());
                 taskManager.unregister(task);
+            }
+        }
+    }
+
+    private <Allocated extends AllocatedPersistentTask, Params extends PersistentTaskParams>
+    void updateTaskParams(PersistentTask<Params> task, Allocated allocatedTask, PersistentTasksCustomMetaData previousTasks) {
+        PersistentTasksExecutor<Params> executor =
+            persistentTasksExecutorRegistry.getPersistentTaskExecutorSafe(task.getTaskName());
+        if (executor instanceof DynamicPersistentTasksExecutor
+            && task.getParams().equals(previousTasks.getTask(task.getId()).getParams()) == false) {
+            try {
+                ((DynamicPersistentTasksExecutor<Allocated, Params>) executor).paramsUpdated(allocatedTask, task.getParams());
+            } catch (Exception e) {
+                logger.error("Updating params for [{}]/[{}] failed [{}]", task.getId(), task.getTaskName(), e);
+                assert false : new AssertionError(e);
             }
         }
     }

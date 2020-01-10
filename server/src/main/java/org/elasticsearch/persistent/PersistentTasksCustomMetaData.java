@@ -324,6 +324,10 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             this(task.id, task.allocationId, task.taskName, task.params, state, task.assignment, task.allocationId);
         }
 
+        public PersistentTask(final PersistentTask<P> task, final P params) {
+            this(task.id, task.allocationId, task.taskName, params, task.state, task.assignment, task.allocationIdOnLastStatusUpdate);
+        }
+
         private PersistentTask(final String id, final long allocationId, final String name, final P params,
                                final PersistentTaskState state, final Assignment assignment, final Long allocationIdOnLastStatusUpdate) {
             this.id = id;
@@ -644,6 +648,21 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             if (taskInProgress != null) {
                 changed = true;
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, taskState));
+            } else {
+                throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
+            }
+            return this;
+        }
+
+        public <P extends PersistentTaskParams> Builder updateTaskParams(final String taskId, final Function<P, P> paramsUpdate) {
+            @SuppressWarnings("unchecked")
+            PersistentTask<P> taskInProgress = (PersistentTask<P>) tasks.get(taskId);
+            if (taskInProgress != null) {
+                changed = true;
+                P oldParams = taskInProgress.params;
+                P newParams = paramsUpdate.apply(oldParams);
+                assert newParams.getClass() == oldParams.getClass();
+                tasks.put(taskId, new PersistentTask<>(taskInProgress, newParams));
             } else {
                 throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
             }

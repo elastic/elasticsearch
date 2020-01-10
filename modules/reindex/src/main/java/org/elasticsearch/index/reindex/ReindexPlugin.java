@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskParamsUpdateFunction;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -72,7 +73,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
                 new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
                 new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
                 new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class),
-                new ActionHandler<>(StartReindexTaskAction.INSTANCE, TransportStartReindexTaskAction.class)
+                new ActionHandler<>(StartReindexTaskAction.INSTANCE, TransportStartReindexTaskAction.class),
+                new ActionHandler<>(RethrottlePersistentReindexAction.INSTANCE, TransportRethrottlePersistentReindexAction.class)
             );
     }
 
@@ -82,7 +84,10 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
             new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ReindexTaskParams.NAME, ReindexTaskParams::new),
             new NamedWriteableRegistry.Entry(Task.Status.class, ReindexPersistentTaskState.NAME, ReindexPersistentTaskState::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskState.class, ReindexPersistentTaskState.NAME, ReindexPersistentTaskState::new));
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, ReindexPersistentTaskState.NAME, ReindexPersistentTaskState::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParamsUpdateFunction.class,
+                TransportRethrottlePersistentReindexAction.RethrottlePersistentTaskFunction.NAME,
+                TransportRethrottlePersistentReindexAction.RethrottlePersistentTaskFunction::new));
     }
 
     @Override

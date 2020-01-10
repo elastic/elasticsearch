@@ -30,6 +30,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class ReindexTaskParams implements PersistentTaskParams {
 
@@ -37,27 +38,32 @@ public class ReindexTaskParams implements PersistentTaskParams {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexTaskParams, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexTaskParams((Boolean) a[0], (Map<String, String>) a[1]));
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexTaskParams((Boolean) a[0], (Map<String, String>) a[1], (float) a[2]));
 
     private static String STORE_RESULT = "store_result";
     private static String HEADERS = "headers";
+    private static String REQUESTS_PER_SECOND = "requests_per_second";
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(STORE_RESULT));
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), new ParseField(HEADERS));
+        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField(REQUESTS_PER_SECOND));
     }
 
     private final boolean storeResult;
     private final Map<String, String> headers;
+    private final float requestsPerSecond;
 
-    public ReindexTaskParams(boolean storeResult, Map<String, String> headers) {
+    public ReindexTaskParams(boolean storeResult, Map<String, String> headers, float requestsPerSecond) {
         this.storeResult = storeResult;
         this.headers = headers;
+        this.requestsPerSecond = requestsPerSecond;
     }
 
     public ReindexTaskParams(StreamInput in) throws IOException {
         storeResult = in.readBoolean();
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        requestsPerSecond = in.readFloat();
     }
 
     @Override
@@ -75,6 +81,7 @@ public class ReindexTaskParams implements PersistentTaskParams {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(storeResult);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeFloat(requestsPerSecond);
     }
 
     @Override
@@ -82,6 +89,7 @@ public class ReindexTaskParams implements PersistentTaskParams {
         builder.startObject();
         builder.field(STORE_RESULT, storeResult);
         builder.field(HEADERS, headers);
+        builder.field(REQUESTS_PER_SECOND, requestsPerSecond);
         return builder.endObject();
     }
 
@@ -93,7 +101,26 @@ public class ReindexTaskParams implements PersistentTaskParams {
         return headers;
     }
 
+    public float getRequestsPerSecond() {
+        return requestsPerSecond;
+    }
+
     public static ReindexTaskParams fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReindexTaskParams that = (ReindexTaskParams) o;
+        return storeResult == that.storeResult &&
+            Float.compare(that.requestsPerSecond, requestsPerSecond) == 0 &&
+            Objects.equals(headers, that.headers);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(storeResult, headers, requestsPerSecond);
     }
 }

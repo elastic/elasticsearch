@@ -30,12 +30,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.DynamicPersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -57,8 +58,9 @@ public class ReindexTask extends AllocatedPersistentTask {
     private volatile BulkByScrollTask.Status transientStatus;
     private volatile String description;
     private volatile boolean assignmentConflictDetected;
+    private volatile Float requestsPerSecond;
 
-    public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexTaskParams> {
+    public static class ReindexPersistentTasksExecutor extends DynamicPersistentTasksExecutor<ReindexTask, ReindexTaskParams> {
 
         private final ClusterService clusterService;
         private final Client client;
@@ -91,6 +93,11 @@ public class ReindexTask extends AllocatedPersistentTask {
             headers.putAll(taskInProgress.getParams().getHeaders());
             Reindexer reindexer = new Reindexer(clusterService, client, threadPool, scriptService, reindexSslConfig);
             return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, xContentRegistry, client, reindexer);
+        }
+
+        @Override
+        protected void paramsUpdated(ReindexTask task, ReindexTaskParams newParams) {
+            task.requestsPerSecondUpdated(newParams.getRequestsPerSecond());
         }
     }
 
@@ -138,6 +145,29 @@ public class ReindexTask extends AllocatedPersistentTask {
         return childTask;
     }
 
+    private void requestsPerSecondUpdated(float requestsPerSecond) {
+        this.requestsPerSecond = requestsPerSecond;
+        if (childTask.isLeader() || childTask.isWorker()) {
+            // reindex is running
+            rethrottle(requestsPerSecond);
+        }
+    }
+
+    private void rethrottle(float requestsPerSecond) {
+        TransportRethrottleAction.rethrottle(logger, client.getLocalNodeId(), client, childTask, requestsPerSecond,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(TaskInfo taskInfo) {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert false;
+                    logger.error("Unable to rethrottle [{}]", getPersistentTaskId());
+                }
+            });
+    }
+
     private void execute(ReindexTaskParams reindexTaskParams) {
         long allocationId = getAllocationId();
 
@@ -160,9 +190,13 @@ public class ReindexTask extends AllocatedPersistentTask {
             public void onResponse(ReindexTaskStateDoc stateDoc) {
                 ReindexRequest reindexRequest = stateDoc.getReindexRequest();
                 description = reindexRequest.getDescription();
-                reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
+                reindexer.initTask(childTask, reindexRequest, reindexTaskParams.getRequestsPerSecond(), new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
+                        if (requestsPerSecond != null) {
+                            // updated while starting
+                            rethrottle(requestsPerSecond);
+                        }
                         // TODO: need to store status in state so we can continue from it.
                         transientStatus = childTask.getStatus();
                         performReindex(reindexTaskParams, stateDoc, taskUpdater);

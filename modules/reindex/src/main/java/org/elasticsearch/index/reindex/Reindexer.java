@@ -92,8 +92,9 @@ public class Reindexer {
         this.reindexSslConfig = reindexSslConfig;
     }
 
-    public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
-        BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
+    public void initTask(BulkByScrollTask task, ReindexRequest request,
+                         float requestsPerSecond, ActionListener<Void> listener) {
+        BulkByScrollParallelizationHelper.initTaskState(task, request, requestsPerSecond, client, listener);
     }
 
     // todo: this may need a way to relay back that it failed and this reindex instance should stand down?

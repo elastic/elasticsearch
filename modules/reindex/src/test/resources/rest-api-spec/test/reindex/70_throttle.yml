@@ -143,6 +143,63 @@
         task_id: $task
 
 ---
+"Rethrottle persistent task to -1 which turns off throttling":
+  # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
+  # and a small batch size on the request
+  - skip:
+      # todo version on backport
+      version: " - 7.99.99"
+      reason: "resilient reindex introduced in 7.x"
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index:   source
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        id:      3
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        requests_per_second: .00000001 # About 9.5 years to complete the request
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+  - set: {id: id}
+
+  - do:
+      reindex_rethrottle:
+        requests_per_second: -1
+        task_id: $id
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+
+---
 "Rethrottle but not unlimited":
   # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request

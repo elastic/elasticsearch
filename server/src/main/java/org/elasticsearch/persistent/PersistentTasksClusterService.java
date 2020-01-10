@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
@@ -122,6 +123,52 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     if (task != null && task.isAssigned() == false && periodicRechecker.isScheduled() == false) {
                         periodicRechecker.rescheduleIfNecessary();
                     }
+                } else {
+                    listener.onResponse(null);
+                }
+            }
+        });
+    }
+
+    /**
+     * Updates the params of a persistent task
+     *
+     * @param taskId     the task's id
+     * @param update     the function to update the task's parameters
+     * @param listener   the listener that will be called when update is completed
+     */
+    public <Params extends PersistentTaskParams> void updatePersistentTaskParams(String taskId, Function<Params, Params> update,
+                                                                           ActionListener<PersistentTask<?>> listener) {
+        clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                PersistentTasksCustomMetaData.Builder builder = builder(currentState);
+                if (builder.hasTask(taskId) == false) {
+                    throw new ResourceNotFoundException("task with id {" + taskId + "} does not exist");
+                }
+                final PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                String taskName = tasks.getTask(taskId).getTaskName();
+                PersistentTasksExecutor<PersistentTaskParams> executor =
+                    registry.getPersistentTaskExecutorSafe(taskName);
+
+                if (executor instanceof DynamicPersistentTasksExecutor) {
+                    return update(currentState, builder.updateTaskParams(taskId, update));
+                } else {
+                    throw new IllegalArgumentException("Task [" + taskId + "]/[" + taskName + "] does not support dynamic updates");
+                }
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                PersistentTasksCustomMetaData tasks = newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                if (tasks != null) {
+                    PersistentTask<?> task = tasks.getTask(taskId);
+                    listener.onResponse(task);
                 } else {
                     listener.onResponse(null);
                 }

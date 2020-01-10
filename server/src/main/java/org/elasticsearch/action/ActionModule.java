@@ -225,6 +225,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
+import org.elasticsearch.persistent.UpdatePersistentTaskParamsAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
@@ -540,6 +541,7 @@ public class ActionModule extends AbstractModule {
         // Persistent tasks:
         actions.register(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class);
         actions.register(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class);
+        actions.register(UpdatePersistentTaskParamsAction.INSTANCE, UpdatePersistentTaskParamsAction.TransportAction.class);
         actions.register(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class);
         actions.register(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class);
 

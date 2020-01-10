@@ -109,7 +109,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                     builder.startObject();
                     // This is the ephemeral task-id from the first node that is assigned the task (for BWC).
                     builder.field("task", response.getTaskId());
-
+                    // this is the new persistent task id
+                    builder.field("id", response.getPersistentTaskId());
                     // TODO: Are there error conditions for the non-wait case?
                     return new BytesRestResponse(RestStatus.OK, builder.endObject());
                 }

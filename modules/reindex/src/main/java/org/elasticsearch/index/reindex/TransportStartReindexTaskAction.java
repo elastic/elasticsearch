@@ -108,7 +108,7 @@ public class TransportStartReindexTaskAction
 
         // In the current implementation, we only need to store task results if we do not wait for completion
         boolean storeTaskResult = request.getWaitForCompletion() == false;
-        ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, included);
+        ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, included, request.getReindexRequest().getRequestsPerSecond());
 
         ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
@@ -155,7 +155,8 @@ public class TransportStartReindexTaskAction
                             public void onResponse(ReindexTaskState taskState) {
                                 ReindexTaskStateDoc reindexState = taskState.getStateDoc();
                                 if (reindexState.getException() == null) {
-                                    listener.onResponse(new StartReindexTaskAction.Response(taskId, reindexState.getReindexResponse()));
+                                    listener.onResponse(new StartReindexTaskAction.Response(taskId, task.getId(),
+                                        reindexState.getReindexResponse()));
                                 } else {
                                     Exception exception = reindexState.getException();
                                     RestStatus statusCode = reindexState.getFailureStatusCode();
@@ -187,7 +188,7 @@ public class TransportStartReindexTaskAction
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> task) {
                     ReindexPersistentTaskState state = (ReindexPersistentTaskState) task.getState();
-                    listener.onResponse(new StartReindexTaskAction.Response(state.getEphemeralTaskId().toString()));
+                    listener.onResponse(new StartReindexTaskAction.Response(state.getEphemeralTaskId().toString(), task.getId()));
                 }
 
                 @Override

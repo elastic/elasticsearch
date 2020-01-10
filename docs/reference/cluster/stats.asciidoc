@@ -194,11 +194,13 @@ Total count of of query cache misses on all shards across all selected nodes.
 
 `indices.query_cache.cache_size`::
 (integer)
-Size, in bytes, of the query cache.
+Total number of entries _currently_ in the query cache on all shards across all
+selected nodes.
 
 `indices.query_cache.cache_count`::
 (integer)
-Count of queries in the query cache.
+Total number of entries _ever_ added to the query cache on all shards across all
+selected nodes.
 
 `indices.query_cache.evictions`::
 (integer)

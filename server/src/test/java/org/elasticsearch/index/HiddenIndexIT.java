@@ -69,13 +69,13 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
     public void testGlobalTemplatesDoNotApply() {
         assertAcked(client().admin().indices().preparePutTemplate("a_global_template").setPatterns(List.of("*"))
-            .addMapping("_doc", "foo", "type=text").get());
+            .setMapping("foo", "type=text").get());
         assertAcked(client().admin().indices().preparePutTemplate("not_global_template").setPatterns(List.of("a*"))
-            .addMapping("_doc", "bar", "type=text").get());
+            .setMapping("bar", "type=text").get());
         assertAcked(client().admin().indices().preparePutTemplate("specific_template").setPatterns(List.of("a_hidden_index"))
-            .addMapping("_doc", "baz", "type=text").get());
+            .setMapping("baz", "type=text").get());
         assertAcked(client().admin().indices().preparePutTemplate("unused_template").setPatterns(List.of("not_used"))
-            .addMapping("_doc", "foobar", "type=text").get());
+            .setMapping("foobar", "type=text").get());
 
         assertAcked(client().admin().indices().prepareCreate("a_hidden_index")
             .setSettings(Settings.builder().put("index.hidden", true).build()).get());
@@ -107,7 +107,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
     public void testNonGlobalTemplateCanMakeIndexHidden() {
         assertAcked(client().admin().indices().preparePutTemplate("a_global_template")
             .setPatterns(List.of("my_hidden_pattern*"))
-            .addMapping("_doc", "foo", "type=text")
+            .setMapping("foo", "type=text")
             .setSettings(Settings.builder().put("index.hidden", true).build())
             .get());
         assertAcked(client().admin().indices().prepareCreate("my_hidden_pattern1").get());

@@ -120,6 +120,7 @@ public class InternalAggregationsTests extends ESTestCase {
         return new InternalAggregations(aggsList, topLevelPipelineAggs);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50827")
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
         writeToAndReadFrom(aggregations, 0);

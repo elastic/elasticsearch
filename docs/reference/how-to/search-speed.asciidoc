@@ -506,8 +506,10 @@ filter and rewrite the search request to the one below:
 --------------------------------------------------
 GET bicycles,other_cycles/_search
 {
-  "match": {
-    "description": "dutch"
+  "query": {
+    "match": {
+      "description": "dutch"
+    }
   }
 }
 --------------------------------------------------

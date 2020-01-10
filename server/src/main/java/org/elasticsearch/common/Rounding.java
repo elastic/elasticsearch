@@ -172,6 +172,11 @@ public abstract class Rounding implements Writeable {
     @Deprecated
     public abstract long offset();
 
+    /**
+     * Strip the {@code offset} from these bounds.
+     */
+    public abstract Rounding withoutOffset();
+
     @Override
     public abstract boolean equals(Object obj);
 
@@ -434,6 +439,11 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
+        public Rounding withoutOffset() {
+            return this;
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(unit, timeZone);
         }
@@ -565,6 +575,11 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
+        public Rounding withoutOffset() {
+            return this;
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(interval, timeZone);
         }
@@ -631,6 +646,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public long offset() {
             return offset;
+        }
+
+        @Override
+        public Rounding withoutOffset() {
+            return delegate;
         }
 
         @Override

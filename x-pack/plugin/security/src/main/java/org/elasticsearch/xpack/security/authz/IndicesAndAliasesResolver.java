@@ -123,8 +123,7 @@ class IndicesAndAliasesResolver {
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
             final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
-            final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed() ||
-                indicesOptions.expandWildcardsHidden();
+            final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {

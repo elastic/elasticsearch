@@ -198,8 +198,17 @@ public class MetaDataIndexTemplateService {
     }
 
     /**
-     * Finds index templates whose index pattern matched with the given index name.
-     * The result is sorted by {@link IndexTemplateMetaData#order()} descending.
+     * Finds index templates whose index pattern matched with the given index name. In the case of
+     * hidden indices, a template with a match all pattern or global template will not be returned.
+     *
+     * @param metaData The {@link MetaData} containing all of the {@link IndexTemplateMetaData} values
+     * @param indexName The name of the index that templates are being found for
+     * @param isHidden Whether or not the index is know to be hidden. May be {@code null} if the index
+     *                 being hidden has not been explicitly requested. When {@code null} if the result
+     *                 of template application results in a hidden index, then global templates will
+     *                 not be returned
+     * @return a list of templates sorted by {@link IndexTemplateMetaData#order()} descending.
+     *
      */
     public static List<IndexTemplateMetaData> findTemplates(MetaData metaData, String indexName, @Nullable Boolean isHidden) {
         final List<IndexTemplateMetaData> matchedTemplates = new ArrayList<>();

@@ -25,6 +25,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,13 +41,18 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assume.assumeTrue;
 
 public class CertGenCliTests extends PackagingTestCase {
-    private final Path instancesFile = getTempDir().resolve("instances.yml");
-    private final Path certificatesFile = getTempDir().resolve("certificates.zip");
+    private static final Path instancesFile = getTempDir().resolve("instances.yml");
+    private static final Path certificatesFile = getTempDir().resolve("certificates.zip");
 
     @Before
     public void filterDistros() {
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
         assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
+    }
+
+    @BeforeClass
+    public static void cleanupFiles() {
+        FileUtils.rm(instancesFile, certificatesFile);
     }
 
     public void test10Install() throws Exception {

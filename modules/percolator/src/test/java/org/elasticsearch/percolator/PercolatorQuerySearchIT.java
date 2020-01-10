@@ -447,7 +447,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             fieldMapping.append(",index_options=offsets");
         }
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setMapping("id", "type=keyword", "field1", fieldMapping, "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", fieldMapping.toString(), "query", "type=percolator")
         );
         client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject()

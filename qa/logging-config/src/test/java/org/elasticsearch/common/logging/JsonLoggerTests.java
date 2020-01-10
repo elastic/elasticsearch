@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -84,6 +85,8 @@ public class JsonLoggerTests extends ESTestCase {
     public void tearDown() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
+        System.out.println(PathUtils.get(System.getProperty("es.logs.base_path")));
+        Assert.fail();
         super.tearDown();
     }
     public void testDeprecatedMessage() throws IOException {

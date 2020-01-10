@@ -44,8 +44,7 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
                 return ParameterizedMessage.format(messagePattern, arguments.toArray());
             }
         };
-        with("construction_message",message);
-        with("message",message);
+        with("message", message);
     }
 
     public ESLogMessage argAndField(String key, Object value) {
@@ -62,12 +61,6 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     public ESLogMessage withFields(Map<String, Object> prepareMap) {
         prepareMap.forEach(this::field);
         return this;
-    }
-
-    @Override
-    protected void appendMap(final StringBuilder sb) {
-        Object message = getData().get("construction_message");
-        sb.append(message.toString());
     }
 
     @Override

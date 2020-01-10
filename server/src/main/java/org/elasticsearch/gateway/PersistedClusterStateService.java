@@ -701,8 +701,8 @@ public class PersistedClusterStateService {
                     close();
                 } catch (Exception e2) {
                     e.addSuppressed(e2);
-                    throw new IOError(e);
                 }
+                throw new IOError(e);
             } finally {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();
             }

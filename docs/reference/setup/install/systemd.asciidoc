@@ -23,11 +23,13 @@ files located in `/var/log/elasticsearch/`.
 
 If you have password-protected your {es} keystore, you will need to provide
 `systemd` with the keystore password using a local file and systemd environment
-variables:
+variables. This local file should be protected while it exists and may be
+safely deleted once Elasticsearch is up and running.
 
 [source,sh]
 -----------------------------------------------------------------------------------
 echo "keystore_password" > /path/to/my_pwd_file.tmp
+chmod 600 /path/to/my_pwd_file.tmp
 sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=/path/to/my_pwd_file.tmp
 sudo systemctl start elasticsearch.service
 -----------------------------------------------------------------------------------

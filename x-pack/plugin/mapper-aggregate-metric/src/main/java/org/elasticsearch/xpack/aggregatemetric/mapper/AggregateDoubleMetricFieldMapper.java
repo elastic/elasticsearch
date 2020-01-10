@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -108,7 +108,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         protected Explicit<Metric> defaultMetric(BuilderContext context) {
             if (defaultMetric != null) {
                 if (metrics != null && metrics.contains(defaultMetric) == false) {
-                    // The default_metric is not defined in the the "metrics" field
+                    // The default_metric is not defined in the "metrics" field
                     throw new IllegalArgumentException("Metric [" + defaultMetric + "] is not defined in the metrics field.");
                 }
                 return new Explicit<>(defaultMetric, true);
@@ -144,7 +144,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
             // Instantiate one NumberFieldMapper instance for each metric
             for (Metric m : this.metrics) {
-                String fieldName = name + "._" + m.name();
+                String fieldName = context.path().pathAsText(name) + "._" + m.name();
                 NumberFieldMapper.Builder builder;
 
                 if (m == Metric.value_count) {
@@ -154,10 +154,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 } else {
                     builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE);
                 }
-                builder.store(false);
-                builder.index(true);
-                builder.docValues(true);
-                builder.fieldType().setDocValuesType(DocValuesType.NUMERIC);
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
             }
@@ -343,6 +339,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
+    public Iterator<Mapper> iterator() {
+        List<Mapper> mappers = new ArrayList<>(metricFieldMappers.values());
+        return mappers.iterator();
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (context.externalValueSet() == true) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
@@ -381,7 +383,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 delegateFieldMapper.parse(context);
 
                 if (Metric.value_count == metric) {
-                    Number n = context.doc().getField(delegateFieldMapper.simpleName()).numericValue();
+                    Number n = context.doc().getField(delegateFieldMapper.fieldType().name()).numericValue();
                     if  (n.intValue() < 0) {
                         throw new IllegalArgumentException("Aggregate metric [" + metric.name() +
                             "] of field [" + fieldType.name() + "] cannot be a negative number");

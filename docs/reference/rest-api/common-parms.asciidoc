@@ -105,7 +105,7 @@ Health status of the cluster based on the state of its
 primary and replica shards. Statuses are:
 
   `green`:::
-  All primary shard and replica shards are assigned.
+  All shards are assigned.
 
   `yellow`:::
   All primary shards are assigned, but one or more replica shards are

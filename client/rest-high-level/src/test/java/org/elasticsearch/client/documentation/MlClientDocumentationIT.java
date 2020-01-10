@@ -164,6 +164,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Recal
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
@@ -190,12 +191,11 @@ import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -206,12 +206,10 @@ import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -220,7 +218,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
@@ -4165,41 +4162,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         highLevelClient().machineLearning().putTrainedModel(new PutTrainedModelRequest(trainedModelConfig), RequestOptions.DEFAULT);
     }
 
-    private String compressDefinition(TrainedModelDefinition definition) throws IOException {
-        BytesReference reference = XContentHelper.toXContent(definition, XContentType.JSON, false);
-        BytesStreamOutput out = new BytesStreamOutput();
-        try (OutputStream compressedOutput = new GZIPOutputStream(out, 4096)) {
-            reference.writeTo(compressedOutput);
-        }
-        return new String(Base64.getEncoder().encode(BytesReference.toBytes(out.bytes())), StandardCharsets.UTF_8);
-    }
-
-    private static String modelConfigString(String modelId) {
-        return "{\n" +
-            "  \"doc_type\": \"trained_model_config\",\n" +
-            "  \"model_id\": \"" + modelId + "\",\n" +
-            "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
-            "  \"description\": \"test model for\",\n" +
-            "  \"version\": \"7.6.0\",\n" +
-            "  \"license_level\": \"platinum\",\n" +
-            "  \"created_by\": \"ml_test\",\n" +
-            "  \"estimated_heap_memory_usage_bytes\": 0," +
-            "  \"estimated_operations\": 0," +
-            "  \"created_time\": 0\n" +
-            "}";
-    }
-
-    private static String modelDocString(String compressedDefinition, String modelId) {
-        return "" +
-            "{" +
-            "\"model_id\": \"" + modelId + "\",\n" +
-            "\"doc_num\": 0,\n" +
-            "\"doc_type\": \"trained_model_definition_doc\",\n" +
-            "  \"compression_version\": " + 1 + ",\n" +
-            "  \"total_definition_length\": " + compressedDefinition.length() + ",\n" +
-            "  \"definition_length\": " + compressedDefinition.length() + ",\n" +
-            "\"definition\": \"" + compressedDefinition + "\"\n" +
-            "}";
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
     private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =

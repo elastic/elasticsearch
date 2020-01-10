@@ -243,7 +243,7 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 7.99.99" # after BWC merged revert to 7.1.99
+      version: " - 7.1.99"
       reason:  calendar_interval introduced in 7.2.0
       features: warnings
 
@@ -309,7 +309,7 @@ setup:
 ---
 "Composite aggregation with format and calendar_interval":
   - skip:
-      version: " - 7.99.99"  # after BWC merged revert to 7.1.99
+      version: " - 7.1.99"
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -370,8 +370,8 @@ setup:
 ---
 "Composite aggregation with date_histogram offset":
   - skip:
-      version: " - 7.99.99" # after BWC merged revert to 7.5.99
-      reason:  offset introduced in 8.0.0
+      version: " - 7.5.99"
+      reason:  offset introduced in 7.6.0
 
   - do:
       search:

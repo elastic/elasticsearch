@@ -132,13 +132,4 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
         return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
     }
-
-    public void testSizeException() {
-        final EqlSearchRequest eqlSearchRequest = createTestInstance();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> eqlSearchRequest.fetchSize(-1));
-        assertEquals("size must be more than 0.", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> eqlSearchRequest.fetchSize(0));
-        assertEquals("size must be more than 0.", e.getMessage());
-    }
 }

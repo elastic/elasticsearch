@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -92,6 +91,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             }
         }
 
+        if (rule == null || rule.isEmpty()) {
+            validationException = addValidationError("rule is null or empty", validationException);
+        }
+
         if (timestampField == null || timestampField.isEmpty()) {
             validationException = addValidationError("timestamp field is null or empty", validationException);
         }
@@ -101,11 +104,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
 
         if (implicitJoinKeyField == null || implicitJoinKeyField.isEmpty()) {
-            validationException = addValidationError("implicit join key field field is null or empty", validationException);
+            validationException = addValidationError("implicit join key field is null or empty", validationException);
         }
 
         if (fetchSize <= 0) {
-            validationException = addValidationError("size must be more than 0.", validationException);
+            validationException = addValidationError("size must be more than 0", validationException);
         }
 
         return validationException;
@@ -166,36 +169,27 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     public String timestampField() { return this.timestampField; }
 
     public EqlSearchRequest timestampField(String timestampField) {
-        if (!Strings.isNullOrEmpty(timestampField)) {
-            this.timestampField = timestampField;
-        }
+        this.timestampField = timestampField;
         return this;
     }
 
     public String eventTypeField() { return this.eventTypeField; }
 
     public EqlSearchRequest eventTypeField(String eventTypeField) {
-        if (!Strings.isNullOrEmpty(eventTypeField)) {
-            this.eventTypeField = eventTypeField;
-        }
+        this.eventTypeField = eventTypeField;
         return this;
     }
 
     public String implicitJoinKeyField() { return this.implicitJoinKeyField; }
 
     public EqlSearchRequest implicitJoinKeyField(String implicitJoinKeyField) {
-        if (!Strings.isNullOrEmpty(eventTypeField)) {
-            this.implicitJoinKeyField = implicitJoinKeyField;
-        }
+        this.implicitJoinKeyField = implicitJoinKeyField;
         return this;
     }
 
     public int fetchSize() { return this.fetchSize; }
 
     public EqlSearchRequest fetchSize(int size) {
-        if (size <= 0) {
-            throw new IllegalArgumentException("size must be more than 0.");
-        }
         this.fetchSize = size;
         return this;
     }

@@ -84,25 +84,27 @@ Number of primary shards assigned to the selected nodes.
 
 `indices.shards.replication`::
 (integer)
-Ratio of replica shards to primary shards in the selected nodes.
-
-Number of replica shards.
+Ratio of replica shards to primary shards across the selected nodes.
 
 `indices.shards.index.shards.min`::
 (integer)
-Lowest historic number of shards for the cluster.
+Minimum number of shards in an index, counting only shards assigned to the
+selected nodes.
 
 `indices.shards.index.shards.max`::
 (integer)
-Highest historic number of shards for the cluster.
+Maximum number of shards in an index, counting only shards assigned to the
+selected nodes.
 
 `indices.shards.index.shards.avg`::
 (integer)
-Average number of shards for the cluster.
+Mean number of shards in an index, counting only the shards assigned to the
+selected nodes.
 
 `indices.shards.index.primaries.min`::
 (integer)
-Lowest historic number of primary shards for the cluster.
+Minimum number of primary shards in an index, counting only the shards assigned
+to the selected nodes.
 
 `indices.shards.index.primaries.max`::
 (integer)

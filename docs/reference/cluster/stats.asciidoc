@@ -320,17 +320,11 @@ all selected nodes.
 (integer)
 Timestamp of the most recently retried indexing request.
 
-`indices.segments.file_sizes.size`::
-(<<byte-units, byte units>>)
-Size of the segment file.
-
-`indices.segments.file_sizes.size_in_bytes`::
-(integer)
-Size, in bytes, of the segment file.
-
-`indices.segments.file_sizes.description`::
-(string)
-Description of the segment file.
+`indices.segments.file_sizes`::
+(object)
+This object is not populated by the cluster stats API.
++
+To populate this object, use the <<cluster-nodes-stats,node stats API>>.
 
 
 [[cluster-stats-api-example]]

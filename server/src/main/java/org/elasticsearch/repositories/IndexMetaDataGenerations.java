@@ -63,6 +63,7 @@ public final class IndexMetaDataGenerations {
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> hashes) {
         assert hashes.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) :
             "Hash mappings " + hashes +" don't track the same blob ids as the lookup map " + lookup;
+        assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Map.copyOf(lookup);
         this.hashes = Map.copyOf(hashes);
     }
@@ -112,6 +113,9 @@ public final class IndexMetaDataGenerations {
         updatedIndexMetaHashes.putAll(newHashes);
         updatedIndexMetaLookup.compute(snapshotId, (snId, lookup) -> {
             if (lookup == null) {
+                if (newLookup.isEmpty()) {
+                    return null;
+                }
                 return Map.copyOf(newLookup);
             } else {
                 final Map<IndexId, String> updated = new HashMap<>(lookup);

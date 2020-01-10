@@ -479,7 +479,9 @@ public final class RepositoryData {
                                 snapshotStates.put(uuid, state);
                             }
                             snapshots.put(snapshotId.getUUID(), snapshotId);
-                            indexMetaLookup.put(snapshotId, metaGenerations);
+                            if (metaGenerations.isEmpty() == false) {
+                                indexMetaLookup.put(snapshotId, metaGenerations);
+                            }
                         }
                     } else {
                         throw new ElasticsearchParseException("expected array for [" + field + "]");

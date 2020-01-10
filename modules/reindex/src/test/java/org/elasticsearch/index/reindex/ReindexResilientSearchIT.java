@@ -72,7 +72,7 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 
         // create index and mapping up front to avoid master involvement, since that can result in an item failing with NodeClosedException.
         assertAcked(prepareCreate("dest")
-            .addMapping("_doc", jsonBuilder()
+            .setMapping(jsonBuilder()
                 .startObject()
                     .startObject("properties")
                         .startObject("data")

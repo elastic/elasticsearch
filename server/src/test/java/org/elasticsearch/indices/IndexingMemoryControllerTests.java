@@ -445,7 +445,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             ThreadPoolStats.Stats stats = getRefreshThreadPoolStats();
             assertThat(stats.getCompleted(), equalTo(beforeStats.getCompleted() + iterations));
         });
-        System.out.println(shard.refreshStats().getTotal());
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshStats.getTotal() + 1));
         closeShards(shard);
     }

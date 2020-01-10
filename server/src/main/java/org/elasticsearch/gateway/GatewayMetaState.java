@@ -416,7 +416,11 @@ public class GatewayMetaState implements Closeable {
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);
             } catch (Exception e) {
-                writer.close();
+                try {
+                    writer.close();
+                } catch (Exception e2) {
+                    e.addSuppressed(e2);
+                }
                 throw e;
             }
             persistenceWriter.set(writer);
@@ -432,17 +436,8 @@ public class GatewayMetaState implements Closeable {
             return lastAcceptedState;
         }
 
-        private PersistedClusterStateService.Writer getWriterSafe() {
-            PersistedClusterStateService.Writer writer = persistenceWriter.get();
-            if (writer == null) {
-                throw new AlreadyClosedException("persisted state has been closed");
-            }
-            return writer;
-        }
-
         @Override
         public void setCurrentTerm(long currentTerm) {
-            reloadWriterIfNecessary();
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
@@ -458,7 +453,6 @@ public class GatewayMetaState implements Closeable {
 
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
-            reloadWriterIfNecessary();
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
@@ -481,13 +475,22 @@ public class GatewayMetaState implements Closeable {
             lastAcceptedState = clusterState;
         }
 
-        private void reloadWriterIfNecessary() {
-            final PersistedClusterStateService.Writer writer = getWriterSafe();
-            if (writer.isOpen() == false) {
+        private PersistedClusterStateService.Writer getWriterSafe() {
+            final PersistedClusterStateService.Writer writer = persistenceWriter.get();
+            if (writer == null) {
+                throw new AlreadyClosedException("persisted state has been closed");
+            }
+            if (writer.isOpen()) {
+                return writer;
+            } else {
                 try {
                     final PersistedClusterStateService.Writer newWriter = persistedClusterStateService.createWriter();
-                    if (persistenceWriter.compareAndSet(writer, newWriter) == false) {
+                    if (persistenceWriter.compareAndSet(writer, newWriter)) {
+                        return newWriter;
+                    } else {
+                        assert persistenceWriter.get() == null : "expected no concurrent calls to getWriterSafe";
                         newWriter.close();
+                        throw new AlreadyClosedException("persisted state has been closed");
                     }
                 } catch (Exception e) {
                     throw ExceptionsHelper.convertToRuntime(e);

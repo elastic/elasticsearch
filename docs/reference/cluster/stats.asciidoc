@@ -133,7 +133,8 @@ selected nodes.
 
 `indices.docs.count`::
 (integer)
-Number of non-deleted documents in the cluster.
+Number of non-deleted documents in total across all primary shards assigned to
+the selected nodes.
 +
 This number is based on documents in Lucene segments and may include documents
 from nested fields.

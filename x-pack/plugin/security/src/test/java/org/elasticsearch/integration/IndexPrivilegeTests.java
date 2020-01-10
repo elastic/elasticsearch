@@ -314,12 +314,14 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u11", "manage", "b");
         assertUserIsDenied("u11", "index", "b");
         assertUserIsDenied("u11", "search", "b");
+        assertUserIsDenied("u11", "maintenance", "b");
         assertUserIsAllowed("u11", "delete", "b");
 
         assertAccessIsAllowed("admin", "DELETE", "/c");
         assertUserIsAllowed("u11", "create_index", "c");
         assertUserIsDenied("u11", "data_access", "c");
         assertUserIsDenied("u11", "monitor", "c");
+        assertUserIsDenied("u11", "maintenance", "c");
 
         assertAccessIsDenied("u11",
                 "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
@@ -394,8 +396,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     public void testUserU15() throws Exception {
         assertUserIsAllowed("u15", "maintenance", "a");
         assertUserIsDenied("u15", "crud", "a");
-
-        assertUserIsDenied("u11", "maintenance", "a");
     }
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {

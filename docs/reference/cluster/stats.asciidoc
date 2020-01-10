@@ -287,11 +287,13 @@ selected nodes.
 
 `indices.segments.index_writer_memory_in_bytes`::
 (<<byte-units, byte units>>)
-Memory used by the index writer.
+Total amount of memory used by all index writers on all shards across all
+selected nodes.
 
 `indices.segments.index_writer_memory_in_bytes`::
 (integer)
-Memory, in bytes, used by the index writer.
+Total amount, in bytes, of memory used by all index writers on all shards across
+all selected nodes.
 
 `indices.segments.version_map_memory`::
 (<<byte-units, byte units>>)

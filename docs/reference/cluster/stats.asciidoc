@@ -43,7 +43,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 `_nodes.total`::
 (integer)
-Total number of nodes selected by the request's node filters.
+Total number of nodes selected by the request's <<cluster-nodes,node filters>>.
 
 `_nodes.successful`::
 (integer)
@@ -56,7 +56,7 @@ Number of nodes that rejected or timed out the request. If this value is not
 
 `cluster_name`::
 (string)
-Name of the cluster. See <<cluster.name>>.
+Name of the cluster, based on the <<cluster.name>> setting.
 
 `cluster_uuid`::
 (string)

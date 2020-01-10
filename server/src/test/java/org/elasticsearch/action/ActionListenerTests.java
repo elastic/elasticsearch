@@ -234,4 +234,38 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(onFailureListener.isDone(), equalTo(true));
         assertThat(expectThrows(ExecutionException.class, onFailureListener::get).getCause(), instanceOf(IOException.class));
     }
+
+    public void testMap() {
+        AtomicReference<Exception> exReference = new AtomicReference<>();
+
+        ActionListener<String> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(String s) {
+                if (s == null) {
+                    throw new IllegalArgumentException("simulate onResponse exception");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exReference.set(e);
+            }
+        };
+        ActionListener<Boolean> mapped = ActionListener.map(listener, b -> {
+            if (b == null) {
+                return null;
+            } else if (b) {
+                throw new IllegalStateException("simulate map function exception");
+            } else {
+                return b.toString();
+            }
+        });
+
+        expectThrows(IllegalArgumentException.class, () -> mapped.onResponse(null));
+        assertNull(exReference.get());
+        mapped.onResponse(false);
+        assertNull(exReference.get());
+        mapped.onResponse(true);
+        assertThat(exReference.get(), instanceOf(IllegalStateException.class));
+    }
 }

@@ -136,6 +136,10 @@ public interface ActionListener<Response> {
      * Creates a listener that wraps another listener, mapping response values via the given mapping function and passing along
      * exceptions to the delegate.
      *
+     * Notice that if the listener onResponse handler fails, the exception will bubble out, whereas if the function fails, the listeners
+     * onFailure handler will be called. The principle is that the code using this is responsible for the function, whereas the listener
+     * should do its own exception handling since it is a different component.
+     *
      * @param listener Listener to delegate to
      * @param fn Function to apply to listener response
      * @param <Response> Response type of the new listener
@@ -143,7 +147,16 @@ public interface ActionListener<Response> {
      * @return a listener that maps the received response and then passes it to its delegate listener
      */
     static <T, Response> ActionListener<Response> map(ActionListener<T> listener, CheckedFunction<Response, T, Exception> fn) {
-        return wrap(r -> listener.onResponse(fn.apply(r)), listener::onFailure);
+        return delegateFailure(listener, (ActionListener<T> delegate, Response response) -> {
+            T mapped;
+            try {
+                mapped = fn.apply(response);
+            } catch (Exception e) {
+                delegate.onFailure(e);
+                return;
+            }
+            delegate.onResponse(mapped);
+        });
     }
 
     /**

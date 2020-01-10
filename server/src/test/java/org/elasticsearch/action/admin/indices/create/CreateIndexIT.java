@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -32,7 +35,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -44,6 +49,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -379,4 +385,43 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertEquals("Should have index name in response", "foo", response.index());
     }
 
+    public void testOnResponseFailureOnMaster() throws Exception {
+        final String exceptionMessage = randomAlphaOfLength(10);
+        final Logger logger = LogManager.getLogger(ClusterApplierService.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        appender.addExpectation(
+            new MockLogAppender.ExceptionSeenEventExpectation(
+                getTestName(),
+                logger.getName(),
+                Level.WARN,
+                "failed to notify ClusterStateListener",
+                TestException.class,
+                exceptionMessage));
+        try {
+            Loggers.addAppender(logger, appender);
+
+            internalCluster().masterClient().admin().indices().prepareCreate("test").execute(new ActionListener<>() {
+                @Override
+                public void onResponse(CreateIndexResponse response) {
+                    throw new TestException(exceptionMessage);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail();
+                }
+            });
+            assertBusy(appender::assertAllExpectationsMatched);
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+        }
+    }
+
+    private static class TestException extends RuntimeException {
+        public TestException(String message) {
+            super(message);
+        }
+    }
 }

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 abstract class LeafQuery extends Query {
     LeafQuery(Source source) {

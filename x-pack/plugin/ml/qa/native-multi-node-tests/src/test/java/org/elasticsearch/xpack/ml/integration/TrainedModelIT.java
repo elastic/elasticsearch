@@ -198,6 +198,16 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
+    public void testGetPrePackagedModels() throws IOException {
+        Response getModel = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "inference/lang_ident_model_1?human=true&include_model_definition=true"));
+
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+        String response = EntityUtils.toString(getModel.getEntity());
+        assertThat(response, containsString("lang_ident_model_1"));
+        assertThat(response, containsString("\"definition\""));
+    }
+
     private static String buildRegressionModel(String modelId) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelConfig.builder()

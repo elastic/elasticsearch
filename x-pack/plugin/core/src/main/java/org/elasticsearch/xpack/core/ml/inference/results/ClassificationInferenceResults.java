@@ -110,15 +110,15 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public static class TopClassEntry implements Writeable {
 
-        public final ParseField CLASSIFICATION = new ParseField("classification");
-        public final ParseField PROBABILITY = new ParseField("probability");
+        public final ParseField CLASS_NAME = new ParseField("class_name");
+        public final ParseField CLASS_PROBABILITY = new ParseField("class_probability");
 
         private final String classification;
         private final double probability;
 
         public TopClassEntry(String classification, Double probability) {
-            this.classification = ExceptionsHelper.requireNonNull(classification, CLASSIFICATION);
-            this.probability = ExceptionsHelper.requireNonNull(probability, PROBABILITY);
+            this.classification = ExceptionsHelper.requireNonNull(classification, CLASS_NAME);
+            this.probability = ExceptionsHelper.requireNonNull(probability, CLASS_PROBABILITY);
         }
 
         public TopClassEntry(StreamInput in) throws IOException {
@@ -136,8 +136,8 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
         public Map<String, Object> asValueMap() {
             Map<String, Object> map = new HashMap<>(2);
-            map.put(CLASSIFICATION.getPreferredName(), classification);
-            map.put(PROBABILITY.getPreferredName(), probability);
+            map.put(CLASS_NAME.getPreferredName(), classification);
+            map.put(CLASS_PROBABILITY.getPreferredName(), probability);
             return map;
         }
 

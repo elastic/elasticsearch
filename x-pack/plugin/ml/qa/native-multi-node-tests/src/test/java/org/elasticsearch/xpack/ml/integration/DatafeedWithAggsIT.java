@@ -80,7 +80,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
 
         // Now let's index the data
         client().admin().indices().prepareCreate(dataIndex)
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
 
         // Index a doc per second from a minute ago to a minute later

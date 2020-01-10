@@ -1109,6 +1109,16 @@ See <<ml-get-bucket>>,
 
 See <<snapshot-restore>>.
 
+[role="exclude", id="_read_only_url_repository"
+==== Read only URL repository
+
+See <<snapshots-read-only-repository>>.
+
+[role="exclude", id="_repository_plugins"
+==== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 
@@ -1118,4 +1128,17 @@ See <<snapshots-restore-snapshot>>.
 === Snapshot repositories
 
 See <<snapshots-register-repository>>.
+
+/tmp/docsbuild/target_repo/html/en/cloud-heroku/current/ech-add-user-settings.html:
+01:08:00 INFO:build_docs:   - en/elasticsearch/reference/7.5/modules-snapshots.html#_read_only_url_repository
+01:08:00 INFO:build_docs:  /tmp/docsbuild/target_repo/html/en/cloud-heroku/release-ms-31/ech-add-user-settings.html:
+01:08:00 INFO:build_docs:   - en/elasticsearch/reference/7.5/modules-snapshots.html#_read_only_url_repository
+01:08:00 INFO:build_docs:  /tmp/docsbuild/target_repo/html/en/cloud/current/ec-add-user-settings.html:
+01:08:00 INFO:build_docs:   - en/elasticsearch/reference/7.5/modules-snapshots.html#_read_only_url_repository
+01:08:00 INFO:build_docs:  /tmp/docsbuild/target_repo/html/en/cloud/release-ms-31/ec-add-user-settings.html:
+01:08:00 INFO:build_docs:   - en/elasticsearch/reference/7.5/modules-snapshots.html#_read_only_url_repository
+01:08:00 INFO:build_docs:  /tmp/docsbuild/target_repo/html/en/ecctl/current/ecctl_platform_repository_create.html:
+01:08:00 INFO:build_docs:   - en/elasticsearch/reference/current/modules-snapshots.html#_repository_plugins
+01:08:00 INFO:build_docs:  /tmp/docsbuild/target_repo/html/en/ecctl/master/ecctl_platform_repository_create.html:
+01:08:00 INFO:build_docs:   - en/elasticsearch/reference/current/modules-snapshots.html#_repository_plugins
 

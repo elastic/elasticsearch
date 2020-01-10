@@ -56,7 +56,8 @@ if [[ -f bin/elasticsearch-users ]]; then
   # enabled, but we have no way of knowing which node we are yet. We'll just
   # honor the variable if it's present.
   if [[ -n "$ELASTIC_PASSWORD" ]]; then
-    [[ -f /usr/share/elasticsearch/config/elasticsearch.keystore ]] || (run_as_other_user_if_needed elasticsearch-keystore create)
+    ES_PATH_CONF=${ES_PATH_CONF:-/usr/share/elasticsearch/config}
+    [[ -f $ES_PATH_CONF/elasticsearch.keystore ]] || (run_as_other_user_if_needed elasticsearch-keystore create)
     if ! (run_as_other_user_if_needed elasticsearch-keystore list | grep -q '^bootstrap.password$'); then
       (run_as_other_user_if_needed echo "$ELASTIC_PASSWORD" | elasticsearch-keystore add -x 'bootstrap.password')
     fi

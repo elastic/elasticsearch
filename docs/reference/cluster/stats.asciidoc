@@ -128,7 +128,8 @@ selected nodes.
 
 `indices.shards.index.replication.avg`::
 (integer)
-Average number of replica shards for the cluster.
+Mean replication factor in an index, counting only the shards assigned to the
+selected nodes.
 
 `indices.docs.count`::
 (integer)

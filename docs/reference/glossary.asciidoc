@@ -223,7 +223,7 @@ during the following processes:
   This type of recovery is called a *local store recovery*.
 * <<glossary-replica-shard,Primary shard replication>>.
 * Relocation of a shard to a different node in the same cluster.
-* {ref}/modules-snapshots.html#restore-snapshot[Snapshot restoration].
+* {ref}/snapshots-restore-snapshot.html[Snapshot restoration].
 // end::recovery-triggers[]
 // end::recovery-def[]
 --

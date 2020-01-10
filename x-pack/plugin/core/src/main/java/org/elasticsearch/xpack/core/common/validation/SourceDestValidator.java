@@ -58,6 +58,7 @@ public final class SourceDestValidator {
         + "alias [{0}], at least a [{1}] license is required, found license [{2}]";
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
+    public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RemoteClusterService remoteClusterService;
@@ -448,7 +449,7 @@ public final class SourceDestValidator {
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             if (context.resolveRemoteSource().isEmpty() == false) {
-                context.addValidationError("remote source indices are not supported");
+                context.addValidationError(REMOTE_SOURCE_INDICES_NOT_SUPPORTED);
             }
             listener.onResponse(context);
         }

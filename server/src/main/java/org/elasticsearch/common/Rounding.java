@@ -252,7 +252,7 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
-            this(DateTimeUnit.resolve(in.readByte()), in.readZoneId());
+            this(DateTimeUnit.resolve(in.readByte()), DateUtils.of(in.readString()));
         }
 
         @Override
@@ -467,7 +467,7 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeIntervalRounding(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readZoneId());
+            this(in.readVLong(), DateUtils.of(in.readString()));
         }
 
         @Override

@@ -9,10 +9,6 @@ specified with _node filters_. For example, the <<tasks,Task Management>>,
 <<cluster-nodes-stats,Nodes Stats>>, and <<cluster-nodes-info,Nodes Info>> APIs
 can all report results from a filtered set of nodes rather than from all nodes.
 
-[float]
-[[node-filter]]
-==== Node filters
-
 _Node filters_ are written as a comma-separated list of individual filters,
 each of which adds or removes nodes from the chosen subset. Each filter can be
 one of the following:

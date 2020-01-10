@@ -55,7 +55,7 @@ Number of nodes that failed to start.
 
 `cluster_name`::
 (string)
-Name of the cluster.
+Name of the cluster. See <<cluster.name>>.
 
 `cluster_uuid`::
 (string)

@@ -318,7 +318,7 @@ all selected nodes.
 
 `indices.segments.max_unsafe_auto_id_timestamp`::
 (integer)
-Timestamp of the most recent retry request.
+Timestamp of the most recently retried indexing request.
 
 `indices.segments.file_sizes.size`::
 (<<byte-units, byte units>>)

@@ -272,11 +272,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("bar"))
-                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")));
+                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")))
+                .put(indexBuilder("hidden", Settings.builder().put("index.hidden", true).build()));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
         // Only closed
-        IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true);
+        IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true, false);
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options);
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(1, results.length);
@@ -292,7 +293,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals("bar", results[0]);
 
         // Only open
-        options = IndicesOptions.fromOptions(false, true, true, false);
+        options = IndicesOptions.fromOptions(false, true, true, false, false);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(2, results.length);
@@ -307,7 +308,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals("bar", results[0]);
 
         // Open and closed
-        options = IndicesOptions.fromOptions(false, true, true, true);
+        options = IndicesOptions.fromOptions(false, true, true, true, false);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(3, results.length);
@@ -332,7 +333,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         results = indexNameExpressionResolver.concreteIndexNames(context, "-*");
         assertEquals(0, results.length);
 
-        options = IndicesOptions.fromOptions(false, false, true, true);
+        options = IndicesOptions.fromOptions(false, false, true, true, true);
         IndexNameExpressionResolver.Context context2 = new IndexNameExpressionResolver.Context(state, options);
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context2, "-*"));
@@ -539,12 +540,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(settings());
+        return indexBuilder(index, Settings.EMPTY);
     }
 
-    private static Settings.Builder settings() {
+    private static IndexMetaData.Builder indexBuilder(String index, Settings additionalSettings) {
+        return IndexMetaData.builder(index).settings(settings(additionalSettings));
+    }
+
+    private static Settings.Builder settings(Settings additionalSettings) {
         return settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(additionalSettings);
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndex() {
@@ -1397,13 +1403,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testIgnoreThrottled() {
         MetaData.Builder mdBuilder = MetaData.builder()
-            .put(indexBuilder("test-index").state(State.OPEN)
-                .settings(settings().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true))
+            .put(indexBuilder("test-index", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+                .state(State.OPEN)
                 .putAlias(AliasMetaData.builder("test-alias")))
             .put(indexBuilder("index").state(State.OPEN)
                 .putAlias(AliasMetaData.builder("test-alias2")))
-            .put(indexBuilder("index-closed").state(State.CLOSE)
-                .settings(settings().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true))
+            .put(indexBuilder("index-closed", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+                .state(State.CLOSE)
                 .putAlias(AliasMetaData.builder("test-alias-closed")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         {

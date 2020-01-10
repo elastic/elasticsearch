@@ -49,43 +49,23 @@ public class CloseIndexRequestTests extends ESTestCase {
     }
 
     public void testBwcSerialization() throws Exception {
-        {
-            final CloseIndexRequest request = randomRequest();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                    VersionUtils.getPreviousVersion(Version.V_7_2_0)));
-                request.writeTo(out);
+        final CloseIndexRequest request = randomRequest();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+            request.writeTo(out);
 
-                try (StreamInput in = out.bytes().streamInput()) {
-                    assertEquals(request.getParentTask(), TaskId.readFromStream(in));
-                    assertEquals(request.masterNodeTimeout(), in.readTimeValue());
-                    assertEquals(request.timeout(), in.readTimeValue());
-                    assertArrayEquals(request.indices(), in.readStringArray());
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertEquals(request.getParentTask(), TaskId.readFromStream(in));
+                assertEquals(request.masterNodeTimeout(), in.readTimeValue());
+                assertEquals(request.timeout(), in.readTimeValue());
+                assertArrayEquals(request.indices(), in.readStringArray());
+                // indices options are not equivalent when sent to an older version and re-read due
+                // to the addition of hidden indices as expand to hidden indices is always true when
+                // read from a prior version
+                // TODO update version on backport!
+                if (out.getVersion().onOrAfter(Version.V_8_0_0) || request.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(request.indicesOptions(), IndicesOptions.readIndicesOptions(in));
                 }
-            }
-        }
-        {
-            final CloseIndexRequest sample = randomRequest();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                sample.getParentTask().writeTo(out);
-                out.writeTimeValue(sample.masterNodeTimeout());
-                out.writeTimeValue(sample.timeout());
-                out.writeStringArray(sample.indices());
-                sample.indicesOptions().writeIndicesOptions(out);
-
-                final CloseIndexRequest deserializedRequest;
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                        VersionUtils.getPreviousVersion(Version.V_7_2_0)));
-                    deserializedRequest = new CloseIndexRequest(in);
-                }
-                assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());
-                assertEquals(sample.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
-                assertEquals(sample.timeout(), deserializedRequest.timeout());
-                assertArrayEquals(sample.indices(), deserializedRequest.indices());
-                assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
-                assertEquals(ActiveShardCount.NONE, deserializedRequest.waitForActiveShards());
             }
         }
     }
@@ -94,7 +74,8 @@ public class CloseIndexRequestTests extends ESTestCase {
         CloseIndexRequest request = new CloseIndexRequest();
         request.indices(generateRandomStringArray(10, 5, false, false));
         if (randomBoolean()) {
-            request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            request.indicesOptions(
+                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
             request.timeout(randomPositiveTimeValue());

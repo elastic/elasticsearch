@@ -157,11 +157,13 @@ Total size, in bytes, of all shards across the selected nodes.
 
 `indices.fielddata.memory_size`::
 (<<byte-units, byte units>>)
-Memory used for fielddata cache.
+Total size of the memory used for field data cache on all shards across the
+selected nodes.
 
 `indices.fielddata.memory_size_in_bytes`::
 (integer)
-Memory, in bytes, used for fielddata cache.
+Total size, in bytes, of the memory used for field data cache on all shards
+across the selected nodes.
 
 `indices.fielddata.evictions`::
 (integer)

@@ -13,14 +13,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
 
 public class DataFrameAnalyticsDest implements Writeable, ToXContentObject {
 
@@ -93,14 +89,5 @@ public class DataFrameAnalyticsDest implements Writeable, ToXContentObject {
 
     public String getResultsField() {
         return resultsField;
-    }
-
-    public void validate() {
-        if (index != null) {
-            validateIndexOrAliasName(index, InvalidIndexNameException::new);
-            if (index.toLowerCase(Locale.ROOT).equals(index) == false) {
-                throw new InvalidIndexNameException(index, "dest.index must be lowercase");
-            }
-        }
     }
 }

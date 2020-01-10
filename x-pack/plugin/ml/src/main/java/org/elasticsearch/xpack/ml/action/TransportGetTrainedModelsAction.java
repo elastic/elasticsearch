@@ -50,7 +50,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
 
                 if (request.isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
                     listener.onFailure(
-                        ExceptionsHelper.badRequestException(Messages.INFERENCE_TO_MANY_DEFINITIONS_REQUESTED)
+                        ExceptionsHelper.badRequestException(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED)
                     );
                     return;
                 }

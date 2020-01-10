@@ -8,6 +8,18 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
+import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.CaseProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIfProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
@@ -19,7 +31,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDat
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistanceProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
@@ -33,23 +44,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
 import java.time.OffsetTime;
@@ -65,96 +60,9 @@ import java.util.Map;
  * (to simplify the whitelist definition).
  */
 @SuppressWarnings("unused")
-public final class InternalSqlScriptUtils {
+public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
-    private InternalSqlScriptUtils() {}
-
-    //
-    // Utilities
-    //
-
-    // safe missing mapping/value extractor
-    public static <T> Object docValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
-        if (doc.containsKey(fieldName)) {
-            ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (!docValues.isEmpty()) {
-                return docValues.get(0);
-            }
-        }
-        return null;
-    }
-
-    public static boolean nullSafeFilter(Boolean filter) {
-        return filter == null ? false : filter.booleanValue();
-    }
-
-    public static double nullSafeSortNumeric(Number sort) {
-        return sort == null ? 0.0d : sort.doubleValue();
-    }
-
-    public static String nullSafeSortString(Object sort) {
-        return sort == null ? StringUtils.EMPTY : sort.toString();
-    }
-
-
-    //
-    // Operators
-    //
-
-    //
-    // Logical
-    //
-    public static Boolean eq(Object left, Object right) {
-        return BinaryComparisonOperation.EQ.apply(left, right);
-    }
-
-    public static Boolean nulleq(Object left, Object right) {
-        return BinaryComparisonOperation.NULLEQ.apply(left, right);
-    }
-
-    public static Boolean neq(Object left, Object right) {
-        return BinaryComparisonOperation.NEQ.apply(left, right);
-    }
-
-    public static Boolean lt(Object left, Object right) {
-        return BinaryComparisonOperation.LT.apply(left, right);
-    }
-
-    public static Boolean lte(Object left, Object right) {
-        return BinaryComparisonOperation.LTE.apply(left, right);
-    }
-
-    public static Boolean gt(Object left, Object right) {
-        return BinaryComparisonOperation.GT.apply(left, right);
-    }
-
-    public static Boolean gte(Object left, Object right) {
-        return BinaryComparisonOperation.GTE.apply(left, right);
-    }
-
-    public static Boolean and(Boolean left, Boolean right) {
-        return BinaryLogicOperation.AND.apply(left, right);
-    }
-
-    public static Boolean or(Boolean left, Boolean right) {
-        return BinaryLogicOperation.OR.apply(left, right);
-    }
-
-    public static Boolean not(Boolean expression) {
-        return NotProcessor.apply(expression);
-    }
-
-    public static Boolean isNull(Object expression) {
-        return CheckNullOperation.IS_NULL.apply(expression);
-    }
-
-    public static Boolean isNotNull(Object expression) {
-        return CheckNullOperation.IS_NOT_NULL.apply(expression);
-    }
-
-    public static Boolean in(Object value, List<Object> values) {
-        return InProcessor.apply(value, values);
-    }
+    InternalSqlScriptUtils() {}
 
     //
     // Conditional

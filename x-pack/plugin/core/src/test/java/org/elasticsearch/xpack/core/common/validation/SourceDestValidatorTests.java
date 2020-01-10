@@ -274,17 +274,17 @@ public class SourceDestValidatorTests extends ESTestCase {
             }
         );
 
-//        assertValidation(
-//            listener -> simpleNonRemoteValidator.validate(
-//                CLUSTER_STATE,
-//                new String[] { SOURCE_1, "missing" },
-//                "dest",
-//                Collections.emptyList(),
-//                listener
-//            ),
-//            true,
-//            null
-//        );
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1, "missing" },
+                "dest",
+                Collections.emptyList(),
+                listener
+            ),
+            true,
+            null
+        );
     }
 
     public void testCheck_GivenMixedMissingWildcardExistingConcreteSourceIndex() throws InterruptedException {

@@ -51,8 +51,8 @@ Number of nodes that responded successfully to the request.
 
 `_nodes.failed`::
 (integer)
-Number of nodes that rejected or timed out the request. If this value is not `0`,
-the failure reasonis included in the response.
+Number of nodes that rejected or timed out the request. If this value is not
+`0`, the failure reason is included in the response.
 
 `cluster_name`::
 (string)

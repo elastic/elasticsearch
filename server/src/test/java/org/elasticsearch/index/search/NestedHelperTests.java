@@ -52,7 +52,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "keyword")
@@ -97,7 +97,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject();
-        indexService = createIndex("index", Settings.EMPTY, "type", mapping);
+        indexService = createIndex("index", Settings.EMPTY, mapping);
         mapperService = indexService.mapperService();
     }
 

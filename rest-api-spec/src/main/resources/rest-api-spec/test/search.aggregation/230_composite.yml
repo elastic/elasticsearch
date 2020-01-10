@@ -243,7 +243,7 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 7.1.99"
+      version: " - 7.99.99" # after BWC merged revert to 7.1.99
       reason:  calendar_interval introduced in 7.2.0
       features: warnings
 
@@ -309,7 +309,7 @@ setup:
 ---
 "Composite aggregation with format and calendar_interval":
   - skip:
-      version: " - 7.1.99"
+      version: " - 7.99.99"  # after BWC merged revert to 7.1.99
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -366,6 +366,40 @@ setup:
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Composite aggregation with date_histogram offset":
+  - skip:
+      version: " - 7.99.99" # after BWC merged revert to 7.5.99
+      reason:  offset introduced in 8.0.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        "offset": "4h",
+                        "format": "iso8601" # Format makes the comparisons a little more obvious
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-19T04:00:00.000Z" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21T04:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
 
 ---
 "Composite aggregation with after_key in the response":
@@ -667,7 +701,6 @@ setup:
       reason: geotile_grid is not supported until 7.5.0
   - do:
       search:
-        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -690,7 +723,8 @@ setup:
                 ]
                 after: { "geo": "12/730/1590", "kw": "foo" }
 
-  - match: {hits.total: 6}
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
   - length: { aggregations.test.buckets: 3 }
   - match: { aggregations.test.buckets.0.key.geo: "12/1236/1533" }
   - match: { aggregations.test.buckets.0.key.kw: "bar" }

@@ -112,7 +112,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             .startObject("properties").startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
             .endObject().endObject()
             .endObject().endObject();
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).build(), "_doc", mapping);
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).build(), mapping);
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("index").setId("" + i).setSource("field", "foo bar baz").get();
         }

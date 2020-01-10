@@ -53,6 +53,11 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
+        if (randomBoolean()) {
+            client().admin().indices().prepareClose(INDEX_NAME).get();
+        }
+        ensureGreen(INDEX_NAME);
+
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 
@@ -64,6 +69,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         });
 
         assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
+        ensureGreen(INDEX_NAME);
     }
 
     /**

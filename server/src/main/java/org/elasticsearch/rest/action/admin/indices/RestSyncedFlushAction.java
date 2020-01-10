@@ -19,18 +19,21 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -54,17 +57,43 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.lenientExpandOpen());
-        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        syncedFlushRequest.indicesOptions(indicesOptions);
-        return channel -> client.admin().indices().syncedFlush(syncedFlushRequest, new RestBuilderListener<SyncedFlushResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(SyncedFlushResponse results, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                results.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(results.restStatus(), builder);
-            }
-        });
+        FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
+        return channel -> client.admin().indices().flush(flushRequest, new SimulateSyncedFlushResponseListener(channel));
+    }
+
+    static final class SimulateSyncedFlushResponseListener extends RestToXContentListener<FlushResponse> {
+        SimulateSyncedFlushResponseListener(RestChannel channel) {
+            super(channel);
+        }
+
+        @Override
+        public RestResponse buildResponse(FlushResponse flushResponse, XContentBuilder builder) throws Exception {
+            final RestStatus restStatus = flushResponse.getFailedShards() > 0 ? RestStatus.OK : RestStatus.CONFLICT;
+            final SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(flushResponse);
+            syncedFlushResponse.toXContent(builder, channel.request());
+            return new BytesRestResponse(restStatus, builder);
+        }
+    }
+
+    static final class SyncedFlushResponse implements ToXContent {
+        private final FlushResponse flushResponse;
+
+        SyncedFlushResponse(FlushResponse flushResponse) {
+            this.flushResponse = flushResponse;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("_shards");
+            builder.field("warning", "Synced flush was removed and a normal flush was performed instead. "
+                + "This transition will be removed a future Elasticsearch version.");
+            builder.field("total", flushResponse.getTotalShards());
+            builder.field("successful", flushResponse.getSuccessfulShards());
+            builder.field("failed", flushResponse.getFailedShards());
+            // We can't serialize the detail of each index as we don't have the shard count per index.
+            builder.endObject();
+            return builder;
+        }
     }
 }

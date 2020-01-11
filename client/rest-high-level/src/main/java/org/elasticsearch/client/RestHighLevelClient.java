@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
@@ -189,6 +191,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -858,6 +861,32 @@ public class RestHighLevelClient implements Closeable {
     public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
         return performRequestAsync(getRequest, RequestConverters::sourceExists, options,
             RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public RestResponse getSource(GetRequest getRequest, RequestOptions options) throws IOException {
+        return performRequest(getRequest, RequestConverters::getSource, options, RestHighLevelClient::convertBytesResponse, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieves the source field only of a document using GetSource API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public final Cancellable getSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<RestResponse> listener) {
+        return performRequestAsync(getRequest, RequestConverters::getSource, options, RestHighLevelClient::convertBytesResponse,
+            listener, emptySet());
     }
 
     /**
@@ -1796,6 +1825,16 @@ public class RestHighLevelClient implements Closeable {
 
     protected static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
+    }
+
+    private static BytesRestResponse convertBytesResponse(Response response) throws IOException {
+        if (response.getEntity() == null) {
+            throw new IllegalStateException("Response body expected but not returned");
+        }
+        try (InputStream s = response.getEntity().getContent()) {
+            RestStatus status = RestStatus.fromCode(response.getStatusLine().getStatusCode());
+            return new BytesRestResponse(status, ContentType.APPLICATION_JSON.toString(), s.readAllBytes());
+        }
     }
 
     /**

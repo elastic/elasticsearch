@@ -1,0 +1,30 @@
+--
+:api: get-source
+:request: GetRequest
+:response: RestResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Source API
+
+This API helps to get only the `_source` field of a document.
+
+[id="{upid}-{api}-request"]
+==== Get Request
+
+Request `GetRequest` is the same like a Get API request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> `FetchSourceContext` 's first argument `fetchSource` must be `true`, otherwise
+`ElasticsearchException` get thrown
+<2> Arguments `excludes` and `includes` are optional (see examples in Get API documentation)
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Source Response
+
+The returned +{response}+ content represents a byte string of the source of requested document.

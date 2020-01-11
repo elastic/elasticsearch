@@ -277,14 +277,26 @@ final class RequestConverters {
     static Request sourceExists(GetRequest getRequest) {
         String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
         Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+        request.addParameters(sourceParams(getRequest).asMap());
+        return request;
+    }
+
+    static Request getSource(GetRequest getRequest) {
+        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(sourceParams(getRequest).asMap());
+        return request;
+    }
+
+    private static Params sourceParams(GetRequest getRequest) {
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
         parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
-        // Version params are not currently supported by the source exists API so are not passed
-        request.addParameters(parameters.asMap());
-        return request;
+        parameters.withFetchSourceContext(getRequest.fetchSourceContext());
+        // Version params are not currently supported by the _source API so are not passed
+        return parameters;
     }
 
     static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {

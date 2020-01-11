@@ -488,12 +488,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder validate() {
+            return validate(false);
+        }
+
         /**
          * Runs validations against the builder.
          * @return The current builder object if validations are successful
          * @throws ActionRequestValidationException when there are validation failures.
          */
-        public Builder validate() {
+        public Builder validate(boolean forCreation) {
             // We require a definition to be available here even though it will be stored in a different doc
             ActionRequestValidationException validationException = null;
             if (definition == null) {
@@ -531,15 +535,18 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     break;
                 }
             }
-
-            validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
-            validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
-            validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
-            validationException = checkIllegalSetting(estimatedHeapMemory,
-                ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-                validationException);
-            validationException = checkIllegalSetting(estimatedOperations, ESTIMATED_OPERATIONS.getPreferredName(), validationException);
-            validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
+            if (forCreation) {
+                validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(estimatedHeapMemory,
+                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                    validationException);
+                validationException = checkIllegalSetting(estimatedOperations,
+                    ESTIMATED_OPERATIONS.getPreferredName(),
+                    validationException);
+                validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
+            }
 
             if (validationException != null) {
                 throw validationException;

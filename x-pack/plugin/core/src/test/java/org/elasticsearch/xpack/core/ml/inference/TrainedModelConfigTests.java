@@ -223,21 +223,21 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreateTime(Instant.now())
-                .setModelId(modelId).validate());
+                .setModelId(modelId).validate(true));
         assertThat(ex.getMessage(), containsString("illegal to set [create_time] at inference model creation"));
 
         ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setVersion(Version.CURRENT)
-                .setModelId(modelId).validate());
+                .setModelId(modelId).validate(true));
         assertThat(ex.getMessage(), containsString("illegal to set [version] at inference model creation"));
 
         ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreatedBy("ml_user")
-                .setModelId(modelId).validate());
+                .setModelId(modelId).validate(true));
         assertThat(ex.getMessage(), containsString("illegal to set [created_by] at inference model creation"));
     }
 

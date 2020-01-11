@@ -100,7 +100,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         TrainedModelConfig trainedModelConfig = new TrainedModelConfig.Builder(request.getTrainedModelConfig())
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
-            .setCreatedBy("user")
+            .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
             .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations())

@@ -46,7 +46,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             }
             // Validations are done against the builder so we can build the full config object.
             // This allows us to not worry about serializing a builder class between nodes.
-            return new Request(builder.validate().build());
+            return new Request(builder.validate(true).build());
         }
 
         private final TrainedModelConfig config;

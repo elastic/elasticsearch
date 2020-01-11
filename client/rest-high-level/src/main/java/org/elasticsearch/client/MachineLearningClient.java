@@ -2362,7 +2362,7 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Get trained model config asynchronously and notifies listener upon completion
+     * Put trained model config asynchronously and notifies listener upon completion
      * <p>
      * For additional info
      * see <a href="TODO">

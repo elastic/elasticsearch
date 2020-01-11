@@ -27,7 +27,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_ml_put_data_frame_analytics_action";
+        return "xpack_ml_put_trained_model_action";
     }
 
     @Override

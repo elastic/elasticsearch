@@ -1,0 +1,7 @@
+[[indices-synced-flush-api]]
+=== Synced flush API
+++++
+<titleabbrev>Synced flush</titleabbrev>
+++++
+
+Synced flush was removed. Use normal <<indices-flush,flush>> instead.

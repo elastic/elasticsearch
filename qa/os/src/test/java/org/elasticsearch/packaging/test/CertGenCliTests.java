@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
@@ -31,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -78,6 +80,9 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     public void test31ExtractCerts() throws Exception {
+        // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
+        assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
+
         Path certsDir = installation.config("certs");
         sh.extractZip(certificatesFile, certsDir);
 
@@ -93,6 +98,9 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     public void test40RunWithCert() throws Exception {
+        // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
+        assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
+        
         append(installation.config("elasticsearch.yml"), String.join("\n",
             "node.name: mynode",
             "xpack.security.transport.ssl.key: " + escapePath(installation.config("certs/mynode/mynode.key")),

@@ -583,22 +583,6 @@ public abstract class Engine implements Closeable {
 
     }
 
-    /**
-     * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
-     * succeeds if there are not pending writes in lucene and the current point is equal to the expected one.
-     *
-     * @param syncId           id of this sync
-     * @param expectedCommitId the expected value of
-     * @return true if the sync commit was made, false o.w.
-     */
-    public abstract SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException;
-
-    public enum SyncedFlushResult {
-        SUCCESS,
-        COMMIT_MISMATCH,
-        PENDING_OPERATIONS
-    }
-
     protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory,
                                                 SearcherScope scope) throws EngineException {
         final Engine.Searcher searcher = searcherFactory.apply("get", scope);

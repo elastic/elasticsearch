@@ -420,7 +420,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     private static class TestException extends RuntimeException {
-        public TestException(String message) {
+        TestException(String message) {
             super(message);
         }
     }

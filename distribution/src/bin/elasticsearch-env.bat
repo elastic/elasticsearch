@@ -63,6 +63,11 @@ if defined JAVA_OPTS (
   echo pass JVM parameters via ES_JAVA_OPTS
 )
 
-rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+rem check Java version
+set MINIMUM_SUPPORTED_VERSION=11
+for /F tokens^=2-5^ delims^=.^" %%j in ('%JAVA% -fullversion 2^>^&1') do set "VERSION=%%j"
 
+if %VERSION% LSS %MINIMUM_SUPPORTED_VERSION% (
+  echo minimum required Java version is %MINIMUM_SUPPORTED_VERSION%; your %JAVA% does not meet this requirement
+  exit /b 1
+)

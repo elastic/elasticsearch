@@ -67,8 +67,13 @@ if [ ! -z "$JAVA_OPTS" ]; then
   echo "pass JVM parameters via ES_JAVA_OPTS"
 fi
 
-# check the Java version
-"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
+# check Java version
+MINIMUM_SUPPORTED_VERSION="11"
+VERSION=$("$JAVA" -fullversion 2>&1 | cut -d' ' -f4 | sed 's/"//g'| cut -d'.'  -f1)
+if [ $VERSION -lt $MINIMUM_SUPPORTED_VERSION ]; then
+   echo "minimum required Java version is $MINIMUM_SUPPORTED_VERSION; your $JAVA does not meet this requirement"
+   exit 1
+fi
 
 export HOSTNAME=$HOSTNAME
 

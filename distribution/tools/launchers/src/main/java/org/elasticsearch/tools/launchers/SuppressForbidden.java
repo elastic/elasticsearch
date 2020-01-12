@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tools.java_version_checker;
+package org.elasticsearch.tools.launchers;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -29,6 +29,6 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.CLASS)
 @Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
-public @interface SuppressForbidden {
+@interface SuppressForbidden {
     String reason();
 }

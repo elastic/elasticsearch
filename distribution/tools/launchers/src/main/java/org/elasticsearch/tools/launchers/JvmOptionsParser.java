@@ -19,8 +19,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.java_version_checker.JavaVersion;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,6 +42,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static java.lang.System.err;
+import static java.lang.System.exit;
+import static java.lang.System.out;
+
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
  */
@@ -55,9 +57,15 @@ final class JvmOptionsParser {
      *
      * @param args the args to the program which should consist of a single option, the path to the JVM options
      */
+    @SuppressForbidden(reason = "System#err, System#exit, System#out")
     public static void main(final String[] args) throws InterruptedException, IOException {
         if (args.length != 1) {
-            throw new IllegalArgumentException("expected one argument specifying path to jvm.options but was " + Arrays.toString(args));
+            err.println(String.format(
+                Locale.ROOT,
+                "expected one argument specifying path to jvm.options but was %s",
+                Arrays.toString(args)
+            ));
+            exit(2);
         }
         final List<String> jvmOptions = new ArrayList<>();
         final SortedMap<Integer, String> invalidLines = new TreeMap<>();
@@ -65,7 +73,7 @@ final class JvmOptionsParser {
              Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
              BufferedReader br = new BufferedReader(reader)) {
             parse(
-                    JavaVersion.majorVersion(JavaVersion.CURRENT),
+                   Integer.valueOf(System.getProperty("java.specification.majorVersion")),
                     br,
                     new JvmOptionConsumer() {
                         @Override
@@ -104,28 +112,28 @@ final class JvmOptionsParser {
             finalJvmOptions.addAll(substitutedJvmOptions);
             finalJvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(finalJvmOptions);
-            Launchers.outPrintln(spaceDelimitedJvmOptions);
-            Launchers.exit(0);
+            out.println(spaceDelimitedJvmOptions);
+            exit(0);
         } else {
-            final String errorMessage = String.format(
+            err.println(String.format(
                     Locale.ROOT,
                     "encountered [%d] error%s parsing [%s]",
                     invalidLines.size(),
                     invalidLines.size() == 1 ? "" : "s",
-                    args[0]);
-            Launchers.errPrintln(errorMessage);
+                    args[0]
+            ));
             int count = 0;
             for (final Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
                 count++;
-                final String message = String.format(
+                err.println(String.format(
                         Locale.ROOT,
                         "[%d]: encountered improperly formatted JVM option line [%s] on line number [%d]",
                         count,
                         entry.getValue(),
-                        entry.getKey());
-                Launchers.errPrintln(message);
+                        entry.getKey()
+                ));
             }
-            Launchers.exit(1);
+            exit(1);
         }
     }
 
@@ -311,5 +319,4 @@ final class JvmOptionsParser {
         }
         return spaceDelimitedJvmOptionsBuilder.toString();
     }
-
 }

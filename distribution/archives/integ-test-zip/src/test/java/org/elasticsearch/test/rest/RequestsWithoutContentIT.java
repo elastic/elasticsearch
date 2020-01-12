@@ -30,7 +30,7 @@ public class RequestsWithoutContentIT extends ESRestTestCase {
 
     public void testIndexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () ->
-                client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/idx/type/123")));
+                client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/idx/_doc/123")));
         assertResponseException(responseException, "request body is required");
     }
 

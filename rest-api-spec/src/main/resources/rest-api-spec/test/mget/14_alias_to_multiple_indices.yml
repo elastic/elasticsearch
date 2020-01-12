@@ -6,11 +6,11 @@
       bulk:
         refresh: true
         body: |
-          {"index": {"_index": "test_1", "_type": "_doc", "_id": 1}}
+          {"index": {"_index": "test_1", "_id": 1}}
           { "foo": "bar" }
-          {"index": {"_index": "test_2", "_type": "_doc", "_id": 2}}
+          {"index": {"_index": "test_2", "_id": 2}}
           { "foo": "bar" }
-          {"index": {"_index": "test_3", "_type": "_doc", "_id": 3}}
+          {"index": {"_index": "test_3", "_id": 3}}
           { "foo": "bar" }
 
   - do:

@@ -56,15 +56,15 @@
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "token_index", "_type": "_doc", "_id" : "1"}}'
+          - '{"index": {"_index": "token_index", "_id" : "1"}}'
           - '{"f1": "v1_old", "f2": 0}'
-          - '{"index": {"_index": "token_index", "_type": "_doc", "_id" : "2"}}'
+          - '{"index": {"_index": "token_index", "_id" : "2"}}'
           - '{"f1": "v2_old", "f2": 1}'
-          - '{"index": {"_index": "token_index", "_type": "_doc", "_id" : "3"}}'
+          - '{"index": {"_index": "token_index", "_id" : "3"}}'
           - '{"f1": "v3_old", "f2": 2}'
-          - '{"index": {"_index": "token_index", "_type": "_doc", "_id" : "4"}}'
+          - '{"index": {"_index": "token_index", "_id" : "4"}}'
           - '{"f1": "v4_old", "f2": 3}'
-          - '{"index": {"_index": "token_index", "_type": "_doc", "_id" : "5"}}'
+          - '{"index": {"_index": "token_index", "_id" : "5"}}'
           - '{"f1": "v5_old", "f2": 4}'
 
   - do:

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
@@ -66,9 +67,12 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
+import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
+import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
@@ -91,6 +95,10 @@ import org.elasticsearch.xpack.ilm.action.TransportRemoveIndexLifecyclePolicyAct
 import org.elasticsearch.xpack.ilm.action.TransportRetryAction;
 import org.elasticsearch.xpack.ilm.action.TransportStartILMAction;
 import org.elasticsearch.xpack.ilm.action.TransportStopILMAction;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
+import org.elasticsearch.xpack.slm.SLMInfoTransportAction;
+import org.elasticsearch.xpack.slm.SLMUsageTransportAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
@@ -98,15 +106,21 @@ import org.elasticsearch.xpack.slm.SnapshotRetentionTask;
 import org.elasticsearch.xpack.slm.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotRetentionAction;
+import org.elasticsearch.xpack.slm.action.RestGetSLMStatusAction;
 import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.RestPutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.RestStartSLMAction;
+import org.elasticsearch.xpack.slm.action.RestStopSLMAction;
 import org.elasticsearch.xpack.slm.action.TransportDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportExecuteSnapshotRetentionAction;
+import org.elasticsearch.xpack.slm.action.TransportGetSLMStatusAction;
 import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.TransportPutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.TransportStartSLMAction;
+import org.elasticsearch.xpack.slm.action.TransportStopSLMAction;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -121,6 +135,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
+    private final SetOnce<ILMHistoryStore> ilmHistoryStore = new SetOnce<>();
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
@@ -147,6 +162,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
+            LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
@@ -160,11 +176,19 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         final List<Object> components = new ArrayList<>();
         if (ilmEnabled) {
+            // This registers a cluster state listener, so appears unused but is not.
+            @SuppressWarnings("unused")
+            ILMHistoryTemplateRegistry ilmTemplateRegistry =
+                new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+            ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+                clusterService, threadPool));
             indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
-                getClock(), System::currentTimeMillis, xContentRegistry));
+                getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
             components.add(indexLifecycleInitialisationService.get());
         }
         if (slmEnabled) {
+            // the template registry is a cluster state listener
+            @SuppressWarnings("unused")
             SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
                 client, xContentRegistry);
             snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
@@ -204,7 +228,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME), WaitForSnapshotAction::parse)
         );
     }
 
@@ -234,7 +259,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestGetSnapshotLifecycleAction(restController),
                 new RestExecuteSnapshotLifecycleAction(restController),
                 new RestGetSnapshotLifecycleStatsAction(restController),
-                new RestExecuteSnapshotRetentionAction(restController)
+                new RestExecuteSnapshotRetentionAction(restController),
+                new RestStopSLMAction(restController),
+                new RestStartSLMAction(restController),
+                new RestGetSLMStatusAction(restController)
             ));
         }
         return handlers;
@@ -242,13 +270,15 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction =
-            new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class);
-        var infoAction =
-            new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class);
+        var ilmUsageAction = new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class);
+        var ilmInfoAction = new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class);
+        var slmUsageAction = new ActionHandler<>(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, SLMUsageTransportAction.class);
+        var slmInfoAction = new ActionHandler<>(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, SLMInfoTransportAction.class);
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(usageAction);
-        actions.add(infoAction);
+        actions.add(ilmUsageAction);
+        actions.add(ilmInfoAction);
+        actions.add(slmUsageAction);
+        actions.add(slmInfoAction);
         if (ilmEnabled) {
             actions.addAll(Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
@@ -270,7 +300,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
-                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class)
+                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+                new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
+                new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
+                new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
             ));
         }
         return actions;
@@ -287,7 +320,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     @Override
     public void close() {
         try {
-            IOUtils.close(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotRetentionService.get());
+            IOUtils.close(indexLifecycleInitialisationService.get(), ilmHistoryStore.get(),
+                snapshotLifecycleService.get(), snapshotRetentionService.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close index lifecycle services", e);
         }

@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
     public void testQueryRewriteOnRefresh() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=text")
+        assertAcked(client().admin().indices().prepareCreate("index").setMapping("s", "type=text")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .get());
@@ -93,7 +93,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
     }
 
     private void indexDocument(String id, String sValue) {
-        IndexResponse response = client().prepareIndex("index", "type", id).setSource("s", sValue).get();
+        IndexResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
         assertThat(response.status(), anyOf(equalTo(RestStatus.OK), equalTo(RestStatus.CREATED)));
     }
 }

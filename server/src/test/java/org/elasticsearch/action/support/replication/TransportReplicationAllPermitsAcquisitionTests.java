@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -158,7 +157,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         IndexMetaData indexMetaData = IndexMetaData.builder(shardId.getIndexName())
             .settings(indexSettings)
             .primaryTerm(shardId.id(), primary.getOperationPrimaryTerm())
-            .putMapping("_doc","{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
+            .putMapping("{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
             .build();
         state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
 
@@ -418,7 +417,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                    SetOnce<Boolean> executedOnPrimary) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(shardId, executedOnPrimary, primary, replica),
                 threadPool, shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), Request::new, Request::new, ThreadPool.Names.SAME);
+                new ActionFilters(new HashSet<>()), Request::new, Request::new, ThreadPool.Names.SAME);
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);
             assertEquals(shardId, primary.shardId());

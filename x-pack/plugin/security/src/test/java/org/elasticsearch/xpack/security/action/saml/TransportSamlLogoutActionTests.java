@@ -132,18 +132,15 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         }).when(client).prepareGet(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+            builder.setIndex((String) invocationOnMock.getArguments()[0]);
             return builder;
-        }).when(client).prepareIndex(anyString(), anyString(), anyString());
+        }).when(client).prepareIndex(anyString());
         doAnswer(invocationOnMock -> {
             UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+                    .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareUpdate(anyString(), anyString(), anyString());
+        }).when(client).prepareUpdate(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
             return builder;
@@ -170,7 +167,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
-                new ShardId("test", "test", 0), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
@@ -179,7 +176,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
-                new ShardId("test", "test", 0), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));

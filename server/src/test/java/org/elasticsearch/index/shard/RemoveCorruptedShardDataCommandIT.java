@@ -128,7 +128,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+                builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
             }
 
             numDocs += numExtraDocs;
@@ -280,7 +280,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] docs to be kept", numDocsToKeep);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocsToKeep];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         flush(indexName);
@@ -291,7 +291,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] more doc to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
 
@@ -456,7 +456,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] docs to be kept", numDocsToKeep);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocsToKeep];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         flush(indexName);
@@ -466,7 +466,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] more docs to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         final int totalDocs = numDocsToKeep + numDocsToTruncate;

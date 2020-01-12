@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,11 +44,13 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -78,7 +79,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
         private Boolean coerce;
-        private Locale locale = IsoLocale.ROOT;
+        private Locale locale = Locale.ROOT;
         private String pattern;
 
         public Builder(String name, RangeType type) {
@@ -270,6 +271,23 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            if (rangeType == RangeType.DATE) {
+                DateFormatter dateTimeFormatter = this.dateTimeFormatter;
+                if (format != null) {
+                    dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+                }
+                if (timeZone == null) {
+                    timeZone = ZoneOffset.UTC;
+                }
+                // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
+                // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+                return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, DateFieldMapper.Resolution.MILLISECONDS);
+            }
+            return super.docValueFormat(format, timeZone);
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
@@ -405,7 +423,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
         if (fieldType().rangeType == RangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().locale() != IsoLocale.ROOT))) {
+                && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
         if (includeDefaults || coerce.explicit()) {

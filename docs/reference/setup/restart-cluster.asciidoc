@@ -1,0 +1,234 @@
+[[restart-cluster]]
+== Full-cluster restart and rolling restart
+ 
+There may be {ref}/configuring-tls.html#tls-transport[situations where you want 
+to perform a full-cluster restart] or a rolling restart. In the case of 
+<<restart-cluster-full,full-cluster restart>>, you shut down and restart all the 
+nodes in the cluster while in the case of 
+<<restart-cluster-rolling,rolling restart>>, you shut down only one node at a 
+time, so the service remains uninterrupted.
+
+
+[float]
+[[restart-cluster-full]]
+=== Full-cluster restart
+
+// tag::disable_shard_alloc[]
+. *Disable shard allocation.*
++
+--
+include::{docdir}/upgrade/disable-shard-alloc.asciidoc[]
+--
+// end::disable_shard_alloc[]
+// tag::stop_indexing[]
+. *Stop indexing and perform a synced flush.*
++
+--
+Performing a <<indices-synced-flush-api, synced-flush>> speeds up shard
+recovery.
+
+include::{docdir}/upgrade/synced-flush.asciidoc[]
+--
+// end::stop_indexing[]
+//tag::stop_ml[]
+. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
++
+--
+{ml-cap} features require a platinum license or higher. For more information about Elastic 
+license levels, see https://www.elastic.co/subscriptions[the subscription page].
+
+You have two options to handle {ml} jobs and {dfeeds} when you shut down a 
+cluster:
+
+* Temporarily halt the tasks associated with your {ml} jobs and {dfeeds} and
+prevent new jobs from opening by using the 
+<<ml-set-upgrade-mode,set upgrade mode API>>:
++
+[source,console]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=true
+--------------------------------------------------
+// TEST
++
+When you disable upgrade mode, the jobs resume using the last model state that 
+was automatically saved. This option avoids the overhead of managing active jobs 
+during the shutdown and is faster than explicitly stopping {dfeeds} and closing 
+jobs.
+
+* {ml-docs}/stopping-ml.html[Stop all {dfeeds} and close all jobs]. This option
+saves the model state at the time of closure. When you reopen the jobs after the
+cluster restart, they use the exact same model. However, saving the latest model 
+state takes longer than using upgrade mode, especially if you have a lot of jobs 
+or jobs with large model states.
+--
+// end::stop_ml[]
+
+. *Shut down all nodes.*
++
+--
+include::{docdir}/upgrade/shut-down-node.asciidoc[]
+--
+
+. *Perform any needed changes.*
+
+. *Restart nodes.*
++
+--
+If you have dedicated master nodes, start them first and wait for them to
+form a cluster and elect a master before proceeding with your data nodes.
+You can check progress by looking at the logs.
+
+As soon as enough master-eligible nodes have discovered each other, they form a
+cluster and elect a master. At that point, you can use
+the <<cat-health, cat health>> and <<cat-nodes,cat nodes>> APIs to monitor nodes
+joining the cluster:
+
+[source,console]
+--------------------------------------------------
+GET _cat/health
+
+GET _cat/nodes
+--------------------------------------------------
+// TEST[continued]
+
+The `status` column returned by `_cat/health` shows the health of each node
+in the cluster: `red`, `yellow`, or `green`.
+--
+
+. *Wait for all nodes to join the cluster and report a status of yellow.*
++
+--
+When a node joins the cluster, it begins to recover any primary shards that
+are stored locally. The <<cat-health,`_cat/health`>> API initially reports
+a `status` of `red`, indicating that not all primary shards have been allocated.
+
+Once a node recovers its local shards, the cluster `status` switches to 
+`yellow`, indicating that all primary shards have been recovered, but not all 
+replica shards are allocated. This is to be expected because you have not yet
+re-enabled allocation. Delaying the allocation of replicas until all nodes
+are `yellow` allows the master to allocate replicas to nodes that
+already have local shard copies.
+--
+
+. *Re-enable allocation.*
++
+--
+When all nodes have joined the cluster and recovered their primary shards,
+re-enable allocation by restoring `cluster.routing.allocation.enable` to its
+default:
+
+[source,console]
+------------------------------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.enable": null
+  }
+}
+------------------------------------------------------
+// TEST[continued]
+
+Once allocation is re-enabled, the cluster starts allocating replica shards to
+the data nodes. At this point it is safe to resume indexing and searching,
+but your cluster will recover more quickly if you can wait until all primary
+and replica shards have been successfully allocated and the status of all nodes
+is `green`.
+
+You can monitor progress with the <<cat-health,`_cat/health`>> and
+<<cat-recovery,`_cat/recovery`>> APIs:
+
+[source,console]
+--------------------------------------------------
+GET _cat/health
+
+GET _cat/recovery
+--------------------------------------------------
+// TEST[continued]
+--
+// tag::restart_ml[]
+. *Restart machine learning jobs.* (Optional)
++
+--
+If you temporarily halted the tasks associated with your {ml} jobs, use the 
+<<ml-set-upgrade-mode,set upgrade mode API>> to return them to active states:
+
+[source,console]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=false
+--------------------------------------------------
+// TEST[continued]
+
+If you closed all {ml} jobs before stopping the nodes, open the jobs and start 
+the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
+<<ml-start-datafeed,start datafeed>> APIs.
+--
+// end::restart_ml[]
+
+
+[float]
+[[restart-cluster-rolling]]
+=== Rolling restart
+
+
+include::{docdir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
+
+include::{docdir}/setup/restart-cluster.asciidoc[tag=stop_indexing]
+
+include::{docdir}/setup/restart-cluster.asciidoc[tag=stop_ml]
++
+--
+* If you perform a rolling restart, you can also leave your machine learning 
+jobs running. When you shut down a machine learning node, its jobs automatically 
+move to another node and restore the model states. This option enables your jobs 
+to continue running during the shutdown but it puts increased load on the 
+cluster.
+--
+
+. *Shut down a single node in case of rolling restart.*
++
+--
+include::{docdir}/upgrade/shut-down-node.asciidoc[]
+--
+
+. *Perform any needed changes.*
+ 
+. *Restart the node you changed.*
++
+--
+Start the node and confirm that it joins the cluster by checking the log file or 
+by submitting a `_cat/nodes` request:
+
+[source,console]
+--------------------------------------------------
+GET _cat/nodes
+--------------------------------------------------
+// TEST[continued]
+--
+
+. *Reenable shard allocation.*
++
+--
+Once the node has joined the cluster, remove the 
+`cluster.routing.allocation.enable` setting to enable shard allocation and start 
+using the node:
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.enable": null
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+--
+
+. *Repeat in case of rolling restart.*
++
+--
+When the node has recovered and the cluster is stable, repeat these steps
+for each node that needs to be changed.
+--
+
+include::{docdir}/setup/restart-cluster.asciidoc[tag=restart_ml]

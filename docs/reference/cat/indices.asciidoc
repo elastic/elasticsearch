@@ -12,6 +12,8 @@ Returns high-level information about indices in a cluster.
 
 `GET /_cat/indices/<index>`
 
+`GET /_cat/indices`
+
 
 [[cat-indices-api-desc]]
 ==== {api-description-title}
@@ -76,6 +78,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 primary shards. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 

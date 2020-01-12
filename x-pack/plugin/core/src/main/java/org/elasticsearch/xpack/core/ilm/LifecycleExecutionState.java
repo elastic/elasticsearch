@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +32,8 @@ public class LifecycleExecutionState {
     private static final String ACTION_TIME = "action_time";
     private static final String STEP_TIME = "step_time";
     private static final String FAILED_STEP = "failed_step";
+    private static final String IS_AUTO_RETRYABLE_ERROR = "is_auto_retryable_error";
+    private static final String FAILED_STEP_RETRY_COUNT = "failed_step_retry_count";
     private static final String STEP_INFO = "step_info";
     private static final String PHASE_DEFINITION = "phase_definition";
 
@@ -37,6 +41,8 @@ public class LifecycleExecutionState {
     private final String action;
     private final String step;
     private final String failedStep;
+    private final Boolean isAutoRetryableError;
+    private final Integer failedStepRetryCount;
     private final String stepInfo;
     private final String phaseDefinition;
     private final Long lifecycleDate;
@@ -44,13 +50,15 @@ public class LifecycleExecutionState {
     private final Long actionTime;
     private final Long stepTime;
 
-    private LifecycleExecutionState(String phase, String action, String step, String failedStep,
-                                    String stepInfo, String phaseDefinition, Long lifecycleDate,
+    private LifecycleExecutionState(String phase, String action, String step, String failedStep, Boolean isAutoRetryableError,
+                                    Integer failedStepRetryCount, String stepInfo, String phaseDefinition, Long lifecycleDate,
                                     Long phaseTime, Long actionTime, Long stepTime) {
         this.phase = phase;
         this.action = action;
         this.step = step;
         this.failedStep = failedStep;
+        this.isAutoRetryableError = isAutoRetryableError;
+        this.failedStepRetryCount = failedStepRetryCount;
         this.stepInfo = stepInfo;
         this.phaseDefinition = phaseDefinition;
         this.lifecycleDate = lifecycleDate;
@@ -72,6 +80,31 @@ public class LifecycleExecutionState {
         return fromCustomMetadata(customData);
     }
 
+    /**
+     * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
+     * it is illegal for the step to be set with the phase and/or action unset,
+     * or for the step to be unset with the phase and/or action set. All three
+     * settings must be either present or missing.
+     *
+     * @param lifecycleState the index custom data to extract the {@link Step.StepKey} from.
+     */
+    @Nullable
+    public static Step.StepKey getCurrentStepKey(LifecycleExecutionState lifecycleState) {
+        Objects.requireNonNull(lifecycleState, "cannot determine current step key as lifecycle state is null");
+        String currentPhase = lifecycleState.getPhase();
+        String currentAction = lifecycleState.getAction();
+        String currentStep = lifecycleState.getStep();
+        if (Strings.isNullOrEmpty(currentStep)) {
+            assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
+            assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
+            return null;
+        } else {
+            assert Strings.isNullOrEmpty(currentPhase) == false;
+            assert Strings.isNullOrEmpty(currentAction) == false;
+            return new Step.StepKey(currentPhase, currentAction, currentStep);
+        }
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -82,6 +115,8 @@ public class LifecycleExecutionState {
             .setAction(state.action)
             .setStep(state.step)
             .setFailedStep(state.failedStep)
+            .setIsAutoRetryableError(state.isAutoRetryableError)
+            .setFailedStepRetryCount(state.failedStepRetryCount)
             .setStepInfo(state.stepInfo)
             .setPhaseDefinition(state.phaseDefinition)
             .setIndexCreationDate(state.lifecycleDate)
@@ -103,6 +138,12 @@ public class LifecycleExecutionState {
         }
         if (customData.containsKey(FAILED_STEP)) {
             builder.setFailedStep(customData.get(FAILED_STEP));
+        }
+        if (customData.containsKey(IS_AUTO_RETRYABLE_ERROR)) {
+            builder.setIsAutoRetryableError(Boolean.parseBoolean(customData.get(IS_AUTO_RETRYABLE_ERROR)));
+        }
+        if (customData.containsKey(FAILED_STEP_RETRY_COUNT)) {
+            builder.setFailedStepRetryCount(Integer.parseInt(customData.get(FAILED_STEP_RETRY_COUNT)));
         }
         if (customData.containsKey(STEP_INFO)) {
             builder.setStepInfo(customData.get(STEP_INFO));
@@ -164,6 +205,12 @@ public class LifecycleExecutionState {
         if (failedStep != null) {
             result.put(FAILED_STEP, failedStep);
         }
+        if (isAutoRetryableError != null) {
+            result.put(IS_AUTO_RETRYABLE_ERROR, String.valueOf(isAutoRetryableError));
+        }
+        if (failedStepRetryCount != null) {
+            result.put(FAILED_STEP_RETRY_COUNT, String.valueOf(failedStepRetryCount));
+        }
         if (stepInfo != null) {
             result.put(STEP_INFO, stepInfo);
         }
@@ -201,6 +248,14 @@ public class LifecycleExecutionState {
         return failedStep;
     }
 
+    public Boolean isAutoRetryableError() {
+        return isAutoRetryableError;
+    }
+
+    public Integer getFailedStepRetryCount() {
+        return failedStepRetryCount;
+    }
+
     public String getStepInfo() {
         return stepInfo;
     }
@@ -230,7 +285,7 @@ public class LifecycleExecutionState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LifecycleExecutionState that = (LifecycleExecutionState) o;
-        return Objects.equals(getLifecycleDate(),that.getLifecycleDate()) &&
+        return Objects.equals(getLifecycleDate(), that.getLifecycleDate()) &&
             Objects.equals(getPhaseTime(), that.getPhaseTime()) &&
             Objects.equals(getActionTime(), that.getActionTime()) &&
             Objects.equals(getStepTime(), that.getStepTime()) &&
@@ -238,14 +293,21 @@ public class LifecycleExecutionState {
             Objects.equals(getAction(), that.getAction()) &&
             Objects.equals(getStep(), that.getStep()) &&
             Objects.equals(getFailedStep(), that.getFailedStep()) &&
+            Objects.equals(isAutoRetryableError(), that.isAutoRetryableError()) &&
+            Objects.equals(getFailedStepRetryCount(), that.getFailedStepRetryCount()) &&
             Objects.equals(getStepInfo(), that.getStepInfo()) &&
             Objects.equals(getPhaseDefinition(), that.getPhaseDefinition());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getPhase(), getAction(), getStep(), getFailedStep(), getStepInfo(), getPhaseDefinition(),
-            getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime());
+        return Objects.hash(getPhase(), getAction(), getStep(), getFailedStep(), isAutoRetryableError(), getFailedStepRetryCount(),
+            getStepInfo(), getPhaseDefinition(), getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime());
+    }
+
+    @Override
+    public String toString() {
+        return asMap().toString();
     }
 
     public static class Builder {
@@ -259,6 +321,8 @@ public class LifecycleExecutionState {
         private Long phaseTime;
         private Long actionTime;
         private Long stepTime;
+        private Boolean isAutoRetryableError;
+        private Integer failedStepRetryCount;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -310,9 +374,19 @@ public class LifecycleExecutionState {
             return this;
         }
 
+        public Builder setIsAutoRetryableError(Boolean isAutoRetryableError) {
+            this.isAutoRetryableError = isAutoRetryableError;
+            return this;
+        }
+
+        public Builder setFailedStepRetryCount(Integer failedStepRetryCount) {
+            this.failedStepRetryCount = failedStepRetryCount;
+            return this;
+        }
+
         public LifecycleExecutionState build() {
-            return new LifecycleExecutionState(phase, action, step, failedStep, stepInfo, phaseDefinition, indexCreationDate,
-                phaseTime, actionTime, stepTime);
+            return new LifecycleExecutionState(phase, action, step, failedStep, isAutoRetryableError, failedStepRetryCount, stepInfo,
+                phaseDefinition, indexCreationDate, phaseTime, actionTime, stepTime);
         }
     }
 

@@ -142,7 +142,7 @@ public class BucketScriptIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int docs = 0; docs < numDocs; docs++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(newDocBuilder()));
+            builders.add(client().prepareIndex("idx").setSource(newDocBuilder()));
         }
 
         indexRandom(true, builders);
@@ -645,7 +645,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.parse("seriesArithmetic", createParser(content));
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
 
         SearchResponse response = client()
             .prepareSearch("idx", "idx_unmapped")
@@ -690,7 +690,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.parse("seriesArithmetic", createParser(content));
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
 
         SearchResponse response = client()
             .prepareSearch("idx", "idx_unmapped")
@@ -747,7 +747,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.parse("seriesArithmetic", createParser(content));
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
 
         SearchResponse response = client()
             .prepareSearch("idx", "idx_unmapped")

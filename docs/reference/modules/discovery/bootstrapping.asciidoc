@@ -4,11 +4,11 @@
 Starting an Elasticsearch cluster for the very first time requires the initial
 set of <<master-node,master-eligible nodes>> to be explicitly defined on one or
 more of the master-eligible nodes in the cluster. This is known as _cluster
-bootstrapping_.  This is only required the very first time the cluster starts
-up: nodes that have already joined a cluster store this information in their
-data folder for use in a <<restart-upgrade,full cluster restart>>, and
-freshly-started nodes that are joining a running cluster obtain this
-information from the cluster's elected master.
+bootstrapping_. This is only required the first time a cluster starts up: nodes
+that have already joined a cluster store this information in their data folder
+for use in a <<restart-upgrade,full cluster restart>>, and freshly-started nodes
+that are joining a running cluster obtain this information from the cluster's
+elected master.
 
 The initial set of master-eligible nodes is defined in the
 <<initial_master_nodes,`cluster.initial_master_nodes` setting>>. This should be
@@ -30,12 +30,8 @@ node:
 
 When you start a master-eligible node, you can provide this setting on the
 command line or in the `elasticsearch.yml` file. After the cluster has formed,
-this setting is no longer required and is ignored. It need not be set on
-master-ineligible nodes, nor on master-eligible nodes that are started to join
-an existing cluster. Note that master-eligible nodes should use storage that
-persists across restarts. If they do not, and `cluster.initial_master_nodes` is
-set, and a full cluster restart occurs, then another brand-new cluster will
-form and this may result in data loss.
+this setting is no longer required. It should not be set for master-ineligible
+nodes, master-eligible nodes joining an existing cluster, or cluster restarts.
 
 It is technically sufficient to set `cluster.initial_master_nodes` on a single
 master-eligible node in the cluster, and only to mention that single node in the
@@ -142,14 +138,10 @@ clusters together without a risk of data loss. You can tell that you have formed
 separate clusters by checking the cluster UUID reported by `GET /` on each node.
 If you intended to form a single cluster then you should start again:
 
-* Take a <<modules-snapshots,snapshot>> of each of the single-host clusters if
-  you do not want to lose any data that they hold. Note that each cluster must
-  use its own snapshot repository.
 * Shut down all the nodes.
 * Completely wipe each node by deleting the contents of their
   <<data-path,data folders>>.
 * Configure `cluster.initial_master_nodes` as described above.
 * Restart all the nodes and verify that they have formed a single cluster.
-* <<modules-snapshots,Restore>> any snapshots as required.
 
 ==================================================

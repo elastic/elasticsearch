@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotRetentionTaskTests extends ESTestCase {
 
@@ -153,8 +155,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     }
 
     private void retentionTaskTest(final boolean deletionSuccess) throws Exception {
-        try (ThreadPool threadPool = new TestThreadPool("slm-test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ThreadPool threadPool = new TestThreadPool("slm-test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
              Client noOpClient = new NoOpClient("slm-test")) {
 
             final String policyId = "policy";
@@ -221,7 +223,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             boolean historySuccess = historyLatch.await(10, TimeUnit.SECONDS);
             assertThat("expected history entries for 1 snapshot deletions", historySuccess, equalTo(true));
             assertThat(deletedSnapshotsInHistory, contains(eligibleSnapshot.snapshotId().getName()));
-
+        } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
@@ -236,8 +238,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     }
 
     private void timeBoundedDeletion(final boolean deletionSuccess) throws Exception {
-        try (ThreadPool threadPool = new TestThreadPool("slm-test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ThreadPool threadPool = new TestThreadPool("slm-test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
              Client noOpClient = new NoOpClient("slm-test")) {
 
             final String policyId = "policy";
@@ -320,7 +322,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             boolean historySuccess = historyLatch.await(10, TimeUnit.SECONDS);
             assertThat("expected history entries for 2 snapshot deletions", historySuccess, equalTo(true));
             assertThat(deletedSnapshotsInHistory, containsInAnyOrder(snap1.snapshotId().getName(), snap2.snapshotId().getName()));
-
+        } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
@@ -333,7 +335,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             new SnapshotsInProgress.Entry(
                 snapshot, true, false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId("name", "id")), 0, 0,
-                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap()));
+                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap(),
+                randomBoolean()));
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, inProgress)
             .build();
@@ -361,6 +364,14 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             .build();
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
+
+        restoreInProgress = mock(RestoreInProgress.class);
+        when(restoreInProgress.isEmpty()).thenReturn(true);
+        state = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(RestoreInProgress.TYPE, restoreInProgress)
+            .build();
+
+        assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(true));
     }
 
     public void testSkipWhileStopping() throws Exception {
@@ -372,8 +383,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     }
 
     private void doTestSkipDuringMode(OperationMode mode) throws Exception {
-        try (ThreadPool threadPool = new TestThreadPool("slm-test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ThreadPool threadPool = new TestThreadPool("slm-test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
              Client noOpClient = new NoOpClient("slm-test")) {
             final String policyId = "policy";
             final String repoId = "repo";
@@ -396,7 +407,50 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
             long time = System.currentTimeMillis();
             task.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_JOB_ID, time, time));
+        } finally {
+            threadPool.shutdownNow();
+            threadPool.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
 
+    public void testRunManuallyWhileStopping() throws Exception {
+        doTestRunManuallyDuringMode(OperationMode.STOPPING);
+    }
+
+    public void testRunManuallyWhileStopped() throws Exception {
+        doTestRunManuallyDuringMode(OperationMode.STOPPED);
+    }
+
+    private void doTestRunManuallyDuringMode(OperationMode mode) throws Exception {
+        ThreadPool threadPool = new TestThreadPool("slm-test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+             Client noOpClient = new NoOpClient("slm-test")) {
+            final String policyId = "policy";
+            final String repoId = "repo";
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyId, "snap", "1 * * * * ?",
+                repoId, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
+
+            ClusterState state = createState(mode, policy);
+            ClusterServiceUtils.setState(clusterService, state);
+
+            AtomicBoolean retentionWasRun = new AtomicBoolean(false);
+            MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {
+                }),
+                threadPool,
+                () -> {
+                    retentionWasRun.set(true);
+                    return Collections.emptyMap();
+                },
+                (deletionPolicyId, repo, snapId, slmStats, listener) -> {
+                },
+                System::nanoTime);
+
+            long time = System.currentTimeMillis();
+            task.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID, time, time));
+
+            assertTrue("retention should be run manually even if SLM is disabled", retentionWasRun.get());
+        } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
@@ -442,7 +496,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void getAllSuccessfulSnapshots(Collection<String> repositories,
+        void getAllRetainableSnapshots(Collection<String> repositories,
                                        ActionListener<Map<String, List<SnapshotInfo>>> listener,
                                        Consumer<Exception> errorHandler) {
             listener.onResponse(this.snapshotRetriever.get());

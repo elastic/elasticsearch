@@ -173,7 +173,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             jdkConfig = configurations.create(remoteConfigName);
             configurations.create(localConfigName);
         }
-        String platformDep = platform.equals("darwin") ? (vendor.equals("adoptopenjdk") ? "mac" : "osx") : platform;
+        String platformDep = platform.equals("darwin") || platform.equals("osx") ?
+            (vendor.equals("adoptopenjdk") ? "mac" : "osx") : platform;
         String extension = platform.equals("windows") ? "zip" : "tar.gz";
         String jdkDep = vendor + ":" + platformDep + ":" + jdkVersion + "@" + extension;
         rootProject.getDependencies().add(configName(vendor, version, platform), jdkDep);

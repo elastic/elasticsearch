@@ -113,8 +113,9 @@
   - match: { analysis_limits.model_memory_limit: "2048mb" }
 
 ---
-"Test put job with model_memory_limit as string":
-
+"Test put job with model_memory_limit as string and lazy open":
+  - skip:
+      features: headers
   - do:
       ml.put_job:
         job_id: job-model-memory-limit-as-string
@@ -126,11 +127,42 @@
             "data_description" : {
             },
             "analysis_limits": {
-                "model_memory_limit": "3g"
-            }
+                "model_memory_limit": "3000g"
+            },
+            "allow_lazy_open": true
           }
   - match: { job_id: "job-model-memory-limit-as-string" }
-  - match: { analysis_limits.model_memory_limit: "3072mb" }
+  - match: { analysis_limits.model_memory_limit: "3072000mb" }
+
+  # The assumption here is that a 3000GB job will not fit on the test
+  # node - increase in future if the test ever fails because of this!
+  # But because the job is allowed to open lazily, opening it shouldn't
+  # throw an exception - it should wait for a big enough node to be
+  # added to the cluster.
+  - do:
+      ml.open_job:
+        job_id: job-model-memory-limit-as-string
+  - match: { opened: false }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.get_job_stats:
+        job_id: job-model-memory-limit-as-string
+  - match: {"jobs.0.state": opening}
+
+  # Despite never being assigned to a node the job should close gracefully
+  - do:
+      ml.close_job:
+        job_id: job-model-memory-limit-as-string
+  - match: { closed: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.get_job_stats:
+        job_id: job-model-memory-limit-as-string
+  - match: {"jobs.0.state": closed}
 
 ---
 "Test get job API with non existing job id":

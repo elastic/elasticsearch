@@ -594,7 +594,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testConcreteIndicesNoIndicesErrorMessage() {
         MetaData.Builder mdBuilder = MetaData.builder();
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, 
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
             IndicesOptions.fromOptions(false, false, true, true));
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
@@ -604,13 +604,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testConcreteIndicesNoIndicesErrorMessageNoExpand() {
         MetaData.Builder mdBuilder = MetaData.builder();
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, 
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
             IndicesOptions.fromOptions(false, false, false, false));
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
         assertThat(infe.getMessage(), is("no such index [_all] and no indices exist"));
     }
-    
+
     public void testConcreteIndicesWildcardExpansion() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").state(State.OPEN))
@@ -1207,7 +1207,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+            new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
@@ -1227,7 +1227,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+            new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +

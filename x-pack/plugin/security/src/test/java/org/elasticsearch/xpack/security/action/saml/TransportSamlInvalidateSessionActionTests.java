@@ -150,7 +150,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
                     final IndexResponse response = new IndexResponse(
-                        new ShardId("test", "test", 0), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                        new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
                     listener.onResponse((Response) response);
                 } else if (BulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));

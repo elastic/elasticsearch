@@ -30,7 +30,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("name")
                         .field("type", "text")
                         .field("fielddata", true)
@@ -39,7 +39,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
                         .endObject().endObject().endObject()));
         ensureGreen();
 
-        client().prepareIndex("test", "type", "1").setSource("name", "name").get();
+        client().prepareIndex("test").setId("1").setSource("name", "name").get();
         client().admin().indices().prepareRefresh("test").get();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -51,26 +50,20 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        left.storeSettings(settings);
-        right.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
         right.extractVariables(variables);
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         left.expected = boolean.class;
-        left.analyze(functions, locals);
-        left = left.cast(functions, locals);
+        left.analyze(scriptRoot, locals);
+        left = left.cast(scriptRoot, locals);
 
         right.expected = boolean.class;
-        right.analyze(functions, locals);
-        right = right.cast(functions, locals);
+        right.analyze(scriptRoot, locals);
+        right = right.cast(scriptRoot, locals);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {

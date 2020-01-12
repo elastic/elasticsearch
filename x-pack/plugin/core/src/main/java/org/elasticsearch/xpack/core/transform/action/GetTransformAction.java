@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetTransformAction extends ActionType<GetTransformAction.Response> {
 
     public static final GetTransformAction INSTANCE = new GetTransformAction();
-    public static final String NAME = "cluster:monitor/data_frame/get";
+    public static final String NAME = "cluster:monitor/transform/get";
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(GetTransformAction.class));

@@ -59,7 +59,7 @@ public class FilterIT extends ESIntegTestCase {
         numTag1Docs = randomIntBetween(1, numDocs - 1);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numTag1Docs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i + 1)
                     .field("tag", "tag1")
@@ -72,15 +72,15 @@ public class FilterIT extends ESIntegTestCase {
                     .field("tag", "tag2")
                     .field("name", "name" + i)
                     .endObject();
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+            builders.add(client().prepareIndex("idx").setId(""+i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted docs that match the filter
-                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+                builders.add(client().prepareIndex("idx").setId(""+i).setSource(source));
             }
         }
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .endObject()));

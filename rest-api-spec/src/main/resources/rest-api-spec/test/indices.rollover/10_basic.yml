@@ -16,7 +16,6 @@
   - do:
       index:
         index: logs-1
-        type:  test
         id:    "1"
         body:  { "foo": "hello world" }
         # make this doc visible in index stats
@@ -57,7 +56,6 @@
   - do:
       index:
         index: logs-000002
-        type:  test
         id:    "2"
         body:  { "foo": "hello world" }
 

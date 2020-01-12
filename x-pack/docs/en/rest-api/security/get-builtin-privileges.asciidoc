@@ -5,9 +5,8 @@
 <titleabbrev>Get builtin privileges</titleabbrev>
 ++++
 
-Retrieves the list of 
-{stack-ov}/security-privileges.html#privileges-list-cluster[cluster privileges] and
-{stack-ov}/security-privileges.html#privileges-list-indices[index privileges] that are
+Retrieves the list of <<privileges-list-cluster,cluster privileges>> and
+<<privileges-list-indices,index privileges>> that are
 available in this version of {es}.
 
 [[security-api-get-builtin-privileges-request]]
@@ -38,12 +37,12 @@ To check whether a user has particular privileges, use the
 The response is an object with two fields:
 
 `cluster`:: (array of string) The list of
- {stack-ov}/security-privileges.html#privileges-list-cluster[cluster privileges]
- that are understood by this version of {es}
+<<privileges-list-cluster,cluster privileges>> that are understood by this
+version of {es}.
 
 `index`:: (array of string) The list of
- {stack-ov}/security-privileges.html#privileges-list-indices[index privileges]
- that are understood by this version of {es}
+<<privileges-list-indices,index privileges>> that are understood by this version
+of {es}.
 
 
 [[security-api-get-builtin-privileges-example]]
@@ -69,6 +68,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_api_key",
     "manage_ccr",
     "manage_data_frame_transforms",
+    "manage_enrich",
     "manage_ilm",
     "manage_index_templates",
     "manage_ingest_pipelines",
@@ -81,11 +81,14 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_security",
     "manage_slm",
     "manage_token",
+    "manage_transform",
     "manage_watcher",
     "monitor",
     "monitor_data_frame_transforms",
     "monitor_ml",
     "monitor_rollup",
+    "monitor_snapshot",
+    "monitor_transform",
     "monitor_watcher",
     "none",
     "read_ccr",
@@ -96,6 +99,7 @@ A successful call returns an object with "cluster" and "index" fields.
   "index" : [
     "all",
     "create",
+    "create_doc",
     "create_index",
     "delete",
     "delete_index",

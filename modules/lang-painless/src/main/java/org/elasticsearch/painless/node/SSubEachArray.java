@@ -21,15 +21,14 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -58,17 +57,12 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
         array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);

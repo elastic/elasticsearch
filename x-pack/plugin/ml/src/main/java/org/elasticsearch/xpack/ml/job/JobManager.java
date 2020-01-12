@@ -142,7 +142,7 @@ public class JobManager {
         jobConfigProvider.getJob(jobId, ActionListener.wrap(
                 r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
                 e -> {
-                    if (e instanceof ResourceNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         // Try to get the job from the cluster state
                         getJobFromClusterState(jobId, jobListener);
                     } else {
@@ -272,7 +272,7 @@ public class JobManager {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IllegalArgumentException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IllegalArgumentException) {
                     // the underlying error differs depending on which way around the clashing fields are seen
                     Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:of different type, " +
                             "current_type \\[.*\\], merged_type|with an object mapping) \\[.*\\]").matcher(e.getMessage());

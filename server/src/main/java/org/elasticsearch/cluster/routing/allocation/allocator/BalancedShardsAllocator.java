@@ -152,7 +152,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
                 unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
                         unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(), AllocationStatus.DECIDERS_NO),
+                        unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(), AllocationStatus.DECIDERS_NO,
+                        unassignedInfo.getFailedNodeIds()),
                     shardRouting.recoverySource(), allocation.changes());
             }
         }
@@ -817,8 +818,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                         }
 
-                        final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard, allocation,
-                            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                        final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
+                            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                            allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
                         shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
                         minNode.addShard(shard);
                         if (!shard.primary()) {
@@ -838,8 +840,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         if (minNode != null) {
                             // throttle decision scenario
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
-                            final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard, allocation,
-                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                            final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
+                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                                allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
                             minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
                             final RoutingNode node = minNode.getRoutingNode();
                             final Decision.Type nodeLevelDecision = deciders.canAllocate(node, allocation).type();

@@ -21,12 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 
 import java.util.Set;
@@ -49,19 +48,13 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        lhs.storeSettings(settings);
-        rhs.storeSettings(settings);
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         lhs.extractVariables(variables);
         rhs.extractVariables(variables);
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (expected != null && expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
@@ -72,8 +65,8 @@ public class EElvis extends AExpression {
         rhs.explicit = explicit;
         rhs.internal = internal;
         actual = expected;
-        lhs.analyze(functions, locals);
-        rhs.analyze(functions, locals);
+        lhs.analyze(scriptRoot, locals);
+        rhs.analyze(scriptRoot, locals);
 
         if (lhs.isNull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
@@ -96,8 +89,8 @@ public class EElvis extends AExpression {
             actual = promote;
         }
 
-        lhs = lhs.cast(functions, locals);
-        rhs = rhs.cast(functions, locals);
+        lhs = lhs.cast(scriptRoot, locals);
+        rhs = rhs.cast(scriptRoot, locals);
     }
 
     @Override

@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
@@ -63,6 +64,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -89,7 +91,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, true);
         }
@@ -159,7 +161,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
 
@@ -208,9 +210,11 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         List<Translog.Operation> operations = new ArrayList<>();
         for (int i = 0; i < numOps; i++) {
             operations.add(new Translog.Index(
-                "_doc", Integer.toString(i), randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : i, primaryTerm, new byte[]{1}));
+                Integer.toString(i), randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : i, primaryTerm, new byte[]{1}));
         }
-        doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), anyLong());
+        Engine.HistorySource source =
+            shard.indexSettings.isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG;
+        doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), eq(source), anyLong());
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         List<Translog.Operation> sentOperations = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {

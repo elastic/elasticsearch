@@ -31,8 +31,10 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -214,6 +216,10 @@ public class ConnectionManager implements Closeable {
      */
     public int size() {
         return connectedNodes.size();
+    }
+
+    public Set<DiscoveryNode> getAllConnectedNodes() {
+        return Collections.unmodifiableSet(connectedNodes.keySet());
     }
 
     @Override

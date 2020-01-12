@@ -36,6 +36,6 @@ public class RestDeleteTransformAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "data_frame_delete_transform_action";
+        return "transform_delete_transform_action";
     }
 }

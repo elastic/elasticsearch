@@ -26,8 +26,3 @@ testClusters.integTest {
   // Modules who's integration is explicitly tested in integration tests
   module file(project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile)
 }
-
-run {
-  // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:lang-mustache')
-}

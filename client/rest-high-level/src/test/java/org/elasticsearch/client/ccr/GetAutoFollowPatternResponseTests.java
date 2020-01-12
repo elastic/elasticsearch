@@ -49,6 +49,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
             String remoteCluster = randomAlphaOfLength(4);
             List<String> leaderIndexPatters = Collections.singletonList(randomAlphaOfLength(4));
             String followIndexNamePattern = randomAlphaOfLength(4);
+            boolean active = randomBoolean();
 
             Integer maxOutstandingReadRequests = null;
             if (randomBoolean()) {
@@ -91,7 +92,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
                 readPollTimeout = new TimeValue(randomNonNegativeLong());
             }
             patterns.put(randomAlphaOfLength(4), new AutoFollowMetadata.AutoFollowPattern(remoteCluster, leaderIndexPatters,
-                followIndexNamePattern, maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests,
+                followIndexNamePattern, active, maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests,
                 maxOutstandingWriteRequests, maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize,
                 maxRetryDelay, readPollTimeout));
         }

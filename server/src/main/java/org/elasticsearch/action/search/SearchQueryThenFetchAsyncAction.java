@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
 
@@ -35,6 +36,7 @@ import java.util.function.BiFunction;
 final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
+    private final SearchProgressListener progressListener;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
             final BiFunction<String, String, Transport.Connection> nodeIdToConnection, final Map<String, AliasFilter> aliasFilter,
@@ -45,14 +47,25 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
             long clusterStateVersion, SearchTask task, SearchResponse.Clusters clusters) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
-                searchPhaseController.newSearchPhaseResults(request, shardsIts.size()), request.getMaxConcurrentShardRequests(), clusters);
+                searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
+                request.getMaxConcurrentShardRequests(), clusters);
         this.searchPhaseController = searchPhaseController;
+        this.progressListener = task.getProgressListener();
+        final SearchProgressListener progressListener = task.getProgressListener();
+        final SearchSourceBuilder sourceBuilder = request.source();
+        progressListener.notifyListShards(progressListener.searchShards(this.shardsIts),
+            sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
         getSearchTransport().sendExecuteQuery(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
             buildShardSearchRequest(shardIt), getTask(), listener);
+    }
+
+    @Override
+    protected void onShardGroupFailure(int shardIndex, Exception exc) {
+        progressListener.notifyQueryFailure(shardIndex, exc);
     }
 
     @Override

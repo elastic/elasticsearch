@@ -137,7 +137,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
-            shard.recoverFromStore();
+            IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(6, counter.get());

@@ -114,6 +114,7 @@ public class DatafeedManagerTests extends ESTestCase {
         when(datafeedJob.isRunning()).thenReturn(true);
         when(datafeedJob.stop()).thenReturn(true);
         when(datafeedJob.getJobId()).thenReturn(job.getId());
+        when(datafeedJob.getMaxEmptySearches()).thenReturn(null);
         DatafeedJobBuilder datafeedJobBuilder = mock(DatafeedJobBuilder.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
@@ -133,7 +134,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     public void testLookbackOnly_WarnsWhenNoDataIsRetrieved() throws Exception {
-        when(datafeedJob.runLookBack(0L, 60000L)).thenThrow(new DatafeedJob.EmptyDataCountException(0L));
+        when(datafeedJob.runLookBack(0L, 60000L)).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedManager.run(task, handler);
@@ -176,8 +177,8 @@ public class DatafeedManagerTests extends ESTestCase {
             return mock(Scheduler.ScheduledCancellable.class);
         }).when(threadPool).schedule(any(), any(), any());
 
-        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.EmptyDataCountException(0L));
-        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.EmptyDataCountException(0L));
+        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
+        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
 
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, null);

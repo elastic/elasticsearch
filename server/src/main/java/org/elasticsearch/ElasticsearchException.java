@@ -641,7 +641,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
             }
         }
-        return new ElasticsearchException[]{new ElasticsearchException(t.getMessage(), t) {
+        return new ElasticsearchException[]{new ElasticsearchException(ex.getMessage(), ex) {
             @Override
             protected String getExceptionName() {
                 return getExceptionName(getCause());
@@ -1036,6 +1036,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
                 org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
                 156,
+                Version.V_7_5_0),
+        INGEST_PROCESSOR_EXCEPTION(
+                org.elasticsearch.ingest.IngestProcessorException.class,
+                org.elasticsearch.ingest.IngestProcessorException::new,
+                157,
                 Version.V_7_5_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;

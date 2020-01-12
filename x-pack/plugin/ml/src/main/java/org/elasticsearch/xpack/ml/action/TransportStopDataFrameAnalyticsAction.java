@@ -140,6 +140,7 @@ public class TransportStopDataFrameAnalyticsAction
                                                  Set<String> failedAnalytics) {
         for (String analyticsId : analyticsIds) {
             switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
+                case STARTING:
                 case STARTED:
                 case REINDEXING:
                 case ANALYZING:
@@ -201,7 +202,7 @@ public class TransportStopDataFrameAnalyticsAction
     private void redirectToMasterNode(DiscoveryNode masterNode, StopDataFrameAnalyticsAction.Request request,
                                       ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
         if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+            listener.onFailure(new MasterNotDiscoveredException());
         } else {
             transportService.sendRequest(masterNode, actionName, request,
                 new ActionListenerResponseHandler<>(listener, StopDataFrameAnalyticsAction.Response::new));
@@ -249,7 +250,7 @@ public class TransportStopDataFrameAnalyticsAction
                 });
             },
             e -> {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     // the task has disappeared so must have stopped
                     listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 } else {

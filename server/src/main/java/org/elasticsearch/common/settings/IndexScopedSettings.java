@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -158,11 +159,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
             IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
             FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
-            Store.FORCE_RAM_TERM_DICT,
             EngineConfig.INDEX_CODEC_SETTING,
             IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
             IndexSettings.DEFAULT_PIPELINE,
-            IndexSettings.REQUIRED_PIPELINE,
+            IndexSettings.FINAL_PIPELINE,
             MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
 
             // validate that built-in similarities don't get redefined
@@ -187,7 +187,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
-        super(settings, metaData.getSettings(), other);
+        super(settings, metaData.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metaData.getIndex()));
     }
 
     public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {
@@ -195,7 +195,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     @Override
-    protected void validateSettingKey(Setting setting) {
+    protected void validateSettingKey(Setting<?> setting) {
         if (setting.getKey().startsWith("index.") == false) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "] must start with [index.]");
         }

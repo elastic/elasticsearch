@@ -60,7 +60,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -168,7 +167,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client
-                        .prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForRole(deleteRoleRequest.name())).request();
+                        .prepareDelete(SECURITY_MAIN_ALIAS, getIdForRole(deleteRoleRequest.name())).request();
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
@@ -208,7 +207,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForRole(role.getName()))
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();

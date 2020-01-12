@@ -20,7 +20,6 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 
-import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -39,7 +38,7 @@ public class CustomFieldsVisitor extends FieldsVisitor {
     }
 
     @Override
-    public Status needsField(FieldInfo fieldInfo) throws IOException {
+    public Status needsField(FieldInfo fieldInfo) {
         if (super.needsField(fieldInfo) == Status.YES) {
             return Status.YES;
         }

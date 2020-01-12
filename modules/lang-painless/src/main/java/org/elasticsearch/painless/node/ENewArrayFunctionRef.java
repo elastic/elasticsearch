@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Type;
 
 import java.util.Arrays;
@@ -40,8 +39,6 @@ import java.util.Set;
 public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     private final String type;
 
-    private CompilerSettings settings;
-
     private SFunction function;
     private FunctionRef ref;
     private String defPointer;
@@ -53,27 +50,23 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        this.settings = settings;
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         // do nothing
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(location, type, locals.getNextSyntheticName(),
+        function = new SFunction(
+                location, type, scriptRoot.getNextSyntheticName("newarray"),
                 Collections.singletonList("int"), Collections.singletonList("size"),
                 new SBlock(location, Collections.singletonList(code)), true);
-        function.storeSettings(settings);
-        function.generateSignature(locals.getPainlessLookup());
+        function.generateSignature(scriptRoot.getPainlessLookup());
         function.extractVariables(null);
-        function.analyze(functions, Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
-                function.parameters, 0, settings.getMaxLoopCounter()));
-        functions.addFunction(function.name, function.returnType, function.typeParameters, true);
+        function.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
+                function.parameters, 0, scriptRoot.getCompilerSettings().getMaxLoopCounter()));
+        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
+        scriptRoot.getClassNode().addFunction(function);
 
         if (expected == null) {
             ref = null;
@@ -81,7 +74,8 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             defPointer = "Sthis." + function.name + ",0";
         } else {
             defPointer = null;
-            ref = FunctionRef.create(locals.getPainlessLookup(), functions, location, expected, "this", function.name, 0);
+            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
+                    location, expected, "this", function.name, 0);
             actual = expected;
         }
     }
@@ -95,8 +89,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             // push a null instruction as a placeholder for future lambda instructions
             methodWriter.push((String)null);
         }
-
-        globals.addSyntheticMethod(function);
     }
 
     @Override

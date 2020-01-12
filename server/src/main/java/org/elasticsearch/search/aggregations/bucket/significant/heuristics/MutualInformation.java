@@ -22,12 +22,18 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class MutualInformation extends NXYSignificanceHeuristic {
     public static final String NAME = "mutual_information";
+    public static final ConstructingObjectParser<MutualInformation, Void> PARSER = new ConstructingObjectParser<>(
+        NAME, buildFromParsedArgs(MutualInformation::new));
+    static {
+        NXYSignificanceHeuristic.declareParseFields(PARSER);
+    }
 
     private static final double log2 = Math.log(2.0);
 
@@ -118,15 +124,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static final SignificanceHeuristicParser PARSER = new NXYParser() {
-        @Override
-        protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
-            return new MutualInformation(includeNegatives, backgroundIsSuperset);
-        }
-    };
-
     public static class MutualInformationBuilder extends NXYBuilder {
-
         public MutualInformationBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             super(includeNegatives, backgroundIsSuperset);
         }

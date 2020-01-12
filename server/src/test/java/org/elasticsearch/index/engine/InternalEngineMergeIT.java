@@ -52,7 +52,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             final int numDocs = scaledRandomIntBetween(100, 1000);
             BulkRequestBuilder request = client().prepareBulk();
             for (int j = 0; j < numDocs; ++j) {
-                request.add(Requests.indexRequest("test").type("type1").id(Long.toString(id++))
+                request.add(Requests.indexRequest("test").id(Long.toString(id++))
                     .source(jsonBuilder().startObject().field("l", randomLong()).endObject()));
             }
             BulkResponse response = request.execute().actionGet();

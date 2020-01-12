@@ -51,7 +51,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultMapping() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
@@ -59,7 +59,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         MappedFieldType fieldType = mapperService.fullName("field");
 
         assertThat(fieldType, instanceOf(BinaryFieldMapper.BinaryFieldType.class));
@@ -67,7 +67,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testStoredValue() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
@@ -76,7 +76,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
 
         // case 1: a simple binary value
         final byte[] binaryValue1 = new byte[100];
@@ -91,7 +91,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
 
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
-            ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "type", "id",
+            ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "id",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                     XContentType.JSON));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");

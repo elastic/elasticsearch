@@ -69,7 +69,7 @@ dependencyLicenses {
 
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
-jarHell.enabled=false
+jarHell.enabled = false
 
 testingConventions {
   naming.clear()
@@ -80,14 +80,13 @@ testingConventions {
   }
 }
 
-
 dependencyLicenses {
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',

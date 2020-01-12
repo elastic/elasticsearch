@@ -52,12 +52,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class ScriptService implements Closeable, ClusterStateApplier {
 
@@ -415,7 +417,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return typesAllowed == null || typesAllowed.contains(scriptType.getName());
     }
 
-    public boolean isContextEnabled(ScriptContext scriptContext) {
+    public boolean isContextEnabled(ScriptContext<?> scriptContext) {
         return contextsAllowed == null || contextsAllowed.contains(scriptContext.name);
     }
 
@@ -536,6 +538,34 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         } else {
             return null;
         }
+    }
+
+    public Set<ScriptContextInfo> getContextInfos() {
+        Set<ScriptContextInfo> infos = new HashSet<ScriptContextInfo>(contexts.size());
+        for (ScriptContext<?> context : contexts.values()) {
+            infos.add(new ScriptContextInfo(context.name, context.instanceClazz));
+        }
+        return infos;
+    }
+
+    public ScriptLanguagesInfo getScriptLanguages() {
+        Set<String> types = typesAllowed;
+        if (types == null) {
+            types = new HashSet<>();
+            for (ScriptType type: ScriptType.values()) {
+                types.add(type.getName());
+            }
+        }
+
+        final Set<String> contexts = contextsAllowed != null ? contextsAllowed : this.contexts.keySet();
+        Map<String,Set<String>> languageContexts = new HashMap<>();
+        engines.forEach(
+            (key, value) -> languageContexts.put(
+                key,
+                value.getSupportedContexts().stream().map(c -> c.name).filter(contexts::contains).collect(Collectors.toSet())
+            )
+        );
+        return new ScriptLanguagesInfo(types, languageContexts);
     }
 
     public ScriptStats stats() {

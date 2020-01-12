@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.ESSloppyMath;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -210,7 +211,7 @@ public final class GeoTileUtils {
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
         final int tiles = validateZXY(zoom, xTile, yTile);
         final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;
-        final double lat = Math.toDegrees(Math.atan(Math.sinh(n)));
+        final double lat = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
         final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
         return new GeoPoint(lat, lon);
     }

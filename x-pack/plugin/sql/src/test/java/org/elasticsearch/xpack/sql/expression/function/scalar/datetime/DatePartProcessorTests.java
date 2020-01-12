@@ -8,18 +8,17 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
-import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
 public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<DatePartProcessor> {
@@ -27,7 +26,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
     public static DatePartProcessor randomDatePartProcessor() {
         return new DatePartProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomZone());
     }
 
@@ -50,7 +49,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
     protected DatePartProcessor mutateInstance(DatePartProcessor instance) {
         return new DatePartProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
@@ -72,7 +71,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("dayfyear"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?",
-             siae.getMessage());
+            siae.getMessage());
     }
 
     public void testWithNulls() {

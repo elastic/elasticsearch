@@ -25,10 +25,10 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -45,6 +45,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.NettyAllocator;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
@@ -84,7 +85,10 @@ class Netty4HttpClient implements Closeable {
     private final Bootstrap clientBootstrap;
 
     Netty4HttpClient() {
-        clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).group(new NioEventLoopGroup());
+        clientBootstrap = new Bootstrap()
+            .channel(NettyAllocator.getChannelType())
+            .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
+            .group(new NioEventLoopGroup(1));
     }
 
     public Collection<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {

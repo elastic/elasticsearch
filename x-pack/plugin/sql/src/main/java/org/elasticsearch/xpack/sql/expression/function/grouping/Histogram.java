@@ -6,22 +6,22 @@
 
 package org.elasticsearch.xpack.sql.expression.function.grouping;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumericOrDate;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumericOrDate;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class Histogram extends GroupingFunction {
 
@@ -48,7 +48,7 @@ public class Histogram extends GroupingFunction {
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
             if (field().dataType().isDateBased()) {
-                resolution = isType(interval, DataTypes::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
+                resolution = isType(interval, DataType::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
             } else {
                 resolution = isNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);
             }

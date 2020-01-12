@@ -1,5 +1,8 @@
 [[cluster-state]]
-=== Cluster State
+=== Cluster state API
+++++
+<titleabbrev>Cluster state</titleabbrev>
+++++
 
 Returns metadata about the state of the cluster.
 

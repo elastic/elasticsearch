@@ -1,5 +1,8 @@
 [[cluster-nodes-info]]
-=== Nodes Info
+=== Nodes info API
+++++
+<titleabbrev>Nodes info</titleabbrev>
+++++
 
 Returns cluster nodes information.
 

@@ -65,6 +65,10 @@ public class Platforms {
         return new Shell().runIgnoreExitCode("which service").isSuccess();
     }
 
+    public static boolean isDocker() {
+        return new Shell().runIgnoreExitCode("which docker").isSuccess();
+    }
+
     public static void onWindows(PlatformAction action) throws Exception {
         if (WINDOWS) {
             action.run();

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -44,9 +42,6 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetFieldMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get "
-            + "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     public RestGetFieldMappingAction(RestController controller) {
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
@@ -63,28 +58,15 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            if (includeTypeName) {
-                throw new IllegalArgumentException(INCLUDE_TYPE_NAME_PARAMETER + " no longer supports the value [true].");
-            }
-            deprecationLogger.deprecatedAndMaybeLog("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel ->
-                client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
+                client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
-
-                boolean isPossibleSingleFieldRequest = indices.length == 1 && fields.length == 1;
-                        if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                            return new BytesRestResponse(OK, builder.startObject().endObject());
-                        }
+                        Map<String, Map<String, FieldMappingMetaData>> mappingsByIndex = response.mappings();
 
                         RestStatus status = OK;
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {
@@ -96,24 +78,4 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 });
     }
 
-    /**
-     * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
-     * that type and index exist, but the field did not
-     */
-    private boolean isFieldMappingMissingField(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex) {
-        if (mappingsByIndex.size() != 1) {
-            return false;
-        }
-
-        for (Map<String, Map<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
-            for (Map<String, FieldMappingMetaData> fieldValue : value.values()) {
-                for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
-                    if (fieldMappingMetaDataEntry.getValue().isNull()) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
 }

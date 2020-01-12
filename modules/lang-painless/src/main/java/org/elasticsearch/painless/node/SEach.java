@@ -20,15 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -55,15 +54,6 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
-
-        if (block != null) {
-            block.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);
 
@@ -75,12 +65,12 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        expression.analyze(functions, locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        expression.analyze(scriptRoot, locals);
         expression.expected = expression.actual;
-        expression = expression.cast(functions, locals);
+        expression = expression.cast(scriptRoot, locals);
 
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
@@ -98,7 +88,7 @@ public class SEach extends AStatement {
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
         }
 
-        sub.analyze(functions, locals);
+        sub.analyze(scriptRoot, locals);
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
@@ -106,7 +96,7 @@ public class SEach extends AStatement {
 
         block.beginLoop = true;
         block.inLoop = true;
-        block.analyze(functions, locals);
+        block.analyze(scriptRoot, locals);
         block.statementCount = Math.max(1, block.statementCount);
 
         if (block.loopEscape && !block.anyContinue) {

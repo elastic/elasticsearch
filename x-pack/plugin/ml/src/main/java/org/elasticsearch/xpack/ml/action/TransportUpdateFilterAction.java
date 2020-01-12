@@ -107,7 +107,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
@@ -125,7 +125,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             @Override
             public void onFailure(Exception e) {
                 Exception reportedException;
-                if (e instanceof VersionConflictEngineException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     reportedException = ExceptionsHelper.conflictStatusException("Error updating filter with id [" + filter.getId()
                             + "] because it was modified while the update was in progress", e);
                 } else {

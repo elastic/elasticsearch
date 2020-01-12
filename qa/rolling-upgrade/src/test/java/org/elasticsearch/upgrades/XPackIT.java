@@ -19,9 +19,8 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.junit.Before;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.junit.Before;
 
 import java.io.IOException;
 
@@ -53,14 +52,13 @@ public class XPackIT extends AbstractRollingTestCase {
      * <strong>might</strong> have already installed a trial license.
      */
     public void testBasicFeature() throws IOException {
-        Request bulk = new Request("POST", "/sql_test/doc/_bulk");
+        Request bulk = new Request("POST", "/sql_test/_bulk");
         bulk.setJsonEntity(
               "{\"index\":{}}\n"
             + "{\"f\": \"1\"}\n"
             + "{\"index\":{}}\n"
             + "{\"f\": \"2\"}\n");
         bulk.addParameter("refresh", "true");
-        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         client().performRequest(bulk);
 
         Request sql = new Request("POST", "/_sql");

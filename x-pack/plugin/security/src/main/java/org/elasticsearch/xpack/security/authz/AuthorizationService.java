@@ -93,6 +93,8 @@ public class AuthorizationService {
     public static final String AUTHORIZATION_INFO_KEY = "_authz_info";
     private static final AuthorizationInfo SYSTEM_AUTHZ_INFO =
         () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { SystemUser.ROLE_NAME });
+    private static final String IMPLIED_INDEX_ACTION = IndexAction.NAME + ":op_type/index";
+    private static final String IMPLIED_CREATE_ACTION = IndexAction.NAME + ":op_type/create";
 
     private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
 
@@ -536,8 +538,9 @@ public class AuthorizationService {
         final DocWriteRequest<?> docWriteRequest = item.request();
         switch (docWriteRequest.opType()) {
             case INDEX:
+                return IMPLIED_INDEX_ACTION;
             case CREATE:
-                return IndexAction.NAME;
+                return IMPLIED_CREATE_ACTION;
             case UPDATE:
                 return UpdateAction.NAME;
             case DELETE:

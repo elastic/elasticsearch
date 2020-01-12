@@ -58,6 +58,8 @@ public interface TestClusterConfiguration {
 
     void keystore(String key, FileSupplier valueSupplier);
 
+    void cliSetup(String binTool, CharSequence... args);
+
     void setting(String key, String value);
 
     void setting(String key, String value, PropertyNormalization normalization);
@@ -88,11 +90,11 @@ public interface TestClusterConfiguration {
 
     void restart();
 
-    void goToNextVersion();
-
     void extraConfigFile(String destination, File from);
 
     void extraConfigFile(String destination, File from, PropertyNormalization normalization);
+
+    void extraJarFile(File from);
 
     void user(Map<String, String> userSpec);
 

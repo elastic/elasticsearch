@@ -61,7 +61,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("_doc", new CompressedXContent(mapping)));
-        assertEquals(e.getMessage(), "The number of dimensions for field [my-dense-vector] should be in the range [1, 1024]");
+        assertEquals(e.getMessage(), "The number of dimensions for field [my-dense-vector] should be in the range [1, 2048]");
     }
 
     public void testDefaults() throws Exception {
@@ -85,7 +85,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             dotProduct += value * value;
         }
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startArray("my-dense-vector").value(validVector[0]).value(validVector[1]).value(validVector[2]).endArray()
@@ -123,7 +123,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject());
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         float[] validVector = {-12.1f, 100.7f, -4};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("my-dense-vector").value(validVector[0]).value(validVector[1]).value(validVector[2]).endArray()
@@ -175,7 +175,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .array("my-dense-vector", invalidVector)
             .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test-index", "_doc", "1", invalidDoc, XContentType.JSON)));
+            new SourceToParse("test-index", "1", invalidDoc, XContentType.JSON)));
         assertThat(e.getCause().getMessage(), containsString("has exceeded the number of dimensions [3] defined in mapping"));
 
         // test that error is thrown when a document has number of dims less than defined in the mapping
@@ -184,7 +184,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .array("my-dense-vector", invalidVector2)
             .endObject());
         MapperParsingException e2 = expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test-index", "_doc", "2", invalidDoc2, XContentType.JSON)));
+            new SourceToParse("test-index", "2", invalidDoc2, XContentType.JSON)));
         assertThat(e2.getCause().getMessage(), containsString("has number of dimensions [2] less than defined in the mapping [3]"));
     }
 }

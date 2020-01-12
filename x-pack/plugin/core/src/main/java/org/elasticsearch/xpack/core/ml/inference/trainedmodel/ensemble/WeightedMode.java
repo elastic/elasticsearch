@@ -6,15 +6,18 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -23,6 +26,7 @@ import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax
 
 public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyParsedOutputAggregator {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(WeightedMode.class);
     public static final ParseField NAME = new ParseField("weighted_mode");
     public static final ParseField WEIGHTS = new ParseField("weights");
 
@@ -47,19 +51,23 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         return LENIENT_PARSER.apply(parser, null);
     }
 
-    private final List<Double> weights;
+    private final double[] weights;
 
     WeightedMode() {
-        this.weights = null;
+        this((List<Double>) null);
     }
 
-    public WeightedMode(List<Double> weights) {
-        this.weights = weights == null ? null : Collections.unmodifiableList(weights);
+    private WeightedMode(List<Double> weights) {
+        this(weights == null ? null : weights.stream().mapToDouble(Double::valueOf).toArray());
+    }
+
+    public WeightedMode(double[] weights) {
+        this.weights = weights;
     }
 
     public WeightedMode(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            this.weights = Collections.unmodifiableList(in.readList(StreamInput::readDouble));
+            this.weights = in.readDoubleArray();
         } else {
             this.weights = null;
         }
@@ -67,13 +75,13 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
 
     @Override
     public Integer expectedValueSize() {
-        return this.weights == null ? null : this.weights.size();
+        return this.weights == null ? null : this.weights.length;
     }
 
     @Override
     public List<Double> processValues(List<Double> values) {
         Objects.requireNonNull(values, "values must not be null");
-        if (weights != null && values.size() != weights.size()) {
+        if (weights != null && values.size() != weights.length) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
         List<Integer> freqArray = new ArrayList<>();
@@ -93,7 +101,7 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         }
         List<Double> frequencies = new ArrayList<>(Collections.nCopies(maxVal + 1, Double.NEGATIVE_INFINITY));
         for (int i = 0; i < freqArray.size(); i++) {
-            Double weight = weights == null ? 1.0 : weights.get(i);
+            Double weight = weights == null ? 1.0 : weights[i];
             Integer value = freqArray.get(i);
             Double frequency = frequencies.get(value) == Double.NEGATIVE_INFINITY ? weight : frequencies.get(value) + weight;
             frequencies.set(value, frequency);
@@ -124,6 +132,11 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
     }
 
     @Override
+    public boolean compatibleWith(TargetType targetType) {
+        return true;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
     }
@@ -132,7 +145,7 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(weights != null);
         if (weights != null) {
-            out.writeCollection(weights, StreamOutput::writeDouble);
+            out.writeDoubleArray(weights);
         }
     }
 
@@ -151,11 +164,17 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WeightedMode that = (WeightedMode) o;
-        return Objects.equals(weights, that.weights);
+        return Arrays.equals(weights, that.weights);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(weights);
+        return Arrays.hashCode(weights);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long weightSize = weights == null ? 0L : RamUsageEstimator.sizeOf(weights);
+        return SHALLOW_SIZE + weightSize;
     }
 }

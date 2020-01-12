@@ -1,0 +1,49 @@
+[[secure-cluster]]
+= Secure a cluster
+
+[partintro]
+--
+The {stack-security-features} enable you to easily secure a cluster. You can
+password-protect your data as well as implement more advanced security
+measures such as encrypting communications, role-based access control,
+IP filtering, and auditing.
+
+* <<elasticsearch-security>>
+* <<configuring-security>>
+* <<setting-up-authentication>>
+* <<saml-guide>>
+* <<oidc-guide>>
+* <<authorization>>
+* <<enable-audit-logging>>
+* <<encrypting-communications>>
+* <<ccs-clients-integrations>>
+* <<security-getting-started>>
+* <<encrypting-internode-communications>>
+* <<security-troubleshooting>>
+* <<security-limitations>>
+
+--
+
+include::overview.asciidoc[]
+
+include::configuring-es.asciidoc[]
+
+include::authentication/index.asciidoc[]
+
+include::authorization/index.asciidoc[]
+
+include::auditing/index.asciidoc[]
+
+include::securing-communications/index.asciidoc[]
+
+include::using-ip-filtering.asciidoc[]
+
+include::ccs-clients-integrations/index.asciidoc[]
+
+include::get-started-security.asciidoc[]
+
+include::securing-communications/tutorial-tls-intro.asciidoc[]
+
+include::troubleshooting.asciidoc[]
+
+include::limitations.asciidoc[]

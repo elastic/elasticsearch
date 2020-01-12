@@ -165,7 +165,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     AutoFollowPattern autoFollowPattern = new AutoFollowPattern("test_alias", Collections.singletonList("logs-*"),
-                        null, null, null, null, null, null, null, null, null, null, null);
+                        null, true, null, null, null, null, null, null, null, null, null, null);
                     AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
                         Collections.singletonMap("test_alias", autoFollowPattern),
                         Collections.emptyMap(),

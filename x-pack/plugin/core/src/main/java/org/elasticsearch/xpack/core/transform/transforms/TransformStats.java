@@ -92,8 +92,8 @@ public class TransformStats implements Writeable, ToXContentObject {
 
 
     public TransformStats(String id, State state, @Nullable String reason,
-                                   @Nullable NodeAttributes node, TransformIndexerStats stats,
-                                   TransformCheckpointingInfo checkpointingInfo) {
+                          @Nullable NodeAttributes node, TransformIndexerStats stats,
+                          TransformCheckpointingInfo checkpointingInfo) {
         this.id = Objects.requireNonNull(id);
         this.state = Objects.requireNonNull(state);
         this.reason = reason;
@@ -123,7 +123,7 @@ public class TransformStats implements Writeable, ToXContentObject {
             TransformState transformState = new TransformState(in);
             this.state = State.fromComponents(transformState.getTaskState(), transformState.getIndexerState());
             this.reason = transformState.getReason();
-            this.node = null;
+            this.node = transformState.getNode();
             this.indexerStats = new TransformIndexerStats(in);
             this.checkpointingInfo = new TransformCheckpointingInfo(in);
         }
@@ -171,8 +171,8 @@ public class TransformStats implements Writeable, ToXContentObject {
                 checkpointingInfo.getNext().getPosition(),
                 checkpointingInfo.getLast().getCheckpoint(),
                 reason,
-                checkpointingInfo.getNext().getCheckpointProgress()).writeTo(out);
-            out.writeBoolean(false);
+                checkpointingInfo.getNext().getCheckpointProgress(),
+                node).writeTo(out);
             indexerStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         }

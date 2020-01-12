@@ -66,7 +66,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class DateRangeIT extends ESIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        return client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
                 .timeField("date", date(month, day))
@@ -97,15 +97,16 @@ public class DateRangeIT extends ESIntegTestCase {
                 indexDoc(2, 15, 3), // Feb 15
                 indexDoc(3, 2, 4),  // Mar 2
                 indexDoc(3, 15, 5), // Mar 15
-                indexDoc(3, 23, 6))); // Mar 23
+                indexDoc(3, 23, 6)  // Mar 23
+        ));
 
         // dummy docs
         for (int i = docs.size(); i < numDocs; ++i) {
             docs.add(indexDoc(randomIntBetween(6, 10), randomIntBetween(1, 20), randomInt(100)));
         }
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping("value", "type=integer"));
         for (int i = 0; i < 2; i++) {
-            docs.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+            docs.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .endObject()));
@@ -883,17 +884,17 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "date", "type=date")
+    public void testScriptCaching() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").setMapping("date", "type=date")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true,
-                client().prepareIndex("cache_test_idx", "type", "1")
+                client().prepareIndex("cache_test_idx").setId("1")
                         .setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
-                client().prepareIndex("cache_test_idx", "type", "2")
+                client().prepareIndex("cache_test_idx").setId("2")
                         .setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject()));
 
         // Make sure we are starting with a clear cache
@@ -902,10 +903,23 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
+        // Test that a request using a nondeterministic script does not get cached
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
+                .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.CURRENT_DATE, params))
+                .addRange(ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+                    ZonedDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a deterministic script gets cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
                 .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.DOUBLE_PLUS_ONE_MONTH, params))
                 .addRange(ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
                     ZonedDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)))
@@ -915,10 +929,9 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+                .getMissCount(), equalTo(1L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
                 .addRange(ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
                     ZonedDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)))
@@ -928,7 +941,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(2L));
     }
 
     /**
@@ -937,11 +950,11 @@ public class DateRangeIT extends ESIntegTestCase {
      */
     public void testRangeWithFormatStringValue() throws Exception {
         String indexName = "dateformat_test_idx";
-        assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=strict_hour_minute_second"));
+        assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=strict_hour_minute_second"));
         indexRandom(true,
-                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
-                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
-                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
+                client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
+                client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
+                client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
 
         // using no format should work when to/from is compatible with format in
         // mapping
@@ -987,11 +1000,11 @@ public class DateRangeIT extends ESIntegTestCase {
      */
     public void testRangeWithFormatNumericValue() throws Exception {
         String indexName = "dateformat_numeric_test_idx";
-        assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=epoch_second"));
+        assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=epoch_second"));
         indexRandom(true,
-                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
-                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
-                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", 3008).endObject()));
+                client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
+                client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
+                client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", 3008).endObject()));
 
         // using no format should work when to/from is compatible with format in
         // mapping

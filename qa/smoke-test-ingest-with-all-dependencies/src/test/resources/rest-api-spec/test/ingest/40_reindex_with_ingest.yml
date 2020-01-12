@@ -18,7 +18,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -266,22 +265,20 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testOpenCloseWithDocs() throws IOException, ExecutionException, InterruptedException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
                 startObject().
-                startObject("type").
                 startObject("properties").
                 startObject("test")
                 .field("type", "keyword")
-                .endObject().
-                        endObject().
-                        endObject()
+                .endObject()
+                .endObject()
                 .endObject());
 
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", mapping, XContentType.JSON));
+                .setMapping(mapping));
         ensureGreen();
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
         for (int i = 0; i < docs ; i++) {
-            builder[i] = client().prepareIndex("test", "type", "" + i).setSource("test", "init");
+            builder[i] = client().prepareIndex("test").setId("" + i).setSource("test", "init");
         }
         indexRandom(true, builder);
         if (randomBoolean()) {
@@ -303,7 +300,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs ; i++) {
-            client().prepareIndex("test", "type", "" + i).setSource("test", "init").execute().actionGet();
+            client().prepareIndex("test").setId("" + i).setSource("test", "init").execute().actionGet();
         }
 
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
@@ -363,7 +360,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
         for (long i = 0; i < nbDocs; i++) {
-            final IndexResponse indexResponse = client().prepareIndex(indexName, "_doc", Long.toString(i)).setSource("field", i).get();
+            final IndexResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
 
             if (rarely()) {

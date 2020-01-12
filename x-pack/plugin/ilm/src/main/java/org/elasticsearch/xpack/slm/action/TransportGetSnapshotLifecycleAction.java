@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -41,7 +42,7 @@ import java.util.stream.Collectors;
 public class TransportGetSnapshotLifecycleAction extends
     TransportMasterNodeAction<GetSnapshotLifecycleAction.Request, GetSnapshotLifecycleAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetSnapshotLifecycleAction.class);
 
     @Inject
     public TransportGetSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
@@ -65,7 +66,13 @@ public class TransportGetSnapshotLifecycleAction extends
                                    final ActionListener<GetSnapshotLifecycleAction.Response> listener) {
         SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
-            listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
+            if (request.getLifecycleIds().length == 0) {
+                listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
+            } else {
+                listener.onFailure(new ResourceNotFoundException(
+                    "snapshot lifecycle policy or policies {} not found, no policies are configured",
+                    Arrays.toString(request.getLifecycleIds())));
+            }
         } else {
             final Map<String, SnapshotLifecyclePolicyItem.SnapshotInProgress> inProgress;
             SnapshotsInProgress sip = state.custom(SnapshotsInProgress.TYPE);
@@ -100,7 +107,16 @@ public class TransportGetSnapshotLifecycleAction extends
                     new SnapshotLifecyclePolicyItem(policyMeta, inProgress.get(policyMeta.getPolicy().getId()),
                         slmStats.getMetrics().get(policyMeta.getPolicy().getId())))
                 .collect(Collectors.toList());
-            listener.onResponse(new GetSnapshotLifecycleAction.Response(lifecycles));
+            if (lifecycles.size() == 0) {
+                if (request.getLifecycleIds().length == 0) {
+                    listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
+                } else {
+                    listener.onFailure(new ResourceNotFoundException("snapshot lifecycle policy or policies {} not found",
+                        Arrays.toString(request.getLifecycleIds())));
+                }
+            } else {
+                listener.onResponse(new GetSnapshotLifecycleAction.Response(lifecycles));
+            }
         }
     }
 

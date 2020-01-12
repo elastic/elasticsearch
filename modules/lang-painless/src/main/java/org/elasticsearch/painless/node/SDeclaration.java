@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
@@ -37,25 +36,18 @@ import java.util.Set;
  */
 public final class SDeclaration extends AStatement {
 
-    private final String type;
+    private final DType type;
     private final String name;
     private AExpression expression;
 
-    private Variable variable = null;
+    Variable variable = null;
 
-    public SDeclaration(Location location, String type, String name, AExpression expression) {
+    public SDeclaration(Location location, DType type, String name, AExpression expression) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
         this.expression = expression;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        if (expression != null) {
-            expression.storeSettings(settings);
-        }
     }
 
     @Override
@@ -68,20 +60,16 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
-        }
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
         if (expression != null) {
-            expression.expected = clazz;
-            expression.analyze(functions, locals);
-            expression = expression.cast(functions, locals);
+            expression.expected = resolvedType.getType();
+            expression.analyze(scriptRoot, locals);
+            expression = expression.cast(scriptRoot, locals);
         }
 
-        variable = locals.addVariable(location, clazz, name, false);
+        variable = locals.addVariable(location, resolvedType.getType(), name, false);
     }
 
     @Override

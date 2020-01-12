@@ -192,7 +192,7 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                 .field("test", fieldValue)
             .endObject());
 
-        return new SourceToParse("test", "person", "1", request, XContentType.JSON);
+        return new SourceToParse("test", "1", request, XContentType.JSON);
     }
 
     private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {

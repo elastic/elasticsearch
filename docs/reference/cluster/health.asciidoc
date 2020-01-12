@@ -1,5 +1,8 @@
 [[cluster-health]]
-=== Cluster Health
+=== Cluster health API
+++++
+<titleabbrev>Cluster health</titleabbrev>
+++++
 
 Returns the health status of a cluster.
 

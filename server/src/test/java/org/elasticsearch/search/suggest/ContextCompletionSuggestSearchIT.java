@@ -58,7 +58,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
 
     @Override
@@ -89,7 +88,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                         source.field("type", "type" + i % 3);
                     }
                     source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -122,7 +121,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 source.field("type", "type" + i % 3);
             }
             source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -155,7 +154,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 source.field("type", "type" + i % 3);
             }
             source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -170,7 +169,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
-        IndexResponse indexResponse = client().prepareIndex(INDEX, TYPE, "1")
+        IndexResponse indexResponse = client().prepareIndex(INDEX).setId("1")
                 .setSource(jsonBuilder().startObject()
                         .startObject(FIELD)
                         .field("input", "suggestion")
@@ -194,7 +193,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         int numDocs = 10;
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(jsonBuilder()
                                     .startObject()
                                     .startObject(FIELD)
@@ -221,7 +220,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         int numDocs = 10;
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(jsonBuilder()
                                     .startObject()
                                     .startObject(FIELD)
@@ -259,7 +258,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("cat", "cat" + i % 2)
                     .field("type", "type" + i % 4)
                     .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -296,7 +295,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("cat", "cat" + i % 2)
                     .field("type", "type" + i % 4)
                     .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -355,7 +354,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 source.field("type"+c, "type" + c +i % 4);
             }
             source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -384,7 +383,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("geo", (i % 2 == 0) ? geoPoints[0].getGeohash() : geoPoints[1].getGeohash())
                     .endObject()
                     .endObject().endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -414,7 +413,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("geo", (i % 2 == 0) ? geoPoints[0].getGeohash() : geoPoints[1].getGeohash())
                     .endObject()
                     .endObject().endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -447,7 +446,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject().endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -485,7 +484,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("geo", randomFrom(neighbours))
                     .endObject()
                     .endObject().endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
@@ -500,7 +499,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     public void testGeoField() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
-        mapping.startObject(TYPE);
+        mapping.startObject("_doc");
         mapping.startObject("properties");
         mapping.startObject("location");
         mapping.startObject("properties");
@@ -534,7 +533,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
 
         XContentBuilder source1 = jsonBuilder()
                 .startObject()
@@ -545,7 +544,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .array("input", "Hotel Amsterdam in Berlin")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).get();
+        client().prepareIndex(INDEX).setId("1").setSource(source1).get();
 
         XContentBuilder source2 = jsonBuilder()
                 .startObject()
@@ -556,7 +555,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .array("input", "Hotel Berlin in Amsterdam")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).get();
+        client().prepareIndex(INDEX).setId("2").setSource(source2).get();
 
         refresh();
 
@@ -592,7 +591,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .field("cat", "cat" + id % 2)
                     .field("type", "type" + id)
                 .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            indexRequestBuilders.add(client().prepareIndex(INDEX).setId("" + i)
                 .setSource(source));
         }
         String[] expected = new String[numUnique];
@@ -624,7 +623,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
+                .startObject("_doc").startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .field("analyzer", completionMappingBuilder.indexAnalyzer)
@@ -671,7 +670,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .addMapping(TYPE, mapping)
+                .setMapping(mapping)
                 .get());
     }
 }

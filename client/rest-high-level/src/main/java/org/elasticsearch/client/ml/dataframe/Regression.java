@@ -48,17 +48,22 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
+    static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
 
-    private static final ConstructingObjectParser<Regression, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(), true,
-        a -> new Regression(
-            (String) a[0],
-            (Double) a[1],
-            (Double) a[2],
-            (Double) a[3],
-            (Integer) a[4],
-            (Double) a[5],
-            (String) a[6],
-            (Double) a[7]));
+    private static final ConstructingObjectParser<Regression, Void> PARSER =
+        new ConstructingObjectParser<>(
+            NAME.getPreferredName(),
+            true,
+            a -> new Regression(
+                (String) a[0],
+                (Double) a[1],
+                (Double) a[2],
+                (Double) a[3],
+                (Integer) a[4],
+                (Double) a[5],
+                (String) a[6],
+                (Double) a[7],
+                (Long) a[8]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
@@ -69,6 +74,7 @@ public class Regression implements DataFrameAnalysis {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
     }
 
     private final String dependentVariable;
@@ -79,10 +85,11 @@ public class Regression implements DataFrameAnalysis {
     private final Double featureBagFraction;
     private final String predictionFieldName;
     private final Double trainingPercent;
+    private final Long randomizeSeed;
 
     private Regression(String dependentVariable,  @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                        @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction, @Nullable String predictionFieldName,
-                       @Nullable Double trainingPercent) {
+                       @Nullable Double trainingPercent, @Nullable Long randomizeSeed) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -91,6 +98,7 @@ public class Regression implements DataFrameAnalysis {
         this.featureBagFraction = featureBagFraction;
         this.predictionFieldName = predictionFieldName;
         this.trainingPercent = trainingPercent;
+        this.randomizeSeed = randomizeSeed;
     }
 
     @Override
@@ -130,6 +138,10 @@ public class Regression implements DataFrameAnalysis {
         return trainingPercent;
     }
 
+    public Long getRandomizeSeed() {
+        return randomizeSeed;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -155,6 +167,9 @@ public class Regression implements DataFrameAnalysis {
         if (trainingPercent != null) {
             builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         }
+        if (randomizeSeed != null) {
+            builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
+        }
         builder.endObject();
         return builder;
     }
@@ -162,7 +177,7 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
-            trainingPercent);
+            trainingPercent, randomizeSeed);
     }
 
     @Override
@@ -177,7 +192,8 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
-            && Objects.equals(trainingPercent, that.trainingPercent);
+            && Objects.equals(trainingPercent, that.trainingPercent)
+            && Objects.equals(randomizeSeed, that.randomizeSeed);
     }
 
     @Override
@@ -194,6 +210,7 @@ public class Regression implements DataFrameAnalysis {
         private Double featureBagFraction;
         private String predictionFieldName;
         private Double trainingPercent;
+        private Long randomizeSeed;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -234,9 +251,14 @@ public class Regression implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setRandomizeSeed(Long randomizeSeed) {
+            this.randomizeSeed = randomizeSeed;
+            return this;
+        }
+
         public Regression build() {
             return new Regression(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
-                trainingPercent);
+                trainingPercent, randomizeSeed);
         }
     }
 }

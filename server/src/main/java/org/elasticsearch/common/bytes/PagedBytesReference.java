@@ -31,7 +31,7 @@ import java.util.Objects;
  * A page based bytes reference, internally holding the bytes in a paged
  * data structure.
  */
-public class PagedBytesReference extends BytesReference {
+public class PagedBytesReference extends AbstractBytesReference {
 
     private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
 

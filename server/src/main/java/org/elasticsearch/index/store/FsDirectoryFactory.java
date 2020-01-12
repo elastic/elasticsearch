@@ -159,6 +159,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 case "tim":
                 case "tip":
                 case "cfs":
+                case "dim":
                     return true;
                 default:
                     return false;

@@ -33,6 +33,14 @@ upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2,
 the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
 nodes have been upgraded to the newer version before using the {transforms} UI.
 
+[float]
+[[transform-rolling-upgrade-limitation]]
+==== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
+
+If your cluster contains mixed version nodes, for example during a rolling
+upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped will
+not be reassigned until the upgrade is complete. After the upgrade is done, {transforms}
+resume automatically; no action is required.
 
 [float]
 [[transform-datatype-limitations]]
@@ -120,7 +128,7 @@ viewing the destination index.
 [[transform-deletion-limitations]]
 ==== Deleting a {transform} does not delete the destination index or {kib} index pattern
 
-When deleting a {transform} using `DELETE _data_frame/transforms/index` 
+When deleting a {transform} using `DELETE _transform/index` 
 neither the destination index nor the {kib} index pattern, should one have been 
 created, are deleted. These objects must be deleted separately.
 
@@ -181,9 +189,9 @@ for the {transform} checkpoint to complete.
 
 [float]
 [[transform-scheduling-limitations]]
-==== {cdataframe-cap} scheduling limitations
+==== {ctransform-cap} scheduling limitations
 
-A {cdataframe} periodically checks for changes to source data. The functionality 
+A {ctransform} periodically checks for changes to source data. The functionality
 of the scheduler is currently limited to a basic periodic timer which can be 
 within the `frequency` range from 1s to 1h. The default is 1m. This is designed 
 to run little and often. When choosing a `frequency` for this timer consider 
@@ -206,7 +214,7 @@ When using the API to delete a failed {transform}, first stop it using
 
 [float]
 [[transform-availability-limitations]]
-==== {cdataframes-cap} may give incorrect results if documents are not yet available to search
+==== {ctransforms-cap} may give incorrect results if documents are not yet available to search
 
 After a document is indexed, there is a very small delay until it is available 
 to search.

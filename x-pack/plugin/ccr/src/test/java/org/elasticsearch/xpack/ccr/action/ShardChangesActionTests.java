@@ -56,7 +56,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         final int numWrites = randomIntBetween(10, 4096);
         for (int i = 0; i < numWrites; i++) {
-            client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         // A number of times, get operations within a range that exists:
@@ -141,7 +141,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         final long numWrites = 32;
         for (int i = 0; i < numWrites; i++) {
-            client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final IndexShard indexShard = indexService.getShard(0);
@@ -170,7 +170,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             .build();
         final IndexService indexService = createIndex("index", settings);
 
-        client().prepareIndex("index", "doc", "0").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index").setId("0").setSource("{}", XContentType.JSON).get();
 
         final IndexShard indexShard = indexService.getShard(0);
         final Translog.Operation[] operations =

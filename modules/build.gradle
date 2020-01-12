@@ -19,26 +19,21 @@
 
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin' // for modules which publish client jars
-  apply plugin: 'elasticsearch.testclusters'       
+  apply plugin: 'elasticsearch.testclusters'
   apply plugin: 'elasticsearch.esplugin'
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
   }
-  
-  run {
-    // these cannot be run with the normal distribution, since they are included in it!
-    distribution = 'integ-test-zip'
-  }
 
   if (project.file('src/main/packaging').exists()) {
-    throw new InvalidModelException("Modules cannot contain packaging files") 
+    throw new InvalidModelException("Modules cannot contain packaging files")
   }
   if (project.file('src/main/bin').exists()) {
-    throw new InvalidModelException("Modules cannot contain bin files") 
+    throw new InvalidModelException("Modules cannot contain bin files")
   }
   if (project.file('src/main/config').exists()) {
-    throw new InvalidModelException("Modules cannot contain config files") 
+    throw new InvalidModelException("Modules cannot contain config files")
   }
 }

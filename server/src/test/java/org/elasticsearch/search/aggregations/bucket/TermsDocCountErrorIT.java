@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -64,12 +63,12 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", STRING_FIELD_NAME, "type=keyword").get());
+                .setMapping(STRING_FIELD_NAME, "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         int numDocs = between(10, 200);
         int numUniqueTerms = between(2,numDocs/2);
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field(STRING_FIELD_NAME, "val" + randomInt(numUniqueTerms))
                     .field(LONG_FIELD_NAME, randomInt(numUniqueTerms))
@@ -77,10 +76,10 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .endObject()));
         }
         assertAcked(prepareCreate("idx_single_shard")
-                .addMapping("type", STRING_FIELD_NAME, "type=keyword")
+                .setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx_single_shard", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx_single_shard").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field(STRING_FIELD_NAME, "val" + randomInt(numUniqueTerms))
                     .field(LONG_FIELD_NAME, randomInt(numUniqueTerms))
@@ -89,9 +88,9 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         }
         numRoutingValues = between(1,40);
         assertAcked(prepareCreate("idx_with_routing")
-            .addMapping("type", "{ \"type\" : { \"_routing\" : { \"required\" : true } } }", XContentType.JSON));
+            .setMapping("{ \"_routing\" : { \"required\" : true } }"));
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx_single_shard", "type", "" + i)
+            builders.add(client().prepareIndex("idx_single_shard").setId("" + i)
                 .setRouting(String.valueOf(randomInt(numRoutingValues)))
                 .setSource(jsonBuilder()
                     .startObject()
@@ -100,7 +99,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .field(DOUBLE_FIELD_NAME, 1.0 * randomInt(numUniqueTerms))
                     .endObject()));
         }
-        assertAcked(prepareCreate("idx_fixed_docs_0").addMapping("type", STRING_FIELD_NAME, "type=keyword")
+        assertAcked(prepareCreate("idx_fixed_docs_0").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard0DocsPerTerm = new HashMap<>();
         shard0DocsPerTerm.put("A", 25);
@@ -116,12 +115,12 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         for (Map.Entry<String, Integer> entry : shard0DocsPerTerm.entrySet()) {
             for (int i = 0; i < entry.getValue(); i++) {
                 String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_0", "type", term + "-" + i)
+                builders.add(client().prepareIndex("idx_fixed_docs_0").setId(term + "-" + i)
                         .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).endObject()));
             }
         }
 
-        assertAcked(prepareCreate("idx_fixed_docs_1").addMapping("type", STRING_FIELD_NAME, "type=keyword")
+        assertAcked(prepareCreate("idx_fixed_docs_1").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard1DocsPerTerm = new HashMap<>();
         shard1DocsPerTerm.put("A", 30);
@@ -137,13 +136,13 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         for (Map.Entry<String, Integer> entry : shard1DocsPerTerm.entrySet()) {
             for (int i = 0; i < entry.getValue(); i++) {
                 String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_1", "type", term + "-" + i)
+                builders.add(client().prepareIndex("idx_fixed_docs_1").setId(term + "-" + i)
                         .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", 1).endObject()));
             }
         }
 
         assertAcked(prepareCreate("idx_fixed_docs_2")
-                .addMapping("type", STRING_FIELD_NAME, "type=keyword")
+                .setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
         Map<String, Integer> shard2DocsPerTerm = new HashMap<>();
         shard2DocsPerTerm.put("A", 45);
@@ -157,7 +156,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         for (Map.Entry<String, Integer> entry : shard2DocsPerTerm.entrySet()) {
             for (int i = 0; i < entry.getValue(); i++) {
                 String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_2", "type", term + "-" + i)
+                builders.add(client().prepareIndex("idx_fixed_docs_2").setId(term + "-" + i)
                         .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", 2).endObject()));
             }
         }

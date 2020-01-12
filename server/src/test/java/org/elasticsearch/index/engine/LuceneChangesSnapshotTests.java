@@ -46,7 +46,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
     @Before
     public void createMapper() throws Exception {
-        mapperService = createMapperService("test");
+        mapperService = createMapperService();
     }
 
     @Override
@@ -76,7 +76,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
             } else {
-                engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
             }
             if (rarely()) {
                 if (randomBoolean()) {
@@ -212,7 +212,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 if (randomBoolean()) {
                     op = new Engine.Index(newUid(doc), primaryTerm.get(), doc);
                 } else {
-                    op = new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get());
+                    op = new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get());
                 }
             } else {
                 if (randomBoolean()) {

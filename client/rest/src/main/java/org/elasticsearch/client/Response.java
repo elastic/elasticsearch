@@ -167,10 +167,8 @@ public class Response {
         String warningHeader = s;
 
         /*
-         * The following block tests for the existence of a RFC 1123 date in the
-         * warning header. If the date exists, it is removed for
-         * extractWarningValueFromWarningHeader(String) to work properly (as it
-         * does not handle dates).
+         * The following block tests for the existence of a RFC 1123 date in the warning header. If the date exists, it is removed for
+         * extractWarningValueFromWarningHeader(String) to work properly (as it does not handle dates).
          */
         if (s.length() > WARNING_HEADER_DATE_LENGTH) {
             final String possibleDateString = s.substring(s.length() - WARNING_HEADER_DATE_LENGTH);

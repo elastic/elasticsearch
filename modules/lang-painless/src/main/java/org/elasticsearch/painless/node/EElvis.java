@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ElvisNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import static java.util.Objects.requireNonNull;
@@ -62,6 +61,13 @@ public class EElvis extends AExpression {
         if (lhs.isNull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
+        if (lhs instanceof EBoolean
+                || lhs instanceof ENumeric
+                || lhs instanceof EDecimal
+                || lhs instanceof EString
+                || lhs instanceof EConstant) {
+            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
+        }
         if (lhs.actual.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
@@ -71,12 +77,6 @@ public class EElvis extends AExpression {
 
         if (expected == null) {
             Class<?> promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual);
-
-            if (promote == null) {
-                throw createError(new ClassCastException("cannot apply an elvis operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(lhs.actual) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rhs.actual) + "]."));
-            }
 
             lhs.expected = promote;
             rhs.expected = promote;

@@ -542,23 +542,16 @@ public final class AnalyzerCaster {
                 if (from1 == short.class || from1 == byte.class) {
                     return int.class;
                 } else {
-                    throw new IllegalStateException("unexpected primitive type " +
-                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(from1) + "] " +
-                            "in conditional promotion");
+                    return null;
                 }
             } else if (from1 == char.class) {
                 if (from0 == short.class || from0 == byte.class) {
                 return int.class;
             } else {
-                    throw new IllegalStateException("unexpected primitive type " +
-                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(from1) + "] " +
-                            "in conditional promotion");
+                    return null;
                 }
             } else {
-                throw new IllegalStateException("unexpected primitive types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(from0) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(from0) + "] " +
-                        "in conditional promotion");
+                return null;
             }
         }
 

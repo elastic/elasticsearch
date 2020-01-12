@@ -445,6 +445,63 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
     }
 
+    public void testInferNestedFields() {
+        List<String> featureNames = Arrays.asList("foo.baz", "bar.biz");
+        Tree tree1 = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setRoot(TreeNode.builder(0)
+                .setLeftChild(1)
+                .setRightChild(2)
+                .setSplitFeature(0)
+                .setThreshold(0.5))
+            .addNode(TreeNode.builder(1).setLeafValue(0.3))
+            .addNode(TreeNode.builder(2)
+                .setThreshold(0.8)
+                .setSplitFeature(1)
+                .setLeftChild(3)
+                .setRightChild(4))
+            .addNode(TreeNode.builder(3).setLeafValue(0.1))
+            .addNode(TreeNode.builder(4).setLeafValue(0.2)).build();
+        Tree tree2 = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setRoot(TreeNode.builder(0)
+                .setLeftChild(1)
+                .setRightChild(2)
+                .setSplitFeature(0)
+                .setThreshold(0.5))
+            .addNode(TreeNode.builder(1).setLeafValue(1.5))
+            .addNode(TreeNode.builder(2).setLeafValue(0.9))
+            .build();
+        Ensemble ensemble = Ensemble.builder()
+            .setTargetType(TargetType.REGRESSION)
+            .setFeatureNames(featureNames)
+            .setTrainedModels(Arrays.asList(tree1, tree2))
+            .setOutputAggregator(new WeightedSum(new double[]{0.5, 0.5}))
+            .build();
+
+        Map<String, Object> featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 0.4);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.0);
+            }});
+        }};
+        assertThat(0.9,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+
+        featureMap = new HashMap<>() {{
+            put("foo", new HashMap<>(){{
+                put("baz", 2.0);
+            }});
+            put("bar", new HashMap<>(){{
+                put("biz", 0.7);
+            }});
+        }};
+        assertThat(0.5,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS)).value(), 0.00001));
+    }
+
     public void testOperationsEstimations() {
         Tree tree1 = TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 2);
         Tree tree2 = TreeTests.buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);

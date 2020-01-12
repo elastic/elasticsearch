@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.util.SameThreadExecutorService;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -29,13 +30,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -50,7 +52,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,14 +62,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -92,8 +91,12 @@ public final class BlobStoreTestUtil {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
+    private static final byte[] SINK = new byte[1024];
+
     public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
-        try (InputStream ignored = container.readBlob(blobName)) {
+        try (InputStream input = container.readBlob(blobName)) {
+            // Drain input stream fully to avoid warnings from SDKs like S3 that don't like closing streams mid-way
+            while (input.read(SINK) >= 0);
             return true;
         } catch (NoSuchFileException e) {
             return false;
@@ -238,46 +241,6 @@ public final class BlobStoreTestUtil {
             count, lessThanOrEqualTo(maxShardCountsExpected.get(indexId)))));
     }
 
-    public static long createDanglingIndex(BlobStoreRepository repository, String name, Set<String> files)
-            throws InterruptedException, ExecutionException {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final AtomicLong totalSize = new AtomicLong();
-        repository.threadPool().generic().execute(ActionRunnable.run(future, () -> {
-            final BlobStore blobStore = repository.blobStore();
-            BlobContainer container =
-                blobStore.blobContainer(repository.basePath().add("indices").add(name));
-            for (String file : files) {
-                int size = randomIntBetween(0, 10);
-                totalSize.addAndGet(size);
-                container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
-            }
-        }));
-        future.get();
-        return totalSize.get();
-    }
-
-    public static void assertCorruptionVisible(BlobStoreRepository repository, Map<String, Set<String>> indexToFiles) {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
-            final BlobStore blobStore = repository.blobStore();
-            for (String index : indexToFiles.keySet()) {
-                if (blobStore.blobContainer(repository.basePath().add("indices"))
-                    .children().containsKey(index) == false) {
-                    return false;
-                }
-                for (String file : indexToFiles.get(index)) {
-                    try (InputStream ignored =
-                             blobStore.blobContainer(repository.basePath().add("indices").add(index)).readBlob(file)) {
-                    } catch (NoSuchFileException e) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }));
-        assertTrue(future.actionGet());
-    }
-
     public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs) {
         final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
         repository.threadPool().generic().execute(
@@ -326,7 +289,11 @@ public final class BlobStoreTestUtil {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        final AtomicReference<ClusterState> currentState = new AtomicReference<>(initialState);
+        // Setting local node as master so it may update the repository metadata in the cluster state
+        final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
+        final AtomicReference<ClusterState> currentState = new AtomicReference<>(
+            ClusterState.builder(initialState).nodes(
+                DiscoveryNodes.builder().add(localNode).masterNodeId(localNode.getId()).localNodeId(localNode.getId()).build()).build());
         when(clusterService.state()).then(invocationOnMock -> currentState.get());
         final List<ClusterStateApplier> appliers = new CopyOnWriteArrayList<>();
         doAnswer(invocation -> {

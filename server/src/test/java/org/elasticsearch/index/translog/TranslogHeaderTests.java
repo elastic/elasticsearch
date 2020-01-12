@@ -52,14 +52,11 @@ public class TranslogHeaderTests extends ESTestCase {
         }
         final TranslogCorruptedException mismatchUUID = expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                TranslogHeader.read(UUIDs.randomBase64UUID(), translogFile, channel);
+                TranslogHeader.read(randomValueOtherThan(translogUUID, UUIDs::randomBase64UUID), translogFile, channel);
             }
         });
         assertThat(mismatchUUID.getMessage(), containsString("this translog file belongs to a different translog"));
-        int corruptions = between(1, 10);
-        for (int i = 0; i < corruptions && Files.size(translogFile) > 0; i++) {
-            TestTranslog.corruptFile(logger, random(), translogFile, false);
-        }
+        TestTranslog.corruptFile(logger, random(), translogFile, false);
         final TranslogCorruptedException corruption = expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
                 TranslogHeader.read(randomBoolean() ? outHeader.getTranslogUUID() : UUIDs.randomBase64UUID(), translogFile, channel);

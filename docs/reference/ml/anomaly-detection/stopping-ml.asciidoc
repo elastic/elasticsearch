@@ -30,7 +30,7 @@ POST _ml/datafeeds/feed1/_stop
 // TEST[skip:setup:server_metrics_startdf]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
-For more information, see <<security-privileges>>.
+For more information, see {ref}/security-privileges.html[Security privileges]
 
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
@@ -69,7 +69,7 @@ POST _ml/anomaly_detectors/job1/_close
 // TEST[skip:setup:server_metrics_openjob]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
-For more information, see <<security-privileges>>.
+For more information, see {ref}/security-privileges.html[Security privileges]
 
 {anomaly-jobs-cap} can be opened and closed multiple times throughout their
 lifecycle.

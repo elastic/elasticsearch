@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Duration;
@@ -25,14 +25,13 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
-import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_DAY_TO_SECOND;
+import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_SECOND;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR_TO_MONTH;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<DateTruncProcessor> {
 
@@ -313,6 +312,6 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
     private static Literal intervalLiteral(TemporalAmount value, DataType intervalType) {
         Object i = value instanceof Period ? new IntervalYearMonth((Period) value, intervalType)
             : new IntervalDayTime((Duration) value, intervalType);
-        return Literal.of(EMPTY, i);
+        return Literal.of(Source.EMPTY, i);
     }
 }

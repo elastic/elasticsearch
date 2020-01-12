@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.literal.Interval;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.time.Duration;
 import java.time.Period;
@@ -26,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrInterval;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDateOrInterval;
 
 public class DateTrunc extends BinaryDateTimeFunction {
 

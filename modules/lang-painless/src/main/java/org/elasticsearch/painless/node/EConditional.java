@@ -51,10 +51,6 @@ public final class EConditional extends AExpression {
         condition.analyze(scriptRoot, scope);
         condition = condition.cast(scriptRoot, scope);
 
-        if (condition.constant != null) {
-            throw createError(new IllegalArgumentException("Extraneous conditional statement."));
-        }
-
         left.expected = expected;
         left.explicit = explicit;
         left.internal = internal;

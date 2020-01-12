@@ -520,10 +520,12 @@ public final class AnalyzerCaster {
         return Object.class;
     }
 
-    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1, Object const0, Object const1) {
+    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1, Object const0, Object const1, boolean x) {
         if (from0 == from1) {
             return from0;
         }
+
+        byte y = x ? (byte)1 : 2 + 1;
 
         if (from0 == def.class || from1 == def.class) {
             return def.class;

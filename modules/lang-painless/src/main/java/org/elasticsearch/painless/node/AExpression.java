@@ -84,11 +84,6 @@ public abstract class AExpression extends ANode {
     boolean internal = false;
 
     /**
-     * Set to true by {@link ENull} to represent a null value.
-     */
-    boolean isNull = false;
-
-    /**
      * Standard constructor with location used for error tracking.
      */
     AExpression(Location location) {
@@ -130,7 +125,6 @@ public abstract class AExpression extends ANode {
             ECast ecast = new ECast(location, this, cast);
             ecast.statement = statement;
             ecast.actual = expected;
-            ecast.isNull = isNull;
 
             return ecast;
         }

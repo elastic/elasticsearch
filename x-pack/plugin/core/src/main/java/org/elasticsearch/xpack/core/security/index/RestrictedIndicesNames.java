@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.index;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -25,19 +24,18 @@ public final class RestrictedIndicesNames {
 
     // public for tests
     public static final String ASYNC_SEARCH_PREFIX = ".async-search-";
-    private static final CharacterRunAutomaton ASYNC_SEARCH_AUTOMATON =
-            new CharacterRunAutomaton(Automatons.patterns(ASYNC_SEARCH_PREFIX + "*"));
+    private static final Automaton ASYNC_SEARCH_AUTOMATON = Automatons.patterns(ASYNC_SEARCH_PREFIX + "*");
 
     // public for tests
     public static final Set<String> RESTRICTED_NAMES = Collections.unmodifiableSet(Sets.newHashSet(SECURITY_MAIN_ALIAS,
             INTERNAL_SECURITY_MAIN_INDEX_6, INTERNAL_SECURITY_MAIN_INDEX_7, INTERNAL_SECURITY_TOKENS_INDEX_7, SECURITY_TOKENS_ALIAS));
 
     public static boolean isRestricted(String concreteIndexName) {
-        return RESTRICTED_NAMES.contains(concreteIndexName) || ASYNC_SEARCH_AUTOMATON.run(concreteIndexName);
+        return RESTRICTED_NAMES.contains(concreteIndexName) || concreteIndexName.startsWith(ASYNC_SEARCH_PREFIX);
     }
 
     public static final Automaton NAMES_AUTOMATON = Automatons.unionAndMinimize(Arrays.asList(Automatons.patterns(RESTRICTED_NAMES),
-            Automatons.patterns(ASYNC_SEARCH_PREFIX + "*")));
+            ASYNC_SEARCH_AUTOMATON));
 
     private RestrictedIndicesNames() {
     }

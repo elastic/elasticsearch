@@ -270,7 +270,7 @@ public final class IndicesPermission {
     }
 
     private boolean isConcreteRestrictedIndex(String indexPattern) {
-        if (Regex.isSimpleMatchPattern(indexPattern) || Regex.isLuceneRegex(indexPattern)) {
+        if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
             return false;
         }
         return RestrictedIndicesNames.isRestricted(indexPattern);

@@ -78,9 +78,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected void masterOperation(PutTrainedModelAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<Response> listener) {
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
         try {
             request.getTrainedModelConfig().ensureParsedDefinition(xContentRegistry);
             request.getTrainedModelConfig().getModelDefinition().getTrainedModel().validate();

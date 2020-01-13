@@ -549,7 +549,7 @@ public class RBACEngineTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         final String patternPrefix = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.substring(0,
-                randomIntBetween(1, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.length() - 2));
+                randomIntBetween(2, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.length() - 2));
         Role role = Role.builder("role")
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, patternPrefix + "*")
                 .build();

@@ -202,7 +202,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertTrue(TransportPutLifecycleAction.indexCanBeUpdatedSafely(REGISTRY, client, meta, newPolicy));
+            assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
         }
 
         // Failure case, can't update because the step we're currently on has been removed in the new policy
@@ -239,7 +239,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.indexCanBeUpdatedSafely(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
         }
 
         // Failure case, can't update because the future step has been deleted
@@ -276,7 +276,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.indexCanBeUpdatedSafely(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
         }
 
         // Failure case, index doesn't have enough info to check
@@ -311,7 +311,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.indexCanBeUpdatedSafely(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
         }
 
         // Failure case, the phase JSON is unparseable
@@ -334,7 +334,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.indexCanBeUpdatedSafely(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
         }
     }
 
@@ -426,7 +426,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
-        assertTrue(TransportPutLifecycleAction.indexCanBeUpdatedSafely(REGISTRY, client, meta, newPolicy));
+        assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)

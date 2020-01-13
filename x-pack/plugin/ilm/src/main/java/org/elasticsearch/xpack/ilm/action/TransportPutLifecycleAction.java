@@ -199,8 +199,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     /**
      * Returns 'true' if the index's cached phase JSON can be safely reread, 'false' otherwise.
      */
-    static boolean indexCanBeUpdatedSafely(final NamedXContentRegistry xContentRegistry, final Client client,
-                                           final IndexMetaData metaData, final LifecyclePolicy newPolicy) {
+    static boolean isIndexPhaseDefinitionUpdatable(final NamedXContentRegistry xContentRegistry, final Client client,
+                                                   final IndexMetaData metaData, final LifecyclePolicy newPolicy) {
         final String index = metaData.getIndex().getName();
         if (eligibleToCheckForRefresh(metaData) == false) {
             logger.debug("[{}] does not contain enough information to check for eligibility of refreshing phase", index);
@@ -297,7 +297,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         final List<String> indicesThatCanBeUpdated =
             StreamSupport.stream(Spliterators.spliteratorUnknownSize(state.metaData().indices().valuesIt(), 0), false)
                 .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
-                .filter(meta -> indexCanBeUpdatedSafely(xContentRegistry, client, meta, newPolicy.getPolicy()))
+                .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy()))
                 .map(meta -> meta.getIndex().getName())
                 .collect(Collectors.toList());
 

@@ -121,14 +121,14 @@ public class LicenseTests extends ESTestCase {
             .maxNodes(randomIntBetween(1, 50))
             .maxResourceUnits(randomIntBetween(10, 500));
         final IllegalStateException ex = expectThrows(IllegalStateException.class, builder::build);
-        assertThat(ex, TestMatchers.throwableWithMessage("maxNodes may not be set for enterprise licenses"));
+        assertThat(ex, TestMatchers.throwableWithMessage("maxNodes may not be set for enterprise licenses (type=[enterprise])"));
     }
 
     public void testThatEnterpriseLicenseMustHaveMaxResourceUnits() throws Exception {
         License.Builder builder = randomLicense(License.LicenseType.ENTERPRISE)
             .maxResourceUnits(-1);
         final IllegalStateException ex = expectThrows(IllegalStateException.class, builder::build);
-        assertThat(ex, TestMatchers.throwableWithMessage("maxResourceUnits must be set for enterprise licenses"));
+        assertThat(ex, TestMatchers.throwableWithMessage("maxResourceUnits must be set for enterprise licenses (type=[enterprise])"));
     }
 
     public void testThatRegularLicensesMustHaveMaxNodes() throws Exception {
@@ -145,7 +145,8 @@ public class LicenseTests extends ESTestCase {
             .maxResourceUnits(randomIntBetween(10, 500))
             .maxNodes(randomIntBetween(1, 50));
         final IllegalStateException ex = expectThrows(IllegalStateException.class, builder::build);
-        assertThat(ex, TestMatchers.throwableWithMessage("maxResourceUnits may only be set for enterprise licenses"));
+        assertThat(ex, TestMatchers.throwableWithMessage("maxResourceUnits may only be set for enterprise licenses (not permitted " +
+            "for type=[" + type.getTypeName() + "])"));
     }
 
     public void testLicenseToAndFromXContentForEveryLicenseType() throws Exception {

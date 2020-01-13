@@ -422,15 +422,16 @@ public class License implements ToXContentObject {
     private static void validateLimits(String type, int maxNodes, int maxResourceUnits) {
         if (LicenseType.isEnterprise(type)) {
             if (maxResourceUnits == -1) {
-                throw new IllegalStateException("maxResourceUnits must be set for enterprise licenses");
+                throw new IllegalStateException("maxResourceUnits must be set for enterprise licenses (type=[" + type + "])");
             } else if (maxNodes != -1) {
-                throw new IllegalStateException("maxNodes may not be set for enterprise licenses");
+                throw new IllegalStateException("maxNodes may not be set for enterprise licenses (type=[" + type + "])");
             }
         } else {
             if (maxNodes == -1) {
                 throw new IllegalStateException("maxNodes has to be set");
             } else if (maxResourceUnits != -1) {
-                throw new IllegalStateException("maxResourceUnits may only be set for enterprise licenses");
+                throw new IllegalStateException("maxResourceUnits may only be set for enterprise licenses (not permitted for type=[" +
+                    type + "])");
             }
         }
     }

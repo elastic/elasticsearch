@@ -848,7 +848,7 @@ public class SSLService {
 
     private boolean shouldEnableDiagnoseTrust() {
         if (XPackSettings.FIPS_MODE_ENABLED.get(settings) && DIAGNOSE_TRUST_EXCEPTIONS_SETTING.exists(settings) == false ) {
-            logger.info("diagnostic messages for SSL/TLS trust failures are not enabled in FIPS 140 mode be default.");
+            logger.info("diagnostic messages for SSL/TLS trust failures are not enabled in FIPS 140 mode by default.");
             return false;
         } else {
             return DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);

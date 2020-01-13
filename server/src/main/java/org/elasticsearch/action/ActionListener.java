@@ -155,7 +155,12 @@ public interface ActionListener<Response> {
                 delegate.onFailure(e);
                 return;
             }
-            delegate.onResponse(mapped);
+            try {
+                delegate.onResponse(mapped);
+            } catch (RuntimeException e) {
+                assert false : new AssertionError("map: listener.onResponse failed", e);
+                throw e;
+            }
         });
     }
 

@@ -532,8 +532,7 @@ end::detector-field-name[]
 
 tag::detector-index[]
 A unique identifier for the detector. This identifier is based on the order of 
-the detectors in the `analysis_config`, starting at zero. You can use this 
-identifier when you want to update a specific detector.
+the detectors in the `analysis_config`, starting at zero.
 end::detector-index[]
 
 tag::eta[]

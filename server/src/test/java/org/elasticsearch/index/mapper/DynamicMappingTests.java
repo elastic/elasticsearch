@@ -676,7 +676,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testMappingVersionAfterDynamicMappingUpdate() {
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        createIndex("test", client().admin().indices().prepareCreate("test"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
         client().prepareIndex("test").setId("1").setSource("field", "text").get();

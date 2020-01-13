@@ -20,7 +20,8 @@ experimental[]
 [[ml-start-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following built-in roles and privileges:
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
 
 * `machine_learning_admin`
 * `kibana_user` (UI only)

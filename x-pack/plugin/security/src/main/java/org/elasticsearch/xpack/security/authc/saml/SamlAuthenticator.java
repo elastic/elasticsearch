@@ -229,7 +229,7 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private List<Attribute> processAssertion(Assertion assertion, boolean requireSignature, Collection<String> allowedSamlRequestIds) {
         if (logger.isTraceEnabled()) {
-            logger.trace("(Possibly decrypted) Assertion: {}", SamlUtils.samlObjectToString(assertion));
+            logger.trace("(Possibly decrypted) Assertion: {}", SamlUtils.samlObjectToString(assertion, true));
             logger.trace(SamlUtils.describeSamlObject(assertion));
         }
         // Do not further process unsigned Assertions
@@ -252,7 +252,7 @@ class SamlAuthenticator extends SamlRequestHandler {
             for (EncryptedAttribute enc : statement.getEncryptedAttributes()) {
                 final Attribute attribute = decrypt(enc);
                 if (attribute != null) {
-                    logger.trace("Successfully decrypted attribute: {}" + SamlUtils.samlObjectToString(attribute));
+                    logger.trace("Successfully decrypted attribute: {}" + SamlUtils.samlObjectToString(attribute, true));
                     attributes.add(attribute);
                 }
             }

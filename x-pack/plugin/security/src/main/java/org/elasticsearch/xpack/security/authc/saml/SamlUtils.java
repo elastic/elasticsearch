@@ -43,6 +43,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
@@ -162,9 +163,9 @@ public class SamlUtils {
         serializer.transform(new DOMSource(element), new StreamResult(writer));
     }
 
-    static String samlObjectToString(SAMLObject object) {
+    static String samlObjectToString(SAMLObject object, boolean pretty) {
         try {
-            return toString(XMLObjectSupport.marshall(object), true);
+            return toString(XMLObjectSupport.marshall(object), pretty);
         } catch (MarshallingException e) {
             LOGGER.info("Error marshalling SAMLObject ", e);
             return SAML_MARSHALLING_ERROR_STRING;
@@ -202,7 +203,7 @@ public class SamlUtils {
             sb.append("]");
             return sb.toString();
         }
-        return samlObjectToString(object);
+        return samlObjectToString(object, true);
     }
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")

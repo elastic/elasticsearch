@@ -129,7 +129,20 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             deleteSnapshot(client, repoName, snapshotToDeleteName);
             final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
-            assertSnapshotStatusSuccessful(client, repoName, snapshots);
+            switch (TEST_STEP) {
+                case STEP2_NEW_CLUSTER:
+                case STEP4_NEW_CLUSTER:
+                    assertSnapshotStatusSuccessful(client, repoName,
+                        snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
+                    break;
+                case STEP1_OLD_CLUSTER:
+                    assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TEST_STEP);
+                    break;
+                case STEP3_OLD_CLUSTER:
+                    assertSnapshotStatusSuccessful(
+                        client, repoName, "snapshot-" + TEST_STEP, "snapshot-" + TestStep.STEP3_OLD_CLUSTER);
+                    break;
+            }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
@@ -163,7 +176,12 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     assertThat(snapshots, hasSize(2));
                     break;
             }
-            assertSnapshotStatusSuccessful(client, repoName, snapshots);
+            if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
+                assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
+            } else {
+                assertSnapshotStatusSuccessful(client, repoName,
+                    "snapshot-" + TestStep.STEP1_OLD_CLUSTER, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
+            }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
@@ -187,7 +205,8 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             // Every step creates one snapshot
             assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
-            assertSnapshotStatusSuccessful(client, repoName, snapshots);
+            assertSnapshotStatusSuccessful(client, repoName,
+                snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
             if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else {
@@ -205,9 +224,9 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static void assertSnapshotStatusSuccessful(RestHighLevelClient client, String repoName,
-                                                     List<Map<String, Object>> snapshots) throws IOException {
-        final SnapshotsStatusResponse statusResponse = client.snapshot().status(new SnapshotsStatusRequest(repoName,
-            snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)), RequestOptions.DEFAULT);
+                                                       String... snapshots) throws IOException {
+        final SnapshotsStatusResponse statusResponse = client.snapshot()
+            .status(new SnapshotsStatusRequest(repoName, snapshots), RequestOptions.DEFAULT);
         for (SnapshotStatus status : statusResponse.getSnapshots()) {
             assertThat(status.getShardsStats().getFailedShards(), is(0));
         }

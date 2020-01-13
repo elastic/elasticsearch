@@ -293,7 +293,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 fail("Can't match type [" + type + "]");
             }
         }
-        indexRequestBuilder.setMapping(mappings.toArray()).get();
+        indexRequestBuilder.setMapping(mappings.toArray(new String[0])).get();
         ensureGreen();
     }
 

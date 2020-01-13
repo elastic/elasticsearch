@@ -365,10 +365,8 @@ public final class RepositoryData {
         }
         builder.endObject();
         if (shouldWriteShardGens) {
-            // TODO: write this field once 7.6 is able to read it and add tests to :qa:snapshot-repository-downgrade that make sure older
-            //       ES versions can't corrupt the repository by writing to it and all the snapshots in it are v7.6 or newer
             // Add min version field to make it impossible for older ES versions to deserialize this object
-            // builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
+            builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
         }
         builder.endObject();
         return builder;

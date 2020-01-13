@@ -12,10 +12,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.SqlException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
@@ -194,7 +194,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testToString() {
         assertEquals("hit.field@hit@Europe/Berlin",
-            new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
+                new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
     }
 
     public void testMultiValuedDocValue() {
@@ -203,7 +203,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         hit.fields(singletonMap(fieldName, field));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -218,7 +218,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -248,7 +248,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d] from source"));
     }
 
@@ -256,7 +256,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = getFieldHitExtractor("a", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", asList(value, value));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
 
@@ -352,7 +352,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         } else {
             // if we have an array with more than one value in it, check that we throw the correct exception and exception message
             final Map<String, Object> map2 = Collections.unmodifiableMap(map);
-            SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map2));
+            QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
             assertThat(ex.getMessage(), is("Arrays (returned by [" + expected + "]) are not supported"));
         }
     }
@@ -361,7 +361,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d.e] from source"));
     }
 
@@ -393,7 +393,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         Map<String, Object> map = new HashMap<>();
         map.put("a.b", singletonMap("c", singletonMap("d.e", singletonMap("f.g", value))));
         map.put("a", singletonMap("b.c", singletonMap("d.e", singletonMap("f", singletonMap("g", value)))));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Multiple values (returned by [a.b.c.d.e.f.g]) are not supported"));
     }
 
@@ -411,7 +411,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : "value1"}, {"b" : "value2"}]
         map.put("a", asList(singletonMap("b", randomNonNullValue()), singletonMap("b", randomNonNullValue())));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a.b]) are not supported"));
     }
 
@@ -429,7 +429,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : [{"c" : ["value1", "value2"]}]}]
         map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", asList("value1", "value2"))))));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a.b.c]) are not supported"));
     }
 
@@ -456,7 +456,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -484,7 +484,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
         Map<String, Object> map2 = new HashMap<>();
         map2.put(fieldName, Arrays.asList("POINT (1 2)", "POINT (3 4)"));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map2));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName,
@@ -549,7 +549,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         hit.sourceRef(sourceRef);
 
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false);
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false, true);
@@ -573,7 +573,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
 
         hit.fields(singletonMap(fieldName, new DocumentField(fieldName, Arrays.asList("2,1", "3,4"))));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true, true);

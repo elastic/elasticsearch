@@ -21,10 +21,11 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -55,8 +56,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, "test");
     }
 
-    public void testMetaIsRemovedIfAllShardsFromIndexRemoved() throws Exception {
-        // this test checks that the index state is removed from a data only node once all shards have been allocated away from it
+    public void testIndexFilesAreRemovedIfAllShardsFromIndexRemoved() throws Exception {
+        // this test checks that the index data is removed from a data only node once all shards have been allocated away from it
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         List<String> nodeNames= internalCluster().startDataOnlyNodes(2);
         String node1 = nodeNames.get(0);
@@ -69,8 +70,10 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         ensureGreen();
         assertIndexInMetaState(node1, index);
         Index resolveIndex = resolveIndex(index);
+        assertIndexDirectoryExists(node1, resolveIndex);
         assertIndexDirectoryDeleted(node2, resolveIndex);
         assertIndexInMetaState(masterNode, index);
+        assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
         logger.debug("relocating index...");
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
@@ -79,7 +82,13 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
+        assertIndexDirectoryExists(node2, resolveIndex);
         assertIndexInMetaState(masterNode, index);
+        assertIndexDirectoryDeleted(masterNode, resolveIndex);
+
+        client().admin().indices().prepareDelete(index).get();
+        assertIndexDirectoryDeleted(node1, resolveIndex);
+        assertIndexDirectoryDeleted(node2, resolveIndex);
     }
 
     @SuppressWarnings("unchecked")
@@ -156,17 +165,19 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
     protected void assertIndexDirectoryDeleted(final String nodeName, final Index index) throws Exception {
-        assertBusy(() -> {
-            logger.info("checking if index directory exists...");
-            assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
-                indexDirectoryExists(nodeName, index));
-        }
+        assertBusy(() -> assertFalse("Expecting index directory of " + index + " to be deleted from node " + nodeName,
+            indexDirectoryExists(nodeName, index))
+        );
+    }
+
+    protected void assertIndexDirectoryExists(final String nodeName, final Index index) throws Exception {
+        assertBusy(() -> assertTrue("Expecting index directory of " + index + " to exist on node " + nodeName,
+            indexDirectoryExists(nodeName, index))
         );
     }
 
     protected void assertIndexInMetaState(final String nodeName, final String indexName) throws Exception {
         assertBusy(() -> {
-            logger.info("checking if meta state exists...");
             try {
                 assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName,
                     getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
@@ -190,8 +201,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
     private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) {
-        GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData nodeMetaData = nodeMetaState.getMetaData();
-        return nodeMetaData.getIndices();
+        final Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, nodeName);
+        return coordinator.getApplierState().getMetaData().getIndices();
     }
 }

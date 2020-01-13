@@ -815,7 +815,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 //
-                // common factor extraction -> (a || b) && (a || c) => a && (b || c)
+                // common factor extraction -> (a || b) && (a || c) => a || (b && c)
                 //
                 List<Expression> leftSplit = splitOr(l);
                 List<Expression> rightSplit = splitOr(r);
@@ -853,7 +853,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 //
-                // common factor extraction -> (a && b) || (a && c) => a || (b & c)
+                // common factor extraction -> (a && b) || (a && c) => a && (b || c)
                 //
                 List<Expression> leftSplit = splitAnd(l);
                 List<Expression> rightSplit = splitAnd(r);
@@ -1125,7 +1125,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // a = 2 OR a > 3 -> nop; a = 2 OR a > 1 -> a > 1
         // a = 2 OR a < 3 -> a < 3; a = 2 OR a < 1 -> nop
         // a = 2 OR 3 < a < 5 -> nop; a = 2 OR 1 < a < 3 -> 1 < a < 3; a = 2 OR 0 < a < 1 -> nop
-        // a = 2 OR a != 5 -> TRUE; a = 2 OR a = 5 -> nop
+        // a = 2 OR a != 2 -> TRUE; a = 2 OR a = 5 -> nop; a = 2 OR a != 5 -> a != 5
         private Expression propagate(Or or) {
             List<Expression> exps = new ArrayList<>();
             List<Equals> equals = new ArrayList<>(); // foldable right term Equals
@@ -1169,72 +1169,95 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             for (Iterator<Equals> iterEq = equals.iterator(); iterEq.hasNext(); ) {
                 Equals eq = iterEq.next();
                 Object eqValue = eq.right().fold();
+                boolean rmEqual = false;
 
                 // Equals OR NotEquals
                 for (NotEquals neq : notEquals) {
-                    if (eq.left().semanticEquals(neq.left())) { // a = 2 OR a != 2 -> TRUE
+                    if (eq.left().semanticEquals(neq.left())) { // a = 2 OR a != ? -> ...
                         Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
-                        if (comp != null && comp == 0) {
-                            return TRUE;
+                        if (comp != null) {
+                            if (comp == 0) { // a = 2 OR a != 2 -> TRUE
+                                return TRUE;
+                            } else { // a = 2 OR a != 5 -> a != 5
+                                rmEqual = true;
+                                break;
+                            }
                         }
                     }
+                }
+                if (rmEqual) {
+                    iterEq.remove();
+                    updated = true;
+                    continue;
                 }
 
                 // Equals OR Range
                 for (int i = 0; i < ranges.size(); i ++) { // might modify list, so use index loop
                     Range range = ranges.get(i);
-                    if (eq.left().semanticEquals(range.value()) == false) {
-                        continue;
-                    }
+                    if (eq.left().semanticEquals(range.value())) {
+                        Integer lowerComp = range.lower().foldable() ? BinaryComparison.compare(eqValue, range.lower().fold()) : null;
+                        Integer upperComp = range.upper().foldable() ? BinaryComparison.compare(eqValue, range.upper().fold()) : null;
 
-                    Integer lowerComp = range.lower().foldable() ? BinaryComparison.compare(eqValue, range.lower().fold()) : null;
-                    Integer upperComp = range.upper().foldable() ? BinaryComparison.compare(eqValue, range.upper().fold()) : null;
-
-                    if (lowerComp != null && lowerComp == 0 && !range.includeLower()) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
-                        iterEq.remove(); // update range with lower equality instead
-                        ranges.set(i, new Range(range.source(), range.value(), range.lower(), true, range.upper(), range.includeUpper()));
-                        updated = true;
-                    } else if (upperComp != null && upperComp == 0 && !range.includeUpper()) { // a = 2 OR ? < a < 2 -> ? < a <= 2
-                        iterEq.remove(); // update range with upper equality instead
-                        ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(), range.upper(), true));
-                        updated = true;
-                    } else if (lowerComp != null && upperComp != null) {
-                        if (0 < lowerComp && upperComp < 0) { // a = 2 OR 1 < a < 3
-                            iterEq.remove(); // equality is superfluous
-                            updated = true;
+                        if (lowerComp != null && lowerComp == 0) {
+                            if (!range.includeLower()) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
+                                ranges.set(i, new Range(range.source(), range.value(), range.lower(), true,
+                                    range.upper(), range.includeUpper()));
+                            } // else : a = 2 OR 2 <= a < ? -> 2 <= a < ?
+                            rmEqual = true; // update range with lower equality instead or simply superfluous
+                            break;
+                        } else if (upperComp != null && upperComp == 0) {
+                            if (!range.includeUpper()) { // a = 2 OR ? < a < 2 -> ? < a <= 2
+                                ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(),
+                                    range.upper(), true));
+                            } // else : a = 2 OR ? < a <= 2 -> ? < a <= 2
+                            rmEqual = true; // update range with upper equality instead
+                            break;
+                        } else if (lowerComp != null && upperComp != null) {
+                            if (0 < lowerComp && upperComp < 0) { // a = 2 OR 1 < a < 3
+                                rmEqual = true; // equality is superfluous
+                                break;
+                            }
                         }
                     }
+                }
+                if (rmEqual) {
+                    iterEq.remove();
+                    updated = true;
+                    continue;
                 }
 
                 // Equals OR Inequality
                 for (int i = 0; i < inequalities.size(); i ++) {
                     BinaryComparison bc = inequalities.get(i);
-                    if (eq.left().semanticEquals(bc.left()) == false) {
-                        continue;
-                    }
+                    if (eq.left().semanticEquals(bc.left())) {
+                        Integer comp = BinaryComparison.compare(eqValue, bc.right().fold());
+                        if (comp != null) {
+                            if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                                if (comp < 0) { // a = 1 OR a > 2 -> nop
+                                    continue;
+                                } else if (comp == 0 && bc instanceof GreaterThan) { // a = 2 OR a > 2 -> a >= 2
+                                    inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right()));
+                                } // else (0 < comp || bc instanceof GreaterThanOrEqual) :
+                                // a = 3 OR a > 2 -> a > 2; a = 2 OR a => 2 -> a => 2
 
-                    Integer comp = BinaryComparison.compare(eqValue, bc.right().fold());
-                    if (comp == null) {
-                        continue;
-                    }
-                    if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                        if (comp < 0) { // a = 1 OR a > 2 -> nop
-                            continue;
-                        } else if (comp == 0 && bc instanceof GreaterThan) { // a = 2 OR a > 2 -> a >= 2
-                                inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right()));
-                        } // else (0 < comp || bc instanceof GreaterThanOrEqual) : a = 3 OR a > 2 -> a > 2
-                        iterEq.remove(); // update range with equality instead or simply superfluous
-                        updated = true;
-                    } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                        if (comp > 0) { // a = 2 OR a < 1 -> nop
-                            continue;
+                                rmEqual = true; // update range with equality instead or simply superfluous
+                                break;
+                            } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                                if (comp > 0) { // a = 2 OR a < 1 -> nop
+                                    continue;
+                                }
+                                if (comp == 0 && bc instanceof LessThan) { // a = 2 OR a < 2 -> a <= 2
+                                    inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right()));
+                                } // else (comp < 0 || bc instanceof LessThanOrEqual) : a = 2 OR a < 3 -> a < 3; a = 2 OR a <= 2 -> a <= 2
+                                rmEqual = true; // update range with equality instead or simply superfluous
+                                break;
+                            }
                         }
-                        if (comp == 0 && bc instanceof LessThan) { // a = 2 OR a < 2 -> a <= 2
-                            inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right()));
-                        } // else (comp < 0 || bc instanceof LessThanOrEqual) : a = 2 OR a < 3 -> a < 3
-                        iterEq.remove(); // update range with equality instead or simply superfluous
-                        updated = true;
                     }
+                }
+                if (rmEqual) {
+                    iterEq.remove();
+                    updated = true;
                 }
             }
 

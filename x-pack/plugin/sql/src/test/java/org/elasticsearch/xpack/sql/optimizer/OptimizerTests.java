@@ -1770,6 +1770,19 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(TRUE, exp);
     }
 
+    // a = 2 OR a != 5 -> a != 5
+    public void testPropagateEquals_VarEq2OrVarNeq5() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        NotEquals neq = new NotEquals(EMPTY, fa, FIVE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, neq));
+        assertEquals(NotEquals.class, exp.getClass());
+        NotEquals ne = (NotEquals) exp;
+        assertEquals(ne.right(), FIVE);
+    }
+
     // a = 2 OR 3 < a < 4 OR a > 2 OR a!= 2 -> TRUE
     public void testPropagateEquals_VarEq2OrVarRangeGt3Lt4OrVarGt2OrVarNe2() {
         FieldAttribute fa = getFieldAttribute();

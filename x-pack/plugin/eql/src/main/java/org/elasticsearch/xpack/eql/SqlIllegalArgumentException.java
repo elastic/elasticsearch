@@ -1,9 +1,9 @@
-package org.elasticsearch.xpack.eql;
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.eql;
 
 public class SqlIllegalArgumentException extends EqlServerException {
     public SqlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {

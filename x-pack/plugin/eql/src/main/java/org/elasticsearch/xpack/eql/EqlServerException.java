@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.eql;
 
-public abstract class EqlServerException extends EqlException {
+import org.elasticsearch.xpack.ql.QlServerException;
+
+public abstract class EqlServerException extends QlServerException {
 
     protected EqlServerException(String message, Object... args) {
         super(message, args);

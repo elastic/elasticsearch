@@ -29,6 +29,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.ISODateTimeFormat;
+import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -45,6 +46,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     @Override
     protected boolean enableWarningsCheck() {
         return false;
+    }
+
+    @BeforeClass
+    public static void checkJvmProperties(){
+        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers")))
+            : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
     }
 
     public void testTimezoneParsing() {

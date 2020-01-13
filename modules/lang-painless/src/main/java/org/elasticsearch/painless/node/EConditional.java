@@ -87,7 +87,7 @@ public final class EConditional extends AExpression {
 
         conditionalNode.setLeftNode(left.cast(left.write(classNode)));
         conditionalNode.setRightNode(right.cast(right.write(classNode)));
-        conditionalNode.setConditionNode(condition.write(classNode));
+        conditionalNode.setConditionNode(condition.cast(condition.write(classNode)));
 
         conditionalNode.setLocation(location);
         conditionalNode.setExpressionType(actual);

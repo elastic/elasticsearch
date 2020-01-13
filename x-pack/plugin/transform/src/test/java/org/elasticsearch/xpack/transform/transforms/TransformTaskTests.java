@@ -10,6 +10,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -69,8 +71,13 @@ public class TransformTaskTests extends ESTestCase {
         TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders();
         TransformAuditor auditor = new MockTransformAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
-
-        TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(client, transformsConfigManager, auditor);
+        TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
+            client,
+            mock(Settings.class),
+            mock(ClusterService.class),
+            transformsConfigManager,
+            auditor
+        );
 
         TransformState transformState = new TransformState(
             TransformTaskState.FAILED,

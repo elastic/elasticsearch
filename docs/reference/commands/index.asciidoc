@@ -10,6 +10,7 @@ tasks from the command line:
 * <<certgen>>
 * <<certutil>>
 * <<elasticsearch-croneval>>
+* <<elasticsearch-keystore>>
 * <<migrate-tool>>
 * <<node-tool>>
 * <<saml-metadata>>
@@ -23,6 +24,7 @@ tasks from the command line:
 include::certgen.asciidoc[]
 include::certutil.asciidoc[]
 include::croneval.asciidoc[]
+include::keystore.asciidoc[]
 include::migrate-tool.asciidoc[]
 include::node-tool.asciidoc[]
 include::saml-metadata.asciidoc[]

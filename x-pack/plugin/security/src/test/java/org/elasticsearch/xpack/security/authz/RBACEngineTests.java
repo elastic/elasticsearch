@@ -102,6 +102,7 @@ public class RBACEngineTests extends ESTestCase {
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
         final Authentication authentication = mock(Authentication.class);
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authenticatedBy.getType())
@@ -125,9 +126,10 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType())
-            .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) :
-                randomAlphaOfLengthBetween(4, 12));
+        final String authenticationType = changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) :
+            randomAlphaOfLengthBetween(4, 12);
+        when(authenticatedBy.getType()).thenReturn(authenticationType);
+        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
 
         assertThat(request, instanceOf(UserRequest.class));
         assertFalse(engine.checkSameUserPermissions(action, request, authentication));
@@ -180,6 +182,7 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication authentication = mock(Authentication.class);
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
+        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
@@ -198,6 +201,7 @@ public class RBACEngineTests extends ESTestCase {
         final String action = ChangePasswordAction.NAME;
         final Authentication authentication = mock(Authentication.class);
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authenticatedBy.getType()).thenReturn(randomFrom(LdapRealmSettings.LDAP_TYPE, FileRealmSettings.TYPE,
@@ -209,6 +213,47 @@ public class RBACEngineTests extends ESTestCase {
         verify(authenticatedBy).getType();
         verify(authentication).getAuthenticatedBy();
         verify(authentication, times(2)).getUser();
+        verify(authentication).getAuthenticationType();
+        verifyNoMoreInteractions(authenticatedBy, authentication);
+    }
+
+    public void testSameUserPermissionDoesNotAllowChangePasswordForApiKey() {
+        final User user = new User("joe");
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final String action = ChangePasswordAction.NAME;
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.API_KEY);
+        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+
+        assertThat(request, instanceOf(UserRequest.class));
+        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        verify(authenticatedBy).getType();
+        verify(authentication).getAuthenticatedBy();
+        verify(authentication, times(2)).getUser();
+        verify(authentication).getAuthenticationType();
+        verifyNoMoreInteractions(authenticatedBy, authentication);
+    }
+
+    public void testSameUserPermissionDoesNotAllowChangePasswordForAccessToken() {
+        final User user = new User("joe");
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final String action = ChangePasswordAction.NAME;
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.TOKEN);
+        when(authenticatedBy.getType()).thenReturn(NativeRealmSettings.TYPE);
+
+        assertThat(request, instanceOf(UserRequest.class));
+        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        verify(authenticatedBy).getType();
+        verify(authentication).getAuthenticatedBy();
+        verify(authentication, times(2)).getUser();
+        verify(authentication).getAuthenticationType();
         verifyNoMoreInteractions(authenticatedBy, authentication);
     }
 
@@ -220,6 +265,7 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication authentication = mock(Authentication.class);
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
+        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
@@ -232,6 +278,7 @@ public class RBACEngineTests extends ESTestCase {
         verify(authentication).getLookedUpBy();
         verify(authentication, times(2)).getUser();
         verify(lookedUpBy).getType();
+        verify(authentication).getAuthenticationType();
         verifyNoMoreInteractions(authentication, lookedUpBy, authenticatedBy);
     }
 

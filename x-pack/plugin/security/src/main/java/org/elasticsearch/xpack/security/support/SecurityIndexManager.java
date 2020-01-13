@@ -71,7 +71,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -360,7 +359,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
                 CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
                         .alias(new Alias(this.aliasName))
-                        .mapping("{\"_doc\":" + mappingAndSettings.v1() + "}")
+                        .mapping(mappingAndSettings.v1())
                         .waitForActiveShards(ActiveShardCount.ALL)
                         .settings(mappingAndSettings.v2());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -433,11 +432,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final String mappingSource = request.mappings().get(MapperService.SINGLE_MAPPING_NAME);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappingSource)) {
-            // remove the type wrapping to get the mapping
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation); // {
-            ensureFieldName(parser, parser.nextToken(), MapperService.SINGLE_MAPPING_NAME); // _doc
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation); // {
-
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.generator().copyCurrentStructure(parser);
             return new Tuple<>(Strings.toString(builder), request.settings());

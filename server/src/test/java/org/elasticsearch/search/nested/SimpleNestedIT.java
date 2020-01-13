@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class SimpleNestedIT extends ESIntegTestCase {
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "nested1", "type=nested"));
+                .setMapping("nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
@@ -166,7 +166,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testMultiNested() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")
                         .startObject("nested2").field("type", "nested").endObject()
@@ -246,7 +246,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     public void testDeleteNestedDocsWithAlias() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build())
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1")
                         .field("type", "text")
                         .endObject()
@@ -297,7 +297,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testExplain() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
                         .endObject()
@@ -335,7 +335,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
                         .startObject("properties")
@@ -419,7 +419,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
                             .startObject("properties")
@@ -807,9 +807,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testSortNestedWithNestedFilter() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder()
+                .setMapping(XContentFactory.jsonBuilder()
                     .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("grand_parent_values")
                                     .field("type", "long")
@@ -1197,7 +1197,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     // Issue #9305
     public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", jsonBuilder().startObject().startObject("properties")
+        assertAcked(prepareCreate("test").setMapping(jsonBuilder().startObject().startObject("properties")
                 .startObject("officelocation").field("type", "text").endObject()
                 .startObject("users")
                     .field("type", "nested")
@@ -1345,7 +1345,6 @@ public class SimpleNestedIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate("test")
                         .setSettings(settingsBuilder)
-                        .addMapping("type")
         );
 
         client().prepareIndex("test").setId("0").setSource("field", "value").get();

@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
-
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -31,6 +30,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -43,6 +43,7 @@ import static java.time.Instant.now;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm.CONTEXT_TOKEN_DATA;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -91,6 +92,10 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         } else {
             assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
             assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
+            final Object groups = result.getUser().metadata().get("oidc(groups)");
+            assertThat(groups, notNullValue());
+            assertThat(groups, instanceOf(Collection.class));
+            assertThat((Collection<?>) groups, contains("group1", "group2", "groups3"));
         }
     }
 

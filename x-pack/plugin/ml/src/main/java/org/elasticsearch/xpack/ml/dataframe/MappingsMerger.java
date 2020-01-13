@@ -34,7 +34,7 @@ public final class MappingsMerger {
     private MappingsMerger() {}
 
     public static void mergeMappings(Client client, Map<String, String> headers, DataFrameAnalyticsSource source,
-                                     ActionListener<ImmutableOpenMap<String, MappingMetaData>> listener) {
+                                     ActionListener<MappingMetaData> listener) {
         ActionListener<GetMappingsResponse> mappingsListener = ActionListener.wrap(
             getMappingsResponse -> listener.onResponse(MappingsMerger.mergeMappings(source, getMappingsResponse)),
             listener::onFailure
@@ -45,7 +45,7 @@ public final class MappingsMerger {
         ClientHelper.executeWithHeadersAsync(headers, ML_ORIGIN, client, GetMappingsAction.INSTANCE, getMappingsRequest, mappingsListener);
     }
 
-    static ImmutableOpenMap<String, MappingMetaData> mergeMappings(DataFrameAnalyticsSource source,
+    static MappingMetaData mergeMappings(DataFrameAnalyticsSource source,
                                                                    GetMappingsResponse getMappingsResponse) {
         ImmutableOpenMap<String, MappingMetaData> indexToMappings = getMappingsResponse.getMappings();
 
@@ -78,10 +78,7 @@ public final class MappingsMerger {
             }
         }
 
-        MappingMetaData mappingMetaData = createMappingMetaData(MapperService.SINGLE_MAPPING_NAME, mergedMappings);
-        ImmutableOpenMap.Builder<String, MappingMetaData> result = ImmutableOpenMap.builder();
-        result.put(MapperService.SINGLE_MAPPING_NAME, mappingMetaData);
-        return result.build();
+        return createMappingMetaData(MapperService.SINGLE_MAPPING_NAME, mergedMappings);
     }
 
     private static MappingMetaData createMappingMetaData(String type, Map<String, Object> mappings) {

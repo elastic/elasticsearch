@@ -1032,7 +1032,7 @@ public class InternalEngine extends Engine {
                 currentVersion = versionValue.version;
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
-            if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+            if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentNotFoundOrDeleted) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.id(),
                     index.getIfSeqNo(), index.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
@@ -1361,7 +1361,7 @@ public class InternalEngine extends Engine {
             currentlyDeleted = versionValue.isDelete();
         }
         final DeletionStrategy plan;
-        if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+        if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentlyDeleted) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.id(),
                 delete.getIfSeqNo(), delete.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true);
@@ -1612,9 +1612,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-        // we obtain a read lock here, since we don't want a flush to happen while we are writing
-        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        refresh("write indexing buffer", SearcherScope.INTERNAL, true);
+        refresh("write indexing buffer", SearcherScope.INTERNAL, false);
     }
 
     @Override

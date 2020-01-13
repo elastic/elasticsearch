@@ -94,7 +94,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     private final boolean includeServerName;
     private final Supplier<TransportAddress> address;
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
-    private final ConnectionProfile profile;
     private final ConnectionManager.ConnectionValidator clusterNameValidator;
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
@@ -129,11 +128,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         this.includeServerName = includeServerName;
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
-        // TODO: Move into the ConnectionManager
-        this.profile = new ConnectionProfile.Builder()
-            .addConnections(1, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING)
-            .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY)
-            .build();
         this.clusterNameValidator = (newConnection, actualProfile, listener) ->
             transportService.handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true,
                 ActionListener.map(listener, resp -> {
@@ -231,7 +225,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
                     Version.CURRENT.minimumCompatibilityVersion());
 
-                connectionManager.connectToNode(node, profile, clusterNameValidator, new ActionListener<>() {
+                connectionManager.connectToNode(node, null, clusterNameValidator, new ActionListener<>() {
                     @Override
                     public void onResponse(Void v) {
                         compositeListener.onResponse(v);
@@ -268,13 +262,13 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         return new TransportAddress(parseConfiguredAddress(address));
     }
 
-    static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
+    public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         private final String address;
         private final int maxSocketConnections;
         private final int numSocketsConnected;
 
-        ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
+        public ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
             this.address = address;
             this.maxSocketConnections = maxSocketConnections;
             this.numSocketsConnected = numSocketsConnected;
@@ -309,6 +303,18 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public String modeName() {
             return "proxy";
+        }
+
+        public String getAddress() {
+            return address;
+        }
+
+        public int getMaxSocketConnections() {
+            return maxSocketConnections;
+        }
+
+        public int getNumSocketsConnected() {
+            return numSocketsConnected;
         }
 
         @Override

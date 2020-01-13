@@ -52,7 +52,6 @@ public class ResultsPersisterService {
     // Having an exponent higher than this causes integer overflow
     private static final int MAX_RETRY_EXPONENT = 24;
 
-    private final Random random = Randomness.get();
     private final Client client;
     private volatile int maxFailureRetries;
 
@@ -90,6 +89,7 @@ public class ResultsPersisterService {
         int currentMax = MIN_RETRY_SLEEP_MILLIS;
         int currentAttempt = 0;
         BulkResponse bulkResponse = null;
+        final Random random = Randomness.get();
         while(currentAttempt <= maxFailureRetries) {
             bulkResponse = bulkIndex(bulkRequest);
             if (bulkResponse.hasFailures() == false) {

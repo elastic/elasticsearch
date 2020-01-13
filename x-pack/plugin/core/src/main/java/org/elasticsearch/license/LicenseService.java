@@ -121,6 +121,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      * Max number of nodes licensed by generated trial license
      */
     static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
+    static final int SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS = SELF_GENERATED_LICENSE_MAX_NODES;
 
     public static final String LICENSE_JOB = "licenseJob";
 

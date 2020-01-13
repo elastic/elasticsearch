@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -65,14 +66,16 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
     private static final Logger logger = LogManager.getLogger(TransportPutLifecycleAction.class);
     private final NamedXContentRegistry xContentRegistry;
+    private final Client client;
 
     @Inject
     public TransportPutLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       NamedXContentRegistry namedXContentRegistry) {
+                                       NamedXContentRegistry namedXContentRegistry, Client client) {
         super(PutLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
             indexNameExpressionResolver);
         this.xContentRegistry = namedXContentRegistry;
+        this.client = client;
     }
 
     @Override
@@ -129,7 +132,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                             return nonRefreshedState;
                         } else {
                             try {
-                                return updateIndicesForPolicy(nonRefreshedState, xContentRegistry,
+                                return updateIndicesForPolicy(nonRefreshedState, xContentRegistry, client,
                                     oldPolicy.getPolicy(), lifecyclePolicyMetadata);
                             } catch (Exception e) {
                                 logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
@@ -171,8 +174,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * information, returns null.
      */
     @Nullable
-    static Set<Step.StepKey> readStepKeys(final NamedXContentRegistry xContentRegistry, final String phaseDef,
-                                          final String currentPhase) {
+    static Set<Step.StepKey> readStepKeys(final NamedXContentRegistry xContentRegistry, final Client client,
+                                          final String phaseDef, final String currentPhase) {
         final PhaseExecutionInfo phaseExecutionInfo;
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
@@ -188,7 +191,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         return phaseExecutionInfo.getPhase().getActions().values().stream()
-            .flatMap(a -> a.toSteps(null, phaseExecutionInfo.getPhase().getName(), null).stream())
+            .flatMap(a -> a.toSteps(client, phaseExecutionInfo.getPhase().getName(), null).stream())
             .map(Step::getKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
     }
@@ -196,7 +199,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     /**
      * Returns 'true' if the index's cached phase JSON can be safely reread, 'false' otherwise.
      */
-    static boolean indexCanBeUpdatedSafely(final NamedXContentRegistry xContentRegistry,
+    static boolean indexCanBeUpdatedSafely(final NamedXContentRegistry xContentRegistry, final Client client,
                                            final IndexMetaData metaData, final LifecyclePolicy newPolicy) {
         final String index = metaData.getIndex().getName();
         if (eligibleToCheckForRefresh(metaData) == false) {
@@ -209,7 +212,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         final Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.getPhase();
 
-        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(null).stream()
+        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client).stream()
             .map(Step::getKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
@@ -222,7 +225,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         final String phaseDef = executionState.getPhaseDefinition();
-        final Set<Step.StepKey> oldStepKeys = readStepKeys(xContentRegistry, phaseDef, currentPhase);
+        final Set<Step.StepKey> oldStepKeys = readStepKeys(xContentRegistry, client, phaseDef, currentPhase);
         if (oldStepKeys == null) {
             logger.debug("[{}] unable to parse phase definition for cached policy [{}], policy phase will not be refreshed",
                 index, policyId);
@@ -236,7 +239,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         final PhaseExecutionInfo pei = new PhaseExecutionInfo(policyId, newPolicy.getPhases().get(currentPhase), 1L, 1L);
         final String peiJson = Strings.toString(pei);
 
-        final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, peiJson, currentPhase);
+        final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase);
         if (newPhaseStepKeys == null) {
             logger.debug(new ParameterizedMessage("[{}] unable to parse phase definition for policy [{}] " +
                 "to determine if it could be refreshed", index, policyId));
@@ -280,7 +283,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     /**
      * For the given new policy, returns a new cluster with all updateable indices' phase JSON refreshed.
      */
-    static ClusterState updateIndicesForPolicy(final ClusterState state, final NamedXContentRegistry xContentRegistry,
+    static ClusterState updateIndicesForPolicy(final ClusterState state, final NamedXContentRegistry xContentRegistry, final Client client,
                                                final LifecyclePolicy oldPolicy, final LifecyclePolicyMetadata newPolicy) {
         assert oldPolicy.getName().equals(newPolicy.getName()) : "expected both policies to have the same id but they were: [" +
             oldPolicy.getName() + "] vs. [" + newPolicy.getName() + "]";
@@ -294,7 +297,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         final List<String> indicesThatCanBeUpdated =
             StreamSupport.stream(Spliterators.spliteratorUnknownSize(state.metaData().indices().valuesIt(), 0), false)
                 .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
-                .filter(meta -> indexCanBeUpdatedSafely(xContentRegistry, meta, newPolicy.getPolicy()))
+                .filter(meta -> indexCanBeUpdatedSafely(xContentRegistry, client, meta, newPolicy.getPolicy()))
                 .map(meta -> meta.getIndex().getName())
                 .collect(Collectors.toList());
 

@@ -593,9 +593,11 @@ public class PersistedClusterStateService {
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only",
                 metaData.coordinationMetaData().term());
 
-            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(metaData)) {
-                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
-                    metaDataIndexWriter.updateGlobalMetaData(globalMetaDataDocument.getDocument());
+            if (MetaData.isGlobalStateEquals(previouslyWrittenMetaData, metaData) == false) {
+                try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(metaData)) {
+                    for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                        metaDataIndexWriter.updateGlobalMetaData(globalMetaDataDocument.getDocument());
+                    }
                 }
             }
 

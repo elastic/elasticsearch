@@ -86,7 +86,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
         return PARSER.apply(parser, null);
     }
 
-    private static ObjectParser<ScoreSortBuilder, Void> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
+    private static final ObjectParser<ScoreSortBuilder, Void> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
 
     static {
         PARSER.declareString((builder, order) -> builder.order(SortOrder.fromString(order)), ORDER_FIELD);

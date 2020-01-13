@@ -391,6 +391,27 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that environment variables are translated to -E options even for commands invoked under
+     * `docker exec`, where the Docker image's entrypoint is not executed.
+     */
+    public void test83EnvironmentVariablesAreRespectedUnderDockerExec() {
+        // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
+        // tool in question is only in the default distribution.
+        assumeTrue(distribution.isDefault());
+
+        runContainer(distribution(), null, Map.of("http.host", "this.is.not.valid"));
+
+        // This will fail if the env var above is passed as a -E argument
+        final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
+
+        assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
+        assertThat(
+            result.stdout,
+            containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known")
+        );
+    }
+
+    /**
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */

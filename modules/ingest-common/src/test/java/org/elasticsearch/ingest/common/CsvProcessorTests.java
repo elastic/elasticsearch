@@ -209,6 +209,7 @@ public class CsvProcessorTests extends ESTestCase {
 
     private IngestDocument processDocument(String[] headers, String csv, boolean trim) throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Arrays.stream(headers).filter(ingestDocument::hasField).forEach(ingestDocument::removeField);
 
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, csv);
         char quoteChar = quote.isEmpty() ? '"' : quote.charAt(0);

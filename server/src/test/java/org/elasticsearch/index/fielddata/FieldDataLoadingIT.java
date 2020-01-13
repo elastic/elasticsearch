@@ -30,7 +30,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("name")
                         .field("type", "text")
                         .field("fielddata", true)

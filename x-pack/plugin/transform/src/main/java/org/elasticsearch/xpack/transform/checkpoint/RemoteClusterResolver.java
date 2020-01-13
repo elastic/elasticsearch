@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+/**
+ * Maintain a list of remote clusters (aliases) and provide the ability to resolve.
+ */
 class RemoteClusterResolver extends RemoteClusterAware {
 
     private final CopyOnWriteArraySet<String> clusters;
@@ -24,10 +27,9 @@ class RemoteClusterResolver extends RemoteClusterAware {
         private final Map<String, List<String>> remoteIndicesPerClusterAlias;
         private final List<String> localIndices;
 
-        ResolvedIndices(Map<String, List<String>> groupClusterIndices) {
-            this.localIndices = groupClusterIndices.getOrDefault(LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList());
-            groupClusterIndices.remove(LOCAL_CLUSTER_GROUP_KEY);
-            this.remoteIndicesPerClusterAlias = groupClusterIndices;
+        ResolvedIndices(Map<String, List<String>> remoteIndicesPerClusterAlias, List<String> localIndices) {
+            this.localIndices = localIndices;
+            this.remoteIndicesPerClusterAlias = remoteIndicesPerClusterAlias;
         }
 
         public Map<String, List<String>> getRemoteIndicesPerClusterAlias() {
@@ -59,6 +61,9 @@ class RemoteClusterResolver extends RemoteClusterAware {
     }
 
     ResolvedIndices resolve(String... indices) {
-        return new ResolvedIndices(groupClusterIndices(clusters, indices));
+        Map<String, List<String>> resolvedClusterIndices = groupClusterIndices(clusters, indices);
+        List<String> localIndices = resolvedClusterIndices.getOrDefault(LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList());
+        resolvedClusterIndices.remove(LOCAL_CLUSTER_GROUP_KEY);
+        return new ResolvedIndices(resolvedClusterIndices, localIndices);
     }
 }

@@ -305,39 +305,58 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private ObjectPath getWatchHistoryEntry(String watchId, String state) throws Exception {
         final AtomicReference<ObjectPath> objectPathReference = new AtomicReference<>();
-        assertBusy(() -> {
-            client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+        try {
+            assertBusy(() -> {
+                client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
 
-            try (XContentBuilder builder = jsonBuilder()) {
-                builder.startObject();
-                builder.startObject("query").startObject("bool").startArray("must");
-                builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
+                try (XContentBuilder builder = jsonBuilder()) {
+                    builder.startObject();
+                    builder.startObject("query").startObject("bool").startArray("must");
+                    builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
                         .endObject();
-                if (Strings.isNullOrEmpty(state) == false) {
-                    builder.startObject().startObject("term").startObject("state").field("value", state).endObject().endObject()
+                    if (Strings.isNullOrEmpty(state) == false) {
+                        builder.startObject().startObject("term").startObject("state").field("value", state).endObject().endObject()
                             .endObject();
-                }
-                builder.endArray().endObject().endObject();
-                builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
+                    }
+                    builder.endArray().endObject().endObject();
+                    builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
                         .endObject().endArray();
-                builder.endObject();
+                    builder.endObject();
 
-                Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
-                searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                searchRequest.setJsonEntity(Strings.toString(builder));
-                Response response = client().performRequest(searchRequest);
-                ObjectPath objectPath = ObjectPath.createFromResponse(response);
-                int totalHits = objectPath.evaluate("hits.total");
-                assertThat(totalHits, is(greaterThanOrEqualTo(1)));
-                String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
-                assertThat(watchid, is(watchId));
-                objectPathReference.set(objectPath);
-            } catch (ResponseException e) {
-                final String err = "Failed to perform search of watcher history";
-                logger.info(err, e);
-                fail(err);
+                    Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+                    searchRequest.setJsonEntity(Strings.toString(builder));
+                    Response response = client().performRequest(searchRequest);
+                    ObjectPath objectPath = ObjectPath.createFromResponse(response);
+                    int totalHits = objectPath.evaluate("hits.total");
+                    assertThat(totalHits, is(greaterThanOrEqualTo(1)));
+                    String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
+                    assertThat(watchid, is(watchId));
+                    objectPathReference.set(objectPath);
+                } catch (ResponseException e) {
+                    final String err = "Failed to perform search of watcher history";
+                    logger.info(err, e);
+                    fail(err);
+                }
+            });
+        } catch (AssertionError ae) {
+            {
+                Request request = new Request("GET", "/_watcher/stats");
+                Response response = client().performRequest(request);
+                logger.info("watcher_stats: {}", EntityUtils.toString(response.getEntity()));
             }
-        });
+            {
+                Request request = new Request("GET", "/_cluster/state");
+                Response response = client().performRequest(request);
+                logger.info("cluster_state: {}", EntityUtils.toString(response.getEntity()));
+            }
+            {
+                Request request = new Request("GET", "/.watcher-history-*/_search");
+                Response response = client().performRequest(request);
+                logger.info("watcher_history_snippets: {}", EntityUtils.toString(response.getEntity()));
+            }
+            throw ae;
+        }
         return objectPathReference.get();
     }
 }

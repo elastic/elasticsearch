@@ -19,7 +19,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslDiagnostics;
@@ -72,6 +71,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+import static org.elasticsearch.xpack.core.XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING;
 
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
@@ -102,9 +102,6 @@ public class SSLService {
         protocolAlgorithmMap.put("SSLv2Hello", "SSL");
         ORDERED_PROTOCOL_ALGORITHM_MAP = Collections.unmodifiableMap(protocolAlgorithmMap);
     }
-
-    private static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS_SETTING = Setting.boolSetting(
-        "xpack.security.ssl.diagnose.trust", true, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final boolean diagnoseTrustExceptions;
@@ -143,7 +140,7 @@ public class SSLService {
     public SSLService(Settings settings, Environment environment) {
         this.settings = settings;
         this.env = environment;
-        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
+        this.diagnoseTrustExceptions = shouldEnableDiagnoseTrust();
         this.sslConfigurations = new HashMap<>();
         this.sslContexts = loadSSLConfigurations();
     }
@@ -152,7 +149,7 @@ public class SSLService {
                        Map<SSLConfiguration, SSLContextHolder> sslContexts) {
         this.settings = settings;
         this.env = environment;
-        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
+        this.diagnoseTrustExceptions = shouldEnableDiagnoseTrust();
         this.sslConfigurations = sslConfigurations;
         this.sslContexts = sslContexts;
     }
@@ -185,10 +182,6 @@ public class SSLService {
                 return holder;
             }
         };
-    }
-
-    public static void registerSettings(List<Setting<?>> settingList) {
-        settingList.add(DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
     }
 
     /**
@@ -851,5 +844,14 @@ public class SSLService {
         }
         throw new IllegalArgumentException("no supported SSL/TLS protocol was found in the configured supported protocols: "
             + supportedProtocols);
+    }
+
+    private boolean shouldEnableDiagnoseTrust() {
+        if (XPackSettings.FIPS_MODE_ENABLED.get(settings) && DIAGNOSE_TRUST_EXCEPTIONS_SETTING.exists(settings) == false ) {
+            logger.info("diagnostic messages for SSL/TLS trust failures are not enabled in FIPS 140 mode by default.");
+            return false;
+        } else {
+            return DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
+        }
     }
 }

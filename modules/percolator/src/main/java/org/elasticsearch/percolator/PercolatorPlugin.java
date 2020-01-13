@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -33,7 +34,7 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
-public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlugin {
+public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlugin, ExtensiblePlugin {
     @Override
     public List<QuerySpec<?>> getQueries() {
         return singletonList(new QuerySpec<>(PercolateQueryBuilder.NAME, PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent));

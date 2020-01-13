@@ -28,6 +28,7 @@ import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.join.query.ParentIdQueryBuilder;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -37,7 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class ParentJoinPlugin extends Plugin implements SearchPlugin, MapperPlugin {
+public class ParentJoinPlugin extends Plugin implements SearchPlugin, MapperPlugin, ExtensiblePlugin {
 
     public ParentJoinPlugin() {
     }

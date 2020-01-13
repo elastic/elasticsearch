@@ -1,0 +1,42 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              join_field:
+                type: join
+                relations:
+                  parent: child
+              phrase:
+                type: text
+              query:
+                type: percolator
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "join_field": "parent" }
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        routing: 1
+        body:    { "query": { "match_phrase" : { "phrase" : "how to" } }, "join_field": { "name": "child", "parent": "1" } }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Parent/child inner hits":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : { "custom" : { "phrase" : "how to train your dragon" } } }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "test" }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.join_field: "parent" }

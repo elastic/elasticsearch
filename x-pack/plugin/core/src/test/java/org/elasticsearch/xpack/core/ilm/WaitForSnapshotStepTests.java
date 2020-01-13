@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapshotStep> {
 

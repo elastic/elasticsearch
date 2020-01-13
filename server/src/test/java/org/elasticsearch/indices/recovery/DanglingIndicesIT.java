@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexReque
 import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -59,11 +60,12 @@ import static org.hamcrest.Matchers.not;
 public class DanglingIndicesIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test-idx-1";
 
-    private Settings buildSettings(int maxTombstones, boolean importDanglingIndices) {
+    private Settings buildSettings(int maxTombstones, boolean writeDanglingIndices, boolean importDanglingIndices) {
         return Settings.builder()
             // Limit the indices kept in the graveyard. This can be set to zero, so that
             // when we delete an index, it's definitely considered to be dangling.
             .put(SETTING_MAX_TOMBSTONES.getKey(), maxTombstones)
+            .put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), writeDanglingIndices)
             .put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), importDanglingIndices)
             .build();
     }
@@ -73,10 +75,21 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * discovered, then that index is recovered into the cluster.
      */
     public void testDanglingIndicesAreRecoveredWhenSettingIsEnabled() throws Exception {
-        final Settings settings = buildSettings(0, true);
+        final Settings settings = buildSettings(0, true, true);
         internalCluster().startNodes(3, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        ensureGreen(INDEX_NAME);
+        assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
+            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+
+        boolean refreshIntervalChanged = randomBoolean();
+        if (refreshIntervalChanged) {
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(
+                Settings.builder().put("index.refresh_interval", "42s").build()).get();
+            assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
+                indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+        }
 
         if (randomBoolean()) {
             client().admin().indices().prepareClose(INDEX_NAME).get();
@@ -95,6 +108,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         });
 
         assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
+        if (refreshIntervalChanged) {
+            assertThat(client().admin().indices().prepareGetSettings(INDEX_NAME).get().getSetting(INDEX_NAME, "index.refresh_interval"),
+                equalTo("42s"));
+        }
         ensureGreen(INDEX_NAME);
     }
 
@@ -103,9 +120,42 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * the cluster when the recovery setting is disabled.
      */
     public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, false));
+        internalCluster().startNodes(3, buildSettings(0, true, false));
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        ensureGreen(INDEX_NAME);
+        assertBusy(() -> internalCluster().getInstances(IndicesService.class).forEach(
+            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
+
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureClusterSizeConsistency();
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        // Since index recovery is async, we can't prove index recovery will never occur, just that it doesn't occur within some reasonable
+        // amount of time
+        assertFalse(
+            "Did not expect dangling index " + INDEX_NAME + " to be recovered",
+            waitUntil(() -> indexExists(INDEX_NAME), 1, TimeUnit.SECONDS)
+        );
+    }
+
+    /**
+     * Check that when dangling indices are not written, then they cannot be recovered into the cluster.
+     */
+    public void testDanglingIndicesAreNotRecoveredWhenNotWritten() throws Exception {
+        internalCluster().startNodes(3, buildSettings(0, false, true));
+
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+        ensureGreen(INDEX_NAME);
+        internalCluster().getInstances(IndicesService.class).forEach(
+            indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()));
 
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -130,7 +180,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that when dangling indices are discovered, then they can be listed.
      */
     public void testDanglingIndicesCanBeListed() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, false));
+        internalCluster().startNodes(3, buildSettings(0, true, false));
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
@@ -179,7 +229,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that dangling indices can be restored.
      */
     public void testDanglingIndicesCanBeRestored() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, false));
+        internalCluster().startNodes(3, buildSettings(0, true, false));
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
@@ -234,7 +284,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * being dangling.
      */
     public void testDanglingIndicesMustExistToBeRestored() {
-        internalCluster().startNodes(1, buildSettings(0, false));
+        internalCluster().startNodes(1, buildSettings(0, true, false));
 
         final RestoreDanglingIndexRequest request = new RestoreDanglingIndexRequest("NonExistentUUID", true);
 
@@ -254,7 +304,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that a dangling index can only be restored if "accept_data_loss" is set to true.
      */
     public void testMustAcceptDataLossToRestoreDanglingIndex() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, false));
+        internalCluster().startNodes(3, buildSettings(0, true, false));
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
@@ -317,7 +367,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * therefore be listed and deleted through the API
      */
     public void testDanglingIndexCanBeDeleted() throws Exception {
-        final Settings settings = buildSettings(1, false);
+        final Settings settings = buildSettings(1, true, false);
         internalCluster().startNodes(3, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
@@ -386,7 +436,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     }
 
     public void testDanglingIndexOverMultipleNodesCanBeDeleted() throws Exception {
-        final Settings settings = buildSettings(1, false);
+        final Settings settings = buildSettings(1, true, false);
         internalCluster().startNodes(5, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 4).build());
@@ -438,7 +488,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that when deleting a dangling index, it is required that the "accept_data_loss" flag is set.
      */
     public void testDeleteDanglingIndicesRequiresDataLossFlagToBeTrue() throws Exception {
-        final Settings settings = buildSettings(1, false);
+        final Settings settings = buildSettings(1, true, false);
         internalCluster().startNodes(3, settings);
 
         createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());

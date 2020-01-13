@@ -56,6 +56,10 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
+    /**
+     * Controls whether dangling indices should be automatically imported into the cluster
+     * state upon discovery. This setting is deprecated - use the <code>_dangling</code> API instead.
+     */
     public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
         "gateway.auto_import_dangling_indices",
         true,

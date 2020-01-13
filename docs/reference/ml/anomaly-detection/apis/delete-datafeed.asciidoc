@@ -28,7 +28,8 @@ can delete it.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-delete-datafeed-query-parms]]
 ==== {api-query-parms-title}
@@ -39,8 +40,6 @@ can delete it.
 
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}
-
-The following example deletes the `datafeed-total-requests` {dfeed}:
 
 [source,console]
 --------------------------------------------------

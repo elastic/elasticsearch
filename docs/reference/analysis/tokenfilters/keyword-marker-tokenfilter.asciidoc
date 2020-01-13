@@ -1,5 +1,8 @@
 [[analysis-keyword-marker-tokenfilter]]
-=== Keyword Marker Token Filter
+=== Keyword marker token filter
+++++
+<titleabbrev>Keyword marker</titleabbrev>
+++++
 
 Protects words from being modified by stemmers. Must be placed before
 any stemming filters.

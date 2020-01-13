@@ -141,6 +141,11 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
         }
+
+        @Override
+        public String toString() {
+            return "raw";
+        }
     };
 
     DocValueFormat BINARY = new DocValueFormat() {
@@ -345,6 +350,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        }
+
+        @Override
+        public String toString() {
+            return "ip";
         }
     };
 

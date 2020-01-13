@@ -368,8 +368,6 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 final Map<String, RoleDescriptor> previousPermissions = permissions;
                 try {
                     permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
-                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
-                        Files.exists(file) ? "changed" : "removed");
                 } catch (Exception e) {
                     logger.error(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -383,7 +381,11 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                         .collect(Collectors.toSet());
                 final Set<String> addedRoles = Sets.difference(permissions.keySet(), previousPermissions.keySet());
                 final Set<String> changedRoles = Collections.unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
-                listeners.forEach(c -> c.accept(changedRoles));
+                if (changedRoles.isEmpty() == false) {
+                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
+                            Files.exists(file) ? "changed" : "removed");
+                    listeners.forEach(c -> c.accept(changedRoles));
+                }
             }
         }
     }

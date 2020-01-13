@@ -21,9 +21,8 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
-
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
@@ -32,7 +31,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
@@ -65,7 +63,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public <T extends ScriptFactory> T compile(
+    public <T> T compile(
         String templateName,
         String templateSource,
         ScriptContext<T> context,

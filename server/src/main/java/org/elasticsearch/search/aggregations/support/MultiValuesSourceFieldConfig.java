@@ -82,7 +82,11 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        this.fieldName = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            this.fieldName = in.readOptionalString();
+        } else {
+            this.fieldName = in.readString();
+        }
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
         if (in.getVersion().before(Version.V_7_0_0)) {
@@ -110,7 +114,11 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeOptionalString(fieldName);
+        } else {
+            out.writeString(fieldName);
+        }
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
         if (out.getVersion().before(Version.V_7_0_0)) {

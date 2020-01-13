@@ -25,6 +25,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -64,6 +65,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private List<String> indexPatterns;
 
+    /**
+     * This field corresponds to the deprecated 'template' parameter, which was replaced by
+     * 'index_patterns' in 6.0. It is stored and rendered to xContent separately from
+     * 'index_patterns' to ensure that the server emits a deprecation warning when it's been set.
+     */
+    @Deprecated
+    @Nullable
+    private String template;
+
     private int order;
 
     private boolean create;
@@ -86,7 +96,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indexPatterns == null || indexPatterns.size() == 0) {
+        if (template == null && (indexPatterns == null || indexPatterns.size() == 0)) {
             validationException = addValidationError("index patterns are missing", validationException);
         }
         return validationException;
@@ -288,7 +298,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             String name = entry.getKey();
             if (name.equals("template")) {
                 if(entry.getValue() instanceof String) {
-                    patterns(Collections.singletonList((String) entry.getValue()));
+                    this.template = (String) entry.getValue();
                 }
             } else if (name.equals("index_patterns")) {
                 if(entry.getValue() instanceof String) {
@@ -297,7 +307,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
                     patterns(elements);
                 } else {
-                    throw new IllegalArgumentException("Malformed [template] value, should be a string or a list of strings");
+                    throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
                 }
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
@@ -424,7 +434,12 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("index_patterns", indexPatterns);
+        if (template != null) {
+            builder.field("template", template);
+        } else {
+            builder.field("index_patterns", indexPatterns);
+        }
+
         builder.field("order", order);
         if (version != null) {
             builder.field("version", version);

@@ -77,6 +77,7 @@ import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.IncrementalClusterStateWriter;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -110,7 +111,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
-import org.elasticsearch.transport.SimpleConnectionStrategy;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -199,6 +200,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BalancedShardsAllocator.THRESHOLD_SETTING,
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
             ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+            DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
@@ -308,6 +310,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+            SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
             RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
@@ -317,13 +320,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
-            SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategy.INCLUDE_SERVER_NAME,
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS,
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
-            SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,

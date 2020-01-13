@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -84,12 +85,15 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         if (preserveOriginal) {
             filters.add(IDENTITY_FILTER);
         }
+        // also merge and transfer token filter analysis modes with analyzer
+        AnalysisMode mode = AnalysisMode.ALL;
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
                 TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
                 factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
                 filters.add(factory);
+                mode = mode.merge(factory.getAnalysisMode());
             } else {
                 List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
                 List<TokenFilterFactory> chain = new ArrayList<>();
@@ -98,10 +102,12 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                     factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
                     chain.add(factory);
                     existingChain.add(factory);
+                    mode = mode.merge(factory.getAnalysisMode());
                 }
                 filters.add(chainFilters(filter, chain));
             }
         }
+        final AnalysisMode analysisMode = mode;
 
         return new TokenFilterFactory() {
             @Override
@@ -132,6 +138,11 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                     throw new IllegalArgumentException("Token filter [" + name()
                         + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
                 }
+            }
+
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return analysisMode;
             }
         };
     }

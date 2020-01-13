@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service responsible for managing {@link LicensesMetaData}.
@@ -64,6 +65,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final License.LicenseType type = License.LicenseType.parse(s);
         return SelfGeneratedLicense.validateSelfGeneratedType(type);
     }, Setting.Property.NodeScope);
+
+    static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
+
+    public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting("xpack.license.upload.types",
+        Collections.unmodifiableList(ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.toList())),
+        License.LicenseType::parse, LicenseService::validateUploadTypesSetting, Setting.Property.NodeScope);
 
     // pkg private for tests
     static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
@@ -106,6 +113,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
 
     /**
+     * Which license types are permitted to be uploaded to the cluster
+     * @see #ALLOWED_LICENSE_TYPES_SETTING
+     */
+    private final List<License.LicenseType> allowedLicenseTypes;
+
+    /**
      * Max number of nodes licensed by generated trial license
      */
     static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
@@ -124,6 +137,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
+        this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,
             () -> updateLicenseState(getLicensesMetaData()));
@@ -197,8 +211,20 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final long now = clock.millis();
         if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now || newLicense.startDate() > now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
-        } else if (newLicense.type().equals(License.LicenseType.BASIC.getTypeName())) {
+            return;
+        }
+        final License.LicenseType licenseType;
+        try {
+            licenseType = License.LicenseType.resolve(newLicense);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (licenseType == License.LicenseType.BASIC) {
             listener.onFailure(new IllegalArgumentException("Registering basic licenses is not allowed."));
+        } else if (isAllowedLicenseType(licenseType) == false) {
+            listener.onFailure(new IllegalArgumentException(
+                "Registering [" + licenseType.getTypeName() + "] licenses is not allowed on this cluster"));
         } else if (newLicense.expiryDate() < now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
@@ -271,6 +297,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         } else {
             return true;
         }
+    }
+
+    private boolean isAllowedLicenseType(License.LicenseType type) {
+        logger.debug("Checking license [{}] against allowed license types: {}", type, allowedLicenseTypes);
+        return allowedLicenseTypes.contains(type);
     }
 
     public static Map<String, String[]> getAckMessages(License newLicense, License currentLicense) {
@@ -574,5 +605,21 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     private static boolean isBoundToLoopback(DiscoveryNode localNode) {
         return localNode.getAddress().address().getAddress().isLoopbackAddress();
+    }
+
+    private static List<License.LicenseType> getAllowableUploadTypes() {
+        return Collections.unmodifiableList(Stream.of(License.LicenseType.values())
+            .filter(t -> t != License.LicenseType.BASIC)
+            .collect(Collectors.toList()));
+    }
+
+    private static void validateUploadTypesSetting(List<License.LicenseType> value) {
+        if (ALLOWABLE_UPLOAD_TYPES.containsAll(value) == false) {
+            throw new IllegalArgumentException("Invalid value [" +
+                value.stream().map(License.LicenseType::getTypeName).collect(Collectors.joining(",")) +
+                "] for " + ALLOWED_LICENSE_TYPES_SETTING.getKey() + ", allowed values are [" +
+                ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.joining(",")) +
+                "]");
+        }
     }
 }

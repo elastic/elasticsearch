@@ -39,6 +39,8 @@ public class Classification implements DataFrameAnalysis {
     public static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
 
+    private static final String STATE_DOC_ID_SUFFIX = "_classification_state#1";
+
     private static final ConstructingObjectParser<Classification, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Classification, Void> STRICT_PARSER = createParser(false);
 
@@ -247,6 +249,14 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
+    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
+        return new HashMap<String, String>() {{
+            put(resultsFieldName + "." + predictionFieldName, dependentVariable);
+            put(resultsFieldName + ".top_classes.class_name", dependentVariable);
+        }};
+    }
+
+    @Override
     public boolean supportsMissingValues() {
         return true;
     }
@@ -258,7 +268,12 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public String getStateDocId(String jobId) {
-        return jobId + "_classification_state#1";
+        return jobId + STATE_DOC_ID_SUFFIX;
+    }
+
+    public static String extractJobIdFromStateDoc(String stateDocId) {
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 
     @Override

@@ -84,12 +84,12 @@ public class TransportExplainDataFrameAnalyticsAction
     private void explain(Task task, PutDataFrameAnalyticsAction.Request request,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(client);
-        extractedFieldsDetectorFactory.createFromSource(request.getConfig(), true, ActionListener.wrap(
-            extractedFieldsDetector -> {
-                explain(task, request, extractedFieldsDetector, listener);
-            },
-            listener::onFailure
-        ));
+        extractedFieldsDetectorFactory.createFromSource(
+            request.getConfig(),
+            ActionListener.wrap(
+                extractedFieldsDetector -> explain(task, request, extractedFieldsDetector, listener),
+                listener::onFailure)
+        );
     }
 
     private void explain(Task task, PutDataFrameAnalyticsAction.Request request, ExtractedFieldsDetector extractedFieldsDetector,

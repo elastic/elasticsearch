@@ -235,6 +235,11 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(expectThrows(ExecutionException.class, onFailureListener::get).getCause(), instanceOf(IOException.class));
     }
 
+    /**
+     * Test that map passes the output of the function to its delegate listener and that exceptions in the function are propagated to the
+     * onFailure handler. Also verify that exceptions from ActionListener.onResponse does not invoke onFailure, since it is the
+     * responsibility of the ActionListener implementation (the client of the API) to handle exceptions in onResponse and onFailure.
+     */
     public void testMap() {
         AtomicReference<Exception> exReference = new AtomicReference<>();
 

@@ -385,6 +385,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertEquals("Should have index name in response", "foo", response.index());
     }
 
+    /**
+     * Test that when creating a new index successfully, a failure in the ActionListener's onResponse does not result in a call to
+     * onFailure. It is the responsibility of the caller to handle exceptions in the ActionListener's onResponse and onFailure methods.
+     */
     public void testOnResponseFailureOnMaster() throws Exception {
         final String exceptionMessage = randomAlphaOfLength(10);
         final Logger logger = LogManager.getLogger(ClusterApplierService.class);

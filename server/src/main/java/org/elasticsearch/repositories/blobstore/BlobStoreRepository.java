@@ -1269,7 +1269,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Collection<Void> voids) {
-                                logger.info("Successfully loaded all snapshot's version information from snapshot metadata");
+                                logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",
+                                    snapshotIdsWithoutVersion);
                             }
 
                             @Override

@@ -1169,7 +1169,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             for (Iterator<Equals> iterEq = equals.iterator(); iterEq.hasNext(); ) {
                 Equals eq = iterEq.next();
                 Object eqValue = eq.right().fold();
-                boolean rmEqual = false;
+                boolean removeEquals = false;
 
                 // Equals OR NotEquals
                 for (NotEquals neq : notEquals) {
@@ -1179,13 +1179,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             if (comp == 0) { // a = 2 OR a != 2 -> TRUE
                                 return TRUE;
                             } else { // a = 2 OR a != 5 -> a != 5
-                                rmEqual = true;
+                                removeEquals = true;
                                 break;
                             }
                         }
                     }
                 }
-                if (rmEqual) {
+                if (removeEquals) {
                     iterEq.remove();
                     updated = true;
                     continue;
@@ -1203,24 +1203,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), true,
                                     range.upper(), range.includeUpper()));
                             } // else : a = 2 OR 2 <= a < ? -> 2 <= a < ?
-                            rmEqual = true; // update range with lower equality instead or simply superfluous
+                            removeEquals = true; // update range with lower equality instead or simply superfluous
                             break;
                         } else if (upperComp != null && upperComp == 0) {
                             if (!range.includeUpper()) { // a = 2 OR ? < a < 2 -> ? < a <= 2
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(),
                                     range.upper(), true));
                             } // else : a = 2 OR ? < a <= 2 -> ? < a <= 2
-                            rmEqual = true; // update range with upper equality instead
+                            removeEquals = true; // update range with upper equality instead
                             break;
                         } else if (lowerComp != null && upperComp != null) {
                             if (0 < lowerComp && upperComp < 0) { // a = 2 OR 1 < a < 3
-                                rmEqual = true; // equality is superfluous
+                                removeEquals = true; // equality is superfluous
                                 break;
                             }
                         }
                     }
                 }
-                if (rmEqual) {
+                if (removeEquals) {
                     iterEq.remove();
                     updated = true;
                     continue;
@@ -1240,7 +1240,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 } // else (0 < comp || bc instanceof GreaterThanOrEqual) :
                                 // a = 3 OR a > 2 -> a > 2; a = 2 OR a => 2 -> a => 2
 
-                                rmEqual = true; // update range with equality instead or simply superfluous
+                                removeEquals = true; // update range with equality instead or simply superfluous
                                 break;
                             } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
                                 if (comp > 0) { // a = 2 OR a < 1 -> nop
@@ -1249,13 +1249,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 if (comp == 0 && bc instanceof LessThan) { // a = 2 OR a < 2 -> a <= 2
                                     inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right()));
                                 } // else (comp < 0 || bc instanceof LessThanOrEqual) : a = 2 OR a < 3 -> a < 3; a = 2 OR a <= 2 -> a <= 2
-                                rmEqual = true; // update range with equality instead or simply superfluous
+                                removeEquals = true; // update range with equality instead or simply superfluous
                                 break;
                             }
                         }
                     }
                 }
-                if (rmEqual) {
+                if (removeEquals) {
                     iterEq.remove();
                     updated = true;
                 }

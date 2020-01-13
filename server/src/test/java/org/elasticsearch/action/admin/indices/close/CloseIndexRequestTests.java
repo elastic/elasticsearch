@@ -55,6 +55,7 @@ public class CloseIndexRequestTests extends ESTestCase {
             request.writeTo(out);
 
             try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(out.getVersion());
                 assertEquals(request.getParentTask(), TaskId.readFromStream(in));
                 assertEquals(request.masterNodeTimeout(), in.readTimeValue());
                 assertEquals(request.timeout(), in.readTimeValue());

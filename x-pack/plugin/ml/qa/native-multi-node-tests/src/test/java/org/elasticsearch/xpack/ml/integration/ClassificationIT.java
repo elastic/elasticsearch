@@ -348,13 +348,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testDependentVariableIsNested() throws Exception {
         initialize("dependent_variable_is_nested");
         String predictedClassField = NESTED_FIELD + "_prediction";
-        indexData(sourceIndex, 6, 5, NESTED_FIELD);
+        indexData(sourceIndex, 100, 0, NESTED_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD));
         registerAnalytics(config);
         putAnalytics(config);
-
-        // Should not throw
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
@@ -366,16 +364,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
-    public void testDependentVariableIsAlias() throws Exception {
+    public void testDependentVariableIsAliasToKeyword() throws Exception {
         initialize("dependent_variable_is_alias");
         String predictedClassField = ALIAS_TO_KEYWORD_FIELD + "_prediction";
-        indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
+        indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(ALIAS_TO_KEYWORD_FIELD));
         registerAnalytics(config);
         putAnalytics(config);
-
-        // Should not throw
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
@@ -390,13 +386,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testDependentVariableIsAliasToNested() throws Exception {
         initialize("dependent_variable_is_alias_to_nested");
         String predictedClassField = ALIAS_TO_NESTED_FIELD + "_prediction";
-        indexData(sourceIndex, 6, 5, NESTED_FIELD);
+        indexData(sourceIndex, 100, 0, NESTED_FIELD);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(ALIAS_TO_NESTED_FIELD));
         registerAnalytics(config);
         putAnalytics(config);
-
-        // Should not throw
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 

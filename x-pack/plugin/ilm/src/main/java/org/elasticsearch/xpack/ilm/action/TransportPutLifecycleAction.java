@@ -251,12 +251,11 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             logger.debug("[{}] updated policy [{}] contains the same phase step keys and can be refreshed", index, policyId);
             return true;
         } else {
-            logger.debug("[{}] updated policy [{}] has different phase step keys. old: {}, new: {}",
+            logger.debug("[{}] updated policy [{}] has different phase step keys and will NOT refresh phase " +
+                    "definition as it differs too greatly. old: {}, new: {}",
                 index, policyId, oldPhaseStepKeys, newPhaseStepKeys);
+            return false;
         }
-
-        logger.debug("[{}] updated policy [{}] will NOT refresh phase definition as it differs too greatly", index, policyId);
-        return false;
     }
 
     /**

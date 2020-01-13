@@ -23,12 +23,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 
 /**
@@ -414,53 +411,30 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
         }
 
-        public static Hits fromXContent(XContentParser parser) throws IOException {
-            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            }
-            XContentParser.Token token = parser.currentToken();
-            String currentFieldName = null;
-            TotalHits totalHits = null;
-            ArrayList<SearchHit> searchHits = null;
-            ArrayList<Sequence> sequences = null;
-            ArrayList<Count> counts = null;
+        private static final ConstructingObjectParser<EqlSearchResponse.Hits, Void> PARSER =
+            new ConstructingObjectParser<>("eql/search_response_count", true,
+                args -> {
+                    int i = 0;
+                    @SuppressWarnings("unchecked") List<SearchHit> searchHits = (List<SearchHit>) args[i++];
+                    @SuppressWarnings("unchecked") List<Sequence> sequences = (List<Sequence>) args[i++];
+                    @SuppressWarnings("unchecked") List<Count> counts = (List<Count>) args[i++];
+                    TotalHits totalHits = (TotalHits) args[i];
+                    return new EqlSearchResponse.Hits(searchHits, sequences, counts, totalHits);
+                });
 
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (Fields.TOTAL.equals(currentFieldName)) {
-                        totalHits = new TotalHits(parser.longValue(), TotalHits.Relation.EQUAL_TO);
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (Fields.EVENTS.equals(currentFieldName)) {
-                        searchHits = new ArrayList<>();
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            searchHits.add(SearchHit.fromXContent(parser));
-                        }
-                    } else if (Fields.SEQUENCES.equals(currentFieldName)) {
-                        sequences = new ArrayList<>();
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            sequences.add(Sequence.fromXContent(parser));
-                        }
-                    } else if (Fields.COUNTS.equals(currentFieldName)) {
-                        counts = new ArrayList<>();
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            counts.add(Count.fromXContent(parser));
-                        }
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (SearchHits.Fields.TOTAL.equals(currentFieldName)) {
-                        totalHits = SearchHits.parseTotalHitsFragment(parser);
-                    } else {
-                        parser.skipChildren();
-                    }
-                }
-            }
-            return new EqlSearchResponse.Hits(searchHits, sequences, counts, totalHits);
+        static {
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p),
+                new ParseField(Fields.EVENTS));
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER,
+                new ParseField(Fields.SEQUENCES));
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Count.PARSER,
+                new ParseField(Fields.COUNTS));
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHits.parseTotalHitsFragment(p),
+                new ParseField(Fields.TOTAL));
+        }
+
+        public static Hits fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
 
         @Override

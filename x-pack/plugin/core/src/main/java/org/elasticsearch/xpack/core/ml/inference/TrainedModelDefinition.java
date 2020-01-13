@@ -179,6 +179,12 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             this(true);
         }
 
+        public Builder(TrainedModelDefinition definition) {
+            this(true);
+            this.preProcessors = new ArrayList<>(definition.getPreProcessors());
+            this.trainedModel = definition.trainedModel;
+        }
+
         public Builder setPreProcessors(List<PreProcessor> preProcessors) {
             this.preProcessors = preProcessors;
             return this;

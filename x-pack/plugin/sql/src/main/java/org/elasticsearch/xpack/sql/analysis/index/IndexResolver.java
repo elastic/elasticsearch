@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DateEsField;
@@ -358,11 +357,12 @@ public class IndexResolver {
 
         int dot = fieldName.lastIndexOf('.');
         String fullFieldName = fieldName;
+        EsField parent = null;
 
         if (dot >= 0) {
             String parentName = fieldName.substring(0, dot);
             fieldName = fieldName.substring(dot + 1);
-            EsField parent = flattedMapping.get(parentName);
+            parent = flattedMapping.get(parentName);
             if (parent == null) {
                 Map<String, FieldCapabilities> map = globalCaps.get(parentName);
                 Function<String, EsField> fieldFunction;
@@ -387,7 +387,12 @@ public class IndexResolver {
         }
 
         EsField esField = field.apply(fieldName);
-        
+
+        if (parent != null && parent.getDataType() == DataType.UNSUPPORTED) {
+            esField = new EsField(esField.getName(), DataType.UNSUPPORTED, esField.getProperties(), esField.isAggregatable(),
+                    esField.isAlias());
+        }
+
         parentProps.put(fieldName, esField);
         flattedMapping.put(fullFieldName, esField);
 
@@ -408,7 +413,7 @@ public class IndexResolver {
             case DATETIME:
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
-                return new UnsupportedEsField(fieldName, typeName);
+                return new UnsupportedEsField(fieldName, typeName, props);
             default:
                 return new EsField(fieldName, esType, props, isAggregateable, isAlias);
         }
@@ -496,11 +501,6 @@ public class IndexResolver {
                     continue;
                 }
                 
-                // skip the "flattened" type of field's "_keyed" subfield
-                if (fieldName.endsWith("." + FLATTENED_FIELD_SUFFIX) && typeEntry.getKey().equals(FlatObjectFieldMapper.CONTENT_TYPE)
-                        && typeCap.getType().equals(FlatObjectFieldMapper.CONTENT_TYPE)) {
-                    continue;
-                }
 
                 // compute the actual indices - if any are specified, take into account the unmapped indices
                 List<String> concreteIndices = null;

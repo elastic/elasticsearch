@@ -5,18 +5,24 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
- * SQL-related information about an index field that cannot be supported by SQL
+ * SQL-related information about an index field that cannot be supported by SQL.
+ * All the subfields (properties) of an unsupported type should also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
 
     private String originalType;
 
     public UnsupportedEsField(String name, String originalType) {
-        super(name, DataType.UNSUPPORTED, Collections.emptyMap(), false);
+        this(name, originalType, new HashMap<>());
+    }
+    
+    public UnsupportedEsField(String name, String originalType, Map<String, EsField> properties) {
+        super(name, DataType.UNSUPPORTED, properties, false);
         this.originalType = originalType;
     }
 

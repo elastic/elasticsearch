@@ -126,7 +126,7 @@ public class IndexResolverTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
     }
     
-    public void testFlattenedHiddenSubfieldIsIgnored() throws Exception {
+    public void testFlattenedHiddenSubfield() throws Exception {
         Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
         addFieldCaps(fieldCaps, "some_field", "flattened", false, false);
         addFieldCaps(fieldCaps, "some_field._keyed", "flattened", false, false);
@@ -143,14 +143,50 @@ public class IndexResolverTests extends ESTestCase {
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        assertNull(esIndex.mapping().get("some_field").getProperties().get("_keyed"));
-        assertNull(esIndex.mapping().get("nested_field").getProperties().get("sub_field").getProperties().get("_keyed"));
         assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("some_field").getProperties().get("_keyed").getDataType());
         assertEquals(DataType.OBJECT, esIndex.mapping().get("nested_field").getDataType());
         assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field").getDataType());
+        assertEquals(DataType.UNSUPPORTED,
+                esIndex.mapping().get("nested_field").getProperties().get("sub_field").getProperties().get("_keyed").getDataType());
         assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
         assertEquals(DataType.OBJECT, esIndex.mapping().get("another_field").getDataType());
         assertEquals(DataType.KEYWORD, esIndex.mapping().get("another_field").getProperties().get("_keyed").getDataType());
+    }
+    
+    public void testRandomMappingFieldTypeMappedAsUnsupported() throws Exception {
+        // generate a field type having the name of the format "foobar43"
+        String esFieldType = randomAlphaOfLengthBetween(5, 10) + randomIntBetween(-100, 100);
+        
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "some_field", esFieldType, false, false);
+        addFieldCaps(fieldCaps, "another_field", "object", true, false);
+        addFieldCaps(fieldCaps, "another_field._foo", esFieldType, true, false);
+        addFieldCaps(fieldCaps, "nested_field", "object", false, false);
+        addFieldCaps(fieldCaps, "nested_field.sub_field1", esFieldType, true, true);
+        addFieldCaps(fieldCaps, "nested_field.sub_field1.bar", esFieldType, true, true);
+        addFieldCaps(fieldCaps, "nested_field.sub_field2", esFieldType, true, true);
+        // even if this is of a supported type, because it belongs to an UNSUPPORTED type parent, it should also be UNSUPPORTED
+        addFieldCaps(fieldCaps, "nested_field.sub_field2.bar", "keyword", true, true);
+        addFieldCaps(fieldCaps, "text", "keyword", true, true);
+        
+        String wildcard = "*";
+        IndexResolution resolution = IndexResolver.mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
+        assertEquals(DataType.OBJECT, esIndex.mapping().get("nested_field").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field1").getDataType());
+        assertEquals(DataType.UNSUPPORTED,
+                esIndex.mapping().get("nested_field").getProperties().get("sub_field1").getProperties().get("bar").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field2").getDataType());
+        assertEquals(DataType.UNSUPPORTED,
+                esIndex.mapping().get("nested_field").getProperties().get("sub_field2").getProperties().get("bar").getDataType());
+        assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
+        assertEquals(DataType.OBJECT, esIndex.mapping().get("another_field").getDataType());
+        assertEquals(DataType.UNSUPPORTED, esIndex.mapping().get("another_field").getProperties().get("_foo").getDataType());
     }
 
     public void testMergeIncompatibleCapabilitiesOfObjectFields() throws Exception {

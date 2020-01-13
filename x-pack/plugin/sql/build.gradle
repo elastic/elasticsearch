@@ -39,7 +39,6 @@ check.dependsOn internalClusterTest
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly project(path: xpackModule('mapper-flattened'))
   compileOnly(project(':modules:lang-painless')) {
     exclude group: "org.ow2.asm"
   }

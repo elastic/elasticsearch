@@ -591,7 +591,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
             try {
-                Response resp = performSyncedFlush(index);
+                Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
                 Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
                 assertThat(result.get("failed"), equalTo(0));
             } catch (ResponseException ex) {

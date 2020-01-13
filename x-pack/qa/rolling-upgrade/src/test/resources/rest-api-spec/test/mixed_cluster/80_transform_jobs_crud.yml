@@ -1,9 +1,5 @@
 ---
 "Test put batch transform on mixed cluster":
-  - skip:
-      version: " - 7.99.99" # after BWC merged then remove entirely
-      reason:  disabled temporarily for backporting serialization change
-
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -110,10 +106,6 @@
 
 ---
 "Test put continuous transform on mixed cluster":
-  - skip:
-      version: " - 7.99.99" # after BWC merged then remove entirely
-      reason:  disabled temporarily for backporting serialization change
-
   - do:
       cluster.health:
         index: "transform-airline-data-cont"

@@ -143,7 +143,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testDateMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test").setId("1")
@@ -173,7 +173,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testDateObjectMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test").setId("1")
@@ -203,7 +203,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testMultiValueMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc",
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping(
                 "double0", "type=double",
                 "double1", "type=double",
                 "double2", "type=double"));
@@ -307,7 +307,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testInvalidDateMethodCall() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("double", "type=double"));
         ensureGreen("test");
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("double", "178000000.0"));
         try {
@@ -322,7 +322,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testSparseField() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("x", "type=long", "y", "type=long"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("id", 1, "x", 4),
@@ -490,7 +490,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testStringSpecialValueVariable() throws Exception {
         // i.e. expression script for term aggregations, which is not allowed
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("doc", "text", "type=keyword").get());
+                .setMapping("text", "type=keyword").get());
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("text", "hello"),

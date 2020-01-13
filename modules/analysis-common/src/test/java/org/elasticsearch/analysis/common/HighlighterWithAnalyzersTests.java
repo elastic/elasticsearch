@@ -121,7 +121,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(prepareCreate("test")
-                .addMapping("test", "body", "type=text,analyzer=custom_analyzer,"
+                .setMapping("body", "type=text,analyzer=custom_analyzer,"
                         + "search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
                 .setSettings(
                         Settings.builder().put(indexSettings())
@@ -173,7 +173,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .putList("index.analysis.filter.synonym.synonyms", "fast,quick");
 
         assertAcked(prepareCreate("test").setSettings(builder.build())
-            .addMapping("type1", "field1",
+            .setMapping("field1",
                 "type=text,term_vector=with_positions_offsets,search_analyzer=synonym," +
                     "analyzer=standard,index_options=offsets"));
         ensureGreen();
@@ -269,7 +269,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             equalTo("The <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
             equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog")));
 
-        assertAcked(prepareCreate("second_test_index").setSettings(builder.build()).addMapping("doc",
+        assertAcked(prepareCreate("second_test_index").setSettings(builder.build()).setMapping(
             "field4", "type=text,term_vector=with_positions_offsets,analyzer=synonym",
             "field3", "type=text,analyzer=synonym"));
         // with synonyms

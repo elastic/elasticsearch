@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class BinaryExec extends PhysicalPlan {
 

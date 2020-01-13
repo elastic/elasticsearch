@@ -59,12 +59,7 @@ final class SystemJvmOptions {
             "-Dio.netty.allocator.numDirectArenas=0",
             // log4j 2
             "-Dlog4j.shutdownHookEnabled=false",
-            "-Dlog4j2.disable.jmx=true",
-            /*
-             * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
-             * parsing will break in an incompatible way for some date patterns and locales.
-             */
-            "-Djava.locale.providers=SPI,COMPAT"));
+            "-Dlog4j2.disable.jmx=true"));
     }
 
 }

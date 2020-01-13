@@ -42,12 +42,15 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 // TESTRESPONSE[non_json]
 
 [[sql-kibana-console]]
+[TIP]
 .Using Kibana Console
+====
 If you are using {kibana-ref}/console-kibana.html[Kibana Console]
 (which is highly recommended), take advantage of the
 triple quotes `"""` when creating the query. This not only automatically escapes double
 quotes (`"`) inside the query string but also support multi-line as shown below:
 image:images/sql/rest/console-triple-quotes.png[]
+====
 
 [[sql-rest-format]]
 === Response Data Formats
@@ -270,8 +273,9 @@ cursor: "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmB
 [[sql-pagination]]
 === Paginating through a large response
 
-Using the example above, one can continue to the next page by sending back the `cursor` field. In
-case of text format the cursor is returned as `Cursor` http header.
+Using the example from the <<sql-rest-format,previous section>>, one can
+continue to the next page by sending back the cursor field. In case of text
+format, the cursor is returned as `Cursor` http header.
 
 [source,console]
 --------------------------------------------------

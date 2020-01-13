@@ -78,7 +78,7 @@ public class FilterIT extends ESIntegTestCase {
                 builders.add(client().prepareIndex("idx").setId(""+i).setSource(source));
             }
         }
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()

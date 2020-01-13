@@ -30,6 +30,7 @@ coming[8.0.0]
 * <<breaking_80_search_changes>>
 * <<breaking_80_settings_changes>>
 * <<breaking_80_indices_changes>>
+* <<breaking_80_api_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -81,3 +82,4 @@ include::migrate_8_0/reindex.asciidoc[]
 include::migrate_8_0/search.asciidoc[]
 include::migrate_8_0/settings.asciidoc[]
 include::migrate_8_0/indices.asciidoc[]
+include::migrate_8_0/api.asciidoc[]

@@ -112,7 +112,7 @@ public final class GeoQueryContext implements ToXContentObject {
         return new Builder();
     }
 
-    private static ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME, null);
+    private static final ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME);
     static {
         GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext,
                 geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)),

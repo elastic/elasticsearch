@@ -46,26 +46,26 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
      */
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .field("orientation", "left")
-                .endObject().endObject()
+                .endObject()
                 .endObject().endObject());
 
         // create index
-        assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName).setMapping(mapping));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .field("orientation", "right")
-                .endObject().endObject()
+                .endObject()
                 .endObject().endObject());
 
-        assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName+"2").setMapping(mapping));
         ensureGreen(idxName, idxName+"2");
 
         internalCluster().fullRestart();
@@ -102,7 +102,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
+            .setMapping("shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -130,7 +130,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() throws Exception {
-        String mapping = "{\n" +
+        String mapping = "{\"_doc\":{\n" +
             "    \"_routing\": {\n" +
             "      \"required\": true\n" +
             "    },\n" +
@@ -140,11 +140,11 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             "        \"tree\" : \"quadtree\"\n" +
             "      }\n" +
             "    }\n" +
-            "  }";
+            "  }}";
 
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +
@@ -169,7 +169,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     public void testLegacyCircle() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+            .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {

@@ -28,8 +28,16 @@ privileges. See <<security-privileges>> and
 [[ml-get-category-desc]]
 ==== {api-description-title}
 
-For more information about categories, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+When `categorization_field_name` is specified in the job configuration, it is
+possible to view the definitions of the resulting categories. A category
+definition describes the common terms matched and contains examples of matched
+values.
+
+The anomaly results from a categorization analysis are available as bucket,
+influencer, and record results. For example, the results might indicate that
+at 16:45 there was an unusual count of log message category 11. You can then
+examine the description and examples of that category. For more information, see
+{ml-docs}/ml-configuring-categories.html[Categorizing log messages].
 
 [[ml-get-category-path-parms]]
 ==== {api-path-parms-title}
@@ -39,33 +47,54 @@ For more information about categories, see
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<category_id>`::
-  (Optional, long) Identifier for the category. If you do not specify this
-  parameter, the API returns information about all categories in the
-  {anomaly-job}.
+(Optional, long) Identifier for the category. If you do not specify this
+parameter, the API returns information about all categories in the {anomaly-job}.
 
 [[ml-get-category-request-body]]
 ==== {api-request-body-title}
 
-`page`::
-`from`:::
-  (Optional, integer) Skips the specified number of categories.
-`size`:::
-  (Optional, integer) Specifies the maximum number of categories to obtain.
+`page`.`from`::
+(Optional, integer) Skips the specified number of categories.
+`page`.`size`::
+(Optional, integer) Specifies the maximum number of categories to obtain.
 
 [[ml-get-category-results]]
 ==== {api-response-body-title}
 
-The API returns the following information:
+The API returns an array of category objects, which have the following properties:
 
-`categories`::
-  (array) An array of category objects. For more information, see
-  <<ml-results-categories,Categories>>.
+`category_id`::
+(unsigned integer) A unique identifier for the category.
+
+`examples`::
+(array) A list of examples of actual values that matched the category.
+
+`grok_pattern`::
+experimental[] (string) A Grok pattern that could be used in {ls} or an ingest 
+pipeline to extract fields from messages that match the category. This field is
+experimental and may be changed or removed in a future release. The Grok
+patterns that are found are not optimal, but are often a good starting point for
+manual tweaking.
+
+`job_id`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`max_matching_length`::
+(unsigned integer) The maximum length of the fields that matched the category.
+The value is increased by 10% to enable matching for similar fields that have
+not been analyzed.
+
+`regex`::
+(string) A regular expression that is used to search for values that match the
+category.
+
+`terms`::
+(string) A space separated list of the common tokens that are matched in values
+of the category.
 
 [[ml-get-category-example]]
 ==== {api-examples-title}
-
-The following example gets information about one category for the
-`esxi_log` job:
 
 [source,console]
 --------------------------------------------------
@@ -78,7 +107,6 @@ GET _ml/anomaly_detectors/esxi_log/results/categories
 --------------------------------------------------
 // TEST[skip:todo]
 
-In this example, the API returns the following information:
 [source,js]
 ----
 {

@@ -65,8 +65,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     protected static final String DECAY = "decay";
     protected static final String OFFSET = "offset";
 
-    public static double DEFAULT_DECAY = 0.5;
-    public static MultiValueMode DEFAULT_MULTI_VALUE_MODE = MultiValueMode.MIN;
+    public static final double DEFAULT_DECAY = 0.5;
+    public static final MultiValueMode DEFAULT_MULTI_VALUE_MODE = MultiValueMode.MIN;
 
     private final String fieldName;
     //parsing of origin, scale, offset and decay depends on the field type, delayed to the data node that has the mapping for it

@@ -32,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)
+ * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)  Casts are inserted during semantic checking.
  */
 final class ECast extends AExpression {
 

@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -1211,5 +1212,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         assertNotNull(minVersion);
         return minVersion;
+    }
+
+    protected static Response performSyncedFlush(String indexName) throws IOException {
+        final Request request = new Request("POST", indexName + "/_flush/synced");
+        final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            final Builder options = RequestOptions.DEFAULT.toBuilder();
+            options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
+            request.setOptions(options);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            final Builder options = RequestOptions.DEFAULT.toBuilder();
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+            request.setOptions(options);
+        }
+        return client().performRequest(request);
     }
 }

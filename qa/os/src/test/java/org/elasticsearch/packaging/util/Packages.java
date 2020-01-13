@@ -291,7 +291,7 @@ public class Packages {
         }
     }
 
-    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
+    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws Exception {
         waitForElasticsearch(installation);
 
         if (isSystemd()) {
@@ -310,7 +310,7 @@ public class Packages {
         }
     }
 
-    public static void restartElasticsearch(Shell sh, Installation installation) throws IOException {
+    public static void restartElasticsearch(Shell sh, Installation installation) throws Exception {
         if (isSystemd()) {
             sh.run("systemctl restart elasticsearch.service");
         } else {

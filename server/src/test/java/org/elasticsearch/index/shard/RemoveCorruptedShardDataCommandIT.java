@@ -86,6 +86,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
@@ -577,8 +578,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (String nodeName : nodeNames) {
             final Path indexPath = indexPathByNodeName.get(nodeName);
             final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName), environmentByNodeName.get(nodeName).dataFiles(),
-                0, state, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName),
+                Stream.of(environmentByNodeName.get(nodeName).dataFiles()).map(path -> NodeEnvironment.resolveNodePath(path, 0))
+                    .toArray(Path[]::new), 0, state, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
         }
     }
 

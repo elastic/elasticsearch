@@ -138,7 +138,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     public void testBootstrapNoNodeMetaData() {
         Settings envSettings = buildEnvSettings(Settings.EMPTY);
         Environment environment = TestEnvironment.newEnvironment(envSettings);
-        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_FOLDER_FOUND_MSG);
     }
 
     public void testBootstrapNotBootstrappedCluster() throws Exception {

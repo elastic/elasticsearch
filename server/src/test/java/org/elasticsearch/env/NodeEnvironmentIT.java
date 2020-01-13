@@ -156,7 +156,8 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
 
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> PersistedClusterStateService.nodeMetaData(allDataPaths.stream().map(PathUtils::get).toArray(Path[]::new)));
+            () -> PersistedClusterStateService.nodeMetaData(allDataPaths.stream().map(PathUtils::get)
+                .map(path -> NodeEnvironment.resolveNodePath(path, 0)).toArray(Path[]::new)));
 
         assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
 

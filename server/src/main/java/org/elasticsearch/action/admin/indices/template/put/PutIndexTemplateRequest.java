@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -30,7 +31,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -47,7 +47,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +78,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private Map<String, String> mappings = new HashMap<>();
+    private String mappings;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -93,11 +92,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String mappingSource = in.readString();
-            mappings.put(type, mappingSource);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                in.readString();    // type - cannot assert on _doc because 7x allows arbitrary type names
+                this.mappings = in.readString();
+            }
+        } else {
+            this.mappings = in.readOptionalString();
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -228,12 +230,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType The type of content contained within the source
      */
-    public PutIndexTemplateRequest mapping(String type, String source, XContentType xContentType) {
-        return mapping(type, new BytesArray(source), xContentType);
+    public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
+        return mapping(new BytesArray(source), xContentType);
     }
 
     /**
@@ -251,41 +252,37 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      */
-    public PutIndexTemplateRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, BytesReference.bytes(source), source.contentType());
+    public PutIndexTemplateRequest mapping(XContentBuilder source) {
+        return mapping(BytesReference.bytes(source), source.contentType());
     }
 
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType the source content type
      */
-    public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
+    public PutIndexTemplateRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
-        return mapping(type, mappingAsMap);
+        return mapping(mappingAsMap);
     }
 
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      */
-    public PutIndexTemplateRequest mapping(String type, Map<String, Object> source) {
-        // wrap it in a type map if its not
-        if (source.size() != 1 || !source.containsKey(type)) {
-            source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
+    public PutIndexTemplateRequest mapping(Map<String, Object> source) {
+        if (source.size() != 1 || source.containsKey(MapperService.SINGLE_MAPPING_NAME) == false) {
+            source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            mappings.put(type, Strings.toString(builder));
+            mappings = Strings.toString(builder);
             return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
@@ -297,11 +294,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * ("field1", "type=string,store=true").
      */
     public PutIndexTemplateRequest mapping(String... source) {
-        mapping(MapperService.SINGLE_MAPPING_NAME, PutMappingRequest.simpleMapping(source));
+        mapping(PutMappingRequest.simpleMapping(source));
         return this;
     }
 
-    public Map<String, String> mappings() {
+    public String mappings() {
         return this.mappings;
     }
 
@@ -353,7 +350,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                             "Malformed [mappings] section for type [" + entry1.getKey() +
                                 "], should include an inner object describing the mapping");
                     }
-                    mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
+                    mapping((Map<String, Object>) entry1.getValue());
                 }
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
@@ -471,10 +468,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeInt(order);
         out.writeBoolean(create);
         writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeVInt(mappings == null ? 0 : 1);
+            if (mappings != null) {
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                out.writeString(mappings);
+            }
+        } else {
+            out.writeOptionalString(mappings);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {

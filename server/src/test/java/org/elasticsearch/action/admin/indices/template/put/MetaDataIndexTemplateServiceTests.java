@@ -102,7 +102,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        request.mappings(Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                         .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
                         .endObject().endObject().endObject()));
 
@@ -115,7 +115,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testBrokenMapping() throws Exception {
         PutRequest request = new PutRequest("api", "broken_mapping");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", "abcde");
+        request.mappings("abcde");
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -127,7 +127,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         //invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", "{}");
+        request.mappings("{}");
         Set<Alias> aliases = new HashSet<>();
         aliases.add(new Alias("invalid_alias").filter("abcde"));
         request.aliases(aliases);

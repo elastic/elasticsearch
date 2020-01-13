@@ -332,7 +332,7 @@ public class FileRolesStoreTests extends ESTestCase {
             }
 
             Settings.Builder builder = Settings.builder()
-                    .put("resource.reload.interval.high", "500ms")
+                    .put("resource.reload.interval.high", "100ms")
                     .put("path.home", home);
             Settings settings = builder.build();
             Environment env = TestEnvironment.newEnvironment(settings);
@@ -353,6 +353,19 @@ public class FileRolesStoreTests extends ESTestCase {
             assertTrue(descriptors.isEmpty());
 
             watcherService.start();
+
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+                writer.append("\n");
+            }
+
+            watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+            if (latch.getCount() != 1) {
+                fail("Listener should not be called as roles are not changed.");
+            }
+
+            descriptors = store.roleDescriptors(Collections.singleton("role1"));
+            assertThat(descriptors, notNullValue());
+            assertEquals(1, descriptors.size());
 
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();

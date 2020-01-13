@@ -132,7 +132,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
                     int offset = scaledRandomIntBetween(0, buffer.length - 1);
                     int read = stream.read(buffer, offset, buffer.length - offset);
-                    target.append(new BytesRef(buffer, offset, read));
+                    if (read >= 0) {
+                        target.append(new BytesRef(buffer, offset, read));
+                    } else {
+                        fail("Expected [" + (data.length - target.length()) + "] more bytes to be readable but reached EOF");
+                    }
                 }
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));

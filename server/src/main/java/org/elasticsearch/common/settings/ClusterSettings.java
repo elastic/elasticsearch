@@ -104,7 +104,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
-import org.elasticsearch.transport.SimpleConnectionStrategy;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -199,6 +199,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
             IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
             IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
+            IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
             MetaData.SETTING_READ_ONLY_SETTING,
             MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
@@ -293,10 +294,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
-            SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            SimpleConnectionStrategy.INCLUDE_SERVER_NAME,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
+            ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategy.INCLUDE_SERVER_NAME,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,

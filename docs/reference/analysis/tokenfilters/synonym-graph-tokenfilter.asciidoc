@@ -1,5 +1,8 @@
 [[analysis-synonym-graph-tokenfilter]]
-=== Synonym Graph Token Filter
+=== Synonym graph token filter
+++++
+<titleabbrev>Synonym graph</titleabbrev>
+++++
 
 The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.

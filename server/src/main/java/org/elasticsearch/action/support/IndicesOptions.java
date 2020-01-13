@@ -118,42 +118,6 @@ public class IndicesOptions implements ToXContentFragment {
             expandWildcards.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(expandWildcards));
     }
 
-    // Package visible for testing
-    static IndicesOptions fromByte(final byte id) {
-        // IGNORE_UNAVAILABLE = 1;
-        // ALLOW_NO_INDICES = 2;
-        // EXPAND_WILDCARDS_OPEN = 4;
-        // EXPAND_WILDCARDS_CLOSED = 8;
-        // FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
-        // FORBID_CLOSED_INDICES = 32;
-        // IGNORE_ALIASES = 64;
-
-        Set<Option> opts = new HashSet<>();
-        Set<WildcardStates> wildcards = new HashSet<>();
-        if ((id & 1) != 0) {
-            opts.add(Option.IGNORE_UNAVAILABLE);
-        }
-        if ((id & 2) != 0) {
-            opts.add(Option.ALLOW_NO_INDICES);
-        }
-        if ((id & 4) != 0) {
-            wildcards.add(WildcardStates.OPEN);
-        }
-        if ((id & 8) != 0) {
-            wildcards.add(WildcardStates.CLOSED);
-        }
-        if ((id & 16) != 0) {
-            opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
-        }
-        if ((id & 32) != 0) {
-            opts.add(Option.FORBID_CLOSED_INDICES);
-        }
-        if ((id & 64) != 0) {
-            opts.add(Option.IGNORE_ALIASES);
-        }
-        return new IndicesOptions(opts, wildcards);
-    }
-
     /**
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */

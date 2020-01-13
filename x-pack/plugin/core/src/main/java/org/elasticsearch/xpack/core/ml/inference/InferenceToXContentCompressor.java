@@ -43,8 +43,8 @@ public final class InferenceToXContentCompressor {
     }
 
     static <T> T inflate(String compressedString,
-                                CheckedFunction<XContentParser, T, IOException> parserFunction,
-                                NamedXContentRegistry xContentRegistry) throws IOException {
+                         CheckedFunction<XContentParser, T, IOException> parserFunction,
+                         NamedXContentRegistry xContentRegistry) throws IOException {
         try(XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE,
             inflate(compressedString, MAX_INFLATED_BYTES),

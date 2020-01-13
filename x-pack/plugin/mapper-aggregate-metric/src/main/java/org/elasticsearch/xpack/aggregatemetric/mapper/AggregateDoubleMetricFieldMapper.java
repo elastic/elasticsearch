@@ -6,15 +6,18 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -23,9 +26,12 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -304,6 +310,25 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public Object valueForDisplay(Object value) {
             return delegateFieldType().valueForDisplay(value);
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            return delegateFieldType().docValueFormat(format, timeZone);
+        }
+
+        @Override
+        public Relation isFieldWithinQuery(
+            IndexReader reader,
+            Object from, Object to,
+            boolean includeLower, boolean includeUpper,
+            ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+            return delegateFieldType().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            return delegateFieldType().fielddataBuilder(fullyQualifiedIndexName);
         }
 
     }

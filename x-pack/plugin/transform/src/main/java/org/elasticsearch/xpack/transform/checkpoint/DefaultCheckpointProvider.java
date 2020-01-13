@@ -167,7 +167,6 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                             listener.onFailure(new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards"));
                             return;
                         }
-                        logger.debug("Index stats response: {}", response);
                         listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, prefix));
                     }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
                 );

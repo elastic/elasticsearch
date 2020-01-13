@@ -166,7 +166,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 "[bitset too big]",
                 cache.getClass().getName(),
                 Level.WARN,
-                "built a DLS BitSet that uses [" + expectedBytesPerBitSet + "] bytes; the BitSet cache has a maximum size of [" +
+                "built a DLS BitSet that uses [" + expectedBytesPerBitSet + "] bytes; the DLS BitSet cache has a maximum size of [" +
                     maxCacheBytes + "] bytes; this object cannot be cached and will need to be rebuilt for each use;" +
                     " consider increasing the value of [xpack.security.dls.bitset.cache.size]"
             ));

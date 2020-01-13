@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.openssl.jcajce.JcaMiscPEMGenerator;
@@ -26,6 +27,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -144,7 +146,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         printHeader("Elasticsearch HTTP Certificate Utility", terminal);
 
         terminal.println("The 'http' command guides you through the process of generating certificates");
-        terminal.println("for use on the REST (http) interface for Elasticsearch.");
+        terminal.println("for use on the HTTP (Rest) interface for Elasticsearch.");
         terminal.println("");
         terminal.println("This tool will ask you a number of questions in order to generate the right");
         terminal.println("set of files for your needs.");
@@ -177,7 +179,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
         String nodeDescription = multipleCertificates ? "node #1" : "your nodes";
         while (true) {
-            final CertOptions cert = getCertificateConfiguration(terminal, multipleCertificates, nodeDescription, validity);
+            final CertOptions cert = getCertificateConfiguration(terminal, multipleCertificates, nodeDescription, validity, csr);
             terminal.println(Terminal.Verbosity.VERBOSE, "Generating the following " + (csr ? "CSR" : "Certificate") + ":");
             terminal.println(Terminal.Verbosity.VERBOSE, "\tName: " + cert.name);
             terminal.println(Terminal.Verbosity.VERBOSE, "\tSubject: " + cert.subject);
@@ -189,13 +191,12 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
             if (multipleCertificates && terminal.promptYesNo("Generate additional certificates?", true)) {
                 nodeDescription = "node #" + (certificates.size() + 1);
-                continue;
             } else {
                 break;
             }
         }
 
-        printHeader("What password do you want for your private keys?", terminal);
+        printHeader("What password do you want for your private key(s)?", terminal);
         char[] password;
         if (csr) {
             terminal.println("Your private keys will be stored as a PEM formatted file.");
@@ -204,7 +205,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("If you do not wish to use a password, simply press <enter> at the prompt below.");
             password = readPassword(terminal, "Provide a password for the private key: ", true);
         } else {
-            terminal.println("Your private keys will be stored in a PKCS#12 keystore file named \"http.p12\".");
+            terminal.println("Your private key(s) will be stored in a PKCS#12 keystore file named \"http.p12\".");
             terminal.println("This type of keystore is always password protected, but it is possible to use a");
             terminal.println("blank password.");
             terminal.println("");
@@ -224,7 +225,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         terminal.println("These files will be included in a single zip archive.");
         terminal.println("");
         Path output = resolvePath("elasticsearch-ssl-http.zip");
-        output = tryReadInput(terminal, "Where should we save the output?", output, this::resolvePath);
+        output = tryReadInput(terminal, "What filename should be used for the output zip file?", output, this::resolvePath);
 
         writeZip(output, password, caInfo, certificates, env);
         terminal.println("");
@@ -253,12 +254,12 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
                 createZipDirectory(zipStream, "elasticsearch");
                 if (certificates.size() == 1) {
-                    writeCertificate(zipStream, "elasticsearch", certificates.get(0), caInfo, password, env);
+                    writeCertificateAndKeyDetails(zipStream, "elasticsearch", certificates.get(0), caInfo, password, env);
                 } else {
                     for (CertOptions cert : certificates) {
                         final String dirName = "elasticsearch/" + cert.name;
                         createZipDirectory(zipStream, dirName);
-                        writeCertificate(zipStream, dirName, cert, caInfo, password, env);
+                        writeCertificateAndKeyDetails(zipStream, dirName, cert, caInfo, password, env);
                     }
                 }
 
@@ -307,8 +308,8 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         zip.putNextEntry(entry);
     }
 
-    private void writeCertificate(ZipOutputStream zip, String dirName, CertOptions cert, CertificateTool.CAInfo ca,
-                                  char[] password, Environment env) {
+    private void writeCertificateAndKeyDetails(ZipOutputStream zip, String dirName, CertOptions cert, CertificateTool.CAInfo ca,
+                                               char[] password, Environment env) {
         // TODO : Should we add support for configuring PKI in ES?
         try {
             final KeyPair keyPair = CertGenUtils.generateKeyPair(cert.keySize);
@@ -505,8 +506,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         terminal.println("(b) set it to a longer duration (3 - 5 years) and then perform a manual update");
         terminal.println("a few months before it expires.");
         terminal.println("");
+        terminal.println("You may enter the validity period in years (e.g. 3Y), months (e.g. 18M), or days (e.g. 90D)");
+        terminal.println("");
 
-        return readPeriodInput(terminal, "For how long should your certificate be valid?", DEFAULT_CERT_VALIDITY);
+        return readPeriodInput(terminal, "For how long should your certificate be valid?", DEFAULT_CERT_VALIDITY, 60);
     }
 
     private boolean askMultipleCertificates(Terminal terminal) {
@@ -532,7 +535,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     private CertOptions getCertificateConfiguration(Terminal terminal, boolean multipleCertificates, String nodeDescription,
-                                                    Period validity) {
+                                                    Period validity, boolean csr) {
 
         String certName = null;
         if (multipleCertificates) {
@@ -557,22 +560,23 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         terminal.println("");
         terminal.println("If you wish to use a wildcard certificate (for example *.es.example.com) you");
         terminal.println("can enter that here.");
-        terminal.println("");
-        terminal.println("When you have entered all the hostnames that you need, press <ENTER> to move on");
-        terminal.println("to the next step.");
-        terminal.println("");
 
         final List<String> dnsNames = new ArrayList<>();
         while (true) {
-            dnsNames.addAll(readMultiLineInput(terminal));
+            terminal.println("");
+            terminal.println("Enter all the hostnames that you need, one per line." );
+            terminal.println("When you are done, press <ENTER> once more to move on to the next step.");
+            terminal.println("");
+
+            dnsNames.addAll(readMultiLineInput(terminal, this::validateHostname));
             if (dnsNames.isEmpty()) {
-                terminal.println("You did not enter any hostnames.");
+                terminal.println(Terminal.Verbosity.SILENT, "You did not enter any hostnames.");
                 terminal.println("Clients are likely to encounter TLS hostname verification errors if they");
                 terminal.println("connect to your cluster using a DNS name.");
             } else {
-                terminal.println("You entered the following hostnames.");
-                terminal.println("");
-                dnsNames.forEach(s -> terminal.println(" - " + s));
+                terminal.println(Terminal.Verbosity.SILENT, "You entered the following hostnames.");
+                terminal.println(Terminal.Verbosity.SILENT, "");
+                dnsNames.forEach(s -> terminal.println(Terminal.Verbosity.SILENT, " - " + s));
             }
             terminal.println("");
             if (terminal.promptYesNo("Is this correct", true)) {
@@ -589,21 +593,27 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         terminal.println("");
         terminal.println("If you do not have fixed IP addresses, or not wish to support direct IP access");
         terminal.println("to your cluster then you can just press <ENTER> to skip this step.");
-        terminal.println("");
 
-        List<String> ipNames;
+        final List<String> ipNames = new ArrayList<>();
         while (true) {
-            ipNames = readMultiLineInput(terminal);
+            terminal.println("");
+            terminal.println("Enter all the IP addresses that you need, one per line.");
+            terminal.println("When you are done, press <ENTER> once more to move on to the next step.");
+            terminal.println("");
+
+            ipNames.addAll(readMultiLineInput(terminal, this::validateIpAddress));
             if (ipNames.isEmpty()) {
-                terminal.println("You did not enter any IP addresses.");
+                terminal.println(Terminal.Verbosity.SILENT, "You did not enter any IP addresses.");
             } else {
-                terminal.println("You entered the following IP addresses.");
-                terminal.println("");
-                ipNames.forEach(s -> terminal.println(" - " + s));
+                terminal.println(Terminal.Verbosity.SILENT, "You entered the following IP addresses.");
+                terminal.println(Terminal.Verbosity.SILENT, "");
+                ipNames.forEach(s -> terminal.println(Terminal.Verbosity.SILENT, " - " + s));
             }
             terminal.println("");
             if (terminal.promptYesNo("Is this correct", true)) {
                 break;
+            } else {
+                ipNames.clear();
             }
         }
 
@@ -622,16 +632,20 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         X500Principal dn = buildDistinguishedName(certName);
         int keySize = DEFAULT_CERT_KEY_SIZE;
         while (true) {
-            terminal.println("Key Name: " + certName);
-            terminal.println("Subject DN: " + dn);
-            terminal.println("Key Size: " + keySize);
-            terminal.println("");
+            terminal.println(Terminal.Verbosity.SILENT, "Key Name: " + certName);
+            terminal.println(Terminal.Verbosity.SILENT, "Subject DN: " + dn);
+            terminal.println(Terminal.Verbosity.SILENT, "Key Size: " + keySize);
+            terminal.println(Terminal.Verbosity.SILENT, "");
             if (terminal.promptYesNo("Do you wish to change any of these options?", false) == false) {
                 break;
             }
 
             printHeader("What should your key be named?", terminal);
-            terminal.println("This will be the entry name in the PKCS#12 keystore that is generated");
+            if (csr) {
+                terminal.println("This will be included in the name of the files that are generated");
+            } else {
+                terminal.println("This will be the entry name in the PKCS#12 keystore that is generated");
+            }
             terminal.println("It is helpful to have a meaningful name for this key");
             terminal.println("");
             certName = tryReadInput(terminal, "Key Name", certName, Function.identity());
@@ -666,18 +680,39 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return new CertOptions(certName, dn, dnsNames, ipNames, keySize, validity);
     }
 
+    private String validateHostname(String name) {
+        if (DERIA5String.isIA5String(name)) {
+            return null;
+        } else {
+            return name + " is not a valid DNS name";
+        }
+    }
+
+    private String validateIpAddress(String ip) {
+        if (InetAddresses.isInetAddress(ip)) {
+            return null;
+        } else {
+            return ip + " is not a valid IP address";
+        }
+    }
+
     private X500Principal buildDistinguishedName(String name) {
         return new X500Principal("CN=" + name.replace(".", ",DC="));
     }
 
-    private List<String> readMultiLineInput(Terminal terminal) {
+    private List<String> readMultiLineInput(Terminal terminal, Function<String, String> validator) {
         final List<String> lines = new ArrayList<>();
         while (true) {
             String input = terminal.readText("");
             if (Strings.isEmpty(input)) {
                 break;
             } else {
-                lines.add(input);
+                final String error = validator.apply(input);
+                if (error == null) {
+                    lines.add(input);
+                } else {
+                    terminal.println("Error: " + error);
+                }
             }
         }
         return lines;
@@ -760,7 +795,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
         printHeader("CA Generation Options", terminal);
         terminal.println("The generated certificate authority will have the following configuration values.");
-        terminal.println("These values have been selected based secure defaults.");
+        terminal.println("These values have been selected based on secure defaults.");
         terminal.println("You should not need to change these values unless you have specific requirements.");
         terminal.println("");
 
@@ -768,10 +803,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         Period validity = DEFAULT_CA_VALIDITY;
         int keySize = DEFAULT_CA_KEY_SIZE;
         while (true) {
-            terminal.println("Subject DN: " + dn);
-            terminal.println("Validity: " + toString(validity));
-            terminal.println("Key Size: " + keySize);
-            terminal.println("");
+            terminal.println(Terminal.Verbosity.SILENT, "Subject DN: " + dn);
+            terminal.println(Terminal.Verbosity.SILENT, "Validity: " + toString(validity));
+            terminal.println(Terminal.Verbosity.SILENT, "Key Size: " + keySize);
+            terminal.println(Terminal.Verbosity.SILENT, "");
             if (terminal.promptYesNo("Do you wish to change any of these options?", false) == false) {
                 break;
             }
@@ -796,12 +831,13 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
             printHeader("How long should your CA be valid?", terminal);
             terminal.println("Every certificate has an expiry date. When the expiry date is reached, clients");
-            terminal.println("clients will stop trusting your Certificate Authority and TLS connections will fail.");
+            terminal.println("will stop trusting your Certificate Authority and TLS connections will fail.");
             terminal.println("");
             terminal.println("We recommend that you set this to a long duration (3 - 5 years) and then perform a");
             terminal.println("manual update a few months before it expires.");
+            terminal.println("You may enter the validity period in years (e.g. 3Y), months (e.g. 18M), or days (e.g. 90D)");
 
-            validity = readPeriodInput(terminal, "CA Validity", validity);
+            validity = readPeriodInput(terminal, "CA Validity", validity, 90);
 
             printHeader("What key size should your CA have?", terminal);
             terminal.println("The RSA private key for your Certificate Authority has a fixed 'key size' (in bits).");
@@ -838,20 +874,28 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
      * Read input from the terminal as a {@link Period}.
      * Package protected for testing purposes.
      */
-    Period readPeriodInput(Terminal terminal, String prompt, Period defaultValue) {
-        defaultValue = tryReadInput(terminal, prompt, defaultValue, input -> {
+    Period readPeriodInput(Terminal terminal, String prompt, Period defaultValue, int recommendedMinimumDays) {
+        Period period = tryReadInput(terminal, prompt, defaultValue, input -> {
             String periodInput = input.replaceAll("[,\\s]", "");
             if (input.charAt(0) != 'P') {
                 periodInput = "P" + periodInput;
             }
             try {
-                return Period.parse(periodInput);
+                final Period parsed = Period.parse(periodInput);
+                final long approxDays = 30 * parsed.toTotalMonths() + parsed.getDays();
+                if (approxDays < recommendedMinimumDays) {
+                    terminal.println("The period '" + toString(parsed) + "' is less than the recommended period");
+                    if (terminal.promptYesNo("Are you sure?", false) == false) {
+                        return null;
+                    }
+                }
+                return parsed;
             } catch (DateTimeParseException e) {
                 terminal.println("Sorry, I do not understand '" + input + "' (" + e.getMessage() + ")");
                 return null;
             }
         });
-        return defaultValue;
+        return period;
     }
 
     private Integer readKeySize(Terminal terminal, int keySize) {
@@ -864,6 +908,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 }
                 if (size > 8192) {
                     terminal.println("Keys cannot be larger than 8192 bits");
+                    return null;
+                }
+                if (size % 1024 != 0) {
+                    terminal.println("The key size should be a multiple of 1024 bits");
                     return null;
                 }
                 return size;
@@ -945,7 +993,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private PrivateKey readPrivateKey(Path path, Terminal terminal) throws UserException {
+    private PrivateKey readPrivateKey(Path path, Terminal terminal) {
         try {
             return PemUtils.readPrivateKey(path, () -> {
                 terminal.println("");
@@ -1011,6 +1059,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             final String input = terminal.readText(prompt);
             final Path path = env.configFile().resolve(input).toAbsolutePath();
 
+            if (path.getFileName() == null) {
+                terminal.println(Terminal.Verbosity.SILENT, input + " is not a valid file");
+                continue;
+            }
             if (requireExisting == false || Files.isReadable(path)) {
                 return path;
             }
@@ -1024,7 +1076,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     static FileType guessFileType(Path path, Terminal terminal) {
-        // trust the extension for some file-types rather then inspecting the contents
+        // trust the extension for some file-types rather than inspecting the contents
         // we don't rely on filename for PEM files because
         // (a) users have a tendency to get things mixed up (e.g. naming something "key.crt")
         // (b) we need to distinguish between Certs & Keys, so a ".pem" file is ambiguous
@@ -1075,7 +1127,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     return types.get(0);
                 default:
                     if (types.contains(FileType.PEM_KEY)) {
-                        // A Key and something else. Could be a cert + key paired, but we don't support that
+                        // A Key and something else. Could be a cert + key pair, but we don't support that
                         terminal.errorPrintln("Cannot determine a type for the PEM file " + path + " because it contains: ["
                             + Strings.collectionToCommaDelimitedString(types) + "]");
                     } else {

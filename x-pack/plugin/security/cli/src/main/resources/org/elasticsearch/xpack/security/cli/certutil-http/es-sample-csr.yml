@@ -10,7 +10,7 @@
 #   ${CONF_DIR}/elasticsearch.yml
 #
 
-# This turns on SSL
+# This turns on SSL for the HTTP (Rest) interface
 xpack.security.http.ssl.enabled: true
 
 # This configures the certificate to use.

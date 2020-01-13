@@ -28,7 +28,7 @@ If you are using a public (commercial) CA then it is likely that Kibana will alr
 to do any special configuration.
 
 However, if you are using a CA that is specific to your organisation, then you will need to configure Kibana to trust that CA.
-When your CA issues your with a certificate, you should ask them for a copy of their certificate chain in PEM format.
+When your CA issues your certificate, you should ask them for a copy of their certificate chain in PEM format.
 
 The "${YML}" file, and the instructions below, explain what to do this with this file.
 

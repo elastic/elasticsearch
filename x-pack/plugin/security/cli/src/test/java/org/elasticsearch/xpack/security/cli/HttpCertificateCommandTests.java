@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.cli.HttpCertificateCommand.FileType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
@@ -105,6 +106,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
         testRoot = jimfs.getPath(getClass().getSimpleName() + "-" + getTestName());
         IOUtils.rm(testRoot);
         Files.createDirectories(testRoot);
+    }
+
+    @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
     }
 
     public void testGenerateSingleCertificateSigningRequest() throws Exception {
@@ -434,35 +440,52 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final MockTerminal terminal = new MockTerminal();
 
         terminal.addTextInput("2y");
-        assertThat(command.readPeriodInput(terminal, "", null), is(Period.ofYears(2)));
+        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(2)));
 
         terminal.addTextInput("18m");
-        assertThat(command.readPeriodInput(terminal, "", null), is(Period.ofMonths(18)));
+        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofMonths(18)));
 
         terminal.addTextInput("90d");
-        assertThat(command.readPeriodInput(terminal, "", null), is(Period.ofDays(90)));
+        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofDays(90)));
 
         terminal.addTextInput("1y, 6m");
-        assertThat(command.readPeriodInput(terminal, "", null), is(Period.ofYears(1).withMonths(6)));
+        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(1).withMonths(6)));
 
         // Test: Re-prompt on bad input.
         terminal.addTextInput("2m & 4d");
         terminal.addTextInput("2m 4d");
-        assertThat(command.readPeriodInput(terminal, "", null), is(Period.ofMonths(2).withDays(4)));
+        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofMonths(2).withDays(4)));
 
         terminal.addTextInput("1y, 6m");
-        assertThat(command.readPeriodInput(terminal, "", null), is(Period.ofYears(1).withMonths(6)));
+        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(1).withMonths(6)));
 
         // Test: Accept default value
         final Period p = Period.of(randomIntBetween(1, 5), randomIntBetween(0, 11), randomIntBetween(0, 30));
         terminal.addTextInput("");
-        assertThat(command.readPeriodInput(terminal, "", p), is(p));
+        assertThat(command.readPeriodInput(terminal, "", p, 1), is(p));
 
         final int y = randomIntBetween(1, 5);
         final int m = randomIntBetween(1, 11);
         final int d = randomIntBetween(1, 30);
         terminal.addTextInput(y + "y " + m + "m " + d + "d");
-        assertThat(command.readPeriodInput(terminal, "", null), is(Period.of(y, m, d)));
+        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.of(y, m, d)));
+
+        // Test: Minimum Days
+        final int shortDays = randomIntBetween(1, 20);
+
+        terminal.addTextInput(shortDays + "d");
+        terminal.addTextInput("y"); // I'm sure
+        assertThat(command.readPeriodInput(terminal, "", null, 21), is(Period.ofDays(shortDays)));
+
+        terminal.addTextInput(shortDays + "d");
+        terminal.addTextInput("n"); // I'm not sure
+        terminal.addTextInput("30d");
+        assertThat(command.readPeriodInput(terminal, "", null, 21), is(Period.ofDays(30)));
+
+        terminal.addTextInput("2m");
+        terminal.addTextInput("n"); // I'm not sure
+        terminal.addTextInput("2y");
+        assertThat(command.readPeriodInput(terminal, "", null, 90), is(Period.ofYears(2)));
     }
 
     public void testValidityPeriodToString() throws Exception {
@@ -678,7 +701,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         readmeShouldContain.forEach(s -> assertThat(kibanaReadme, containsString(s)));
         shouldNotContain.forEach(s -> assertThat(kibanaReadme, not(containsString(s))));
 
-        assertThat(kibanaYml, containsString("elasticsearch.ssl.certificateAuthorities: [ \"elasticsearch-ca.pem\" ]"));
+        assertThat(kibanaYml, containsString("elasticsearch.ssl.certificateAuthorities: [ \"config/elasticsearch-ca.pem\" ]"));
         assertThat(kibanaYml, containsString("https://"));
         shouldNotContain.forEach(s -> assertThat(kibanaYml, not(containsString(s))));
     }

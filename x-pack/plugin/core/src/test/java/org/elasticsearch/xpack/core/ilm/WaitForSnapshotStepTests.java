@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapshotStep> {
@@ -57,7 +58,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
     public void testNoSlmPolicies() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Collections.singletonMap("phase_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices =
@@ -76,12 +77,12 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
             .build();
-        SnapshotLifecycleMetadata smlMetaData = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
+        SnapshotLifecycleMetadata smlMetaData = new SnapshotLifecycleMetadata(Collections.singletonMap(instance.getPolicy(), slmPolicy),
             OperationMode.RUNNING, null);
 
 
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Collections.singletonMap("phase_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices =
@@ -102,11 +103,11 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
             .setLastSuccess(new SnapshotInvocationRecord("", phaseTime - 10, ""))
             .build();
-        SnapshotLifecycleMetadata smlMetaData = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
+        SnapshotLifecycleMetadata smlMetaData = new SnapshotLifecycleMetadata(Collections.singletonMap(instance.getPolicy(), slmPolicy),
             OperationMode.RUNNING, null);
 
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(phaseTime)))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Collections.singletonMap("phase_time", Long.toString(phaseTime)))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices =
@@ -127,11 +128,11 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
             .setLastSuccess(new SnapshotInvocationRecord("", phaseTime + 10, ""))
             .build();
-        SnapshotLifecycleMetadata smlMetaData = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
+        SnapshotLifecycleMetadata smlMetaData = new SnapshotLifecycleMetadata(Collections.singletonMap(instance.getPolicy(), slmPolicy),
             OperationMode.RUNNING, null);
 
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(phaseTime)))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Collections.singletonMap("phase_time", Long.toString(phaseTime)))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices =

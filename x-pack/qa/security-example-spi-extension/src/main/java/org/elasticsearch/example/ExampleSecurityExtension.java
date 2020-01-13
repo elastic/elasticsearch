@@ -6,7 +6,6 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.example.realm.CustomRoleMappingRealm;

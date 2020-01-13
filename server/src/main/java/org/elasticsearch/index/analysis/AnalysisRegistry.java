@@ -19,6 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
@@ -536,6 +537,10 @@ public final class AnalysisRegistry implements Closeable {
                 tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
+        for (Analyzer analyzer : normalizers.values()) {
+            analyzer.normalize("", ""); // check for deprecations
+        }
+
         if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
             analyzers.put(DEFAULT_ANALYZER_NAME,
                     produceAnalyzer(DEFAULT_ANALYZER_NAME,
@@ -599,6 +604,7 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
+        checkDeprecations(analyzer);
         return analyzer;
     }
 
@@ -625,5 +631,18 @@ public final class AnalysisRegistry implements Closeable {
         }
         NamedAnalyzer normalizer = new NamedAnalyzer(name, normalizerFactory.scope(), normalizerF);
         normalizers.put(name, normalizer);
+    }
+
+    // Deprecation warnings are emitted when actual TokenStreams are built; this is usually
+    // too late to be useful, so we build an empty tokenstream at construction time and
+    // use it, to ensure that warnings are emitted immediately.
+    private static void checkDeprecations(Analyzer analyzer) {
+        try (TokenStream ts = analyzer.tokenStream("", "")) {
+            ts.reset();
+            while (ts.incrementToken()) {}
+            ts.end();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

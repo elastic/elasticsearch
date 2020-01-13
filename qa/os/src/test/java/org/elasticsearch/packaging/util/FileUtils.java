@@ -286,7 +286,7 @@ public class FileUtils {
 
     // vagrant creates /tmp for us in windows so we use that to avoid long paths
     public static Path getTempDir() {
-        return Paths.get("/tmp");
+        return Paths.get("/tmp").toAbsolutePath();
     }
 
     public static Path getDefaultArchiveInstallPath() {
@@ -338,5 +338,16 @@ public class FileUtils {
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    /**
+     * Return the given path a string suitable for using on the host system.
+     */
+    public static String escapePath(Path path) {
+        if (Platforms.WINDOWS) {
+            // replace single backslash with forward slash, to avoid unintended escapes in scripts
+            return path.toString().replace('\\', '/');
+        }
+        return path.toString();
     }
 }

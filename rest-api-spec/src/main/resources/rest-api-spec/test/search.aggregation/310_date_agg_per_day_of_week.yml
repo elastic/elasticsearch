@@ -1,8 +1,7 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason:  "not backported yet"
+      version: " - 6.99.99"
 
   - do:
         indices.create:

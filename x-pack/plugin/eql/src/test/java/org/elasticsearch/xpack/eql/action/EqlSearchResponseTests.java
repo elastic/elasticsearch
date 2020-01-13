@@ -11,23 +11,24 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
 public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearchResponse> {
 
-    static EqlSearchResponse.Events randomEvents() {
+    static List<SearchHit> randomEvents() {
         int size = randomIntBetween(1, 10);
-        SearchHit[] hits = null;
+        List<SearchHit> hits = null;
         if (randomBoolean()) {
-            hits = new SearchHit[size];
+            hits = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                hits[i] = new SearchHit(i, randomAlphaOfLength(10), new HashMap<>());
+                hits.add(new SearchHit(i, randomAlphaOfLength(10), new HashMap<>()));
             }
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse.Events(hits);
+            return hits;
         }
         return null;
     }
@@ -49,55 +50,47 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
     public static EqlSearchResponse createRandomEventsResponse(TotalHits totalHits) {
         EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
-            hits = new EqlSearchResponse.Hits(randomEvents(), totalHits);
+            hits = new EqlSearchResponse.Hits(randomEvents(), null, null, totalHits);
         }
         return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
     }
 
     public static EqlSearchResponse createRandomSequencesResponse(TotalHits totalHits) {
         int size = randomIntBetween(1, 10);
-        EqlSearchResponse.Sequence[] seq = null;
+        List<EqlSearchResponse.Sequence> seq = null;
         if (randomBoolean()) {
-            seq = new EqlSearchResponse.Sequence[size];
+            seq = new ArrayList<>();
             for (int i = 0; i < size; i++) {
                 List<String> joins = null;
                 if (randomBoolean()) {
                     joins = Arrays.asList(generateRandomStringArray(6, 11, false));
                 }
-                seq[i] = new EqlSearchResponse.Sequence(joins, randomEvents());
+                seq.add(new EqlSearchResponse.Sequence(joins, randomEvents()));
             }
-        }
-        EqlSearchResponse.Sequences sequences = null;
-        if (randomBoolean()) {
-            sequences = new EqlSearchResponse.Sequences(seq);
         }
         EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
-            hits = new EqlSearchResponse.Hits(sequences, totalHits);
+            hits = new EqlSearchResponse.Hits(null, seq, null, totalHits);
         }
         return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
     }
 
     public static EqlSearchResponse createRandomCountResponse(TotalHits totalHits) {
         int size = randomIntBetween(1, 10);
-        EqlSearchResponse.Count[] cn = null;
+        List<EqlSearchResponse.Count> cn = null;
         if (randomBoolean()) {
-            cn = new EqlSearchResponse.Count[size];
+            cn = new ArrayList<>();
             for (int i = 0; i < size; i++) {
                 List<String> keys = null;
                 if (randomBoolean()) {
                     keys = Arrays.asList(generateRandomStringArray(6, 11, false));
                 }
-                cn[i] = new EqlSearchResponse.Count(randomIntBetween(0, 41), keys, randomFloat());
+                cn.add(new EqlSearchResponse.Count(randomIntBetween(0, 41), keys, randomFloat()));
             }
-        }
-        EqlSearchResponse.Counts counts = null;
-        if (randomBoolean()) {
-            counts = new EqlSearchResponse.Counts(cn);
         }
         EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
-            hits = new EqlSearchResponse.Hits(counts, totalHits);
+            hits = new EqlSearchResponse.Hits(null, null, cn, totalHits);
         }
         return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
     }

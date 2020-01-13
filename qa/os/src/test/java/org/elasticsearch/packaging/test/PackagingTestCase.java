@@ -175,6 +175,12 @@ public abstract class PackagingTestCase extends Assert {
                 logger.warn("Elasticsearch log:\n" +
                     FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             }
+            if (Files.exists(installation.logs.resolve("output.out"))) {
+                logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
+            }
+            if (Files.exists(installation.logs.resolve("output.err"))) {
+                logger.warn("Stderr:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.err")));
+            }
             throw e;
         }
 

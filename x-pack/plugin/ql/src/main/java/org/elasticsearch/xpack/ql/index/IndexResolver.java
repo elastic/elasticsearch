@@ -151,7 +151,6 @@ public class IndexResolver {
 
     private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
     private static final String UNMAPPED = "unmapped";
-    private static final String FLATTENED_FIELD_SUFFIX = "_keyed";
 
     private final Client client;
     private final String clusterName;

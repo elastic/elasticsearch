@@ -122,6 +122,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
         if (serializeTargetValueType(out.getVersion())) {
+            // TODO: deprecate this so we don't need to carry around a useless null in the wire format
             out.writeOptionalWriteable(null);
         }
         out.writeOptionalString(field);

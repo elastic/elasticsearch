@@ -85,17 +85,12 @@ public class ValuesSourceConfig {
             }
             /*
              * This is the Stand Alone Script path.  We should have a script that will produce a value independent of the presence or
-             * absence of any one field.  The type of the script is given by the userValueTypeHint field, and defaults to bytes if not
-             * specified.
+             * absence of any one field.  The type of the script is given by the userValueTypeHint field, if the user specified a type,
+             * or the aggregation's default type if the user didn't.
              */
-            // TODO: Not pluggable, should always be userValueTypeHint if specified, BYTES if not.
-            // TODO: Probably should validate that the resulting type is valid for this agg.  That needs to be plugable.
-            valuesSourceType = userValueTypeHint != null ? userValueTypeHint.getValuesSourceType() : CoreValuesSourceType.ANY;
-            if (valuesSourceType == CoreValuesSourceType.ANY) {
-                // the specific value source type is undefined, but for scripts,
-                // we need to have a specific value source
-                // type to know how to handle the script values, so we fallback
-                // on Bytes
+            if (userValueTypeHint != null) {
+                valuesSourceType = userValueTypeHint.getValuesSourceType();
+            } else {
                 valuesSourceType = defaultValueSourceType.apply(script);
             }
             config = new ValuesSourceConfig(valuesSourceType);
@@ -111,13 +106,14 @@ public class ValuesSourceConfig {
                  * specified missing value.
                  */
                 // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
-                // TODO: PLAN - get rid of unmapped; it's only used by valid(), and we're intending to get rid of that.
-                // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
-                valuesSourceType = userValueTypeHint != null ? userValueTypeHint.getValuesSourceType() : CoreValuesSourceType.ANY;
-                if (valuesSourceType == CoreValuesSourceType.ANY) {
+                if (userValueTypeHint != null) {
+                    valuesSourceType = userValueTypeHint.getValuesSourceType();
+                } else {
                     valuesSourceType = defaultValueSourceType.apply(script);
                 }
-                config = new ValuesSourceConfig(valuesSourceType);
+               config = new ValuesSourceConfig(valuesSourceType);
+                // TODO: PLAN - get rid of the unmapped flag field; it's only used by valid(), and we're intending to get rid of that.
+                // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
                 config.unmapped(true);
                 if (userValueTypeHint != null) {
                     // todo do we really need this for unmapped?

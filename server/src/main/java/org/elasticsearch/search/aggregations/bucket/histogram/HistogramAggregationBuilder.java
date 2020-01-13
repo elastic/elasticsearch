@@ -106,7 +106,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected ValuesSourceType defaultValueSourceType(Script script) {
-        // TODO: No idea how we'd support Range scripts here.
         return CoreValuesSourceType.NUMERIC;
     }
 

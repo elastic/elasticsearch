@@ -2,6 +2,7 @@
 setup:
   - skip:
       version: " - 7.5.99"
+      reason:  "Start of the week Monday was backported to 7.6"
 
   - do:
         indices.create:

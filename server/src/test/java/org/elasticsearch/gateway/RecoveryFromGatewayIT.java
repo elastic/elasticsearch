@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -56,9 +58,9 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -560,19 +562,14 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         });
 
         if (corrupt) {
+            // TODO NORELEASE revert this change when Store#tryOpenIndex is fixed
             for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
                 final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
                 if (Files.exists(indexPath)) { // multi data path might only have one path in use
-                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                        for (Path item : stream) {
-                            if (item.getFileName().toString().startsWith("segments_")) {
-                                logger.debug("--> deleting [{}]", item);
-                                Files.delete(item);
-                            }
-                        }
-                    }
+                    final Path markerPath = indexPath.resolve(Store.CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID(random()));
+                    logger.info("writing corruption marker at [{}]", markerPath);
+                    Files.write(markerPath, new byte[0], StandardOpenOption.CREATE_NEW);
                 }
-
             }
         }
 

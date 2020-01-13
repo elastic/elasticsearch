@@ -56,7 +56,7 @@ public final class PCallInvoke extends AExpression {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         prefix.analyze(scriptRoot, scope);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(scriptRoot, scope);
+        prefix.cast();
 
         if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
@@ -90,7 +90,7 @@ public final class PCallInvoke extends AExpression {
     CallNode write(ClassNode classNode) {
         CallNode callNode = new CallNode();
 
-        callNode.setLeftNode(prefix.write(classNode));
+        callNode.setLeftNode(prefix.cast(prefix.write(classNode)));
         callNode.setRightNode(sub.write(classNode));
 
         callNode.setLocation(location);

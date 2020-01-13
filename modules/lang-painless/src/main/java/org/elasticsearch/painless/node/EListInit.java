@@ -75,7 +75,7 @@ public final class EListInit extends AExpression {
             expression.expected = def.class;
             expression.internal = true;
             expression.analyze(scriptRoot, scope);
-            values.set(index, expression.cast(scriptRoot, scope));
+            expression.cast();
         }
     }
 
@@ -84,7 +84,7 @@ public final class EListInit extends AExpression {
         ListInitializationNode listInitializationNode = new ListInitializationNode();
 
         for (AExpression value : values) {
-            listInitializationNode.addArgumentNode(value.write(classNode));
+            listInitializationNode.addArgumentNode(value.cast(value.write(classNode)));
         }
 
         listInitializationNode.setLocation(location);

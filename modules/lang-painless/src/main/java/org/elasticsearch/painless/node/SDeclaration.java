@@ -54,7 +54,7 @@ public final class SDeclaration extends AStatement {
         if (expression != null) {
             expression.expected = resolvedType.getType();
             expression.analyze(scriptRoot, scope);
-            expression = expression.cast(scriptRoot, scope);
+            expression.cast();
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
@@ -64,7 +64,7 @@ public final class SDeclaration extends AStatement {
     DeclarationNode write(ClassNode classNode) {
         DeclarationNode declarationNode = new DeclarationNode();
 
-        declarationNode.setExpressionNode(expression == null ? null : expression.write(classNode));
+        declarationNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
 
         declarationNode.setLocation(location);
         declarationNode.setDeclarationType(((DResolvedType)type).getType());

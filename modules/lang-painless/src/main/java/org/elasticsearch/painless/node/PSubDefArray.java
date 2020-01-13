@@ -45,7 +45,7 @@ final class PSubDefArray extends AStoreable {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         index.analyze(scriptRoot, scope);
         index.expected = index.actual;
-        index = index.cast(scriptRoot, scope);
+        index.cast();
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
@@ -55,7 +55,7 @@ final class PSubDefArray extends AStoreable {
     BraceSubDefNode write(ClassNode classNode) {
         BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
-        braceSubDefNode.setChildNode(index.write(classNode));
+        braceSubDefNode.setChildNode(index.cast(index.write(classNode)));
 
         braceSubDefNode.setLocation(location);
         braceSubDefNode.setExpressionType(actual);

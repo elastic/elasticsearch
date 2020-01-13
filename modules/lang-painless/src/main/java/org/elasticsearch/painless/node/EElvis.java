@@ -83,16 +83,16 @@ public class EElvis extends AExpression {
             actual = promote;
         }
 
-        lhs = lhs.cast(scriptRoot, scope);
-        rhs = rhs.cast(scriptRoot, scope);
+        lhs.cast();
+        rhs.cast();
     }
 
     @Override
     ElvisNode write(ClassNode classNode) {
         ElvisNode elvisNode = new ElvisNode();
 
-        elvisNode.setLeftNode(lhs.write(classNode));
-        elvisNode.setRightNode(rhs.write(classNode));
+        elvisNode.setLeftNode(lhs.cast(lhs.write(classNode)));
+        elvisNode.setRightNode(rhs.cast(rhs.write(classNode)));
 
         elvisNode.setLocation(location);
         elvisNode.setExpressionType(actual);

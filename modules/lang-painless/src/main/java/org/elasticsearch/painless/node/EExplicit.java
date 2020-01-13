@@ -53,12 +53,12 @@ public final class EExplicit extends AExpression {
         child.expected = actual;
         child.explicit = true;
         child.analyze(scriptRoot, scope);
-        child = child.cast(scriptRoot, scope);
+        child.cast();
     }
 
     @Override
     ExpressionNode write(ClassNode classNode) {
-        return child.write(classNode);
+        return child.cast(child.write(classNode));
     }
 
     @Override

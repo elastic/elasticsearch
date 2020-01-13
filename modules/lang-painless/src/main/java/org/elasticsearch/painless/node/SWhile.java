@@ -50,7 +50,7 @@ public final class SWhile extends AStatement {
 
         condition.expected = boolean.class;
         condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
+        condition.cast();
 
         if (condition instanceof EBoolean) {
             continuous = ((EBoolean)condition).constant;
@@ -89,7 +89,7 @@ public final class SWhile extends AStatement {
     WhileNode write(ClassNode classNode) {
         WhileNode whileNode = new WhileNode();
 
-        whileNode.setConditionNode(condition.write(classNode));
+        whileNode.setConditionNode(condition.cast(condition.write(classNode)));
         whileNode.setBlockNode(block == null ? null : block.write(classNode));
 
         whileNode.setLocation(location);

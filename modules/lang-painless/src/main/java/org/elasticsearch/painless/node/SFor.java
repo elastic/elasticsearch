@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -68,7 +69,7 @@ public final class SFor extends AStatement {
                 }
 
                 initializer.expected = initializer.actual;
-                this.initializer = initializer.cast(scriptRoot, scope);
+                initializer.cast();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -77,7 +78,7 @@ public final class SFor extends AStatement {
         if (condition != null) {
             condition.expected = boolean.class;
             condition.analyze(scriptRoot, scope);
-            condition = condition.cast(scriptRoot, scope);
+            condition.cast();
 
             if (condition instanceof EBoolean) {
                 continuous = ((EBoolean)condition).constant;
@@ -103,7 +104,7 @@ public final class SFor extends AStatement {
             }
 
             afterthought.expected = afterthought.actual;
-            afterthought = afterthought.cast(scriptRoot, scope);
+            afterthought.cast();
         }
 
         if (block != null) {
@@ -131,9 +132,11 @@ public final class SFor extends AStatement {
     ForLoopNode write(ClassNode classNode) {
         ForLoopNode forLoopNode = new ForLoopNode();
 
-        forLoopNode.setInitialzerNode(initializer == null ? null : initializer.write(classNode));
-        forLoopNode.setConditionNode(condition == null ? null : condition.write(classNode));
-        forLoopNode.setAfterthoughtNode(afterthought == null ? null : afterthought.write(classNode));
+        forLoopNode.setInitialzerNode(initializer == null ? null : initializer instanceof AExpression ?
+                ((AExpression)initializer).cast((ExpressionNode)initializer.write(classNode)) :
+                initializer.write(classNode));
+        forLoopNode.setConditionNode(condition == null ? null : condition.cast(condition.write(classNode)));
+        forLoopNode.setAfterthoughtNode(afterthought == null ? null : afterthought.cast(afterthought.write(classNode)));
         forLoopNode.setBlockNode(block == null ? null : block.write(classNode));
 
         forLoopNode.setLocation(location);

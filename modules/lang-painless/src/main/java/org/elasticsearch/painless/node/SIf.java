@@ -46,7 +46,7 @@ public final class SIf extends AStatement {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         condition.expected = boolean.class;
         condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
+        condition.cast();
 
         if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -71,7 +71,7 @@ public final class SIf extends AStatement {
     IfNode write(ClassNode classNode) {
         IfNode ifNode = new IfNode();
 
-        ifNode.setConditionNode(condition.write(classNode));
+        ifNode.setConditionNode(condition.cast(condition.write(classNode)));
         ifNode.setBlockNode(ifblock.write(classNode));
 
         ifNode.setLocation(location);

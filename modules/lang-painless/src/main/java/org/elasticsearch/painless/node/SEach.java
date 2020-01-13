@@ -56,7 +56,7 @@ public class SEach extends AStatement {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         expression.analyze(scriptRoot, scope);
         expression.expected = expression.actual;
-        expression = expression.cast(scriptRoot, scope);
+        expression.cast();
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 

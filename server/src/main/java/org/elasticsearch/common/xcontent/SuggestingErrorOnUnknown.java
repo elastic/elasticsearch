@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.collect.Tuple;

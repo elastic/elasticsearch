@@ -148,7 +148,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "some_long", "type=long"));
+                .setMapping("some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -465,7 +465,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisMultiValueFields() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=keyword")
+                .setMapping("text", "type=text,analyzer=keyword")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         ensureGreen();
 
@@ -497,7 +497,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=whitespace")
+                .setMapping("text", "type=text,analyzer=whitespace")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         ensureGreen();
 
@@ -561,7 +561,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=whitespace", "date", "type=date"));
+                .setMapping("text", "type=text,analyzer=whitespace", "date", "type=date"));
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
@@ -663,7 +663,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSelectFields() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
+                .setMapping("text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
         ensureGreen("test");
 
         indexRandom(true, client().prepareIndex("test").setId("1").setSource(jsonBuilder()

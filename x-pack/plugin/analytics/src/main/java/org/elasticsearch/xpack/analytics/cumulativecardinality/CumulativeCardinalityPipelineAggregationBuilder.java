@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -18,35 +17,40 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
 public class CumulativeCardinalityPipelineAggregationBuilder
-    extends AbstractPipelineAggregationBuilder<CumulativeCardinalityPipelineAggregationBuilder> {
+        extends AbstractPipelineAggregationBuilder<CumulativeCardinalityPipelineAggregationBuilder> {
     public static final String NAME = "cumulative_cardinality";
 
+    public static final ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, String> PARSER =
+            new ConstructingObjectParser<>(NAME, false, (args, name) -> {
+                if (AnalyticsPlugin.getLicenseState().isDataScienceAllowed() == false) {
+                    throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
+                }
+
+                // Increment usage here since it is a good boundary between internal and external, and should correlate 1:1 with
+                // usage and not internal instantiations
+                AnalyticsPlugin.cumulativeCardUsage.incrementAndGet();
+
+                return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]);
+            });
+    static {
+        PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
+        PARSER.declareString(CumulativeCardinalityPipelineAggregationBuilder::format, FORMAT);
+    }
+
     private String format;
-
-    private static final Function<String, ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, Void>> PARSER
-        = name -> {
-        ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, Void> parser = new ConstructingObjectParser<>(
-            CumulativeCardinalityPipelineAggregationBuilder.NAME,
-            false,
-            o -> new CumulativeCardinalityPipelineAggregationBuilder(name, (String) o[0]));
-
-        parser.declareString(ConstructingObjectParser.constructorArg(), BUCKETS_PATH_FIELD);
-        parser.declareString(CumulativeCardinalityPipelineAggregationBuilder::format, FORMAT);
-        return parser;
-    };
 
     public CumulativeCardinalityPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, NAME, new String[] { bucketsPath });
@@ -113,17 +117,6 @@ public class CumulativeCardinalityPipelineAggregationBuilder
             builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
         }
         return builder;
-    }
-
-    public static CumulativeCardinalityPipelineAggregationBuilder parse(String aggName, XContentParser parser) {
-        if (AnalyticsPlugin.getLicenseState().isDataScienceAllowed() == false) {
-            throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
-        }
-
-        // Increment usage here since it is a good boundary between internal and external, and should correlate 1:1 with
-        // usage and not internal instantiations
-        AnalyticsPlugin.cumulativeCardUsage.incrementAndGet();
-        return PARSER.apply(aggName).apply(parser, null);
     }
 
     @Override

@@ -20,8 +20,8 @@ teardown:
   - do:
       license.get: {}
 
-  ## a license object has 11 attributes
-  - length: { license: 11 }
+  ## a v5 license object has 12 attributes & the Rest API always outputs in current version
+  - length: { license: 12 }
 
   ## bwc for licenses format
   - do:
@@ -35,7 +35,7 @@ teardown:
   - do:
       license.get: {}
 
-  - length: { license: 11 }
+  - length: { license: 12 }
 
   ## license version: 1.x
   - do:
@@ -49,7 +49,7 @@ teardown:
   - do:
       license.get: {}
 
-  - length: { license: 11 }
+  - length: { license: 12 }
 
   ## multiple licenses version: 1.x
   - do:
@@ -63,7 +63,7 @@ teardown:
   - do:
       license.get: {}
 
-  - length: { license: 11 }
+  - length: { license: 12 }
   - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
 ---
 "Should throw 404 after license deletion":
@@ -91,7 +91,7 @@ teardown:
   - do:
       license.get: {}
 
-  - length: { license: 11 }
+  - length: { license: 12 }
 ---
 "Cannot start basic":
 

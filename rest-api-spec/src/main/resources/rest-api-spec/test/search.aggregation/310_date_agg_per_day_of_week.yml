@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99" #We only run this against 7.x as we can't change the default start of the week in jdk8  (supported by 6.x)
+      version: " - 7.99.99"
       reason:  "not backported yet"
 
   - do:

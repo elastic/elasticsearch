@@ -84,6 +84,30 @@ public class FileUtils {
         }
     }
 
+    public static void rmWithRetries(Path... paths) {
+        int tries = 10;
+        Exception exception = null;
+        while (tries-- > 0) {
+            try {
+                IOUtils.rm(paths);
+                return;
+            } catch (IOException e) {
+                if (exception == null) {
+                    exception = e;
+                } else {
+                    exception.addSuppressed(e);
+                }
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new RuntimeException(exception);
+    }
+
     public static Path mktempDir(Path path) {
         try {
             return Files.createTempDirectory(path,"tmp");

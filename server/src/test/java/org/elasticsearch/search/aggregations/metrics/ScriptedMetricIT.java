@@ -294,7 +294,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // "1". then each test will have
         // to check that this bucket exists with the appropriate sub
         // aggregations.
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
@@ -1037,7 +1037,6 @@ public class ScriptedMetricIT extends ESIntegTestCase {
      * Make sure that a request using a deterministic script gets cached and nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        // TODO(stu): add non-determinism in init, agg, combine and reduce, ensure not cached
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state['count'] = 1", Collections.emptyMap());
         Script combineScript =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op aggregation", Collections.emptyMap());
@@ -1053,7 +1052,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script ndRandom = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return Math.random()",
                                      Collections.emptyMap());
 
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),

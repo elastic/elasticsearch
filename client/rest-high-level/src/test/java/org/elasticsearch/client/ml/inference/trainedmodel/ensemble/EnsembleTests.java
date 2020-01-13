@@ -67,15 +67,17 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
             .collect(Collectors.toList());
         int numberOfModels = randomIntBetween(1, 10);
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6, targetType))
-            .limit(numberOfFeatures)
+            .limit(numberOfModels)
             .collect(Collectors.toList());
-        OutputAggregator outputAggregator = null;
-        if (randomBoolean()) {
-            List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-            outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights), new LogisticRegression(weights));
+        List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
+        List<OutputAggregator> possibleAggregators = new ArrayList<>(Arrays.asList(new WeightedMode(weights),
+            new LogisticRegression(weights)));
+        if (targetType.equals(TargetType.REGRESSION)) {
+            possibleAggregators.add(new WeightedSum(weights));
         }
+        OutputAggregator outputAggregator = randomFrom(possibleAggregators.toArray(new OutputAggregator[0]));
         List<String> categoryLabels = null;
-        if (randomBoolean()) {
+        if (randomBoolean() && targetType.equals(TargetType.CLASSIFICATION)) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
         return new Ensemble(featureNames,

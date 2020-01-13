@@ -59,8 +59,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     public void testPinnedPromotions() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1",
-                        jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
 
@@ -143,8 +142,8 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     public void testExplain() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
                         .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();

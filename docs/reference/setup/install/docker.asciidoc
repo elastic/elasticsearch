@@ -365,11 +365,11 @@ and the data and log directories must be writable by this user.
 
 By default, {es} will auto-generate a keystore file for secure settings. This file
 is obfuscated but not encrypted. If you want to encrypt your <<secure-settings,secure settings>>
-by password-protected the keystore that stores them, you must use the `elasticsearch-keystore`
+by password-protecting the keystore that stores them, you must use the `elasticsearch-keystore`
 utility to create a password-protected keystore and bind-mount it to the container
 as `/usr/share/elasticsearch/config/elasticsearch.keystore`. In order to provide
 the Docker container with the password at startup, set the Docker environment
-value `KEYSTORE_VALUE` to the value of your password. For example, a `docker run`
+value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker run`
 command might have the following options:
 
 [source, sh]

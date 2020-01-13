@@ -176,7 +176,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 final BitSet bs = BitSet.of(s.iterator(), context.reader().maxDoc());
                 final long bitSetBytes = bs.ramBytesUsed();
                 if (bitSetBytes > this.maxWeightBytes) {
-                    logger.warn("built a DLS BitSet that uses [{}] bytes; the BitSet cache has a maximum size of [{}] bytes;" +
+                    logger.warn("built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;" +
                             " this object cannot be cached and will need to be rebuilt for each use; consider increasing the value of [{}]",
                         bitSetBytes, maxWeightBytes, CACHE_SIZE_SETTING.getKey());
                 } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {

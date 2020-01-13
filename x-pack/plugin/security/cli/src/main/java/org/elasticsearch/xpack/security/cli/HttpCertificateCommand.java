@@ -199,7 +199,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         printHeader("What password do you want for your private key(s)?", terminal);
         char[] password;
         if (csr) {
-            terminal.println("Your private keys will be stored as a PEM formatted file.");
+            terminal.println("Your private key(s) will be stored as a PEM formatted file.");
             terminal.println("We recommend that you protect your private keys with a password");
             terminal.println("");
             terminal.println("If you do not wish to use a password, simply press <enter> at the prompt below.");

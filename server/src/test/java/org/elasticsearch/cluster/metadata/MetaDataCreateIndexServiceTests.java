@@ -828,6 +828,21 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(targetRoutingNumberOfShards, is(6));
     }
 
+    public void testSoftDeletesDisabledDeprecation() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
+            + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test].");
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        if (randomBoolean()) {
+            request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+        }
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, List.of(), Map.of(),
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+    }
+
     private IndexTemplateMetaData addMatchingTemplate(Consumer<IndexTemplateMetaData.Builder> configurator) {
         IndexTemplateMetaData.Builder builder = templateMetaDataBuilder("template1", "te*");
         configurator.accept(builder);

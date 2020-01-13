@@ -511,7 +511,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsFromDangling(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN || isIndexVerifiedBeforeClosed(indexMetaData)) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
                         .initializeAsFromDangling(indexMetaData);
                 add(indexRoutingBuilder);

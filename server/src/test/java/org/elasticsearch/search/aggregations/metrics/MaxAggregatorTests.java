@@ -751,7 +751,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         fieldType.setName("value");
         fieldType.setHasDocValues(true);
 
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>max", true)))
             .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))
@@ -817,7 +817,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max") .field("values");
-        ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count", null)
+        ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
             .field("values");
 
         MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, indexSearcher, fieldType);
@@ -867,9 +867,10 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (Aggregator.SubAggCollectionMode collectionMode : Aggregator.SubAggCollectionMode.values()) {
             MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max")
                 .field("values");
-            ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count", null)
+            ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
                 .field("values");
-            TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms",  ValueType.NUMERIC)
+            TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms")
+                .userValueTypeHint(ValueType.NUMERIC)
                 .field("value").collectMode(collectionMode)
                 .subAggregation(new MaxAggregationBuilder("sub_max").field("invalid"));
 

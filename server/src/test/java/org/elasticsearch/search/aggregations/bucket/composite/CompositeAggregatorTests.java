@@ -1625,7 +1625,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                         .field("keyword");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
                         .subAggregation(
-                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                                 .field("terms")
                                 .collectMode(mode)
                                 .subAggregation(new MaxAggregationBuilder("max").field("long"))
@@ -1653,7 +1653,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                         .field("keyword");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
                         .subAggregation(
-                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                                 .field("terms")
                                 .collectMode(mode)
                                 .subAggregation(new MaxAggregationBuilder("max").field("long"))

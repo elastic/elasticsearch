@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -43,14 +42,14 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     public MockDeprecatedAggregationBuilder() {
-        super(NAME, ValueType.NUMERIC);
+        super(NAME);
     }
 
     /**
      * Read from a stream.
      */
     protected MockDeprecatedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, null, null);
+        super(in);
     }
 
     @Override

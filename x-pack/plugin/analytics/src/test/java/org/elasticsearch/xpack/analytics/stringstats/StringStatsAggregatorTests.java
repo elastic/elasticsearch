@@ -206,9 +206,10 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         textFieldType.setName("text");
         textFieldType.setFielddata(true);
 
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms")
+            .userValueTypeHint(ValueType.NUMERIC)
             .field("value")
-            .subAggregation(new StringStatsAggregationBuilder("text_stats").field("text").valueType(ValueType.STRING));
+            .subAggregation(new StringStatsAggregationBuilder("text_stats").field("text").userValueTypeHint(ValueType.STRING));
 
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

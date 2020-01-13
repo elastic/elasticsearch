@@ -29,8 +29,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -63,15 +61,15 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RareTermsAggregationBuilder(aggregationName, null), null);
+        return PARSER.parse(parser, new RareTermsAggregationBuilder(aggregationName), null);
     }
 
     private IncludeExclude includeExclude = null;
     private int maxDocCount = 1;
     private double precision = 0.001;
 
-    public RareTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, valueType);
+    public RareTermsAggregationBuilder(String name) {
+        super(name);
     }
 
     private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -88,7 +86,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
      * Read from a stream.
      */
     public RareTermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         maxDocCount = in.readVInt();
     }

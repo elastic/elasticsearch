@@ -29,15 +29,15 @@ public final class MultiValuesSourceParseHelper {
 
     public static <VS extends ValuesSource, T> void declareCommon(
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<VS, ?>, T> objectParser, boolean formattable,
-        ValueType targetValueType) {
+        ValueType expectedValueType) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::valueType, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
-            if (targetValueType != null && valueType.isNotA(targetValueType)) {
+            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                        + valueType + "]. It can only work on value of type ["
-                        + targetValueType + "]");
+                        + valueType + "].  It can only work on value off type ["
+                        + expectedValueType + "]");
             }
             return valueType;
         }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);

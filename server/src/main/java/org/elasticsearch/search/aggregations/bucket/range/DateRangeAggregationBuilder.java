@@ -23,12 +23,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -81,6 +84,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType(Script script) {
+        return CoreValuesSourceType.DATE;
     }
 
     /**

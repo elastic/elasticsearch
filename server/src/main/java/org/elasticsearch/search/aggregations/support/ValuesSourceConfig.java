@@ -19,9 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
@@ -29,7 +27,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.function.Function;
 
 /**
@@ -52,19 +49,34 @@ public class ValuesSourceConfig {
     }
 
     /**
-     * Resolve a {@link ValuesSourceConfig} given configuration parameters.
+     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
+     * {@link ValuesSourceConfig} based on that {@link ValuesSourceType}
+     *
+     * @param context - the query context
+     * @param userValueTypeHint - User specified value type; used for missing values and scripts
+     * @param field - The field being aggregated over.  At least one of field and script must not be null
+     * @param script - The script the user specified.  At least one of field and script must not be null
+     * @param missing - A user specified value to apply when the field is missing.  Should be of type userValueTypeHint
+     * @param timeZone - Used to generate a format for dates
+     * @param format - The format string to apply to this field.  Confusingly, this is used for input parsing as well as output formatting
+     *               See https://github.com/elastic/elasticsearch/issues/47469
+     * @param defaultValueSourceType - TODO: Get rid of this.
+     * @param aggregationName - Name of the aggregation, generally from the aggregation builder.  This is used as a lookup key in the
+     *                          {@link ValuesSourceRegistry}
+     * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
     public static  ValuesSourceConfig resolve(
         QueryShardContext context,
-        ValueType valueType,
+        ValueType userValueTypeHint,
         String field, Script script,
         Object missing,
         ZoneId timeZone,
         String format,
-        Function<Script, ValuesSourceType> resolveScriptAny,
+        Function<Script, ValuesSourceType> defaultValueSourceType,
         String aggregationName) {
         ValuesSourceConfig config;
-
+        MappedFieldType fieldType = null;
+        ValuesSourceType valuesSourceType;
         if (field == null) {
             // Stand Alone Script Case
             if (script == null) {
@@ -73,25 +85,20 @@ public class ValuesSourceConfig {
             }
             /*
              * This is the Stand Alone Script path.  We should have a script that will produce a value independent of the presence or
-             * absence of any one field.  The type of the script is given by the valueType field, and defaults to bytes if not specified.
+             * absence of any one field.  The type of the script is given by the userValueTypeHint field, if the user specified a type,
+             * or the aggregation's default type if the user didn't.
              */
-            // TODO: Not pluggable, should always be valueType if specified, BYTES if not.
-            // TODO: Probably should validate that the resulting type is valid for this agg.  That needs to be plugable.
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
-            if (valuesSourceType == CoreValuesSourceType.ANY) {
-                // the specific value source type is undefined, but for scripts,
-                // we need to have a specific value source
-                // type to know how to handle the script values, so we fallback
-                // on Bytes
-                valuesSourceType = resolveScriptAny.apply(script);
+            if (userValueTypeHint != null) {
+                valuesSourceType = userValueTypeHint.getValuesSourceType();
+            } else {
+                valuesSourceType = defaultValueSourceType.apply(script);
             }
             config = new ValuesSourceConfig(valuesSourceType);
-            config.format(resolveFormat(format, valueType, timeZone));
             config.script(createScript(script, context));
-            config.scriptValueType(valueType);
+            config.scriptValueType(userValueTypeHint);
         } else {
             // Field case
-            MappedFieldType fieldType = context.fieldMapper(field);
+            fieldType = context.fieldMapper(field);
             if (fieldType == null) {
                 /* Unmapped Field Case
                  * We got here because the user specified a field, but it doesn't exist on this index, possibly because of a wildcard index
@@ -99,25 +106,30 @@ public class ValuesSourceConfig {
                  * specified missing value.
                  */
                 // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
-                ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
-                config = new ValuesSourceConfig(valuesSourceType);
-                config.format(resolveFormat(format, valueType, timeZone));
+                if (userValueTypeHint != null) {
+                    valuesSourceType = userValueTypeHint.getValuesSourceType();
+                } else {
+                    valuesSourceType = defaultValueSourceType.apply(script);
+                }
+               config = new ValuesSourceConfig(valuesSourceType);
+                // TODO: PLAN - get rid of the unmapped flag field; it's only used by valid(), and we're intending to get rid of that.
+                // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
                 config.unmapped(true);
-                if (valueType != null) {
+                if (userValueTypeHint != null) {
                     // todo do we really need this for unmapped?
-                    config.scriptValueType(valueType);
+                    config.scriptValueType(userValueTypeHint);
                 }
             } else {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                ValuesSourceType valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
-                    aggregationName, valueType);
+                valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
+                    aggregationName, userValueTypeHint, script, defaultValueSourceType);
                 config = new ValuesSourceConfig(valuesSourceType);
 
                 config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
                 config.script(createScript(script, context));
-                config.format(fieldType.docValueFormat(format, timeZone));
             }
         }
+        config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
         config.missing(missing);
         config.timezone(timeZone);
         return config;
@@ -132,19 +144,13 @@ public class ValuesSourceConfig {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable ZoneId tz) {
-        if (valueType == null) {
-            return DocValueFormat.RAW; // we can't figure it out
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValuesSourceType valuesSourceType, @Nullable ZoneId tz,
+                                                MappedFieldType fieldType) {
+        if (fieldType != null) {
+            return fieldType.docValueFormat(format, tz);
         }
-        DocValueFormat valueFormat = valueType.defaultFormat;
-        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
-            valueFormat = new DocValueFormat.Decimal(format);
-        }
-        if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
-            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : ZoneOffset.UTC,
-                DateFieldMapper.Resolution.MILLISECONDS);
-        }
-        return valueFormat;
+        // Script or Unmapped case
+        return valuesSourceType.getFormatter(format, tz);
     }
 
     private final ValuesSourceType valueSourceType;
@@ -231,15 +237,14 @@ public class ValuesSourceConfig {
         return format;
     }
 
+    /**
+     * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
+     * @param context - Literally just used to get the current time
+     * @return - A {@link ValuesSource} ready to be read from by an aggregator
+     */
     @Nullable
+    // TODO: Replace QueryShardContext with a LongProvider
     public ValuesSource toValuesSource(QueryShardContext context) {
-        return toValuesSource(context, value -> ValuesSource.Bytes.WithOrdinals.EMPTY);
-    }
-
-    /** Get a value source given its configuration. A return value of null indicates that
-     *  no value source could be built. */
-    @Nullable
-    public ValuesSource toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
@@ -251,9 +256,6 @@ public class ValuesSourceConfig {
             if (missing() == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
-            } else if (valueSourceType() == CoreValuesSourceType.ANY) {
-                // TODO: Clean up special cases around CoreValuesSourceType.ANY
-                vs = resolveMissingAny.apply(missing());
             } else {
                 vs = valueSourceType().getEmpty();
             }

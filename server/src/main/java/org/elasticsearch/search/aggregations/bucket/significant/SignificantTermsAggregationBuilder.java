@@ -37,8 +37,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -90,7 +88,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
     public static SignificantTermsAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
+        return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName), null);
     }
 
     private IncludeExclude includeExclude = null;
@@ -99,15 +97,15 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
-    public SignificantTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, valueType);
+    public SignificantTermsAggregationBuilder(String name) {
+        super(name);
     }
 
     /**
      * Read from a Stream.
      */
     public SignificantTermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
         bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
         filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);

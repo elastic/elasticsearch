@@ -67,15 +67,6 @@ public final class DateHistogramAggregatorFactory
     }
 
     @Override
-    protected ValuesSource resolveMissingAny(Object missing) {
-        if (missing instanceof Number) {
-            return ValuesSource.Numeric.EMPTY;
-        }
-        throw new IllegalArgumentException("Only numeric missing values are supported for date histogram aggregation, found ["
-            + missing + "]");
-    }
-
-    @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,

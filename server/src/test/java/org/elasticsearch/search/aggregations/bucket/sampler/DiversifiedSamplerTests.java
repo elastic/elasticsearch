@@ -201,7 +201,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
                 .executionHint(executionHint)
                 .maxDocsPerValue(maxDocsPerValue)
                 .shardSize(shardSize)
-                .subAggregation(new TermsAggregationBuilder("terms", null).field("id"));
+                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
         InternalSampler result = search(indexSearcher, query, builder, genreFieldType, idFieldType);
         verify.accept(result);
@@ -224,7 +224,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
 
         DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name")
                 .field(genreFieldType.name())
-                .subAggregation(new TermsAggregationBuilder("terms", null).field("id"));
+                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
         InternalSampler result = search(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
         Terms terms = result.getAggregations().get("terms");

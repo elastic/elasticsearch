@@ -27,16 +27,17 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -114,7 +115,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, Pe
     }
 
     public PercentileRanksAggregationBuilder(String name, double[] values) {
-        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name);
         if (values == null) {
             throw new IllegalArgumentException("[values] must not be null: [" + name + "]");
         }
@@ -146,12 +147,17 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, Pe
      * Read from a stream.
      */
     public PercentileRanksAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();
         compression = in.readDouble();
         method = PercentilesMethod.readFromStream(in);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType(Script script) {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override

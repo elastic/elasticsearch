@@ -41,6 +41,8 @@ import static java.util.Collections.singleton;
 public class StatsAggregatorTests extends AggregatorTestCase {
     static final double TOLERANCE = 1e-10;
 
+    // TODO: Script tests, should fail with defaultValuesSourceType disabled.
+
     public void testEmpty() throws IOException {
         MappedFieldType ft =
             new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);

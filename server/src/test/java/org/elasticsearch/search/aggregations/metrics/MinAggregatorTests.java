@@ -80,7 +80,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
@@ -594,7 +593,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     public void testOrderByEmptyAggregation() throws IOException {
-        AggregationBuilder termsBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        AggregationBuilder termsBuilder = new TermsAggregationBuilder("terms")
             .field("number")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>min", true)))
             .subAggregation(new FilterAggregationBuilder("filter", termQuery("number", 100))
@@ -660,11 +659,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min")
             .field("number")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));;
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));
 
         MinAggregationBuilder nonDeterministicAggregationBuilder = new MinAggregationBuilder("min")
             .field("number")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));;
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

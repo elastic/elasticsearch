@@ -26,16 +26,17 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -105,7 +106,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
         InternalBuilder internal = PARSER.parse(parser, new InternalBuilder(aggregationName), null);
         // we need to return a PercentilesAggregationBuilder for equality checks to work
         PercentilesAggregationBuilder returnedAgg = new PercentilesAggregationBuilder(internal.name);
-        setIfNotNull(returnedAgg::valueType, internal.valueType());
+        setIfNotNull(returnedAgg::userValueTypeHint, internal.userValueTypeHint());
         setIfNotNull(returnedAgg::format, internal.format());
         setIfNotNull(returnedAgg::missing, internal.missing());
         setIfNotNull(returnedAgg::field, internal.field());
@@ -131,7 +132,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
     private boolean keyed = true;
 
     public PercentilesAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name);
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
@@ -153,12 +154,17 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource, Percen
      * Read from a stream.
      */
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();
         compression = in.readDouble();
         method = PercentilesMethod.readFromStream(in);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType(Script script) {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override

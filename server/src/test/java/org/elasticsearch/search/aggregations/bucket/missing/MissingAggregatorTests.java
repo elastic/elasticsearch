@@ -177,7 +177,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher =
                     newSearcher(indexReader, true, true);
-                MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null);
+                MissingAggregationBuilder builder = new MissingAggregationBuilder("_name");
                 builder.field(fieldName);
 
                 InternalMissing missing;

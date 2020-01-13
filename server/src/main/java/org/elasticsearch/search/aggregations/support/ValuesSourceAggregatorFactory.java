@@ -44,26 +44,11 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        ValuesSource vs = config.toValuesSource(queryShardContext, this::resolveMissingAny);
+        ValuesSource vs = config.toValuesSource(queryShardContext);
         if (vs == null) {
             return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
         }
         return doCreateInternal(vs, searchContext, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
-    }
-
-    /**
-     * This method provides a hook for aggregations that need finer grained control over the ValuesSource selected when the user supplies a
-     * missing value and there is no mapped field to infer the type from.  This will only be called for aggregations that specify the
-     * CoreValuesSourceType.ANY in their constructors (On the builder class).  The user supplied object is passed as a parameter, so its
-     * type * may be inspected as needed.
-     *
-     * Generally, only the type of the returned ValuesSource is used, so returning the EMPTY instance of the chosen type is recommended.
-     *
-     * @param missing The user supplied missing value
-     * @return A ValuesSource instance compatible with the supplied parameter
-     */
-    protected ValuesSource resolveMissingAny(Object missing) {
-        return ValuesSource.Bytes.WithOrdinals.EMPTY;
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,

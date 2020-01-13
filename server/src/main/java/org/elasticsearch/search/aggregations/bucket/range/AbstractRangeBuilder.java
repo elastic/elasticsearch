@@ -24,10 +24,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +46,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected boolean keyed = false;
 
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
-        super(name, rangeFactory.getValueType());
+        super(name);
         this.rangeFactory = rangeFactory;
     }
 
@@ -61,10 +63,16 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      */
     protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
             throws IOException {
-        super(in, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(in);
         this.rangeFactory = rangeFactory;
         ranges = in.readList(rangeReader);
         keyed = in.readBoolean();
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType(Script script) {
+        // Copied over from the old targetValueType setting.  Not sure what cases this is still relevant for. --Tozzi 2020-01-13
+        return rangeFactory.getValueSourceType();
     }
 
     /**

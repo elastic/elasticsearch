@@ -26,16 +26,17 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -62,11 +63,11 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     private double compression = 1000d;
 
     public MedianAbsoluteDeviationAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name);
     }
 
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         compression = in.readDouble();
     }
 
@@ -99,6 +100,11 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new MedianAbsoluteDeviationAggregationBuilder(this, factoriesBuilder, metaData);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType(Script script) {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override

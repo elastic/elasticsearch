@@ -247,7 +247,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         if (newPhaseStepKeys.equals(oldPhaseStepKeys)) {
-            // The new and old phase have the same stepkeys for this current phase, nothing of note has been changed
+            // The new and old phase have the same stepkeys for this current phase, so we can
+            // refresh the definition because we know it won't change the execution flow.
             logger.debug("[{}] updated policy [{}] contains the same phase step keys and can be refreshed", index, policyId);
             return true;
         } else {

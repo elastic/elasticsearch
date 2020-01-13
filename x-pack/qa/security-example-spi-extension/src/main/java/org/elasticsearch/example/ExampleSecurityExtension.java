@@ -58,7 +58,7 @@ public class ExampleSecurityExtension implements SecurityExtension {
 
     @Override
     public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-    getRolesProviders(Settings settings, SecurityComponents components) {
+    getRolesProviders(SecurityComponents components) {
         CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(Collections.singletonMap(ROLE_A, "read"));
         Map<String, String> roles = new HashMap<>();
         roles.put(ROLE_A, "all");

@@ -423,7 +423,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();
         for (SecurityExtension extension : securityExtensions) {
-            rolesProviders.addAll(extension.getRolesProviders(settings, extensionComponents));
+            rolesProviders.addAll(extension.getRolesProviders(extensionComponents));
         }
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),

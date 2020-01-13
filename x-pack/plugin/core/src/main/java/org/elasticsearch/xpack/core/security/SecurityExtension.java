@@ -99,11 +99,10 @@ public interface SecurityExtension {
      *
      * By default, an empty list is returned.
      *
-     * @param settings The configured settings for the node
      * @param components Access to components that may be used to build roles
      */
     default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-        getRolesProviders(Settings settings, SecurityComponents components) {
+        getRolesProviders(SecurityComponents components) {
         return Collections.emptyList();
     }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
@@ -71,10 +72,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.StreamSupport;
 
 public class SyncedFlushService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SyncedFlushService.class);
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+
+    public static final String SYNCED_FLUSH_DEPRECATION_MESSAGE =
+        "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.";
 
     private static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
     private static final String SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/sync";
@@ -130,6 +137,9 @@ public class SyncedFlushService implements IndexEventListener {
                                    IndicesOptions indicesOptions,
                                    final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
+        if (StreamSupport.stream(state.nodes().spliterator(), false).allMatch(n -> n.getVersion().onOrAfter(Version.V_7_6_0))) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
+        }
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();
         int numberOfShards = 0;

@@ -58,15 +58,7 @@ public final class EExplicit extends AExpression {
 
     @Override
     ExpressionNode write(ClassNode classNode) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    AExpression cast(ScriptRoot scriptRoot, Scope scope) {
-        child.expected = expected;
-        child.explicit = explicit;
-        child.internal = internal;
-
-        return child.cast(scriptRoot, scope);
+        return child.write(classNode);
     }
 
     @Override

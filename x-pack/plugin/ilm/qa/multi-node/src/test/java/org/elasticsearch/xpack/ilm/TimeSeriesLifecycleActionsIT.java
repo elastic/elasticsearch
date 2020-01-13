@@ -1342,6 +1342,41 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    public void testRefreshablePhaseJson() throws Exception {
+        String index = "refresh-index";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 100L));
+        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
+        createIndexTemplate.setJsonEntity("{" +
+            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1,\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy+ "\",\n" +
+            "    \"index.lifecycle.rollover_alias\": \"alias\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createIndexTemplate);
+
+        createIndexWithSettings(index + "-1",
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
+            true);
+
+        // Index a document
+        index(client(), index + "-1", "1", "foo", "bar");
+
+        // Wait for the index to enter the check-rollover-ready step
+        assertBusy(() -> assertThat(getStepKeyForIndex(index + "-1").getName(), equalTo(WaitForRolloverReadyStep.NAME)));
+
+        // Update the policy to allow rollover at 1 document instead of 100
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+
+        // Index should now have been able to roll over, creating the new index and proceeding to the "complete" step
+        assertBusy(() -> assertThat(indexExists(index + "-000002"), is(true)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index + "-1").getName(), equalTo(TerminalPolicyStep.KEY.getName())));
+    }
+
     // This method should be called inside an assertBusy, it has no retry logic of its own
     private void assertHistoryIsPresent(String policyName, String indexName, boolean success, String stepName) throws IOException {
         assertHistoryIsPresent(policyName, indexName, success, null, null, stepName);

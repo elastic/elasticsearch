@@ -126,7 +126,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(client, xContentRegistry());
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
             client,
-            mock(Settings.class),
+            Settings.EMPTY,
             mock(ClusterService.class),
             transformsConfigManager,
             mockAuditor

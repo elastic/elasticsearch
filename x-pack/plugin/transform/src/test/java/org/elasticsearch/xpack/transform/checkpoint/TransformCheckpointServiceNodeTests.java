@@ -142,7 +142,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
         transformCheckpointService = new TransformCheckpointService(
             mockClientForCheckpointing,
-            mock(Settings.class),
+            Settings.EMPTY,
             mock(ClusterService.class),
             transformsConfigManager,
             mockAuditor

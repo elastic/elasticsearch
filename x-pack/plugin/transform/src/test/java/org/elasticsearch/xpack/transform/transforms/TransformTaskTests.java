@@ -73,7 +73,7 @@ public class TransformTaskTests extends ESTestCase {
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
             client,
-            mock(Settings.class),
+            Settings.EMPTY,
             mock(ClusterService.class),
             transformsConfigManager,
             auditor

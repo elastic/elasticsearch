@@ -50,7 +50,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
-            new RemoteClusterResolver(mock(Settings.class), mock(ClusterSettings.class)),
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -95,7 +95,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
-            new RemoteClusterResolver(mock(Settings.class), mock(ClusterSettings.class)),
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -155,7 +155,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
-            new RemoteClusterResolver(mock(Settings.class), mock(ClusterSettings.class)),
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig

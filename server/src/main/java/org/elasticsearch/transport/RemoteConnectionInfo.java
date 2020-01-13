@@ -132,12 +132,11 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
                         .stream()
                         .map(
                             s -> {
-                                final Tuple<String, Integer> hostPort = RemoteConnectionStrategy.parseHostPort(s);
-                                assert hostPort.v2() != null : s;
+                                final String host = RemoteConnectionStrategy.parseHost(s);
+                                final int port = RemoteConnectionStrategy.parsePort(s);
                                 try {
                                     return new TransportAddress(
-                                        InetAddress.getByAddress(hostPort.v1(), TransportAddress.META_ADDRESS.getAddress()),
-                                        hostPort.v2());
+                                        InetAddress.getByAddress(host, TransportAddress.META_ADDRESS.getAddress()), port);
                                 } catch (final UnknownHostException e) {
                                     throw new AssertionError(e);
                                 }

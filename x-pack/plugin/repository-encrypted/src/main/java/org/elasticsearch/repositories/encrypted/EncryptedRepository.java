@@ -67,6 +67,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     private final PasswordBasedEncryptor metadataEncryptor;
     private final ConsistentSettingsService consistentSettingsService;
     private final SecureRandom secureRandom;
+    private final SecureSetting<?> passwordSettingForThisRepo;
 
     protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
                                   BlobStoreRepository delegatedRepository, PasswordBasedEncryptor metadataEncryptor,
@@ -78,6 +79,8 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.metadataEncryptor = metadataEncryptor;
         this.consistentSettingsService = consistentSettingsService;
         this.secureRandom = SecureRandom.getInstance(EncryptedRepositoryPlugin.RAND_ALGO);
+        this.passwordSettingForThisRepo =
+                (SecureSetting<?>) EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name());
     }
 
     @Override
@@ -85,7 +88,13 @@ public class EncryptedRepository extends BlobStoreRepository {
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
                               ActionListener<String> listener) {
         if (EncryptedRepositoryPlugin.getLicenseState().isEncryptedRepositoryAllowed()) {
-            super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
+            if (consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
+                super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
+            } else {
+                listener.onFailure(new RepositoryException(metadata.name(),
+                        "The local node's value for the keystore secure setting [" + passwordSettingForThisRepo.getKey() + "] does not " +
+                                "match the master's"));
+            }
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(
                     EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME + " snapshot repository"));
@@ -120,12 +129,6 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected void doStart() {
-        SecureSetting<?> passwordSettingForThisRepo =
-                (SecureSetting<?>) EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name());
-        if (false == consistentSettingsService.isConsistent(passwordSettingForThisRepo)) {
-            throw new RepositoryException(metadata.name(), "The value for the Secure setting [" + passwordSettingForThisRepo.getKey() +
-                    "] does not match the master's");
-        }
         this.delegatedRepository.start();
         super.doStart();
     }

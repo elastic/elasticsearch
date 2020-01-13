@@ -23,7 +23,8 @@
  * number of situations, such as:
  *
  * <ul>
- * <li>A user overflows the index graveyard by deleting more than 500 indices while a node is offline and then the node rejoins the cluster</li>
+ * <li>A user overflows the index graveyard by deleting more than 500 indices while a node is offline and then the node rejoins the
+ * cluster</li>
  * <li>A node (unsafely) moves from one cluster to another, perhaps because the original cluster lost all its master nodes</li>
  * <li>A user (unsafely) meddles with the contents of the data path, maybe restoring an old index folder from a backup</li>
  * <li>A disk partially fails and the user has no replicas and no snapshots and wants to (unsafely) recover whatever they can</li>

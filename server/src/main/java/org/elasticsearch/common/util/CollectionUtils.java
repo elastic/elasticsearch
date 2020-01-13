@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -29,7 +28,6 @@ import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 
-import java.lang.reflect.Array;
 import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;

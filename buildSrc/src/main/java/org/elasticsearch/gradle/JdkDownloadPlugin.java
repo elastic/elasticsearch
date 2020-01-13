@@ -261,8 +261,9 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     final Path entryName = Paths.get(name);
                     int index = 0;
                     for (; index < entryName.getNameCount(); index++) {
-                        if (entryName.getName(index).toString().matches("jdk-.*"))
+                        if (entryName.getName(index).toString().matches("jdk-.*")) {
                             break;
+                        }
                     }
                     if (index + 1 >= entryName.getNameCount()) {
                         // this happens on the top-level directories in the archive, which we are removing

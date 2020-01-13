@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gradle.test;
 
-import org.elasticsearch.gradle.BuildPlugin;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
@@ -93,7 +92,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         final boolean runDockerTests = shouldRunDockerTests(project);
 
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
-        project.getPluginManager().apply(BuildPlugin.class);
+        project.getPluginManager().apply("elasticsearch.build");
 
         // TODO: it would be useful to also have the SYSTEM_JAVA_HOME setup in the root project, so that running from GCP only needs
         // a java for gradle to run, and the tests are self sufficient and consistent with the java they use
@@ -503,7 +502,6 @@ public class DistroTestPlugin implements Plugin<Project> {
      * method determines whether the Docker tests should be run on the host
      * OS. Essentially, unless an OS and version is specifically excluded, we expect
      * to be able to run Docker and test the Docker images.
-     * @param project
      */
     private static boolean shouldRunDockerTests(Project project) {
         switch (OS.current()) {

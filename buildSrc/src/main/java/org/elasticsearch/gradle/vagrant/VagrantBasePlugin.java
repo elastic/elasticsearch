@@ -31,6 +31,7 @@ import org.gradle.api.tasks.TaskState;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -104,15 +105,15 @@ public class VagrantBasePlugin implements Plugin<Project> {
                 if (found > minVersion[i]) {
                     break; // most significant version is good
                 } else if (found < minVersion[i]) {
-                    throw new IllegalStateException(
-                        "Unsupported version of "
-                            + tool
-                            + ". Found ["
-                            + version
-                            + "], expected ["
-                            + Stream.of(minVersion).map(String::valueOf).collect(Collectors.joining("."))
-                            + "+"
+                    final String exceptionMessage = String.format(
+                        Locale.ROOT,
+                        "Unsupported version of %s. Found [%s], expected [%s+]",
+                        tool,
+                        version,
+                        Stream.of(minVersion).map(String::valueOf).collect(Collectors.joining("."))
                     );
+
+                    throw new IllegalStateException(exceptionMessage);
                 } // else equal, so check next element
             }
         }

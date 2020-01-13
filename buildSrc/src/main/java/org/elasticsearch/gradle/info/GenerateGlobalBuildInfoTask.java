@@ -28,6 +28,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -179,24 +180,24 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         // enforce Java version
         if (compilerJavaVersionEnum.compareTo(minimumCompilerVersion) < 0) {
-            String message = "The compiler java.home must be set to a JDK installation directory for Java "
-                + minimumCompilerVersion
-                + " but is ["
-                + compilerJavaHome
-                + "] corresponding to ["
-                + compilerJavaVersionEnum
-                + "]";
+            String message = String.format(
+                Locale.ROOT,
+                "The compiler java.home must be set to a JDK installation directory for Java %s but is [%s] " + "corresponding to [%s]",
+                minimumCompilerVersion,
+                compilerJavaHome,
+                compilerJavaVersionEnum
+            );
             throw new GradleException(message);
         }
 
         if (runtimeJavaVersionEnum.compareTo(minimumRuntimeVersion) < 0) {
-            String message = "The runtime java.home must be set to a JDK installation directory for Java "
-                + minimumRuntimeVersion
-                + " but is ["
-                + runtimeJavaHome
-                + "] corresponding to ["
-                + runtimeJavaVersionEnum
-                + "]";
+            String message = String.format(
+                Locale.ROOT,
+                "The runtime java.home must be set to a JDK installation directory for Java %s but is [%s] " + "corresponding to [%s]",
+                minimumRuntimeVersion,
+                runtimeJavaHome,
+                runtimeJavaVersionEnum
+            );
             throw new GradleException(message);
         }
 
@@ -214,15 +215,15 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version));
             }
             if (javaVersionEnum != expectedJavaVersionEnum) {
-                String message = "The environment variable JAVA"
-                    + version
-                    + "_HOME must be set to a JDK installation directory for Java "
-                    + expectedJavaVersionEnum
-                    + " but is ["
-                    + javaHome
-                    + "] corresponding to ["
-                    + javaVersionEnum
-                    + "]";
+                String message = String.format(
+                    Locale.ROOT,
+                    "The environment variable JAVA%d_HOME must be set to a JDK installation directory for Java"
+                        + " %s but is [%s] corresponding to [%s]",
+                    version,
+                    expectedJavaVersionEnum,
+                    javaHome,
+                    javaVersionEnum
+                );
                 throw new GradleException(message);
             }
         }

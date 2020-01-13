@@ -112,7 +112,7 @@ public class WaitForHttpResource {
             ssl = null;
         }
         IOException failure = null;
-        for (;;) {
+        while (true) {
             try {
                 checkResource(ssl);
                 return true;

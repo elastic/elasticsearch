@@ -141,13 +141,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static String findJavaHome(String version) {
         String versionedJavaHome = System.getenv(getJavaHomeEnvVarName(version));
         if (versionedJavaHome == null) {
-            throw new GradleException(
-                "$"
-                    + getJavaHomeEnvVarName(version)
-                    + " must be set to build Elasticsearch. "
-                    + "Note that if the variable was just set you might have to run `./gradlew --stop` for "
-                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+            final String exceptionMessage = String.format(
+                Locale.ROOT,
+                "$%s must be set to build Elasticsearch. "
+                    + "Note that if the variable was just set you "
+                    + "might have to run `./gradlew --stop` for "
+                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
+                getJavaHomeEnvVarName(version)
             );
+
+            throw new GradleException(exceptionMessage);
         }
         return versionedJavaHome;
     }

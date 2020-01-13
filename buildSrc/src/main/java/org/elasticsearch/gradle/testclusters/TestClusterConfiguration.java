@@ -27,6 +27,7 @@ import java.io.File;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -138,14 +139,14 @@ public interface TestClusterConfiguration {
                 }
             }
             if (conditionMet == false) {
-                String message = "`"
-                    + context
-                    + "` failed to wait for "
-                    + description
-                    + " after "
-                    + nodeUpTimeout
-                    + " "
-                    + nodeUpTimeoutUnit;
+                String message = String.format(
+                    Locale.ROOT,
+                    "`%s` failed to wait for %s after %d %s",
+                    context,
+                    description,
+                    nodeUpTimeout,
+                    nodeUpTimeoutUnit
+                );
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {

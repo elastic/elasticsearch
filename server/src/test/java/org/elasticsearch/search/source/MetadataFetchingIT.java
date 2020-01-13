@@ -61,7 +61,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
     }
 
     public void testInnerHits() {
-        assertAcked(prepareCreate("test").addMapping("_doc", "nested", "type=nested"));
+        assertAcked(prepareCreate("test").setMapping("nested", "type=nested"));
         ensureGreen();
         client().prepareIndex("test").setId("1")
             .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();

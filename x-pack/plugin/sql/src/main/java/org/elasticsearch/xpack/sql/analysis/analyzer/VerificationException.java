@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Collection;
 import java.util.stream.Collectors;

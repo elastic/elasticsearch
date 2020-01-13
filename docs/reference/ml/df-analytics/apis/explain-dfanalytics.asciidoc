@@ -28,7 +28,8 @@ experimental[]
 [[ml-explain-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following privileges:
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
 
 * cluster: `monitor_ml`
   

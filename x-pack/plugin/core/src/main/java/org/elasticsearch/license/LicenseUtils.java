@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.license.License.LicenseType;
 import org.elasticsearch.rest.RestStatus;
@@ -46,18 +47,26 @@ public class LicenseUtils {
      * recreated with the new key
      */
     public static boolean signatureNeedsUpdate(License license, DiscoveryNodes currentNodes) {
-        assert License.VERSION_CRYPTO_ALGORITHMS == License.VERSION_CURRENT : "update this method when adding a new version";
+        assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
 
         String typeName = license.type();
         return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName)) &&
                 // only upgrade signature when all nodes are ready to deserialize the new signature
                 (license.version() < License.VERSION_CRYPTO_ALGORITHMS &&
-                    compatibleLicenseVersion(currentNodes) == License.VERSION_CRYPTO_ALGORITHMS
+                    compatibleLicenseVersion(currentNodes) >= License.VERSION_CRYPTO_ALGORITHMS
                 );
     }
 
     public static int compatibleLicenseVersion(DiscoveryNodes currentNodes) {
-        assert License.VERSION_CRYPTO_ALGORITHMS == License.VERSION_CURRENT : "update this method when adding a new version";
-        return License.VERSION_CRYPTO_ALGORITHMS;
+        return getMaxLicenseVersion(currentNodes.getMinNodeVersion());
+    }
+
+    public static int getMaxLicenseVersion(Version version) {
+        if (version != null && version.before(Version.V_7_6_0)) {
+            return License.VERSION_CRYPTO_ALGORITHMS;
+        } else {
+            assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
+            return License.VERSION_ENTERPRISE;
+        }
     }
 }

@@ -283,7 +283,9 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
+                        deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    }
                     return tokenStream;
                 }
             }
@@ -338,15 +340,20 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertWarnings("Using deprecated token filter [deprecated]");
 
         indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.getPreviousVersion())
             .put("index.analysis.filter.deprecated.type", "deprecated_normalizer")
             .putList("index.analysis.normalizer.custom.filter", "lowercase", "deprecated_normalizer")
+            .put("index.analysis.filter.deprecated.type", "deprecated")
+            .put("index.analysis.analyzer.custom.tokenizer", "standard")
+            .putList("index.analysis.analyzer.custom.filter", "lowercase", "deprecated")
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
         new AnalysisModule(TestEnvironment.newEnvironment(settings),
             singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
 
+        // We should only get a warning from the normalizer, because we're on a version where 'deprecated'
+        // works fine
         assertWarnings("Using deprecated token filter [deprecated_normalizer]");
 
     }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import com.google.common.collect.Ordering;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -64,8 +63,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
     private static final String KEYWORD_FIELD = "keyword-field";
     private static final List<Boolean> BOOLEAN_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(false, true));
-    private static final List<Double> NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(1.0, 2.0));
-    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(10, 20));
+    private static final List<Double> NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(1.0, 2.0, 3.0, 4.0));
+    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(10, 20, 30, 40));
     private static final List<String> KEYWORD_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList("cat", "dog"));
 
     private String jobId;
@@ -83,7 +82,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
 
-        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Classification(
+                KEYWORD_FIELD,
+                BoostedTreeParams.builder().setTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -101,6 +107,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
+            assertThat(resultsObject.keySet().stream().filter(k -> k.startsWith("feature_importance.")).findAny().isPresent(), is(true));
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -355,7 +362,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String firstJobId = "classification_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
 
-        BoostedTreeParams boostedTreeParams = new BoostedTreeParams(1.0, 1.0, 1.0, 1, 1.0);
+        BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder()
+            .setLambda(1.0)
+            .setGamma(1.0)
+            .setEta(1.0)
+            .setFeatureBagFraction(1.0)
+            .setMaximumNumberTrees(1)
+            .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, null));

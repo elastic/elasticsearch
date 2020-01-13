@@ -2975,10 +2975,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setEta(5.5) // <4>
                 .setMaximumNumberTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
-                .setPredictionFieldName("my_prediction_field_name") // <7>
-                .setTrainingPercent(50.0) // <8>
-                .setRandomizeSeed(1234L) // <9>
-                .setNumTopClasses(1) // <10>
+                .setTopFeatureImportanceValues(3) // <7>
+                .setPredictionFieldName("my_prediction_field_name") // <8>
+                .setTrainingPercent(50.0) // <9>
+                .setRandomizeSeed(1234L) // <10>
+                .setNumTopClasses(1) // <11>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -2989,9 +2990,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setEta(5.5) // <4>
                 .setMaximumNumberTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
-                .setPredictionFieldName("my_prediction_field_name") // <7>
-                .setTrainingPercent(50.0) // <8>
-                .setRandomizeSeed(1234L) // <9>
+                .setTopFeatureImportanceValues(3) // <7>
+                .setPredictionFieldName("my_prediction_field_name") // <8>
+                .setTrainingPercent(50.0) // <9>
+                .setRandomizeSeed(1234L) // <10>
                 .build();
             // end::put-data-frame-analytics-regression
 

@@ -20,6 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
@@ -28,11 +31,14 @@ import java.util.Objects;
  */
 abstract class AStoreable extends AExpression {
 
-    /**
-     * Set to true when this node is an lhs-expression and will be storing
-     * a value from an rhs-expression.
-     */
-    boolean write = false;
+    public static class Input extends AExpression.Input {
+
+        /**
+         * Set to true when this node is an lhs-expression and will be storing
+         * a value from an rhs-expression.
+         */
+        boolean write = false;
+    }
 
     /**
      * Standard constructor with location used for error tracking.
@@ -50,6 +56,10 @@ abstract class AStoreable extends AExpression {
         super(location);
 
         this.prefix = Objects.requireNonNull(prefix);
+    }
+
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        throw new UnsupportedOperationException();
     }
 
     /**

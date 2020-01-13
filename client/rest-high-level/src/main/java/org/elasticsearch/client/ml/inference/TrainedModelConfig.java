@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -111,7 +112,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
-        this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.definition = definition;
         this.compressedDefinition = compressedDefinition;
         this.description = description;
@@ -293,12 +294,12 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setCreatedBy(String createdBy) {
+        private Builder setCreatedBy(String createdBy) {
             this.createdBy = createdBy;
             return this;
         }
 
-        public Builder setVersion(Version version) {
+        private Builder setVersion(Version version) {
             this.version = version;
             return this;
         }
@@ -312,7 +313,7 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setCreateTime(Instant createTime) {
+        private Builder setCreateTime(Instant createTime) {
             this.createTime = createTime;
             return this;
         }
@@ -320,6 +321,10 @@ public class TrainedModelConfig implements ToXContentObject {
         public Builder setTags(List<String> tags) {
             this.tags = tags;
             return this;
+        }
+
+        public Builder setTags(String... tags) {
+            return setTags(Arrays.asList(tags));
         }
 
         public Builder setMetadata(Map<String, Object> metadata) {
@@ -347,17 +352,17 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
+        private Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
             this.estimatedHeapMemory = estimatedHeapMemory;
             return this;
         }
 
-        public Builder setEstimatedOperations(Long estimatedOperations) {
+        private Builder setEstimatedOperations(Long estimatedOperations) {
             this.estimatedOperations = estimatedOperations;
             return this;
         }
 
-        public Builder setLicenseLevel(String licenseLevel) {
+        private Builder setLicenseLevel(String licenseLevel) {
             this.licenseLevel = licenseLevel;
             return this;
         }

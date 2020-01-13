@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: "telemetry for flattened fields was added in 8.0"
+      version: " - 7.5.99"
+      reason: "telemetry for flattened fields was added in 7.6.0"
 
 ---
 "Usage stats for flattened fields":

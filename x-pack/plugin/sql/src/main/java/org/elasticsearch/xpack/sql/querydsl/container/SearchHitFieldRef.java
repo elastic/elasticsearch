@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 public class SearchHitFieldRef extends FieldReference {
     private final String name;
@@ -52,7 +52,7 @@ public class SearchHitFieldRef extends FieldReference {
     }
 
     @Override
-    public void collectFields(SqlSourceBuilder sourceBuilder) {
+    public void collectFields(QlSourceBuilder sourceBuilder) {
         // nested fields are handled by inner hits
         if (hitName != null) {
             return;

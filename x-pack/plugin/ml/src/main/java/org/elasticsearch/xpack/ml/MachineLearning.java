@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -184,6 +185,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
+import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
@@ -276,6 +278,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -298,6 +301,7 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -446,7 +450,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION,
                 InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
-                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL
+                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES
             );
     }
 
@@ -520,9 +525,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService.getNodeName());
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService.getNodeName());
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(client, clusterService, settings);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(client, resultsPersisterService, anomalyDetectionAuditor);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client,
+            resultsPersisterService,
+            anomalyDetectionAuditor);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
@@ -554,11 +562,17 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     environment,
                     settings,
                     nativeController,
-                    client,
-                    clusterService);
+                    clusterService,
+                    resultsPersisterService,
+                    anomalyDetectionAuditor);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
-                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, client, nativeController, clusterService,
-                    xContentRegistry);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(
+                    environment,
+                    nativeController,
+                    clusterService,
+                    xContentRegistry,
+                    resultsPersisterService,
+                    dataFrameAnalyticsAuditor);
                 memoryEstimationProcessFactory =
                     new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;
@@ -750,7 +764,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestExplainDataFrameAnalyticsAction(restController),
             new RestGetTrainedModelsAction(restController),
             new RestDeleteTrainedModelAction(restController),
-            new RestGetTrainedModelsStatsAction(restController)
+            new RestGetTrainedModelsStatsAction(restController),
+            new RestPutTrainedModelAction(restController)
         );
     }
 
@@ -826,6 +841,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
                 new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
                 new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
+                new ActionHandler<>(PutTrainedModelAction.INSTANCE, TransportPutTrainedModelAction.class),
                 usageAction,
                 infoAction);
     }

@@ -6,26 +6,26 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.Least;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIf;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -46,7 +46,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
@@ -64,7 +64,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -437,7 +437,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByFieldFromGroupByFunction() {
-        assertEquals("1:54: Cannot use non-grouped column [int], expected [ABS(int)]",
+        assertEquals("1:54: Cannot order by non-grouped column [int], expected [ABS(int)]",
                 error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
     }
 
@@ -613,9 +613,9 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInvalidTypeForStringFunction_WithTwoArgs() {
-        assertEquals("1:8: first argument of [CONCAT] must be [string], found value [1] type [integer]",
+        assertEquals("1:8: first argument of [CONCAT(1, 'bar')] must be [string], found value [1] type [integer]",
             error("SELECT CONCAT(1, 'bar')"));
-        assertEquals("1:8: second argument of [CONCAT] must be [string], found value [2] type [integer]",
+        assertEquals("1:8: second argument of [CONCAT('foo', 2)] must be [string], found value [2] type [integer]",
             error("SELECT CONCAT('foo', 2)"));
     }
 

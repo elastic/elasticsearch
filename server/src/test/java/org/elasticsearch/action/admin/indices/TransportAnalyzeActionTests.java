@@ -111,7 +111,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
             class DeprecatedTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
-                public DeprecatedTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                DeprecatedTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
                     super(indexSettings, name, settings);
                 }
 

@@ -302,7 +302,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
             class NormalizerFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
-                public NormalizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                NormalizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
                     super(indexSettings, name, settings);
                 }
 

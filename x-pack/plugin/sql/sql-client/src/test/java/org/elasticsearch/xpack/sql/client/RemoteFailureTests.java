@@ -25,7 +25,7 @@ public class RemoteFailureTests extends ESTestCase {
     public void testParseBasic() throws IOException {
         RemoteFailure failure = parse("basic.json");
         assertEquals("illegal_argument_exception", failure.type());
-        assertEquals("[sql/query] unknown field [test], parser not found", failure.reason());
+        assertEquals("[sql/query] unknown field [test]", failure.reason());
         assertThat(failure.remoteTrace(),
                 containsString("at org.elasticsearch.common.xcontent.ObjectParser.getParser(ObjectParser.java:346)"));
         assertNull(failure.cause());

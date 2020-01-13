@@ -77,6 +77,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureClusterSizeConsistency();
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
@@ -107,6 +108,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureClusterSizeConsistency();
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
@@ -136,6 +138,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureClusterSizeConsistency();
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }

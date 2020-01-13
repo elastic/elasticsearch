@@ -234,7 +234,6 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
-import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
@@ -254,8 +253,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetSnapshotsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetStoredScriptAction;
-import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
-import org.elasticsearch.rest.action.admin.cluster.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
@@ -669,11 +666,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetScriptLanguageAction(restController));
 
         registerHandler.accept(new RestFieldCapabilitiesAction(restController));
-
-        // Tasks API
-        registerHandler.accept(new RestListTasksAction(restController, nodesInCluster));
-        registerHandler.accept(new RestGetTaskAction(restController));
-        registerHandler.accept(new RestCancelTasksAction(restController, nodesInCluster));
 
         // Ingest API
         registerHandler.accept(new RestPutPipelineAction(restController));

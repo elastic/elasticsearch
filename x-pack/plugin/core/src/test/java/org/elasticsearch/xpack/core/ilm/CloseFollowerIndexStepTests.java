@@ -12,11 +12,17 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.mockito.Mockito;
 
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.ilm.Step.ILM_STEP_MASTER_TIMEOUT;
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -24,6 +30,41 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollowerIndexStep> {
+
+    public void testMasterTimeout() {
+        checkMasterTimeout(TimeValue.timeValueSeconds(30), null);
+        checkMasterTimeout(TimeValue.timeValueSeconds(30),
+            ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
+        checkMasterTimeout(TimeValue.timeValueSeconds(10),
+            ClusterState.builder(ClusterName.DEFAULT)
+                .metaData(MetaData.builder()
+                    .persistentSettings(Settings.builder().put(ILM_STEP_MASTER_TIMEOUT, "10s").build())
+                    .build())
+                .build());
+    }
+
+    private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        Mockito.doAnswer(invocation -> {
+            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
+            assertThat(closeIndexRequest.masterNodeTimeout(), equalTo(timeValue));
+            return null;
+        }).when(indicesClient).close(Mockito.any(), Mockito.any());
+        CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
+        step.performAction(indexMetadata, currentClusterState, null, new NoOpActionListener());
+    }
 
     public void testCloseFollowingIndex() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")

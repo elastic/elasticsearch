@@ -37,4 +37,15 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
         StepKey nextStepKey = instance.getKey();
         assertFalse(ErrorStep.NAME.equals(nextStepKey.getName()));
     }
+
+    protected class NoOpActionListener implements AsyncActionStep.Listener{
+
+        @Override
+        public void onResponse(boolean complete) {
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+        }
+    }
 }

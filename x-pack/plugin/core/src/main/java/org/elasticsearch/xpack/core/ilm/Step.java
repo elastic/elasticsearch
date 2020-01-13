@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -26,8 +27,8 @@ import java.util.Objects;
  */
 public abstract class Step {
 
-    private static final String ILM_STEP_MASTER_TIMEOUT = "ilm.step.master.timeout";
-    protected static final Setting<TimeValue> ILM_STEP_MASTER_TIMEOUT_SETTING = Setting.positiveTimeSetting(ILM_STEP_MASTER_TIMEOUT,
+    public static final String ILM_STEP_MASTER_TIMEOUT = "ilm.step.master.timeout";
+    public static final Setting<TimeValue> ILM_STEP_MASTER_TIMEOUT_SETTING = Setting.positiveTimeSetting(ILM_STEP_MASTER_TIMEOUT,
         TimeValue.timeValueSeconds(30), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final StepKey key;
@@ -77,6 +78,9 @@ public abstract class Step {
     }
 
     protected TimeValue getMasterTimeout(ClusterState clusterState){
+        if(clusterState == null){
+            return ILM_STEP_MASTER_TIMEOUT_SETTING.get(Settings.EMPTY);
+        }
         return ILM_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metaData().settings());
     }
 

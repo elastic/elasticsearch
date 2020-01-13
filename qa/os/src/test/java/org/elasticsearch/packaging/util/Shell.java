@@ -98,7 +98,12 @@ public class Shell {
         ));
     }
 
-    public Result run( String command, Object... args) {
+    public void extractZip(Path zipPath, Path destinationDir) throws Exception {
+        Platforms.onLinux(() -> run("unzip \"" + zipPath + "\" -d \"" + destinationDir + "\""));
+        Platforms.onWindows(() -> run("Expand-Archive -Path \"" + zipPath + "\" -DestinationPath \"" + destinationDir + "\""));
+    }
+
+    public Result run(String command, Object... args) {
         String formattedCommand = String.format(Locale.ROOT, command, args);
         return run(formattedCommand);
     }

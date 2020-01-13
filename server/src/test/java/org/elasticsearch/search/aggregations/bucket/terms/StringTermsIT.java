@@ -133,7 +133,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -154,7 +154,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         getMultiSortDocs(builders);
 
         assertAcked(client().admin().indices().prepareCreate("high_card_idx")
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword").get());
         for (int i = 0; i < 100; i++) {
@@ -163,7 +163,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                             .startArray(MULTI_VALUED_FIELD_NAME).value("val" + Strings.padStart(i + "", 3, '0'))
                             .value("val" + Strings.padStart((i + 1) + "", 3, '0')).endArray().endObject()));
         }
-        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer").get();
 
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
@@ -220,7 +220,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
 
         assertAcked(client().admin().indices().prepareCreate("sort_idx")
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword").get());
         for (int i = 1; i <= 3; i++) {
@@ -1128,7 +1128,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=keyword")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=keyword")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", "foo"),

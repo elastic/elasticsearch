@@ -100,6 +100,8 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
+import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -2336,6 +2338,48 @@ public final class MachineLearningClient {
             MLRequestConverters::getTrainedModels,
             options,
             GetTrainedModelsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Put trained model config
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     PUT Trained Model Config documentation</a>
+     *
+     * @param request The {@link PutTrainedModelRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link PutTrainedModelResponse} response object
+     */
+    public PutTrainedModelResponse putTrainedModel(PutTrainedModelRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putTrainedModel,
+            options,
+            PutTrainedModelResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Put trained model config asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     PUT Trained Model Config documentation</a>
+     *
+     * @param request The {@link PutTrainedModelRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable putTrainedModelAsync(PutTrainedModelRequest request,
+                                            RequestOptions options,
+                                            ActionListener<PutTrainedModelResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putTrainedModel,
+            options,
+            PutTrainedModelResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

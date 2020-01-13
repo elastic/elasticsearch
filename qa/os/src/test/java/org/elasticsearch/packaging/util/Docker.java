@@ -26,7 +26,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -510,7 +509,7 @@ public class Docker {
         return containerId;
     }
 
-    public static JsonNode getJson(String path) throws IOException {
+    public static JsonNode getJson(String path) throws Exception {
         final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/" + path));
 
         ObjectMapper mapper = new ObjectMapper();

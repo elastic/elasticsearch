@@ -68,7 +68,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorQuery() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
         client().prepareIndex("test").setId("1")
@@ -143,7 +143,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorRangeQueries() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=long", "field2", "type=double", "field3", "type=ip", "field4", "type=date",
+                .setMapping("field1", "type=long", "field2", "type=double", "field3", "type=ip", "field4", "type=date",
                         "query", "type=percolator")
         );
 
@@ -253,7 +253,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorGeoQueries() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("type", "id", "type=keyword",
+            .setMapping("id", "type=keyword",
                 "field1", "type=geo_point", "field2", "type=geo_shape", "query", "type=percolator"));
 
         client().prepareIndex("test").setId("1")
@@ -291,7 +291,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorQueryExistingDocument() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
         client().prepareIndex("test").setId("1")
@@ -345,7 +345,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorQueryExistingDocumentSourceDisabled() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("type", "_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
+            .setMapping("_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
         );
 
         client().prepareIndex("test").setId("1")
@@ -366,7 +366,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorSpecificQueries()  throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
         );
 
         client().prepareIndex("test").setId("1")
@@ -447,7 +447,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             fieldMapping.append(",index_options=offsets");
         }
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", fieldMapping, "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", fieldMapping.toString(), "query", "type=percolator")
         );
         client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject()
@@ -613,7 +613,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testTakePositionOffsetGapIntoAccount() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field", "type=text,position_increment_gap=5", "query", "type=percolator")
+                .setMapping("field", "type=text,position_increment_gap=5", "query", "type=percolator")
         );
         client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("query",
@@ -636,10 +636,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
     public void testManyPercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword")
+                .setMapping(queryFieldName, "type=percolator", "field", "type=keyword")
         );
         assertAcked(client().admin().indices().prepareCreate("test2")
-            .addMapping("type", queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
+            .setMapping(queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
         );
         assertAcked(client().admin().indices().prepareCreate("test3")
             .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
@@ -662,7 +662,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
     public void testWithMultiplePercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword"));
+                .setMapping(queryFieldName, "type=percolator", "field", "type=keyword"));
         assertAcked(client().admin().indices().prepareCreate("test2")
                 .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field")
@@ -802,7 +802,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     public void testPercolatorQueryViaMultiSearch() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("type", "field1", "type=text", "query", "type=percolator")
+            .setMapping("field1", "type=text", "query", "type=percolator")
         );
 
         client().prepareIndex("test").setId("1")

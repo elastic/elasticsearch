@@ -260,7 +260,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.sort.field", "rank")
             )
-            .addMapping("type1", "rank", "type=integer")
+            .setMapping("rank", "type=integer")
             .get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
@@ -415,7 +415,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
+        assertAcked(prepareCreate("idx").setMapping("num", "type=integer"));
         ensureGreen("idx");
 
         try {

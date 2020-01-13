@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -47,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -64,7 +66,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
-import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
+import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -101,6 +103,7 @@ public class TransportStartDataFrameAnalyticsAction
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(TransportService transportService, Client client, ClusterService clusterService,
@@ -117,6 +120,14 @@ public class TransportStartDataFrameAnalyticsAction
         this.configProvider = configProvider;
         this.memoryTracker = memoryTracker;
         this.auditor = Objects.requireNonNull(auditor);
+
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            null,
+            clusterService.getNodeName(),
+            License.OperationMode.PLATINUM.description()
+        );
     }
 
     @Override
@@ -228,13 +239,13 @@ public class TransportStartDataFrameAnalyticsAction
 
     private void getStartContext(String id, ActionListener<StartContext> finalListener) {
 
-        // Step 6. Validate that there are analyzable data in the source index
+        // Step 7. Validate that there are analyzable data in the source index
         ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
             startContext -> validateSourceIndexHasRows(startContext, finalListener),
             finalListener::onFailure
         );
 
-        // Step 5. Validate mappings can be merged
+        // Step 6. Validate mappings can be merged
         ActionListener<StartContext> toValidateMappingsListener = ActionListener.wrap(
             startContext -> MappingsMerger.mergeMappings(client, startContext.config.getHeaders(),
                 startContext.config.getSource(), ActionListener.wrap(
@@ -242,7 +253,7 @@ public class TransportStartDataFrameAnalyticsAction
             finalListener::onFailure
         );
 
-        // Step 4. Validate dest index is empty if task is starting for first time
+        // Step 5. Validate dest index is empty if task is starting for first time
         ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(
             startContext -> {
                 switch (startContext.startingState) {
@@ -266,22 +277,30 @@ public class TransportStartDataFrameAnalyticsAction
             finalListener::onFailure
         );
 
-        // Step 3. Validate source and dest; check data extraction is possible
+        // Step 4. Check data extraction is possible
+        ActionListener<StartContext> toValidateExtractionPossibleListener = ActionListener.wrap(
+            startContext -> {
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, ActionListener.wrap(
+                    extractedFieldsDetector -> {
+                        startContext.extractedFields = extractedFieldsDetector.detect().v1();
+                        toValidateDestEmptyListener.onResponse(startContext);
+                    },
+                    finalListener::onFailure)
+                );
+            },
+            finalListener::onFailure
+        );
+
+        // Step 3. Validate source and dest
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
             startContext -> {
                 // Validate the query parses
                 startContext.config.getSource().getParsedQuery();
 
                 // Validate source/dest are valid
-                new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(startContext.config);
-
-                // Validate extraction is possible
-                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, ActionListener.wrap(
-                    extractedFieldsDetector -> {
-                        startContext.extractedFields = extractedFieldsDetector.detect().v1();
-                        toValidateDestEmptyListener.onResponse(startContext);
-                    },
-                    finalListener::onFailure));
+                sourceDestValidator.validate(clusterService.state(), startContext.config.getSource().getIndex(),
+                    startContext.config.getDest().getIndex(), SourceDestValidations.ALL_VALIDATIONS, ActionListener.wrap(
+                        aBoolean -> toValidateExtractionPossibleListener.onResponse(startContext), finalListener::onFailure));
             },
             finalListener::onFailure
         );

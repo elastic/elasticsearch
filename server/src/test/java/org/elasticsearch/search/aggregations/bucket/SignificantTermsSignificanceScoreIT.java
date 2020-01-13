@@ -83,7 +83,6 @@ import static org.hamcrest.Matchers.is;
 public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     static final String INDEX_NAME = "testidx";
-    static final String DOC_TYPE = "_doc";
     static final String TEXT_FIELD = "text";
     static final String CLASS_FIELD = "class";
 
@@ -340,7 +339,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testDeletesIssue7951() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
-                .addMapping("_doc", "text", "type=keyword", CLASS_FIELD, "type=keyword"));
+                .setMapping("text", "type=keyword", CLASS_FIELD, "type=keyword"));
         String[] cat1v1 = {"constant", "one"};
         String[] cat1v2 = {"constant", "uno"};
         String[] cat2v1 = {"constant", "two"};
@@ -575,7 +574,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .addMapping("_doc", "text", "type=text,fielddata=true", "class", "type=keyword"));
+            .setMapping("text", "type=text,fielddata=true", "class", "type=keyword"));
         createIndex("idx_unmapped");
 
         ensureGreen();
@@ -657,7 +656,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         if (type.equals("text")) {
             textMappings += ",fielddata=true";
         }
-        assertAcked(prepareCreate(INDEX_NAME).addMapping(DOC_TYPE, TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword"));
+        assertAcked(prepareCreate(INDEX_NAME).setMapping(TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < randomInt(20); i++) {
@@ -683,7 +682,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),

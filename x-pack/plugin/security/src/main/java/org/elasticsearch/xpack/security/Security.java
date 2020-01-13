@@ -414,7 +414,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
 
-        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
+        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState(),
             xContentRegistry);

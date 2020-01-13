@@ -345,8 +345,8 @@ public class FileUtils {
      */
     public static String escapePath(Path path) {
         if (Platforms.WINDOWS) {
-            // replace single backslash with forward slash. note the first string is a regex, so is double escaped
-            return path.toString().replaceAll("\\\\", "/");
+            // replace single backslash with forward slash, to avoid unintended escapes in scripts
+            return path.toString().replace('\\', '/');
         }
         return path.toString();
     }

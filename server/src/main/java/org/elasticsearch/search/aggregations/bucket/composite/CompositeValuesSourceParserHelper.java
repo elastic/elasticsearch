@@ -48,7 +48,7 @@ public class CompositeValuesSourceParserHelper {
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                        + valueType + "].  It can only work on value off type ["
+                        + valueType + "].  It can only work on value of type ["
                         + expectedValueType + "]");
             }
             return valueType;

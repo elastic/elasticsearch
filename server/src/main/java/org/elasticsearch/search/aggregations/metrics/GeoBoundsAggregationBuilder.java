@@ -84,7 +84,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected ValuesSourceType defaultValueSourceType(Script script) {
-    return CoreValuesSourceType.GEOPOINT;
+        return CoreValuesSourceType.GEOPOINT;
     }
 
     /**

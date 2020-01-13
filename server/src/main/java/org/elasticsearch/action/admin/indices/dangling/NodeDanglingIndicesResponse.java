@@ -10,6 +10,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ */
 public class NodeDanglingIndicesResponse extends BaseNodeResponse {
     private final List<IndexMetaData> indexMetaData;
 

@@ -5,6 +5,9 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ */
 public class NodeDanglingIndicesRequest extends TransportRequest {
     public NodeDanglingIndicesRequest() {
 

@@ -17,19 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
-
-import org.elasticsearch.action.ActionType;
-
 /**
- * This action causes a dangling index to be considered as deleted by the cluster.
+ * {@link org.elasticsearch.rest.RestHandler}s for managing dangling indices.
+ *
+ * @see org.elasticsearch.action.admin.indices.dangling
  */
-public class DeleteDanglingIndexAction extends ActionType<DeleteDanglingIndexResponse> {
-
-    public static final DeleteDanglingIndexAction INSTANCE = new DeleteDanglingIndexAction();
-    public static final String NAME = "cluster:admin/indices/dangling/delete";
-
-    private DeleteDanglingIndexAction() {
-        super(NAME, DeleteDanglingIndexResponse::new);
-    }
-}
+package org.elasticsearch.rest.action.admin.cluster.dangling;

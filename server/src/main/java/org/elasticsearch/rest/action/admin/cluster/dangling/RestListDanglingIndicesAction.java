@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.cluster;
+package org.elasticsearch.rest.action.admin.cluster.dangling;
 
-import org.elasticsearch.action.admin.indices.dangling.RestoreDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -28,24 +28,21 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestRestoreDanglingIndexAction extends BaseRestHandler {
-    public RestRestoreDanglingIndexAction(RestController controller) {
-        controller.registerHandler(POST, "/_dangling/{indexUuid}", this);
+public class RestListDanglingIndicesAction extends BaseRestHandler {
+    public RestListDanglingIndicesAction(RestController controller) {
+        controller.registerHandler(GET, "/_dangling", this);
     }
 
     @Override
     public String getName() {
-        return "restore_dangling_index";
+        return "list_dangling_indices";
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        final RestoreDanglingIndexRequest restoreRequest = new RestoreDanglingIndexRequest();
-        restoreRequest.setIndexUuid(request.param("indexUuid"));
-        request.applyContentParser(p -> restoreRequest.source(p.mapOrdered()));
-
-        return channel -> client.admin().cluster().restoreDanglingIndex(restoreRequest, new RestStatusToXContentListener<>(channel));
+    public BaseRestHandler.RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+        final ListDanglingIndicesRequest danglingIndicesRequest = new ListDanglingIndicesRequest();
+        return channel -> client.admin().cluster().listDanglingIndices(danglingIndicesRequest, new RestStatusToXContentListener<>(channel));
     }
 }

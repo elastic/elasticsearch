@@ -27,6 +27,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Represents a request to restore a particular dangling index, specified
+ * by its UUID and optionally the node ID, if the dangling index exists on
+ * more than one node. The {@link #acceptDataLoss} flag must also be
+ * explicitly set to true, or later validation will fail.
+ */
 public class RestoreDanglingIndexRequest extends BaseNodesRequest<RestoreDanglingIndexRequest> {
     private String indexUuid;
     private boolean acceptDataLoss;

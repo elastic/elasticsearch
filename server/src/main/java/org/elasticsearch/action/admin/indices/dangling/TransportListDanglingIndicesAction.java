@@ -36,6 +36,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Implements the listing of all dangling indices. All nodes in the cluster are queried, and
+ * their answers aggregated. Finding dangling indices is performed in {@link DanglingIndicesState}.
+ */
 public class TransportListDanglingIndicesAction extends TransportNodesAction<
     ListDanglingIndicesRequest,
     ListDanglingIndicesResponse,

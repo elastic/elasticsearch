@@ -52,6 +52,8 @@ import static org.hamcrest.Matchers.not;
  * This class tests how dangling indices are handled, in terms of how they
  * are discovered, and how they can be accessed and manipulated through the
  * API.
+ *
+ * @see org.elasticsearch.action.admin.indices.dangling
  */
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class DanglingIndicesIT extends ESIntegTestCase {

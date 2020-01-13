@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.cluster;
+package org.elasticsearch.rest.action.admin.cluster.dangling;
 
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
 import org.elasticsearch.client.node.NodeClient;

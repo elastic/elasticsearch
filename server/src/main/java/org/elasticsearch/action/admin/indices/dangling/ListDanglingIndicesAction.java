@@ -21,6 +21,9 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionType;
 
+/**
+ * Represents a request to list all dangling indices known to the cluster.
+ */
 public class ListDanglingIndicesAction extends ActionType<ListDanglingIndicesResponse> {
 
     public static final ListDanglingIndicesAction INSTANCE = new ListDanglingIndicesAction();

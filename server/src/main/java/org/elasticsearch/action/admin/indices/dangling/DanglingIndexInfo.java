@@ -28,6 +28,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Contains information about a dangling index, i.e. an index that Elasticsearch has found
+ * on-disk but is not present in the cluster state.
+ */
 public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObject {
     private String indexName;
     private String indexUUID;

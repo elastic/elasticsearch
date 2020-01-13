@@ -21,6 +21,9 @@ package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionType;
 
+/**
+ * Represents a request to restore a particular dangling index.
+ */
 public class RestoreDanglingIndexAction extends ActionType<RestoreDanglingIndexResponse> {
 
     public static final RestoreDanglingIndexAction INSTANCE = new RestoreDanglingIndexAction();

@@ -50,6 +50,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexAction},
+ * this class first checks that such a dangling index exists. It then submits a cluster state update
+ * to add the index to the index graveyard.
+ */
 public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, DeleteDanglingIndexResponse> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 

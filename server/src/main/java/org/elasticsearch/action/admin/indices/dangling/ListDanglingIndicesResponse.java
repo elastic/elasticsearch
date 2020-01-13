@@ -26,12 +26,19 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Models a response to a {@link ListDanglingIndicesRequest}. A list request queries every node in the
+ * cluster and aggregates their responses. When the aggregated response is converted to {@link XContent},
+ * information for each dangling index is presented under the "dangling_indices" key. If any nodes
+ * in the cluster failed to answer, the details are presented under the "failed_nodes" key.
+ */
 public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingIndicesResponse> implements StatusToXContentObject {
 
     public ListDanglingIndicesResponse(StreamInput in) throws IOException {

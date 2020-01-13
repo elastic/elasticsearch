@@ -27,6 +27,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Represents a request to delete a particular dangling index, specified by its UUID. The {@link #acceptDataLoss}
+ * flag must also be explicitly set to true, or later validation will fail.
+ */
 public class DeleteDanglingIndexRequest extends MasterNodeRequest<DeleteDanglingIndexRequest> {
     private String indexUuid;
     private boolean acceptDataLoss = false;

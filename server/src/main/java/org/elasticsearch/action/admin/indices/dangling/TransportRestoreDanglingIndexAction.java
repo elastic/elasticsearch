@@ -38,6 +38,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Implements the restoration of a dangling index. When handling a {@link RestoreDanglingIndexAction},
+ * this class first checks that such a dangling index exists. It then calls {@link LocalAllocateDangledIndices}
+ * to perform the actual allocation.
+ */
 public class TransportRestoreDanglingIndexAction extends HandledTransportAction<RestoreDanglingIndexRequest, RestoreDanglingIndexResponse> {
 
     private final TransportService transportService;

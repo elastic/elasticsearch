@@ -236,8 +236,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .filter(sk -> currentPhase.equals(sk.getPhase()))
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        final PhaseExecutionInfo pei = new PhaseExecutionInfo(policyId, newPolicy.getPhases().get(currentPhase), 1L, 1L);
-        final String peiJson = Strings.toString(pei);
+        final PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyId, newPolicy.getPhases().get(currentPhase), 1L, 1L);
+        final String peiJson = Strings.toString(phaseExecutionInfo);
 
         final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase);
         if (newPhaseStepKeys == null) {

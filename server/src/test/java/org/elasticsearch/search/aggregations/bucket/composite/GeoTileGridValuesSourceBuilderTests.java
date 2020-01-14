@@ -43,13 +43,13 @@ public class GeoTileGridValuesSourceBuilderTests extends ESTestCase {
     }
 
     public void testBWCBounds() throws IOException {
-        Version noBoundsSupportVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_0);
         GeoTileGridValuesSourceBuilder builder = new GeoTileGridValuesSourceBuilder("name");
         if (randomBoolean()) {
             builder.geoBoundingBox(GeoBoundingBoxTests.randomBBox());
         }
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_8_0_0);
+            output.setVersion(Version.V_7_6_0);
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
                 new NamedWriteableRegistry(Collections.emptyList()))) {

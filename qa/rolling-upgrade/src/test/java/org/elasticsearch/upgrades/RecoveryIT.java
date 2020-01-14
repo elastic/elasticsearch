@@ -622,7 +622,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }
         if (randomBoolean()) {
-            flush(index, randomBoolean());
+            syncedFlush(index);
         }
     }
 

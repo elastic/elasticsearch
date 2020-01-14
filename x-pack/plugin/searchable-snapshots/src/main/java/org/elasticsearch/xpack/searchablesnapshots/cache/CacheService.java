@@ -51,7 +51,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private static final int CACHE_FILE_RANGE_SIZE = 1 << 15;
 
     private static final Set<StandardOpenOption> CACHE_FILE_OPEN_OPTIONS =
-        Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE/*, StandardOpenOption.SPARSE*/);
+        Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE);
 
     private static final Logger logger = LogManager.getLogger(CacheService.class);
 

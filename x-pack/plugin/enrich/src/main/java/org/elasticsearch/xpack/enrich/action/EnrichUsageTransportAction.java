@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
+import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage.CoordinatorSummaryStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction {
@@ -72,7 +73,7 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
                             licenseState.isEnrichAllowed(),
                             enabled,
                             statsResponse.getExecutionStats(),
-                            statsResponse.getCoordinatorStats()
+                            CoordinatorSummaryStats.aggregate(statsResponse.getCoordinatorStats())
                         )
                     )
                 ),

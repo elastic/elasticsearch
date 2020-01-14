@@ -10,6 +10,7 @@ import java.util.List;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
+import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage.CoordinatorSummaryStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutionStats;
 import org.elasticsearch.xpack.enrich.action.EnrichStatsResponseTests;
@@ -21,7 +22,7 @@ public class EnrichFeatureSetUsageTests extends AbstractWireSerializingTestCase<
         boolean enabled = randomBoolean();
         ExecutionStats executionStats = EnrichStatsResponseTests.randomExecutionStats();
         List<CoordinatorStats> coordinatorStats = EnrichStatsResponseTests.randomCoordinatorStats();
-        return new EnrichFeatureSetUsage(available, enabled, executionStats, coordinatorStats);
+        return new EnrichFeatureSetUsage(available, enabled, executionStats, CoordinatorSummaryStats.aggregate(coordinatorStats));
     }
 
     @Override

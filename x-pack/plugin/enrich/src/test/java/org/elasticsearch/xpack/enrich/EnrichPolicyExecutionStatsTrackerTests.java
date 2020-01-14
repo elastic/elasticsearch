@@ -88,11 +88,11 @@ public class EnrichPolicyExecutionStatsTrackerTests extends ESTestCase {
         assertNotNull(stats);
         assertEquals(5L, stats.getTotalExecutionCount());
         assertEquals(250L, stats.getTotalExecutionTime());
-        assertEquals(25L, stats.getMinExecutionTime());
-        assertEquals(75L, stats.getMaxExecutionTime());
+        assertEquals(50L, stats.getMinExecutionTime());
+        assertEquals(50L, stats.getMaxExecutionTime());
         assertEquals(4L, stats.getTotalRepeatExecutionCount());
-        assertEquals(400L, stats.getTotalTimeBetweenExecutions());
-        assertEquals(100L, stats.getAvgTimeBetweenExecutions());
+        assertEquals(200L, stats.getTotalTimeBetweenExecutions());
+        assertEquals(50L, stats.getAvgTimeBetweenExecutions());
         assertEquals(25L, stats.getMinTimeBetweenExecutions());
         assertEquals(75L, stats.getMaxTimeBetweenExecutions());
     }

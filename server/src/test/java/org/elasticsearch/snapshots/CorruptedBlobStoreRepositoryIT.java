@@ -327,14 +327,19 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         Files.write(repo.resolve("index-" + repositoryData.getGenId()), randomByteArrayOfLength(randomIntBetween(1, 100)));
+
+        logger.info("--> verify loading repository data throws RepositoryException");
         expectThrows(RepositoryException.class, () -> getRepositoryData(repository));
 
+        logger.info("--> mount repository path in a new repository");
         final String otherRepoName = "other-repo";
         assertAcked(client.admin().cluster().preparePutRepository(otherRepoName)
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)));
         final Repository otherRepo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(otherRepoName);
+
+        logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
     }
 

@@ -148,6 +148,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 (Optional, long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
+`analysis`.`classification`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
+
 `analysis`.`classification`.`training_percent`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
@@ -226,6 +230,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 `analysis`.`regression`.`prediction_field_name`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`analysis`.`regression`.`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-feature-importance-values]
 
 `analysis`.`regression`.`training_percent`::::
 (Optional, integer)

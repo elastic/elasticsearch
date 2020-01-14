@@ -49,6 +49,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
@@ -275,20 +276,6 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
-        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
-        request.addParameters(sourceParams(getRequest).asMap());
-        return request;
-    }
-
-    static Request getSource(GetRequest getRequest) {
-        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.addParameters(sourceParams(getRequest).asMap());
-        return request;
-    }
-
-    private static Params sourceParams(GetRequest getRequest) {
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
@@ -296,7 +283,25 @@ final class RequestConverters {
         parameters.withRealtime(getRequest.realtime());
         parameters.withFetchSourceContext(getRequest.fetchSourceContext());
         // Version params are not currently supported by the _source API so are not passed
-        return parameters;
+
+        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+        request.addParameters(parameters.asMap());
+        return request;
+    }
+
+    static Request getSource(GetSourceRequest getSourceRequest) {
+        Params parameters = new Params();
+        parameters.withPreference(getSourceRequest.preference());
+        parameters.withRouting(getSourceRequest.routing());
+        parameters.withRefresh(getSourceRequest.refresh());
+        parameters.withRealtime(getSourceRequest.realtime());
+        parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
+
+        String endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(parameters.asMap());
+        return request;
     }
 
     static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {

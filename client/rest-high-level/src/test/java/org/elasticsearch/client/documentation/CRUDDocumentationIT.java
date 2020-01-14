@@ -53,6 +53,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
@@ -79,7 +81,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -1426,30 +1427,53 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         // tag::get-source-request
-        GetRequest getSourceRequest = new GetRequest(
+        GetSourceRequest getSourceRequest = new GetSourceRequest(
             "posts", // <1>
             "1");   // <2>
+        // end::get-source-request
 
-        String[] includes = Strings.EMPTY_ARRAY;
+        //tag::get-source-request-optional
+        String[] includes = Strings.EMPTY_ARRAY;  // <2>
         String[] excludes = new String[]{"postDate"};
         getSourceRequest.fetchSourceContext(
-            new FetchSourceContext(true, includes, excludes));
-        // end::get-source-request
+            new FetchSourceContext(true, includes, excludes)); // <1>
+        // end::get-source-request-optional
+
+        //tag::get-source-request-routing
+        getSourceRequest.routing("routing"); // <1>
+        //end::get-source-request-routing
+        //tag::get-source-request-preference
+        getSourceRequest.preference("preference"); // <1>
+        //end::get-source-request-preference
+        //tag::get-source-request-realtime
+        getSourceRequest.realtime(false); // <1>
+        //end::get-source-request-realtime
+        //tag::get-source-request-refresh
+        getSourceRequest.refresh(true); // <1>
+        //end::get-source-request-refresh
+
         {
             // tag::get-source-execute
-            RestResponse bytesResponse =
+            GetSourceResponse response =
                 client.getSource(getSourceRequest, RequestOptions.DEFAULT);
             // end::get-source-execute
-            assertTrue(bytesResponse.content().utf8ToString().contains("user"));
-            assertFalse(bytesResponse.content().utf8ToString().contains("postDate"));
+            // tag::get-source-response
+            Map<String, Object> source = response.getSource();
+            // end::get-source-response
+
+            Map<String, Object> expectSource = new HashMap<>();
+            expectSource.put("user", "kimchy");
+            expectSource.put("message", "trying out Elasticsearch");
+            assertEquals(expectSource, source);
         }
         {
-            GetRequest request = new GetRequest("posts", "1");
+            GetSourceRequest request = new GetSourceRequest("posts", "1");
 
             // tag::get-source-execute-listener
-            ActionListener<RestResponse> listener = new ActionListener<RestResponse>() {
+            ActionListener<GetSourceResponse> listener =
+                new ActionListener<GetSourceResponse>() {
                     @Override
-                    public void onResponse(RestResponse getResponse) {
+                    public void onResponse(GetSourceResponse getResponse) {
                         // <1>
                     }
 

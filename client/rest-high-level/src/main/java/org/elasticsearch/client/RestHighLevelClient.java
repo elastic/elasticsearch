@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -57,6 +56,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
@@ -80,7 +81,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
@@ -191,7 +191,6 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -871,8 +870,9 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      */
-    public RestResponse getSource(GetRequest getRequest, RequestOptions options) throws IOException {
-        return performRequest(getRequest, RequestConverters::getSource, options, RestHighLevelClient::convertBytesResponse, emptySet());
+    public GetSourceResponse getSource(GetSourceRequest getRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(getRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, emptySet());
     }
 
     /**
@@ -884,9 +884,10 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable getSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<RestResponse> listener) {
-        return performRequestAsync(getRequest, RequestConverters::getSource, options, RestHighLevelClient::convertBytesResponse,
-            listener, emptySet());
+    public final Cancellable getSourceAsync(GetSourceRequest getRequest, RequestOptions options,
+                                            ActionListener<GetSourceResponse> listener) {
+        return performRequestAsyncAndParseEntity(getRequest, RequestConverters::getSource, options,
+            GetSourceResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1825,16 +1826,6 @@ public class RestHighLevelClient implements Closeable {
 
     protected static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
-    }
-
-    private static BytesRestResponse convertBytesResponse(Response response) throws IOException {
-        if (response.getEntity() == null) {
-            throw new IllegalStateException("Response body expected but not returned");
-        }
-        try (InputStream s = response.getEntity().getContent()) {
-            RestStatus status = RestStatus.fromCode(response.getStatusLine().getStatusCode());
-            return new BytesRestResponse(status, ContentType.APPLICATION_JSON.toString(), s.readAllBytes());
-        }
     }
 
     /**

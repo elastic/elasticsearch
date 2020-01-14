@@ -38,6 +38,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
@@ -53,7 +55,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -65,6 +66,7 @@ import org.joda.time.format.DateTimeFormat;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -362,7 +364,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testGetSource() throws IOException {
         {
-            GetRequest getRequest = new GetRequest("index", "id");
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -375,12 +377,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
-            GetRequest getRequest = new GetRequest("index", "id");
-            RestResponse bytesResponse = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
-            assertEquals(document, bytesResponse.content().utf8ToString());
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field1", "value1");
+            expectedResponse.put("field2", "value2");
+            assertEquals(expectedResponse, response.getSource());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "does_not_exist");
+            GetSourceRequest getRequest = new GetSourceRequest("index", "does_not_exist");
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -388,25 +393,32 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 "reason=Document not found [index]/[does_not_exist]]", exception.getMessage());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "id");
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
             getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY));
-            RestResponse bytesResponse = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
-            assertEquals(document, bytesResponse.content().utf8ToString());
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field1", "value1");
+            expectedResponse.put("field2", "value2");
+            assertEquals(expectedResponse, response.getSource());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "id");
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
             getRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, Strings.EMPTY_ARRAY));
-            RestResponse bytesResponse = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
-            assertEquals("{\"field1\":\"value1\"}", bytesResponse.content().utf8ToString());
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field1", "value1");
+            assertEquals(expectedResponse, response.getSource());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "id");
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
             getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, new String[]{"field1"}));
-            RestResponse bytesResponse = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
-            assertEquals("{\"field2\":\"value2\"}", bytesResponse.content().utf8ToString());
+            GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
+            Map<String, Object> expectedResponse = new HashMap<>();
+            expectedResponse.put("field2", "value2");
+            assertEquals(expectedResponse, response.getSource());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "id");
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
             getRequest.fetchSourceContext(new FetchSourceContext(false));
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));

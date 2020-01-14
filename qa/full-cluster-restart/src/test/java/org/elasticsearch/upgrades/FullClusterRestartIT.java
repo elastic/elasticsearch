@@ -684,7 +684,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
                 // We added this synced flush so we can exercise different paths of recovery code.
                 try {
-                    client().performRequest(new Request("POST", index + "/_flush/synced"));
+                    performSyncedFlush(index);
                 } catch (ResponseException ignored) {
                     // synced flush is optional here
                 }

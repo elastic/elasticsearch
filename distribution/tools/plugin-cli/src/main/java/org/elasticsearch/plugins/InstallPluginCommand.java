@@ -206,24 +206,50 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        String pluginId = arguments.value(options);
+        List<String> pluginId = arguments.values(options);
         final boolean isBatch = options.has(batchOption);
         execute(terminal, pluginId, isBatch, env);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginId, boolean isBatch, Environment env) throws Exception {
-        if (pluginId == null) {
-            throw new UserException(ExitCodes.USAGE, "plugin id is required");
+    void execute(Terminal terminal, List<String> pluginIds, boolean isBatch, Environment env) throws Exception {
+        if (pluginIds.isEmpty()) {
+            throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
 
-        if ("x-pack".equals(pluginId)) {
-            handleInstallXPack(buildFlavor());
+        final Set<String> uniquePluginIds = new HashSet<>();
+        for (final String pluginId : pluginIds) {
+            if (uniquePluginIds.add(pluginId) == false) {
+                throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + pluginId + "]");
+            }
         }
 
-        Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
-        Path extractedZip = unzip(pluginZip, env.pluginsFile());
-        install(terminal, isBatch, extractedZip, env);
+        final List<Path> deleteOnFailure = new ArrayList<>();
+        final Set<PluginInfo> pluginInfos = new HashSet<>();
+        for (final String pluginId : pluginIds) {
+            try {
+                if ("x-pack".equals(pluginId)) {
+                    handleInstallXPack(buildFlavor());
+                }
+
+                final Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
+                final Path extractedZip = unzip(pluginZip, env.pluginsFile());
+                deleteOnFailure.add(extractedZip);
+                final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
+                pluginInfos.add(pluginInfo);
+            } catch (final Exception installProblem) {
+                try {
+                    IOUtils.rm(deleteOnFailure.toArray(new Path[0]));
+                } catch (final IOException exceptionWhileRemovingFiles) {
+                    installProblem.addSuppressed(exceptionWhileRemovingFiles);
+                }
+                throw installProblem;
+            }
+        }
+
+        for (final PluginInfo pluginInfo : pluginInfos) {
+            terminal.println("-> Installed " + pluginInfo.getName());
+        }
     }
 
     Build.Flavor buildFlavor() {
@@ -773,26 +799,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // TODO: verify the classname exists in one of the jars!
     }
 
-    private void install(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env) throws Exception {
-        List<Path> deleteOnFailure = new ArrayList<>();
-        deleteOnFailure.add(tmpRoot);
-        try {
-            installPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
-        } catch (Exception installProblem) {
-            try {
-                IOUtils.rm(deleteOnFailure.toArray(new Path[0]));
-            } catch (IOException exceptionWhileRemovingFiles) {
-                installProblem.addSuppressed(exceptionWhileRemovingFiles);
-            }
-            throw installProblem;
-        }
-    }
-
     /**
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are moved.
      */
-    private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
+    private PluginInfo installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
                                Environment env, List<Path> deleteOnFailure) throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
         // read optional security policy (extra permissions), if it exists, confirm or warn the user
@@ -811,7 +822,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
                                   env.configFile().resolve(info.getName()), deleteOnFailure);
         movePlugin(tmpRoot, destination);
-        terminal.println("-> Installed " + info.getName());
+        return info;
     }
 
     /** Moves bin and config directories from the plugin if they exist */

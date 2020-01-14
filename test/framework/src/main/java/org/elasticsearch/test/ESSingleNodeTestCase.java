@@ -284,7 +284,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+    protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null) {
             createIndexRequestBuilder.setMapping(mappings);

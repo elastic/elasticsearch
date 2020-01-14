@@ -91,7 +91,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=query]
 include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
 +
 --
-To learn more about the relationship of time related settings, see 
+To learn more about the relationship between time related settings, see 
 <<ml-put-datafeed-time-related-settings>>.
 --
 

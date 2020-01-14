@@ -675,7 +675,7 @@ public class PersistedClusterStateService {
                         }
                     }
                 } else {
-                    numIndicesUnchanged ++;
+                    numIndicesUnchanged++;
                     logger.trace("no action required for [{}]", indexMetaData.getIndex());
                 }
                 indexMetaDataVersionByUUID.remove(indexMetaData.getIndexUUID());

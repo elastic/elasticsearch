@@ -50,7 +50,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     public void setUpTests() {
         capturedDeleteByQueryRequests = new ArrayList<>();
 
-        client = org.mockito.Mockito.mock(Client.class);
+        client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
     }

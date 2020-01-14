@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ml.test;
 
-
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
@@ -25,11 +24,11 @@ import static org.mockito.Mockito.when;
 public class MockOriginSettingClient {
 
     /**
-     * Create a OriginSettingClient on a mocked client.
+     * Create an OriginSettingClient on a mocked client.
      *
      * @param client The mocked client
      * @param origin Whatever
-     * @return A OriginSettingClient using a mocked client
+     * @return An OriginSettingClient using a mocked client
      */
     public static OriginSettingClient mockOriginSettingClient(Client client, String origin) {
 

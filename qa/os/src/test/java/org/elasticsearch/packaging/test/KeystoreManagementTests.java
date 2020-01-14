@@ -28,19 +28,25 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Ignore;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Map;
 
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
+import static org.elasticsearch.packaging.util.Docker.runContainer;
+import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
+import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -251,6 +257,83 @@ public class KeystoreManagementTests extends PackagingTestCase {
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }
+    }
+
+    /**
+     * Check that we can mount a password-protected keystore to a docker image
+     * and provide a password via an environment variable.
+     */
+    public void test60DockerEnvironmentVariablePassword() throws Exception {
+        assumeTrue(distribution().isDocker());
+        String password = "password";
+        Path dockerKeystore = installation.config("elasticsearch.keystore");
+
+        Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+
+        // restart ES with password and mounted keystore
+        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
+        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
+        runContainer(distribution(), volumes, envVars);
+        waitForElasticsearch(installation);
+        ServerUtils.runElasticsearchTests();
+    }
+
+    /**
+     * Check that if we provide the wrong password for a mounted and password-protected
+     * keystore, Elasticsearch doesn't start.
+     */
+    public void test61DockerEnvironmentVariableBadPassword() throws Exception {
+        assumeTrue(distribution().isDocker());
+        String password = "password";
+        Path dockerKeystore = installation.config("elasticsearch.keystore");
+
+        Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+
+        // restart ES with password and mounted keystore
+        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
+        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
+        Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
+        assertThat(r.stderr, containsString(PASSWORD_ERROR_MESSAGE));
+    }
+
+    /**
+     * In the Docker context, it's a little bit tricky to get a password-protected
+     * keystore. All of the utilities we'd want to use are on the Docker image.
+     * This method mounts a temporary directory to a Docker container, password-protects
+     * the keystore, and then returns the path of the file that appears in the
+     * mounted directory (now accessible from the local filesystem).
+     */
+    private Path getKeystoreFileFromDockerContainer(String password, Path dockerKeystore) throws IOException {
+        // Mount a temporary directory for copying the keystore
+        Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
+        Path tempDirectory = Files.createTempDirectory(getTempDir(), KeystoreManagementTests.class.getSimpleName());
+        Map<Path, Path> volumes = Map.of(tempDirectory, dockerTemp);
+
+        // It's very tricky to properly quote a pipeline that you're passing to
+        // a docker exec command, so we're just going to put a small script in the
+        // temp folder.
+        String setPasswordScript = "echo \"" + password + "\n" + password
+            + "\n\" | " + installation.executables().keystoreTool.toString() + " passwd";
+        Files.writeString(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
+
+        runContainer(distribution(), volumes, null);
+        try {
+            waitForPathToExist(dockerTemp);
+            waitForPathToExist(dockerKeystore);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        // We need a local shell to put the correct permissions on our mounted directory.
+        Shell localShell = new Shell();
+        localShell.run("docker exec --tty " + Docker.getContainerId() + " chown elasticsearch:root " + dockerTemp);
+        localShell.run("docker exec --tty " + Docker.getContainerId() + " chown elasticsearch:root " + dockerTemp.resolve("set-pass.sh"));
+
+        sh.run("bash " + dockerTemp.resolve("set-pass.sh"));
+
+        // copy keystore to temp file to make it available to docker host
+        sh.run("cp " + dockerKeystore + " " + dockerTemp);
+        return tempDirectory.resolve("elasticsearch.keystore");
     }
 
     private void createKeystore() throws Exception {

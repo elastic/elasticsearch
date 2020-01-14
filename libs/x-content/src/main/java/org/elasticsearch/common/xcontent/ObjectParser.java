@@ -81,18 +81,17 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private interface UnknownFieldParser<Value, Context> {
-
-        void acceptUnknownField(String parserName, String field, XContentLocation location, XContentParser parser,
-                                Value value, Context context) throws IOException;
+        void acceptUnknownField(ObjectParser<Value, Context> objectParser, String field, XContentLocation location, XContentParser parser,
+                Value value, Context context) throws IOException;
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> ignoreUnknown() {
-      return (n, f, l, p, v, c) -> p.skipChildren();
+      return (op, f, l, p, v, c) -> p.skipChildren();
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> errorOnUnknown() {
-        return (n, f, l, p, v, c) -> {
-            throw new XContentParseException(l, "[" + n + "] unknown field [" + f + "], parser not found");
+        return (op, f, l, p, v, c) -> {
+            throw new XContentParseException(l, ErrorOnUnknown.IMPLEMENTATION.errorMessage(op.name, f, op.fieldParserMap.keySet()));
         };
     }
 
@@ -104,7 +103,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> consumeUnknownField(UnknownFieldConsumer<Value> consumer) {
-        return (parserName, field, location, parser, value, context) -> {
+        return (objectParser, field, location, parser, value, context) -> {
             XContentParser.Token t = parser.currentToken();
             switch (t) {
                 case VALUE_STRING:
@@ -127,7 +126,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     break;
                 default:
                     throw new XContentParseException(parser.getTokenLocation(),
-                        "[" + parserName + "] cannot parse field [" + field + "] with value type [" + t + "]");
+                        "[" + objectParser.name + "] cannot parse field [" + field + "] with value type [" + t + "]");
             }
         };
     }
@@ -136,12 +135,13 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         Class<Category> categoryClass,
         BiConsumer<Value, ? super Category> consumer
     ) {
-        return (parserName, field, location, parser, value, context) -> {
+        return (objectParser, field, location, parser, value, context) -> {
             Category o;
             try {
                 o = parser.namedObject(categoryClass, field, context);
             } catch (NamedObjectNotFoundException e) {
-                throw new XContentParseException(location, "[" + parserName  + "] " + e.getBareMessage(), e);
+                // TODO It'd be lovely if we could the options here but we don't have the right stuff plumbed through. We'll get to it!
+                throw new XContentParseException(location, "[" + objectParser.name  + "] " + e.getBareMessage(), e);
             }
             consumer.accept(value, o);
         };
@@ -278,7 +278,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
                 }
                 if (fieldParser == null) {
-                    unknownFieldParser.acceptUnknownField(name, currentFieldName, currentPosition, parser, value, context);
+                    unknownFieldParser.acceptUnknownField(this, currentFieldName, currentPosition, parser, value, context);
                 } else {
                     fieldParser.assertSupports(name, parser, currentFieldName);
                     parseSub(parser, fieldParser, currentFieldName, value, context);

@@ -350,7 +350,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expectBadRequest(() -> {
                 client().performRequest(request);
                 return Collections.emptyMap();
-            }, containsString("unknown field [columnar], parser not found"));
+            }, containsString("unknown field [columnar]"));
     }
 
     public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {

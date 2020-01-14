@@ -204,6 +204,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(indexSearcher.getIndexReader(),
             indexSearcher.getSimilarity(), queryCache, queryCachingPolicy);
 
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService);
+
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
@@ -216,7 +218,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.aggregations())
             .thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
-        when(searchContext.bigArrays()).thenReturn(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService));
+        when(searchContext.bigArrays()).thenReturn(bigArrays);
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
         MapperService mapperService = mapperServiceMock();
@@ -237,7 +239,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext =
-            queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService);
+            queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
@@ -288,9 +290,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
                                                       MapperService mapperService,
                                                       IndexSettings indexSettings,
-                                                      CircuitBreakerService circuitBreakerService) {
-
-        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+                                                      CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
+        return new QueryShardContext(0, indexSettings, bigArrays, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null);

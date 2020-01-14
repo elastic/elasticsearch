@@ -419,9 +419,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      */
     @Override
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                        MapperService mapperService,
-                                                        IndexSettings indexSettings,
-                                                        CircuitBreakerService circuitBreakerService) {
+                                                      MapperService mapperService,
+                                                      IndexSettings indexSettings,
+                                                      CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);

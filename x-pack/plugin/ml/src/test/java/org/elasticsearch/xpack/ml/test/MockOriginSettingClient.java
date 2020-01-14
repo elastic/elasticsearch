@@ -42,6 +42,7 @@ public class MockOriginSettingClient {
         when(tp.getThreadContext()).thenReturn(tc);
 
         when(client.threadPool()).thenReturn(tp);
+        when(client.settings()).thenReturn(Settings.EMPTY);
 
         return new OriginSettingClient(client, origin);
     }

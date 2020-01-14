@@ -81,7 +81,7 @@ public class Rectangle implements Geometry {
         this.maxZ = maxZ;
         empty = false;
         if (maxY < minY) {
-            throw new IllegalArgumentException("max y cannot be less than min y");
+            throw new IllegalArgumentException("max y cannot be less than min x");
         }
         if (Double.isNaN(minZ) != Double.isNaN(maxZ)) {
             throw new IllegalArgumentException("only one z value is specified");

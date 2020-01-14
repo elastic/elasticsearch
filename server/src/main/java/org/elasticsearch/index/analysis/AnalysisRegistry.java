@@ -604,7 +604,7 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
-        checkDeprecations(analyzer);
+        checkVersions(analyzer);
         return analyzer;
     }
 
@@ -633,10 +633,13 @@ public final class AnalysisRegistry implements Closeable {
         normalizers.put(name, normalizer);
     }
 
-    // Deprecation warnings are emitted when actual TokenStreams are built; this is usually
-    // too late to be useful, so we build an empty tokenstream at construction time and
-    // use it, to ensure that warnings are emitted immediately.
-    private static void checkDeprecations(Analyzer analyzer) {
+    // Some analysis components emit deprecation warnings or throw exceptions when used
+    // with the wrong version of elasticsearch.  These exceptions and warnings are
+    // normally thrown when tokenstreams are constructed, which unless we build a
+    // tokenstream up-front does not happen until a document is indexed.  In order to
+    // surface these warnings or exceptions as early as possible, we build an empty
+    // tokenstream and pull it through an Analyzer at construction time.
+    private static void checkVersions(Analyzer analyzer) {
         try (TokenStream ts = analyzer.tokenStream("", "")) {
             ts.reset();
             while (ts.incrementToken()) {}

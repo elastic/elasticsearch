@@ -272,7 +272,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         verify(mock).close();
     }
 
-    public void testDeprecations() throws IOException {
+    public void testDeprecationsAndExceptions() throws IOException {
 
         AnalysisPlugin plugin = new AnalysisPlugin() {
 
@@ -285,6 +285,21 @@ public class AnalysisRegistryTests extends ESTestCase {
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
                         deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    }
+                    return tokenStream;
+                }
+            }
+
+            class ExceptionFactory extends AbstractTokenFilterFactory {
+
+                public ExceptionFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
+                        throw new IllegalArgumentException("Cannot use token filter [exception]");
                     }
                     return tokenStream;
                 }
@@ -319,7 +334,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return Map.of("deprecated", MockFactory::new, "unused", UnusedMockFactory::new,
-                    "deprecated_normalizer", NormalizerFactory::new);
+                    "deprecated_normalizer", NormalizerFactory::new, "exception", ExceptionFactory::new);
             }
         };
 
@@ -344,8 +359,10 @@ public class AnalysisRegistryTests extends ESTestCase {
             .put("index.analysis.filter.deprecated.type", "deprecated_normalizer")
             .putList("index.analysis.normalizer.custom.filter", "lowercase", "deprecated_normalizer")
             .put("index.analysis.filter.deprecated.type", "deprecated")
+            .put("index.analysis.filter.exception.type", "exception")
             .put("index.analysis.analyzer.custom.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom.filter", "lowercase", "deprecated")
+            // exception will not throw because we're not on Version.CURRENT
+            .putList("index.analysis.analyzer.custom.filter", "lowercase", "deprecated", "exception")
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
@@ -355,6 +372,21 @@ public class AnalysisRegistryTests extends ESTestCase {
         // We should only get a warning from the normalizer, because we're on a version where 'deprecated'
         // works fine
         assertWarnings("Using deprecated token filter [deprecated_normalizer]");
+
+        indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.filter.exception.type", "exception")
+            .put("index.analysis.analyzer.custom.tokenizer", "standard")
+            // exception will not throw because we're not on Version.LATEST
+            .putList("index.analysis.analyzer.custom.filter", "lowercase", "exception")
+            .build();
+        IndexSettings exceptionSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new AnalysisModule(TestEnvironment.newEnvironment(settings),
+                singletonList(plugin)).getAnalysisRegistry().build(exceptionSettings);
+        });
+        assertEquals("Cannot use token filter [exception]", e.getMessage());
 
     }
 }

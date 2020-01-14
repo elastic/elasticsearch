@@ -80,11 +80,19 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
         if (randomBoolean() && targetType.equals(TargetType.CLASSIFICATION)) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
+        double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION  ?
+            Stream.generate(ESTestCase::randomDouble)
+                .limit(categoryLabels == null ? randomIntBetween(1, 10) : categoryLabels.size())
+                .mapToDouble(Double::valueOf)
+                .toArray() :
+            null;
+
         return new Ensemble(featureNames,
             models,
             outputAggregator,
             targetType,
-            categoryLabels);
+            categoryLabels,
+            thresholds);
     }
 
     @Override

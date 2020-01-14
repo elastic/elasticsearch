@@ -1280,7 +1280,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final Map<SnapshotId, Version> updatedVersionMap = new ConcurrentHashMap<>();
                 final GroupedActionListener<Void> loadAllVersionsListener = new GroupedActionListener<>(
                     ActionListener.runAfter(
-                        new ActionListener<>() {
+                        new ActionListener<Collection<Void>>() {
                             @Override
                             public void onResponse(Collection<Void> voids) {
                                 logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",

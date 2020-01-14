@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -127,7 +128,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(0, logger, environment, Files::exists)) {
             final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(dataPaths, nodeId,
-                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE, true).createWriter()) {
+                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
                 writer.writeFullStateAndCommit(1L, clusterState);
             }
         }

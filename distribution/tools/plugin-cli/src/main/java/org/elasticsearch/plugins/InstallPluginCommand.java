@@ -214,7 +214,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     // pkg private for testing
     void execute(Terminal terminal, List<String> pluginIds, boolean isBatch, Environment env) throws Exception {
         if (pluginIds.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "plugin ids are required");
+            throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();

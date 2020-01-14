@@ -64,6 +64,7 @@ import org.junit.Before;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -390,7 +391,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testMissingPluginId() throws IOException {
         final Tuple<Path, Environment> env = createEnv(fs, temp);
         final UserException e = expectThrows(UserException.class, () -> installPlugin(null, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("plugin ids are required"));
+        assertTrue(e.getMessage(), e.getMessage().contains("at least one plugin id is required"));
     }
 
     public void testSomethingWorks() throws Exception {
@@ -409,6 +410,27 @@ public class InstallPluginCommandTests extends ESTestCase {
         installPlugins(List.of(fake1PluginZip, fake2PluginZip), env.v1());
         assertPlugin("fake1", pluginDir, env.v2());
         assertPlugin("fake2", pluginDir, env.v2());
+    }
+
+    public void testDuplicateInstall() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        final UserException e = expectThrows(UserException.class, () -> installPlugins(List.of(pluginZip, pluginZip), env.v1()));
+        assertThat(e, hasToString(containsString("duplicate plugin id [" + pluginZip + "]")));
+    }
+
+    public void testTransaction() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        final FileNotFoundException e =
+            expectThrows(FileNotFoundException.class, () -> installPlugins(List.of(pluginZip, pluginZip + "does-not-exist"), env.v1()));
+        assertThat(e, hasToString(containsString("does-not-exist")));
+        final Path fakeInstallPath = env.v2().pluginsFile().resolve("fake");
+        // fake should have been removed when the file not found exception occurred
+        assertFalse(Files.exists(fakeInstallPath));
+        assertInstallCleaned(env.v2());
     }
 
     public void testInstallFailsIfPreviouslyRemovedPluginFailed() throws Exception {

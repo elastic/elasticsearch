@@ -19,20 +19,15 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.io.StringReader;
-import java.util.Map;
 
 public class CommonAnalysisPluginTests extends ESTestCase {
 
@@ -51,13 +46,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             .build();
 
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings),
-                    settings, commonAnalysisPlugin).tokenFilter;
-            TokenFilterFactory tokenFilterFactory = tokenFilters.get("nGram");
-            Tokenizer tokenizer = new MockTokenizer();
-            tokenizer.setReader(new StringReader("foo bar"));
-
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> tokenFilterFactory.create(tokenizer));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin));
             assertEquals("The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                     + "Please change the filter name to [ngram] instead.", ex.getMessage());
         }
@@ -69,12 +59,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram").put("index.analysis.filter.my_ngram.type", "nGram")
                 .build();
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7),
-                    settingsPre7, commonAnalysisPlugin).tokenFilter;
-            TokenFilterFactory tokenFilterFactory = tokenFilters.get("nGram");
-            Tokenizer tokenizer = new MockTokenizer();
-            tokenizer.setReader(new StringReader("foo bar"));
-            assertNotNull(tokenFilterFactory.create(tokenizer));
+            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7), settingsPre7, commonAnalysisPlugin);
             assertWarnings("The [nGram] token filter name is deprecated and will be removed in a future version. "
                     + "Please change the filter name to [ngram] instead.");
         }
@@ -95,13 +80,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             .build();
 
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings),
-                    settings, commonAnalysisPlugin).tokenFilter;
-            TokenFilterFactory tokenFilterFactory = tokenFilters.get("edgeNGram");
-            Tokenizer tokenizer = new MockTokenizer();
-            tokenizer.setReader(new StringReader("foo bar"));
-
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> tokenFilterFactory.create(tokenizer));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin));
             assertEquals("The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                     + "Please change the filter name to [edge_ngram] instead.", ex.getMessage());
         }
@@ -116,12 +96,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 .build();
 
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7),
-                    settingsPre7, commonAnalysisPlugin).tokenFilter;
-            TokenFilterFactory tokenFilterFactory = tokenFilters.get("edgeNGram");
-            Tokenizer tokenizer = new MockTokenizer();
-            tokenizer.setReader(new StringReader("foo bar"));
-            assertNotNull(tokenFilterFactory.create(tokenizer));
+           createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7),
+                    settingsPre7, commonAnalysisPlugin);
             assertWarnings("The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
                     + "Please change the filter name to [edge_ngram] instead.");
         }

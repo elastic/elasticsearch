@@ -244,7 +244,13 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
-        TransformCheckpointService checkpointService = new TransformCheckpointService(client, configManager, auditor);
+        TransformCheckpointService checkpointService = new TransformCheckpointService(
+            client,
+            settings,
+            clusterService,
+            configManager,
+            auditor
+        );
         SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));

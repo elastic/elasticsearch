@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -47,9 +46,6 @@ public class IncrementalClusterStateWriter {
 
     private static final Logger logger = LogManager.getLogger(IncrementalClusterStateWriter.class);
 
-    public static final Setting<TimeValue> SLOW_WRITE_LOGGING_THRESHOLD = Setting.timeSetting("gateway.slow_write_logging_threshold",
-        TimeValue.timeValueSeconds(10), TimeValue.ZERO, Setting.Property.NodeScope, Setting.Property.Dynamic);
-
     private final MetaStateService metaStateService;
 
     // We call updateClusterState on the (unique) cluster applier thread so there's no need to synchronize access to these fields.
@@ -67,8 +63,9 @@ public class IncrementalClusterStateWriter {
         this.previousClusterState = clusterState;
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
         this.incrementalWrite = false;
-        this.slowWriteLoggingThreshold = SLOW_WRITE_LOGGING_THRESHOLD.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
+        this.slowWriteLoggingThreshold = PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
+            this::setSlowWriteLoggingThreshold);
     }
 
     private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {

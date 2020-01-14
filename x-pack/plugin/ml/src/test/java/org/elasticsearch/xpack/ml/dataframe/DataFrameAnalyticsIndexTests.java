@@ -281,8 +281,6 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         indexMappingsMap.put("_doc", indexMappingMetaData);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetaData("_doc", Map.of("properties", properties)));
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(
                 new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());

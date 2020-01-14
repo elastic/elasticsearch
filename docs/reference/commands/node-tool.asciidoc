@@ -20,7 +20,7 @@ bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-versio
 [float]
 === Description
 
-This tool has six modes:
+This tool has a number of modes:
 
 * `elasticsearch-node repurpose` can be used to delete unwanted data from a
   node if it used to be a <<data-node,data node>> or a

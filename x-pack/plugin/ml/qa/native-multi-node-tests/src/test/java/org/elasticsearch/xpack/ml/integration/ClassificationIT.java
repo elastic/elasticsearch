@@ -529,7 +529,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 source.addAll(Arrays.asList(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (NESTED_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(Arrays.asList(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
             bulkRequestBuilder.add(indexRequest);

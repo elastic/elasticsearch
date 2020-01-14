@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -173,7 +174,7 @@ public class AnalyticsResultProcessor {
             .collect(toList());
         return TrainedModelConfig.builder()
             .setModelId(modelId)
-            .setCreatedBy("data-frame-analytics")
+            .setCreatedBy(XPackUser.NAME)
             .setVersion(Version.CURRENT)
             .setCreateTime(createTime)
             .setTags(Collections.singletonList(analytics.getId()))

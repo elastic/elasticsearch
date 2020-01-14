@@ -783,7 +783,7 @@ public class PersistedClusterStateService {
             final long numIndicesUpdated;
             final long numIndicesUnchanged;
 
-            public WriterStats(boolean globalMetaUpdated, long numIndicesUpdated, long numIndicesUnchanged) {
+            WriterStats(boolean globalMetaUpdated, long numIndicesUpdated, long numIndicesUnchanged) {
                 this.globalMetaUpdated = globalMetaUpdated;
                 this.numIndicesUpdated = numIndicesUpdated;
                 this.numIndicesUnchanged = numIndicesUnchanged;

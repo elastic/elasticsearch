@@ -105,7 +105,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 
 [[ml-put-datafeed-time-related-settings]]
-===== Interaction of time-related settings
+===== Interaction between time-related settings
 
 Time-related settings have the following relationships:
 

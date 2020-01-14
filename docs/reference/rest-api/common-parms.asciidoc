@@ -764,8 +764,9 @@ end::source-transforms[]
 
 tag::source-index-transforms[]
 The _source indices_ for the {transform}. It can be a single index, an index
-pattern (for example, `"myindex*"`), or an array of indices (for example,
-`["index1", "index2"]`).
+pattern (for example, `"myindex*"`), an array of indices (for example,
+`["index1", "index2"]`), or an array of index patterns (for example,
+`["myindex1-*", "myindex2-*"]`.
 end::source-index-transforms[]
 
 tag::source-query-transforms[]

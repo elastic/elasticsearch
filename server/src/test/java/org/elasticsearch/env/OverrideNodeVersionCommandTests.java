@@ -26,6 +26,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -56,7 +57,8 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             nodeId = nodeEnvironment.nodeId();
 
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
-                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE, true).createWriter()) {
+                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
                     .persistentSettings(Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), true).build()).build())
                     .build());
@@ -67,7 +69,9 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     @After
     public void checkClusterStateIntact() throws IOException {
         assertTrue(MetaData.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(nodePaths, nodeId,
-            xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE, true).loadBestOnDiskState().metaData.persistentSettings()));
+            xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true)
+            .loadBestOnDiskState().metaData.persistentSettings()));
     }
 
     public void testFailsOnEmptyPath() {

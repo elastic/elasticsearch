@@ -252,7 +252,8 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         throws IOException {
         warnAboutIndexBackup(terminal);
 
-        final ClusterState clusterState = loadTermAndClusterState(createPersistedClusterStateService(dataPaths), environment).v2();
+        final ClusterState clusterState =
+            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPaths), environment).v2();
 
         findAndProcessShardPath(options, environment, dataPaths, nodeLockId, clusterState, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();

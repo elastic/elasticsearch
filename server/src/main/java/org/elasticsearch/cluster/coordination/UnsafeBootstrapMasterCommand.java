@@ -79,7 +79,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
         throws IOException {
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
 
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = state.v2();

@@ -55,7 +55,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
             new Regression(
                 DEPENDENT_VARIABLE_FIELD,
-                BoostedTreeParams.builder().setTopFeatureImportanceValues(1).build(),
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
                 null,
                 null,
                 null)

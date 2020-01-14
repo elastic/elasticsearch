@@ -1299,7 +1299,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setEta(1.0)
                 .setMaximumNumberTrees(10)
                 .setFeatureBagFraction(0.5)
-                .setTopFeatureImportanceValues(3)
+                .setNumTopFeatureImportanceValues(3)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1342,7 +1342,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setEta(1.0)
                 .setMaximumNumberTrees(10)
                 .setFeatureBagFraction(0.5)
-                .setTopFeatureImportanceValues(3)
+                .setNumTopFeatureImportanceValues(3)
                 .build())
             .setDescription("this is a classification")
             .build();

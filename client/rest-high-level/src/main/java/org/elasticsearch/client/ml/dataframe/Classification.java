@@ -46,7 +46,7 @@ public class Classification implements DataFrameAnalysis {
     static final ParseField ETA = new ParseField("eta");
     static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
     static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
-    static final ParseField TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("top_feature_importance_values");
+    static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
@@ -76,7 +76,7 @@ public class Classification implements DataFrameAnalysis {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), TOP_FEATURE_IMPORTANCE_VALUES);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_CLASSES);
@@ -89,7 +89,7 @@ public class Classification implements DataFrameAnalysis {
     private final Double eta;
     private final Integer maximumNumberTrees;
     private final Double featureBagFraction;
-    private final Integer topFeatureImportanceValues;
+    private final Integer numTopFeatureImportanceValues;
     private final String predictionFieldName;
     private final Double trainingPercent;
     private final Integer numTopClasses;
@@ -97,7 +97,7 @@ public class Classification implements DataFrameAnalysis {
 
     private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                            @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction,
-                           @Nullable Integer topFeatureImportanceValues, @Nullable String predictionFieldName,
+                           @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
                            @Nullable Double trainingPercent, @Nullable Integer numTopClasses, @Nullable Long randomizeSeed) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
@@ -105,7 +105,7 @@ public class Classification implements DataFrameAnalysis {
         this.eta = eta;
         this.maximumNumberTrees = maximumNumberTrees;
         this.featureBagFraction = featureBagFraction;
-        this.topFeatureImportanceValues = topFeatureImportanceValues;
+        this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
         this.predictionFieldName = predictionFieldName;
         this.trainingPercent = trainingPercent;
         this.numTopClasses = numTopClasses;
@@ -141,8 +141,8 @@ public class Classification implements DataFrameAnalysis {
         return featureBagFraction;
     }
 
-    public Integer getTopFeatureImportanceValues() {
-        return topFeatureImportanceValues;
+    public Integer getNumTopFeatureImportanceValues() {
+        return numTopFeatureImportanceValues;
     }
 
     public String getPredictionFieldName() {
@@ -180,8 +180,8 @@ public class Classification implements DataFrameAnalysis {
         if (featureBagFraction != null) {
             builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
         }
-        if (topFeatureImportanceValues != null) {
-            builder.field(TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), topFeatureImportanceValues);
+        if (numTopFeatureImportanceValues != null) {
+            builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
         }
         if (predictionFieldName != null) {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
@@ -201,7 +201,7 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, topFeatureImportanceValues,
+        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, numTopFeatureImportanceValues,
             predictionFieldName, trainingPercent, randomizeSeed, numTopClasses);
     }
 
@@ -216,7 +216,7 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(eta, that.eta)
             && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
-            && Objects.equals(topFeatureImportanceValues, that.topFeatureImportanceValues)
+            && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && Objects.equals(trainingPercent, that.trainingPercent)
             && Objects.equals(randomizeSeed, that.randomizeSeed)
@@ -235,7 +235,7 @@ public class Classification implements DataFrameAnalysis {
         private Double eta;
         private Integer maximumNumberTrees;
         private Double featureBagFraction;
-        private Integer topFeatureImportanceValues;
+        private Integer numTopFeatureImportanceValues;
         private String predictionFieldName;
         private Double trainingPercent;
         private Integer numTopClasses;
@@ -270,8 +270,8 @@ public class Classification implements DataFrameAnalysis {
             return this;
         }
 
-        public Builder setTopFeatureImportanceValues(Integer topFeatureImportanceValues) {
-            this.topFeatureImportanceValues = topFeatureImportanceValues;
+        public Builder setNumTopFeatureImportanceValues(Integer numTopFeatureImportanceValues) {
+            this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
             return this;
         }
 
@@ -297,7 +297,7 @@ public class Classification implements DataFrameAnalysis {
 
         public Classification build() {
             return new Classification(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
-                topFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed);
+                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed);
         }
     }
 }

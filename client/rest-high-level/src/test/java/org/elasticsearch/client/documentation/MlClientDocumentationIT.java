@@ -2975,7 +2975,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setEta(5.5) // <4>
                 .setMaximumNumberTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
-                .setTopFeatureImportanceValues(3) // <7>
+                .setNumTopFeatureImportanceValues(3) // <7>
                 .setPredictionFieldName("my_prediction_field_name") // <8>
                 .setTrainingPercent(50.0) // <9>
                 .setRandomizeSeed(1234L) // <10>
@@ -2990,7 +2990,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setEta(5.5) // <4>
                 .setMaximumNumberTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
-                .setTopFeatureImportanceValues(3) // <7>
+                .setNumTopFeatureImportanceValues(3) // <7>
                 .setPredictionFieldName("my_prediction_field_name") // <8>
                 .setTrainingPercent(50.0) // <9>
                 .setRandomizeSeed(1234L) // <10>
@@ -3672,7 +3672,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             PutTrainedModelRequest request = new PutTrainedModelRequest(trainedModelConfig);
-            
+
             // tag::put-trained-model-execute-listener
             ActionListener<PutTrainedModelResponse> listener = new ActionListener<>() {
                 @Override

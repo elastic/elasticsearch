@@ -40,7 +40,7 @@ public class BoostedTreeParamsTests extends AbstractSerializingTestCase<BoostedT
             .setEta(randomBoolean() ? null : randomDoubleBetween(0.001, 1.0, true))
             .setMaximumNumberTrees(randomBoolean() ? null : randomIntBetween(1, 2000))
             .setFeatureBagFraction(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
-            .setTopFeatureImportanceValues(randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE))
+            .setNumTopFeatureImportanceValues(randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE))
             .build();
     }
 
@@ -107,8 +107,8 @@ public class BoostedTreeParamsTests extends AbstractSerializingTestCase<BoostedT
 
     public void testConstructor_GivenTopFeatureImportanceValuesIsNegative() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> BoostedTreeParams.builder().setTopFeatureImportanceValues(-1).build());
+            () -> BoostedTreeParams.builder().setNumTopFeatureImportanceValues(-1).build());
 
-        assertThat(e.getMessage(), equalTo("[top_feature_importance_values] must be a non-negative integer"));
+        assertThat(e.getMessage(), equalTo("[num_top_feature_importance_values] must be a non-negative integer"));
     }
 }

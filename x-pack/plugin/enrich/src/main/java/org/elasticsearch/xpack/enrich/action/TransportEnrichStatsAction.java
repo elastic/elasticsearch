@@ -23,6 +23,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
+import org.elasticsearch.xpack.enrich.EnrichPolicyExecutionStatsTracker;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
 
     private final Client client;
+    private final EnrichPolicyExecutionStatsTracker executionStatsTracker;
 
     @Inject
     public TransportEnrichStatsAction(
@@ -41,7 +43,8 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
+        Client client,
+        EnrichPolicyExecutionStatsTracker executionStatsTracker
     ) {
         super(
             EnrichStatsAction.NAME,
@@ -53,6 +56,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             indexNameExpressionResolver
         );
         this.client = client;
+        this.executionStatsTracker = executionStatsTracker;
     }
 
     @Override
@@ -72,6 +76,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
         ClusterState state,
         ActionListener<EnrichStatsAction.Response> listener
     ) throws Exception {
+        final EnrichStatsAction.Response.ExecutionStats executionStats = executionStatsTracker.getStats();
         EnrichCoordinatorStatsAction.Request statsRequest = new EnrichCoordinatorStatsAction.Request();
         ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(response -> {
             if (response.hasFailures()) {
@@ -101,7 +106,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .map(t -> new ExecutingPolicy(t.getDescription(), t))
                 .sorted(Comparator.comparing(ExecutingPolicy::getName))
                 .collect(Collectors.toList());
-            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
+            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, executionStats, coordinatorStats));
         }, listener::onFailure);
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }

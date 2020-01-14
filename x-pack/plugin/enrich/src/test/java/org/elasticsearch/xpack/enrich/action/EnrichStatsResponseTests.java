@@ -12,6 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutionStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,6 +29,59 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             TaskInfo taskInfo = randomTaskInfo();
             executingPolicies.add(new ExecutingPolicy(randomAlphaOfLength(4), taskInfo));
         }
+        ExecutionStats executionStats = randomExecutionStats();
+        List<CoordinatorStats> coordinatorStats = randomCoordinatorStats();
+        return new EnrichStatsAction.Response(executingPolicies, executionStats, coordinatorStats);
+    }
+
+    public static ExecutionStats randomExecutionStats() {
+        long totalExecutionCount;
+        long totalExecutionTime;
+        long minExecutionTime;
+        long maxExecutionTime;
+        long totalRepeatExecutionCount;
+        long totalTimeBetweenExecutions;
+        long avgTimeBetweenExecutions;
+        long minTimeBetweenExecutions;
+        long maxTimeBetweenExecutions;
+
+        boolean executions = randomBoolean();
+        if (executions) {
+            // random executions
+            totalExecutionCount = randomIntBetween(1, 1000);
+            totalExecutionTime = randomLongBetween(totalExecutionCount, Long.MAX_VALUE);
+            minExecutionTime = randomIntBetween(1, 1000000);
+            maxExecutionTime = randomLongBetween(minExecutionTime, Long.MAX_VALUE);
+        } else {
+            // no executions at all
+            totalExecutionCount = 0L;
+            totalExecutionTime = 0L;
+            minExecutionTime = -1L;
+            maxExecutionTime = 0L;
+        }
+
+        boolean hadRepeatRuns = randomBoolean();
+        if (executions && hadRepeatRuns) {
+            // repeated executions (Only if had random executions)
+            totalRepeatExecutionCount = randomLongBetween(1, totalExecutionCount);
+            totalTimeBetweenExecutions = randomLongBetween(1, Long.MAX_VALUE);
+            avgTimeBetweenExecutions = totalTimeBetweenExecutions / totalRepeatExecutionCount;
+            minTimeBetweenExecutions = randomIntBetween(1, 1000000);
+            maxTimeBetweenExecutions = randomLongBetween(minTimeBetweenExecutions, Long.MAX_VALUE);
+        } else {
+            // no repeated executions
+            totalRepeatExecutionCount = 0L;
+            totalTimeBetweenExecutions = 0L;
+            avgTimeBetweenExecutions = 0L;
+            minTimeBetweenExecutions = -1;
+            maxTimeBetweenExecutions = 0L;
+        }
+
+        return new ExecutionStats(totalExecutionCount, totalExecutionTime, minExecutionTime, maxExecutionTime, totalRepeatExecutionCount,
+            totalTimeBetweenExecutions, avgTimeBetweenExecutions, minTimeBetweenExecutions, maxTimeBetweenExecutions);
+    }
+
+    public static List<CoordinatorStats> randomCoordinatorStats() {
         int numCoordinatingStats = randomIntBetween(0, 16);
         List<CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatingStats);
         for (int i = 0; i < numCoordinatingStats; i++) {
@@ -40,7 +94,7 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             );
             coordinatorStats.add(stats);
         }
-        return new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
+        return coordinatorStats;
     }
 
     @Override

@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutionStats;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.enrich.action.EnrichStatsResponseTests;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.ArrayList;
@@ -137,6 +139,9 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         for (int i = 0; i < numExecutingPolicies; i++) {
             executingPolicies.add(new ExecutingPolicy(randomAlphaOfLength(4), randomTaskInfo()));
         }
+
+        ExecutionStats executionStats = EnrichStatsResponseTests.randomExecutionStats();
+
         int numCoordinatorStats = randomIntBetween(0, 8);
         List<CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatorStats);
         for (int i = 0; i < numCoordinatorStats; i++) {
@@ -153,7 +158,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
         @SuppressWarnings("unchecked")
         final ActionFuture<EnrichStatsAction.Response> future = (ActionFuture<EnrichStatsAction.Response>) mock(ActionFuture.class);
-        final EnrichStatsAction.Response response = new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
+        final EnrichStatsAction.Response response = new EnrichStatsAction.Response(executingPolicies, executionStats, coordinatorStats);
 
         when(client.execute(eq(EnrichStatsAction.INSTANCE), any(EnrichStatsAction.Request.class))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);

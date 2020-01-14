@@ -48,21 +48,28 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final List<ExecutingPolicy> executingPolicies;
+        private final ExecutionStats executionStats;
         private final List<CoordinatorStats> coordinatorStats;
 
-        public Response(List<ExecutingPolicy> executingPolicies, List<CoordinatorStats> coordinatorStats) {
+        public Response(List<ExecutingPolicy> executingPolicies, ExecutionStats executionStats, List<CoordinatorStats> coordinatorStats) {
             this.executingPolicies = executingPolicies;
+            this.executionStats = executionStats;
             this.coordinatorStats = coordinatorStats;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             executingPolicies = in.readList(ExecutingPolicy::new);
+            executionStats = in.readOptionalWriteable(ExecutionStats::new);
             coordinatorStats = in.readList(CoordinatorStats::new);
         }
 
         public List<ExecutingPolicy> getExecutingPolicies() {
             return executingPolicies;
+        }
+
+        public ExecutionStats getExecutionStats() {
+            return executionStats;
         }
 
         public List<CoordinatorStats> getCoordinatorStats() {
@@ -72,6 +79,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(executingPolicies);
+            out.writeOptionalWriteable(executionStats);
             out.writeList(coordinatorStats);
         }
 
@@ -85,6 +93,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.endObject();
             }
             builder.endArray();
+            if (executionStats != null) {
+                builder.startObject("execution_stats");
+                executionStats.toXContent(builder, params);
+                builder.endObject();
+            }
             builder.startArray("coordinator_stats");
             for (CoordinatorStats entry : coordinatorStats) {
                 builder.startObject();
@@ -102,12 +115,13 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
             return executingPolicies.equals(response.executingPolicies) &&
+                Objects.equals(executionStats, response.executionStats) &&
                 coordinatorStats.equals(response.coordinatorStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(executingPolicies, coordinatorStats);
+            return Objects.hash(executingPolicies, executionStats, coordinatorStats);
         }
 
         public static class CoordinatorStats implements Writeable, ToXContentFragment {
@@ -188,6 +202,122 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             @Override
             public int hashCode() {
                 return Objects.hash(nodeId, queueSize, remoteRequestsCurrent, remoteRequestsTotal, executedSearchesTotal);
+            }
+        }
+
+        public static class ExecutionStats implements Writeable, ToXContentFragment {
+            private final long totalExecutionCount;
+            private final long totalExecutionTime;
+            private final long minExecutionTime;
+            private final long maxExecutionTime;
+            private final long totalRepeatExecutionCount;
+            private final long totalTimeBetweenExecutions;
+            private final long avgTimeBetweenExecutions;
+            private final long minTimeBetweenExecutions;
+            private final long maxTimeBetweenExecutions;
+
+            public ExecutionStats(long totalExecutionCount, long totalExecutionTime, long minExecutionTime, long maxExecutionTime,
+                                  long totalRepeatExecutionCount, long totalTimeBetweenExecutions, long avgTimeBetweenExecutions,
+                                  long minTimeBetweenExecutions, long maxTimeBetweenExecutions) {
+                this.totalExecutionCount = totalExecutionCount;
+                this.totalExecutionTime = totalExecutionTime;
+                this.minExecutionTime = minExecutionTime;
+                this.maxExecutionTime = maxExecutionTime;
+                this.totalRepeatExecutionCount = totalRepeatExecutionCount;
+                this.totalTimeBetweenExecutions = totalTimeBetweenExecutions;
+                this.avgTimeBetweenExecutions = avgTimeBetweenExecutions;
+                this.minTimeBetweenExecutions = minTimeBetweenExecutions;
+                this.maxTimeBetweenExecutions = maxTimeBetweenExecutions;
+            }
+
+            public ExecutionStats(StreamInput in) throws IOException {
+                this(in.readVLong(), in.readVLong(), in.readZLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(),
+                    in.readZLong(), in.readVLong());
+            }
+
+            public long getTotalExecutionCount() {
+                return totalExecutionCount;
+            }
+
+            public long getTotalExecutionTime() {
+                return totalExecutionTime;
+            }
+
+            public long getMinExecutionTime() {
+                return minExecutionTime;
+            }
+
+            public long getMaxExecutionTime() {
+                return maxExecutionTime;
+            }
+
+            public long getTotalRepeatExecutionCount() {
+                return totalRepeatExecutionCount;
+            }
+
+            public long getTotalTimeBetweenExecutions() {
+                return totalTimeBetweenExecutions;
+            }
+
+            public long getAvgTimeBetweenExecutions() {
+                return avgTimeBetweenExecutions;
+            }
+
+            public long getMinTimeBetweenExecutions() {
+                return minTimeBetweenExecutions;
+            }
+
+            public long getMaxTimeBetweenExecutions() {
+                return maxTimeBetweenExecutions;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeVLong(totalExecutionCount);
+                out.writeVLong(totalExecutionTime);
+                out.writeZLong(minExecutionTime);
+                out.writeVLong(maxExecutionTime);
+                out.writeVLong(totalRepeatExecutionCount);
+                out.writeVLong(totalTimeBetweenExecutions);
+                out.writeVLong(avgTimeBetweenExecutions);
+                out.writeZLong(minTimeBetweenExecutions);
+                out.writeVLong(maxTimeBetweenExecutions);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.field("total_executions", totalExecutionCount);
+                builder.field("total_execution_time", totalExecutionTime);
+                builder.field("min_execution_time", minExecutionTime);
+                builder.field("max_execution_time", maxExecutionTime);
+                builder.field("total_repeat_executions", totalRepeatExecutionCount);
+                builder.field("total_time_between_executions", totalTimeBetweenExecutions);
+                builder.field("avg_time_between_executions", avgTimeBetweenExecutions);
+                builder.field("min_time_between_executions", minTimeBetweenExecutions);
+                builder.field("max_time_between_executions", maxTimeBetweenExecutions);
+                return builder;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                ExecutionStats that = (ExecutionStats) o;
+                return totalExecutionCount == that.totalExecutionCount &&
+                    totalExecutionTime == that.totalExecutionTime &&
+                    minExecutionTime == that.minExecutionTime &&
+                    maxExecutionTime == that.maxExecutionTime &&
+                    totalRepeatExecutionCount == that.totalRepeatExecutionCount &&
+                    totalTimeBetweenExecutions == that.totalTimeBetweenExecutions &&
+                    avgTimeBetweenExecutions == that.avgTimeBetweenExecutions &&
+                    minTimeBetweenExecutions == that.minTimeBetweenExecutions &&
+                    maxTimeBetweenExecutions == that.maxTimeBetweenExecutions;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(totalExecutionCount, totalExecutionTime, minExecutionTime, maxExecutionTime, totalRepeatExecutionCount,
+                    totalTimeBetweenExecutions, avgTimeBetweenExecutions, minTimeBetweenExecutions, maxTimeBetweenExecutions);
             }
         }
 

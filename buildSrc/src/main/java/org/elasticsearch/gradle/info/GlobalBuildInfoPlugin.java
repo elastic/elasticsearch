@@ -271,10 +271,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 Path refFile = gitDir.resolve(refName);
                 if (Files.exists(refFile)) {
                     revision = readFirstLine(refFile);
-                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                } else if (Files.exists(gitDir.resolve("packed-refs"))) {
                     // Check packed references for commit ID
                     Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "$");
-                    try (Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"))) {
+                    try (Stream<String> lines = Files.lines(gitDir.resolve("packed-refs"))) {
                         revision = lines.map(p::matcher)
                             .filter(Matcher::matches)
                             .map(m -> m.group(1))

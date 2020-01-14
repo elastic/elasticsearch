@@ -31,8 +31,8 @@ public class DataFrameDataExtractorFactory {
     private final boolean includeRowsWithMissingValues;
 
     private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, QueryBuilder sourceQuery,
-                                         ExtractedFields extractedFields, Map<String, String> headers,
-                                         boolean includeRowsWithMissingValues) {
+                                          ExtractedFields extractedFields, Map<String, String> headers,
+                                          boolean includeRowsWithMissingValues) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.indices = Objects.requireNonNull(indices);
@@ -54,6 +54,10 @@ public class DataFrameDataExtractorFactory {
                 includeRowsWithMissingValues
             );
         return new DataFrameDataExtractor(client, context);
+    }
+
+    public ExtractedFields getExtractedFields() {
+        return extractedFields;
     }
 
     private QueryBuilder createQuery() {
@@ -96,15 +100,13 @@ public class DataFrameDataExtractorFactory {
      *
      * @param client ES Client used to make calls against the cluster
      * @param config The config from which to create the extractor factory
-     * @param isTaskRestarting Whether the task is restarting
      * @param listener The listener to notify on creation or failure
      */
     public static void createForDestinationIndex(Client client,
                                                  DataFrameAnalyticsConfig config,
-                                                 boolean isTaskRestarting,
                                                  ActionListener<DataFrameDataExtractorFactory> listener) {
         ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(client);
-        extractedFieldsDetectorFactory.createFromDest(config, isTaskRestarting, ActionListener.wrap(
+        extractedFieldsDetectorFactory.createFromDest(config, ActionListener.wrap(
             extractedFieldsDetector -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
                 DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(client, config.getId(),

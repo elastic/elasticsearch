@@ -67,9 +67,9 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         assertThat(response.fieldMappings("index", "field"), Matchers.nullValue());
     }
 
-    private XContentBuilder getMappingForType(String type) throws IOException {
+    private XContentBuilder getMappingForType() throws IOException {
         return jsonBuilder().startObject()
-            .startObject(type)
+            .startObject("_doc")
                 .startObject("properties")
                     .startObject("field1")
                         .field("type", "text")
@@ -93,9 +93,9 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     public void testGetFieldMappings() throws Exception {
 
         assertAcked(prepareCreate("indexa")
-            .addMapping("typeA", getMappingForType("typeA")));
+            .setMapping(getMappingForType()));
         assertAcked(client().admin().indices().prepareCreate("indexb")
-            .addMapping("typeB", getMappingForType("typeB")));
+            .setMapping(getMappingForType()));
 
 
         // Get mappings by full name
@@ -125,7 +125,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSimpleGetFieldMappingsWithDefaults() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
+        assertAcked(prepareCreate("test").setMapping(getMappingForType()));
         client().admin().indices().preparePutMapping("test").setSource("num", "type=long").get();
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
@@ -145,7 +145,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetFieldMappingsWithFieldAlias() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
+        assertAcked(prepareCreate("test").setMapping(getMappingForType()));
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
             .setFields("alias", "field1").get();
@@ -162,7 +162,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
     //fix #6552
     public void testSimpleGetFieldMappingsWithPretty() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", getMappingForType("type")));
+        assertAcked(prepareCreate("index").setMapping(getMappingForType()));
         Map<String, String> params = new HashMap<>();
         params.put("pretty", "true");
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index")
@@ -192,7 +192,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
     public void testGetFieldMappingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("_doc", getMappingForType("_doc")));
+                .setMapping(getMappingForType()));
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {

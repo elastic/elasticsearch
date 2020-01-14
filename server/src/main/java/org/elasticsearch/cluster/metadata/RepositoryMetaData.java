@@ -32,7 +32,7 @@ import java.util.Objects;
  */
 public class RepositoryMetaData {
 
-    public static final Version REPO_GEN_IN_CS_VERSION = Version.V_8_0_0;
+    public static final Version REPO_GEN_IN_CS_VERSION = Version.V_7_6_0;
 
     private final String name;
     private final String type;

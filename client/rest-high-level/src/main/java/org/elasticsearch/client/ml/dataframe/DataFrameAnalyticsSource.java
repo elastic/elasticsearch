@@ -47,7 +47,7 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
     private static final ParseField QUERY = new ParseField("query");
     public static final ParseField _SOURCE = new ParseField("_source");
 
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_source", true, Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_source", true, Builder::new);
 
     static {
         PARSER.declareStringArray(Builder::setIndex, INDEX);

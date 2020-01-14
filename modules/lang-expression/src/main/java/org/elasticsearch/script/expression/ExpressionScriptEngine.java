@@ -84,22 +84,72 @@ public class ExpressionScriptEngine implements ScriptEngine {
             },
 
         FilterScript.CONTEXT,
-            (Expression expr) -> (FilterScript.Factory) (p, lookup) -> newFilterScript(expr, lookup, p),
+            (Expression expr) -> new FilterScript.Factory() {
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+
+                @Override
+                public FilterScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newFilterScript(expr, lookup, params);
+                }
+            },
 
         ScoreScript.CONTEXT,
-            (Expression expr) -> (ScoreScript.Factory) (p, lookup) -> newScoreScript(expr, lookup, p),
+            (Expression expr) -> new ScoreScript.Factory() {
+                @Override
+                public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newScoreScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            },
 
         TermsSetQueryScript.CONTEXT,
             (Expression expr) -> (TermsSetQueryScript.Factory) (p, lookup) -> newTermsSetQueryScript(expr, lookup, p),
 
         AggregationScript.CONTEXT,
-            (Expression expr) -> (AggregationScript.Factory) (p, lookup) -> newAggregationScript(expr, lookup, p),
+            (Expression expr) -> new AggregationScript.Factory() {
+                @Override
+                public AggregationScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newAggregationScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            },
 
         NumberSortScript.CONTEXT,
-            (Expression expr) -> (NumberSortScript.Factory) (p, lookup) -> newSortScript(expr, lookup, p),
+            (Expression expr) -> new NumberSortScript.Factory() {
+                @Override
+                public NumberSortScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newSortScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            },
 
         FieldScript.CONTEXT,
-            (Expression expr) -> (FieldScript.Factory) (p, lookup) -> newFieldScript(expr, lookup, p)
+            (Expression expr) -> new FieldScript.Factory() {
+                @Override
+                public FieldScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+                    return newFieldScript(expr, lookup, params);
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            }
     );
 
     @Override
@@ -108,7 +158,12 @@ public class ExpressionScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+    public <T> T compile(
+        String scriptName,
+        String scriptSource,
+        ScriptContext<T> context,
+        Map<String, String> params
+    ) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();

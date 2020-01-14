@@ -72,8 +72,9 @@ public class InboundHandler {
         requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
     }
 
-    final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
-        return requestHandlers.get(action);
+    @SuppressWarnings("unchecked")
+    final <T extends TransportRequest> RequestHandlerRegistry<T> getRequestHandler(String action) {
+        return (RequestHandlerRegistry<T>) requestHandlers.get(action);
     }
 
     final Transport.ResponseHandlers getResponseHandlers() {
@@ -148,7 +149,7 @@ public class InboundHandler {
         }
     }
 
-    private void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
+    private <T extends TransportRequest> void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
         final StreamInput stream = message.getStreamInput();
@@ -159,7 +160,7 @@ public class InboundHandler {
             if (message.isHandshake()) {
                 handshaker.handleHandshake(version, channel, requestId, stream);
             } else {
-                final RequestHandlerRegistry reg = getRequestHandler(action);
+                final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                 if (reg == null) {
                     throw new ActionNotFoundTransportException(action);
                 }
@@ -171,7 +172,7 @@ public class InboundHandler {
                 }
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
                     circuitBreakerService, messageLengthBytes, message.isCompress());
-                final TransportRequest request = reg.newRequest(stream);
+                final T request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                 final int nextByte = stream.read();
@@ -180,7 +181,7 @@ public class InboundHandler {
                     throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
                         + "], available [" + stream.available() + "]; resetting");
                 }
-                threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
+                threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
             }
         } catch (Exception e) {
             // the circuit breaker tripped
@@ -245,18 +246,17 @@ public class InboundHandler {
         });
     }
 
-    private static class RequestHandler extends AbstractRunnable {
-        private final RequestHandlerRegistry reg;
-        private final TransportRequest request;
+    private static class RequestHandler<T extends TransportRequest> extends AbstractRunnable {
+        private final RequestHandlerRegistry<T> reg;
+        private final T request;
         private final TransportChannel transportChannel;
 
-        RequestHandler(RequestHandlerRegistry<?> reg, TransportRequest request, TransportChannel transportChannel) {
+        RequestHandler(RequestHandlerRegistry<T> reg, T request, TransportChannel transportChannel) {
             this.reg = reg;
             this.request = request;
             this.transportChannel = transportChannel;
         }
 
-        @SuppressWarnings({"unchecked"})
         @Override
         protected void doRun() throws Exception {
             reg.processMessageReceived(request, transportChannel);

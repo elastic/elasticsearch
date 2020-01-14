@@ -313,18 +313,6 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void deleteBlob(String blobName) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                super.deleteBlob(blobName);
-            }
-
-            @Override
-            public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                super.deleteBlobIgnoringIfNotExists(blobName);
-            }
-
-            @Override
             public DeleteResult delete() throws IOException {
                 DeleteResult deleteResult = DeleteResult.ZERO;
                 for (BlobContainer child : children().values()) {
@@ -334,10 +322,12 @@ public class MockRepository extends FsRepository {
                 long deleteBlobCount = blobs.size();
                 long deleteByteCount = 0L;
                 for (String blob : blobs.values().stream().map(BlobMetaData::name).collect(Collectors.toList())) {
-                    deleteBlobIgnoringIfNotExists(blob);
+                    maybeIOExceptionOrBlock(blob);
+                    deleteBlobsIgnoringIfNotExists(Collections.singletonList(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
-                blobStore().blobContainer(path().parent()).deleteBlob(path().toArray()[path().toArray().length - 1]);
+                blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(
+                    List.of(path().toArray()[path().toArray().length - 1]));
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 

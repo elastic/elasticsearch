@@ -191,6 +191,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 expectThrows(expectedException, () -> readOnlyEngine.index(null));
                 expectThrows(expectedException, () -> readOnlyEngine.delete(null));
                 expectThrows(expectedException, () -> readOnlyEngine.noOp(null));
+                expectThrows(UnsupportedOperationException.class, () ->  readOnlyEngine.syncFlush(null, null));
             }
         }
     }

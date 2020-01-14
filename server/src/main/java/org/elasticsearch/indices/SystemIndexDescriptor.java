@@ -91,7 +91,7 @@ public class SystemIndexDescriptor {
      * Given a list of {@link SystemIndexDescriptor}s, makes a best-effort check to see if the index patterns of the listed
      * descriptors overlap. Currently, checks to see if any index patterns overlap. If any do, throws an exception.
      * @param descriptors The list of descriptors to check for overlapping patterns.
-     * @throws IllegalStateException Thrown if any of the index patterns detectably overlaps with
+     * @throws IllegalStateException Thrown if any of the index patterns detectably overlaps with another.
      */
     public static void checkForOverlappingPatterns(Collection<SystemIndexDescriptor> descriptors) {
         descriptors.stream()

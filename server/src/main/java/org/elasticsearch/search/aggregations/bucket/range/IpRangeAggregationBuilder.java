@@ -345,7 +345,7 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceType defaultValueSourceType(Script script) {
+    protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.IP;
     }
 

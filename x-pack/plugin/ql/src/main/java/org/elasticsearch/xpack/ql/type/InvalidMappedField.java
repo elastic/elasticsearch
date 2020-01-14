@@ -21,7 +21,7 @@ public class InvalidMappedField extends EsField {
     private final String errorMessage;
 
     public InvalidMappedField(String name, String errorMessage) {
-        super(name, DataType.UNSUPPORTED, emptyMap(), false);
+        super(name, DataTypes.UNSUPPORTED, emptyMap(), false);
         this.errorMessage = errorMessage;
     }
 

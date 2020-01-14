@@ -51,9 +51,9 @@ import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -332,6 +332,7 @@ public class IndexLifecycle extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         //TODO: The SLM history store should be non-dot-prefixed hidden indices, but need to be here for now
         // to prevent warnings
-        return Arrays.asList(new SystemIndexDescriptor(".slm-history*", this.getClass().getSimpleName()));
+        return Arrays.asList(new SystemIndexDescriptor(".slm-history-*",
+            "Contains a history of Snapshot Lifecycle Management operations"));
     }
 }

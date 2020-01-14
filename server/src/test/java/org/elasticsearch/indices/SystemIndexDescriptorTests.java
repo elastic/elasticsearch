@@ -88,4 +88,19 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping3.toString()));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
     }
+
+    /*
+     * Some overlapping patterns will not be caught by the current overlapping-pattern detection. If this changes,
+     * this may be a breaking change for the plugin API.
+     */
+    public void testPotentialCollisionsNotCaught() {
+        Random random = random();
+        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".a*c", "test");
+        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".ab*", "test");
+
+        List<SystemIndexDescriptor> descriptors = Arrays.asList(pattern1, pattern2);
+        Collections.shuffle(descriptors, random);
+
+        SystemIndexDescriptor.checkForOverlappingPatterns(descriptors);
+    }
 }

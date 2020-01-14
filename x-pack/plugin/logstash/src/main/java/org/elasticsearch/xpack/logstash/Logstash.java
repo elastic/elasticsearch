@@ -65,6 +65,6 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Arrays.asList(new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, this.getClass().getSimpleName()));
+        return Arrays.asList(new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management"));
     }
 }

@@ -32,15 +32,15 @@ import java.util.stream.Collectors;
  */
 public class SystemIndexDescriptor {
     private final String indexPattern;
-    private final String sourcePluginName;
+    private final String description;
     private final CharacterRunAutomaton indexPatternAutomaton;
 
     /**
      *
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
-     * @param sourcePluginName The name of the plugin responsible for this system index.
+     * @param description The name of the plugin responsible for this system index.
      */
-    public SystemIndexDescriptor(String indexPattern, String sourcePluginName) {
+    public SystemIndexDescriptor(String indexPattern, String description) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
@@ -56,7 +56,7 @@ public class SystemIndexDescriptor {
         }
         this.indexPattern = indexPattern;
         this.indexPatternAutomaton = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(indexPattern));
-        this.sourcePluginName = sourcePluginName;
+        this.description = description;
     }
 
     /**
@@ -76,22 +76,20 @@ public class SystemIndexDescriptor {
     }
 
     /**
-     * Get the name of the plugin responsible for this system index. It is recommended, but not required, that this is
-     * the name of the class implementing {@link org.elasticsearch.plugins.SystemIndexPlugin}.
-     * @return The name of the plugin responsible for this system index.
+     * @return A short description of the purpose of this system index.
      */
-    public String getSourcePluginName() {
-        return sourcePluginName;
+    public String getDescription() {
+        return description;
     }
 
     @Override
     public String toString() {
-        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], sourcePlugin=[" + sourcePluginName + "]]";
+        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
     }
 
     /**
      * Given a list of {@link SystemIndexDescriptor}s, makes a best-effort check to see if the index patterns of the listed
-     * descriptors overlap. Currently, checks to see if any index patterns  If any do, throws an exception.
+     * descriptors overlap. Currently, checks to see if any index patterns overlap. If any do, throws an exception.
      * @param descriptors The list of descriptors to check for overlapping patterns.
      * @throws IllegalStateException Thrown if any of the index patterns detectably overlaps with
      */

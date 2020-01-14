@@ -65,7 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
-import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_NAME_BASE;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
 
 public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
 
@@ -246,6 +246,6 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Arrays.asList(new SystemIndexDescriptor(ENRICH_INDEX_NAME_BASE + "*", EnrichPlugin.class.getSimpleName()));
+        return Arrays.asList(new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors."));
     }
 }

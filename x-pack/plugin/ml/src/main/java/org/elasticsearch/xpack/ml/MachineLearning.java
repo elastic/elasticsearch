@@ -129,6 +129,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -1043,13 +1044,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         //TODO: Some of the below should be converted to non-dot-prefixed hidden indices. I am not sure which ones.
         // Either way, they should be here until then to prevent deprecation warnings
         return Arrays.asList(
-            new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME + "*", this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "*", this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.STATE_INDEX_PATTERN, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*", this.getClass().getSimpleName()),
+            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.RESULTS_INDEX_PATTERN, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, this.getClass().getSimpleName()),
             new SystemIndexDescriptor(".ml-notifications-*", this.getClass().getSimpleName()),
-            new SystemIndexDescriptor(".ml-annotations-*", this.getClass().getSimpleName())
+            new SystemIndexDescriptor(AnnotationIndex.INDEX_PATTERN, this.getClass().getSimpleName())
         );
     }
 }

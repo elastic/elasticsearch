@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -170,11 +169,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return allConcreteSettings.map(affixSetting::getNamespace);
     }
 
-    static InetSocketAddress parseConfiguredAddress(String remoteHost) {
-        final Tuple<String, Integer> hostPort = parseHostPort(remoteHost);
-        final String host = hostPort.v1();
-        assert hostPort.v2() != null : remoteHost;
-        final int port = hostPort.v2();
+    static InetSocketAddress parseConfiguredAddress(String configuredAddress) {
+        final String host = parseHost(configuredAddress);
+        final int port = parsePort(configuredAddress);
         InetAddress hostAddress;
         try {
             hostAddress = InetAddress.getByName(host);
@@ -184,10 +181,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return new InetSocketAddress(hostAddress, port);
     }
 
-    private static Tuple<String, Integer> parseHostPort(final String remoteHost) {
-        final String host = remoteHost.substring(0, indexOfPortSeparator(remoteHost));
-        final int port = parsePort(remoteHost);
-        return Tuple.tuple(host, port);
+    static String parseHost(final String configuredAddress) {
+        return configuredAddress.substring(0, indexOfPortSeparator(configuredAddress));
     }
 
     static int parsePort(String remoteHost) {

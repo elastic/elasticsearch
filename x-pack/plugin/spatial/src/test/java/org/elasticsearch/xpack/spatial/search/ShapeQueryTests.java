@@ -47,7 +47,6 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     private static String INDEX = "test";
     private static String IGNORE_MALFORMED_INDEX = INDEX + "_ignore_malformed";
-    private static String FIELD_TYPE = "geometry";
     private static String FIELD = "shape";
     private static Geometry queryGeometry = null;
 
@@ -59,10 +58,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         // create test index
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-            .addMapping(FIELD_TYPE, FIELD, "type=shape", "alias", "type=alias,path=" + FIELD).get());
+            .setMapping(FIELD, "type=shape", "alias", "type=alias,path=" + FIELD).get());
         // create index that ignores malformed geometry
         assertAcked(client().admin().indices().prepareCreate(IGNORE_MALFORMED_INDEX)
-            .addMapping(FIELD_TYPE, FIELD, "type=shape,ignore_malformed=true", "_source", "enabled=false").get());
+            .setMapping(FIELD, "type=shape,ignore_malformed=true", "_source", "enabled=false").get());
         ensureGreen();
 
         // index random shapes
@@ -109,7 +108,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         String indexName = "shapes_index";
         String searchIndex = "search_index";
         createIndex(indexName);
-        client().admin().indices().prepareCreate(searchIndex).addMapping("type", "location", "type=shape").get();
+        client().admin().indices().prepareCreate(searchIndex).setMapping("location", "type=shape").get();
 
         String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
@@ -247,7 +246,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testContainsShapeQuery() {
 
-        client().admin().indices().prepareCreate("test_contains").addMapping("type", "location", "type=shape")
+        client().admin().indices().prepareCreate("test_contains").setMapping("location", "type=shape")
             .execute().actionGet();
 
         String doc = "{\"location\" : {\"type\":\"envelope\", \"coordinates\":[ [-100.0, 100.0], [100.0, -100.0]]}}";

@@ -228,7 +228,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             parser.nextToken();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-            assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
+            assertEquals("[1:15] [_script] unknown field [bad_field]", e.getMessage());
         }
     }
 
@@ -241,7 +241,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             parser.nextToken();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-            assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
+            assertEquals("[1:15] [_script] unknown field [bad_field]", e.getMessage());
         }
     }
 

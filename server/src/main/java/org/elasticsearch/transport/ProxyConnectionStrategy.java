@@ -39,16 +39,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
@@ -75,12 +72,12 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     /**
-     * Whether to include the hostname as a server_name attribute
+     * A configurable server_name attribute
      */
-    public static final Setting.AffixSetting<Boolean> INCLUDE_SERVER_NAME = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<String> SERVER_NAME = Setting.affixKeySetting(
         "cluster.remote.",
-        "include_server_name",
-        (ns, key) -> boolSetting(key, false, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
+        "server_name",
+        (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 1;
@@ -89,9 +86,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     private static final Logger logger = LogManager.getLogger(ProxyConnectionStrategy.class);
 
     private final int maxNumConnections;
-    private final AtomicLong counter = new AtomicLong(0);
     private final String configuredAddress;
-    private final boolean includeServerName;
+    private final String configuredServerName;
     private final Supplier<TransportAddress> address;
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionManager.ConnectionValidator clusterNameValidator;
@@ -104,28 +100,28 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             connectionManager,
             REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            INCLUDE_SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             int maxNumConnections, String configuredAddress) {
         this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
-            () -> resolveAddress(configuredAddress), false);
+            () -> resolveAddress(configuredAddress), null);
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            int maxNumConnections, String configuredAddress, boolean includeServerName) {
+                            int maxNumConnections, String configuredAddress, String configuredServerName) {
         this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
-            () -> resolveAddress(configuredAddress), includeServerName);
+            () -> resolveAddress(configuredAddress), configuredServerName);
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                             int maxNumConnections, String configuredAddress, Supplier<TransportAddress> address,
-                            boolean includeServerName) {
+                            String configuredServerName) {
         super(clusterAlias, transportService, connectionManager);
         this.maxNumConnections = maxNumConnections;
         this.configuredAddress = configuredAddress;
-        this.includeServerName = includeServerName;
+        this.configuredServerName = configuredServerName;
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
         this.clusterNameValidator = (newConnection, actualProfile, listener) ->
@@ -217,10 +213,10 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             for (int i = 0; i < remaining; ++i) {
                 String id = clusterAlias + "#" + resolved;
                 Map<String, String> attributes;
-                if (includeServerName) {
-                    attributes = Collections.singletonMap("server_name", resolved.address().getHostString());
-                } else {
+                if (Strings.isNullOrEmpty(configuredServerName)) {
                     attributes = Collections.emptyMap();
+                } else {
+                    attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
                 DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
                     Version.CURRENT.minimumCompatibilityVersion());
@@ -250,12 +246,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 finished.onResponse(null);
             }
         }
-    }
-
-    private TransportAddress nextAddress(List<TransportAddress> resolvedAddresses) {
-        long curr;
-        while ((curr = counter.getAndIncrement()) == Long.MIN_VALUE) ;
-        return resolvedAddresses.get(Math.floorMod(curr, resolvedAddresses.size()));
     }
 
     private static TransportAddress resolveAddress(String address) {

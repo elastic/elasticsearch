@@ -265,9 +265,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private void checkTargetType() {
-        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
+        if (this.classificationLabels != null && this.targetType != TargetType.CLASSIFICATION) {
             throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
+                "[target_type] should be [classification] if [classification_labels] are provided");
         }
     }
 

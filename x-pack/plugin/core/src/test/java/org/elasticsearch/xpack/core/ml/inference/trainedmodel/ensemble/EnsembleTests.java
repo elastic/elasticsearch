@@ -74,21 +74,22 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights),
             new WeightedSum(weights),
             new LogisticRegression(weights));
+        TargetType targetType = randomFrom(TargetType.values());
         List<String> categoryLabels = null;
-        if (randomBoolean()) {
+        if (randomBoolean() && targetType == TargetType.CLASSIFICATION) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
-        double[] thresholds = randomBoolean() ?
-            null :
+        double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION ?
             Stream.generate(ESTestCase::randomDouble)
                 .limit(categoryLabels == null ? randomIntBetween(1, 10) : categoryLabels.size())
                 .mapToDouble(Double::valueOf)
-                .toArray();
+                .toArray() :
+            null;
 
         return new Ensemble(featureNames,
             models,
             outputAggregator,
-            randomFrom(TargetType.values()),
+            targetType,
             categoryLabels,
             thresholds);
     }
@@ -183,7 +184,8 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     public void testEnsembleWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
+        String msg = "[target_type] should be [classification] if " +
+            "[classification_labels] or [classification_weights] are provided";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Ensemble.builder()
                 .setFeatureNames(featureNames)

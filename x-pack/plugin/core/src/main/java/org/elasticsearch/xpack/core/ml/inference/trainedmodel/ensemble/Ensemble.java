@@ -265,13 +265,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 outputAggregator.expectedValueSize(),
                 models.size());
         }
-        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
+        if ((this.classificationLabels != null || this.classificationWeights != null) && (this.targetType != TargetType.CLASSIFICATION)) {
             throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
-        }
-        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationWeights != null)) {
-            throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_weights] is provided, and vice versa");
+                "[target_type] should be [classification] if [classification_labels] or [classification_weights] are provided");
         }
         if (classificationWeights != null &&
             classificationLabels != null &&

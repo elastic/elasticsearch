@@ -470,7 +470,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
-        "                \"leaf_value\": 2\n" +
+        "                \"leaf_value\": 0\n" +
         "              }\n" +
         "            ],\n" +
         "            \"target_type\": \"regression\"\n" +
@@ -500,7 +500,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
-        "                \"leaf_value\": 2\n" +
+        "                \"leaf_value\": 0\n" +
         "              }\n" +
         "            ],\n" +
         "            \"target_type\": \"regression\"\n" +

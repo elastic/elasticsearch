@@ -72,10 +72,12 @@ NOTE: This role does *not* provide the ability to create indices; those privileg
 must be defined in a separate role.
 
 [[built-in-roles-kibana-dashboard]] `kibana_dashboard_only_user` ::
-Grants access to the {kib} Dashboard and read-only permissions to Kibana.
-This role does not have access to editing tools in {kib}. For more
-information, see
-{kibana-ref}/xpack-dashboard-only-mode.html[{kib} Dashboard Only Mode].
+(This role is deprecated, please use 
+{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[{kib} feature privileges]
+instead).
+Grants read-only access to the {kib} Dashboard in every 
+{kibana-ref}/xpack-spaces.html[space in {kib}].
+This role does not have access to editing tools in {kib}. 
 
 [[built-in-roles-kibana-system]] `kibana_system` ::
 Grants access necessary for the {kib} system user to read from and write to the
@@ -87,9 +89,15 @@ see {kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}].
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.
 
+[[built-in-roles-kibana-admin]] `kibana_admin`::
+Grants access to all features in {kib}. For more information on {kib} authorization,
+see {kibana-ref}/xpack-security-authorization.html[Kibana authorization].
+
 [[built-in-roles-kibana-user]] `kibana_user`::
-Grants access to all features in {kib}. For more information on Kibana authorization,
-see {kibana-ref}/xpack-security-authorization.html[Kibana Authorization].
+(This role is deprecated, please use the
+<<built-in-roles-kibana-admin,`kibana_admin`>> role instead.)
+Grants access to all features in {kib}. For more information on {kib} authorization,
+see {kibana-ref}/xpack-security-authorization.html[Kibana authorization].
 
 [[built-in-roles-logstash-admin]] `logstash_admin` ::
 Grants access to the `.logstash*` indices for managing configurations.
@@ -127,7 +135,8 @@ Grants the minimum privileges required for any user of {monitoring} other than t
 required to use {kib}. This role grants access to the monitoring indices and grants
 privileges necessary for reading basic cluster information. This role also includes
 all {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {stack-monitor-features}.
-Monitoring users should also be assigned the `kibana_user` role.
+Monitoring users should also be assigned the `kibana_admin` role, or another role
+with {kibana-ref}/xpack-security-authorization.html[access to the {kib} instance].
 
 [[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
 Grants the minimum privileges required to write data into the monitoring indices
@@ -140,9 +149,10 @@ Grants the minimum privileges required to collect monitoring data for the {stack
 [[built-in-roles-reporting-user]] `reporting_user`::
 Grants the specific privileges required for users of {reporting} other than those
 required to use {kib}. This role grants access to the reporting indices; each 
-user has access to only their own reports. Reporting users should also be 
-assigned the `kibana_user` role and a role that grants them access to the data 
-that will be used to generate reports.
+user has access to only their own reports.
+Reporting users should also be assigned additional roles that grant 
+{kibana-ref}/xpack-security-authorization.html[access to {kib}] as well as read
+access to the <<roles-indices-priv,indices>> that will be used to generate reports.
 
 [[built-in-roles-snapshot-user]] `snapshot_user`::
 Grants the necessary privileges to create snapshots of **all** the indices and

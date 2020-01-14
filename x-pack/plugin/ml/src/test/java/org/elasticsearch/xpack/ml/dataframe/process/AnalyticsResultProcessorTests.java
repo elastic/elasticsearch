@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -167,7 +168,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
         assertThat(storedModel.getVersion(), equalTo(Version.CURRENT));
-        assertThat(storedModel.getCreatedBy(), equalTo("data-frame-analytics"));
+        assertThat(storedModel.getCreatedBy(), equalTo(XPackUser.NAME));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));

@@ -50,6 +50,7 @@ public class TriangleTreeWriter {
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
         centroidCalculator.getDimensionalShapeType().writeTo(out);
+        out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
         extent.writeCompressed(out);
         node.writeTo(out);
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -77,7 +78,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(prepareCreate(IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point",
+                .setMapping(SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
@@ -85,7 +86,6 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         multiTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         multiBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         singleCentroid = new GeoPoint(0, 0);
-        singleShapeCentroid = new GeoPoint(9.4, 34.4);
         multiCentroid = new GeoPoint(0, 0);
         unmappedCentroid = new GeoPoint(0, 0);
 
@@ -137,15 +137,13 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     multiCentroid.lon() + (newMVLon - multiCentroid.lon()) / (i+1));
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).addMapping("type", SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point"));
 
         assertAcked(prepareCreate(DATELINE_IDX_NAME)
-                .addMapping("type",
-                    SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point",
+                .setMapping(SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point",
                     SINGLE_VALUED_GEOSHAPE_FIELD_NAME, "type=geo_shape",
                     MULTI_VALUED_FIELD_NAME, "type=geo_point",
-                    NUMBER_FIELD_NAME, "type=long",
-                    "tag", "type=keyword"));
+                    NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
 
         GeoPoint[] geoPointValues = new GeoPoint[5];
         geoPointValues[0] = new GeoPoint(38, 178);
@@ -155,7 +153,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         geoPointValues[4] = new GeoPoint(-11, 178);
         Line line = new Line(new double[] { 178, -179, 170, -175, 178 }, new double[] { 38, 12, -24, 32, -11 });
         String lineAsWKT = new WellKnownText(false, new GeographyValidator(true)).toWKT(line);
-
+        CentroidCalculator centroidCalculator = new CentroidCalculator(line);
+        singleShapeCentroid = new GeoPoint(centroidCalculator.getY(), centroidCalculator.getX());
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex(DATELINE_IDX_NAME).setSource(jsonBuilder()
                     .startObject()
@@ -166,10 +165,9 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     .endObject()));
         }
         assertAcked(prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
-                .addMapping("type", SINGLE_VALUED_GEOPOINT_FIELD_NAME,
-                    "type=geo_point", MULTI_VALUED_FIELD_NAME,
-                    "type=geo_point", NUMBER_FIELD_NAME,
-                    "type=long,store=true",
+                .setMapping(SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point",
+                    MULTI_VALUED_FIELD_NAME, "type=geo_point",
+                    NUMBER_FIELD_NAME, "type=long,store=true",
                     "tag", "type=keyword"));
 
         for (int i = 0; i < 2000; i++) {
@@ -194,8 +192,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         }
 
         builders.add(client().prepareIndex(IDX_ZERO_NAME).setSource(
-                jsonBuilder().startObject().array(SINGLE_VALUED_GEOPOINT_FIELD_NAME, 0.0, 1.0).endObject()));
-        assertAcked(prepareCreate(IDX_ZERO_NAME).addMapping("type", SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point"));
+            jsonBuilder().startObject().array(SINGLE_VALUED_GEOPOINT_FIELD_NAME, 0.0, 1.0).endObject()));
+        assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point"));
 
         indexRandom(true, builders);
         ensureSearchable();

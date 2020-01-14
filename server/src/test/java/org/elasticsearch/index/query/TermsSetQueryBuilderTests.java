@@ -77,7 +77,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         String docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
                 "m_s_m", "type=long"
         ))), MapperService.MergeReason.MAPPING_UPDATE);
     }

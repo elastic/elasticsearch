@@ -151,7 +151,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         }
 
         createIndex("idx_unmapped");
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
@@ -210,7 +210,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
 
-        assertAcked(prepareCreate("sort_idx").addMapping("multi_sort_type", SINGLE_VALUED_FIELD_NAME, "type=double"));
+        assertAcked(prepareCreate("sort_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=double"));
         for (int i = 1; i <= 3; i++) {
             builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
                     .startObject()
@@ -930,7 +930,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=float")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1.5),

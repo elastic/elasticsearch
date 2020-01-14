@@ -31,10 +31,26 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  *
  * This class supports checking bounding box
  * relations against the serialized triangle tree.
+ *
+ * -----------------------------------------
+ * |   The binary format of the tree       |
+ * -----------------------------------------
+ * -----------------------------------------  --
+ * |    centroid-x-coord (4 bytes)         |    |
+ * -----------------------------------------    |
+ * |    centroid-y-coord (4 bytes)         |    |
+ * -----------------------------------------    |
+ * |    DimensionalShapeType (1 byte)      |    | Centroid-related header
+ * -----------------------------------------    |
+ * |  Sum of weights (VLong 1-8 bytes)     |    |
+ * -----------------------------------------  --
+ * |         Extent (var-encoding)         |
+ * -----------------------------------------
+ * |         Triangle Tree                 |
+ * -----------------------------------------
+ * -----------------------------------------
  */
 public class TriangleTreeReader {
-    private static final int CENTROID_HEADER_SIZE_IN_BYTES = 9;
-
     private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Rectangle2D rectangle2D;
@@ -58,8 +74,7 @@ public class TriangleTreeReader {
      */
     public Extent getExtent() {
         if (treeOffset == 0) {
-            // TODO: Compress serialization of extent
-            input.setPosition(CENTROID_HEADER_SIZE_IN_BYTES);
+            getSumCentroidWeight(); // skip CENTROID_HEADER + var-long sum-weight
             Extent.readFromCompressed(input, extent);
             treeOffset = input.getPosition();
         } else {
@@ -87,6 +102,11 @@ public class TriangleTreeReader {
     public DimensionalShapeType getDimensionalShapeType() {
         input.setPosition(8);
         return DimensionalShapeType.readFrom(input);
+    }
+
+    public double getSumCentroidWeight() {
+        input.setPosition(9);
+        return Double.longBitsToDouble(input.readVLong());
     }
 
     /**

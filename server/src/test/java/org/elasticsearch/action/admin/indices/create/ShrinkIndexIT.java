@@ -425,7 +425,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                     .put("number_of_shards", 8)
                     .put("number_of_replicas", 0)
             )
-            .addMapping("_doc", "id", "type=keyword,doc_values=true")
+            .setMapping("id", "type=keyword,doc_values=true")
             .get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source").setId(Integer.toString(i))

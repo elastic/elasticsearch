@@ -206,7 +206,12 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             enrichPolicyLocks
         );
         enrichPolicyMaintenanceService.initialize();
-        return List.of(enrichPolicyLocks, new EnrichCoordinatorProxyAction.Coordinator(client, settings), enrichPolicyMaintenanceService);
+        return List.of(
+            enrichPolicyLocks,
+            new EnrichCoordinatorProxyAction.Coordinator(client, settings),
+            enrichPolicyMaintenanceService,
+            new EnrichPolicyExecutionStatsTracker()
+        );
     }
 
     @Override

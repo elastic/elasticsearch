@@ -291,7 +291,9 @@ public class GatewayMetaState implements Closeable {
                 } else {
                     logger.trace("queuing term update (setting term to {})", currentTerm);
                     newCurrentTermQueued = true;
-                    scheduleUpdate();
+                    if (newStateQueued == false) {
+                        scheduleUpdate();
+                    }
                 }
             }
         }
@@ -305,13 +307,16 @@ public class GatewayMetaState implements Closeable {
                 } else {
                     logger.trace("queuing cluster state update (setting cluster state to {})", clusterState.version());
                     newStateQueued = true;
-                    scheduleUpdate();
+                    if (newCurrentTermQueued == false) {
+                        scheduleUpdate();
+                    }
                 }
             }
         }
 
         private void scheduleUpdate() {
             assert Thread.holdsLock(mutex);
+            assert threadPoolExecutor.getQueue().isEmpty() : "threadPoolExecutor queue not empty";
             try {
                 threadPoolExecutor.execute(new AbstractRunnable() {
 
@@ -327,12 +332,14 @@ public class GatewayMetaState implements Closeable {
                         synchronized (mutex) {
                             if (newCurrentTermQueued) {
                                 term = getCurrentTerm();
+                                logger.trace("resetting newCurrentTermQueued");
                                 newCurrentTermQueued = false;
                             } else {
                                 term = null;
                             }
                             if (newStateQueued) {
                                 clusterState = getLastAcceptedState();
+                                logger.trace("resetting newStateQueued");
                                 newStateQueued = false;
                             } else {
                                 clusterState = null;

@@ -87,7 +87,7 @@ setup:
 ---
 "Test put config with security headers in the body":
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_header"
         body:  >
@@ -107,7 +107,7 @@ setup:
 "Test put config with create_time in the body":
 
   - do:
-      catch: /unknown field \[create_time\], parser not found/
+      catch: /unknown field \[create_time\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_create_time"
         body: >
@@ -126,7 +126,7 @@ setup:
 "Test put config with version in the body":
 
   - do:
-      catch: /unknown field \[version\], parser not found/
+      catch: /unknown field \[version\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_version"
         body: >
@@ -443,7 +443,7 @@ setup:
 "Test put config with unknown top level field":
 
   - do:
-      catch: /unknown field \[unknown_field\], parser not found/
+      catch: /unknown field \[unknown_field\]/
       ml.put_data_frame_analytics:
         id: "unknown_field"
         body: >

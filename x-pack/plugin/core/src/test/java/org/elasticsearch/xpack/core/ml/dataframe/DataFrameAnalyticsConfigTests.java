@@ -328,7 +328,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                  XContentFactory.xContent(XContentType.JSON).createParser(
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
-            assertThat(e.getMessage(), containsString("unknown field [create_time], parser not found"));
+            assertThat(e.getMessage(), containsString("unknown field [create_time]"));
         }
     }
 
@@ -343,7 +343,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                  XContentFactory.xContent(XContentType.JSON).createParser(
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
-            assertThat(e.getMessage(), containsString("unknown field [version], parser not found"));
+            assertThat(e.getMessage(), containsString("unknown field [version]"));
         }
     }
 

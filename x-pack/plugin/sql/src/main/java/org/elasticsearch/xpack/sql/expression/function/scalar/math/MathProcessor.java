@@ -27,7 +27,7 @@ public class MathProcessor implements Processor {
                 return Math.abs(((Double) l).doubleValue());
             }
             if (l instanceof Float) {
-                return Double.valueOf(Math.abs(((Float) l).floatValue()));
+                return Math.abs(((Float) l).floatValue());
             }
 
             // fallback to integer
@@ -40,7 +40,7 @@ public class MathProcessor implements Processor {
             lo = lo < 0 ? -lo : lo;
 
             if (l instanceof Integer) {
-                if (lo == Integer.MIN_VALUE) {
+                if ((int) lo == Integer.MIN_VALUE) {
                     throw new QlIllegalArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
                 }
                 return DataTypeConversion.safeToInt(lo);

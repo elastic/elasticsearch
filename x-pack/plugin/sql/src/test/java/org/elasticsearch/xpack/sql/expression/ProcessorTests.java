@@ -23,7 +23,7 @@ import static java.util.stream.Collectors.toCollection;
 
 public class ProcessorTests extends ESTestCase {
 
-    private static List<Class<? extends Processor>> processors;
+    private static Set<Class<? extends Processor>> processors;
 
     @BeforeClass
     public static void init() throws Exception {

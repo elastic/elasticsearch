@@ -53,9 +53,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -606,18 +608,18 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * Cache of subclasses. We use a cache because it significantly speeds up
      * the test.
      */
-    private static final Map<Class<?>, List<?>> subclassCache = new HashMap<>();
+    private static final Map<Class<?>, Set<?>> subclassCache = new HashMap<>();
 
     /**
      * Find all subclasses of a particular class.
      */
-    public static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+    public static <T> Set<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
         @SuppressWarnings("unchecked") // The map is built this way
-        List<Class<? extends T>> lookup = (List<Class<? extends T>>) subclassCache.get(clazz);
+        Set<Class<? extends T>> lookup = (Set<Class<? extends T>>) subclassCache.get(clazz);
         if (lookup != null) {
             return lookup;
         }
-        List<Class<? extends T>> results = new ArrayList<>();
+        Set<Class<? extends T>> results = new LinkedHashSet<>();
         String[] paths = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
         for (String path: paths) {
             Path root = PathUtils.get(path);
@@ -669,7 +671,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Load classes from predefined packages (hack to limit the scope) and if they match the hierarchy, add them to the cache
      */
-    private static <T> void maybeLoadClass(Class<T> clazz, String className, String location, List<Class<? extends T>> results)
+    private static <T> void maybeLoadClass(Class<T> clazz, String className, String location, Set<Class<? extends T>> results)
             throws IOException {
 
         // filter the class that are not interested

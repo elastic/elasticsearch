@@ -81,6 +81,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -224,31 +225,46 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
 
-        final List<Path> deleteOnFailure = new ArrayList<>();
-        final Set<PluginInfo> pluginInfos = new HashSet<>();
+        final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
         for (final String pluginId : pluginIds) {
+            terminal.println("-> Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
                     handleInstallXPack(buildFlavor());
                 }
 
+                final List<Path> deleteOnFailure = new ArrayList<>();
+                deleteOnFailures.put(pluginId, deleteOnFailure);
+
                 final Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
-                pluginInfos.add(pluginInfo);
+                terminal.println("-> Installed " + pluginInfo.getName());
+                // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
+                deleteOnFailures.remove(pluginId);
+                deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
             } catch (final Exception installProblem) {
-                try {
-                    IOUtils.rm(deleteOnFailure.toArray(new Path[0]));
-                } catch (final IOException exceptionWhileRemovingFiles) {
-                    installProblem.addSuppressed(exceptionWhileRemovingFiles);
+                terminal.println("-> Failed installing " + pluginId);
+                for (final Map.Entry<String, List<Path>> deleteOnFailureEntry : deleteOnFailures.entrySet()) {
+                    terminal.println("-> Rolling back " + deleteOnFailureEntry.getKey());
+                    boolean success = false;
+                    try {
+                        IOUtils.rm(deleteOnFailureEntry.getValue().toArray(new Path[0]));
+                        success = true;
+                    } catch (final IOException exceptionWhileRemovingFiles) {
+                        final Exception exception = new Exception(
+                            "failed rolling back installation of [" + deleteOnFailureEntry.getKey() + "]",
+                            exceptionWhileRemovingFiles);
+                        installProblem.addSuppressed(exception);
+                        terminal.println("-> Failed rolling back " + deleteOnFailureEntry.getKey());
+                    }
+                    if (success) {
+                        terminal.println("-> Rolled back " + deleteOnFailureEntry.getKey());
+                    }
                 }
                 throw installProblem;
             }
-        }
-
-        for (final PluginInfo pluginInfo : pluginInfos) {
-            terminal.println("-> Installed " + pluginInfo.getName());
         }
     }
 

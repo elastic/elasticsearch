@@ -324,7 +324,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        String msg = "[target_type] should be [classification] if [classification_labels] provided";
+        String msg = "[target_type] should be [classification] if [classification_labels] are provided";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Tree.builder()
                 .setRoot(TreeNode.builder(0)

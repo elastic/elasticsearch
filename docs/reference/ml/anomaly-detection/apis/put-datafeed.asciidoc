@@ -105,9 +105,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 
 [[ml-put-datafeed-time-related-settings]]
-===== Interaction of time related settings
+===== Interaction of time-related settings
 
-Time related settings have the following relationships:
+Time-related settings have the following relationships:
 
 * When `query_delay` is present, queries run at `query_delay` after the end of 
   each `frequency`.

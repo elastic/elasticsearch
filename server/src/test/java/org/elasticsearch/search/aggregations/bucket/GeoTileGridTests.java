@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.composite;
+package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -27,34 +27,47 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.VersionUtils;
 
-import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoTileGridValuesSourceBuilderTests extends ESTestCase {
+public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
-    public void testSetFormat() {
-        CompositeValuesSourceBuilder<?> builder = new GeoTileGridValuesSourceBuilder("name");
-        expectThrows(IllegalArgumentException.class, () -> builder.format("format"));
+    @Override
+    protected GeoTileGridAggregationBuilder createTestAggregatorBuilder() {
+        String name = randomAlphaOfLengthBetween(3, 20);
+        GeoTileGridAggregationBuilder factory = new GeoTileGridAggregationBuilder(name);
+        if (randomBoolean()) {
+            factory.precision(randomIntBetween(0, GeoTileUtils.MAX_ZOOM));
+        }
+        if (randomBoolean()) {
+            factory.size(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            factory.setGeoBoundingBox(GeoBoundingBoxTests.randomBBox());
+        }
+        return factory;
     }
 
-    public void testBWCBounds() throws IOException {
+    public void testSerializationPreBounds() throws Exception {
         Version noBoundsSupportVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        GeoTileGridValuesSourceBuilder builder = new GeoTileGridValuesSourceBuilder("name");
-        if (randomBoolean()) {
-            builder.geoBoundingBox(GeoBoundingBoxTests.randomBBox());
-        }
+        GeoTileGridAggregationBuilder builder = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_8_0_0);
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
                 new NamedWriteableRegistry(Collections.emptyList()))) {
                 in.setVersion(noBoundsSupportVersion);
-                GeoTileGridValuesSourceBuilder readBuilder = new GeoTileGridValuesSourceBuilder(in);
+                GeoTileGridAggregationBuilder readBuilder = new GeoTileGridAggregationBuilder(in);
                 assertThat(readBuilder.geoBoundingBox(), equalTo(new GeoBoundingBox(
                     new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN))));
             }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -27,18 +28,25 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -263,11 +271,24 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete root level snapshot metadata blob for snapshot [{}]", snapshotToCorrupt);
         Files.delete(repo.resolve(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotToCorrupt.getUUID())));
 
+        logger.info("--> strip version information from index-N blob");
+        final RepositoryData withoutVersions = new RepositoryData(repositoryData.getGenId(),
+            repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(
+                SnapshotId::getUUID, Function.identity())),
+            repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(
+                SnapshotId::getUUID, repositoryData::getSnapshotState)),
+            Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY);
+
+        Files.write(repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
+            BytesReference.toBytes(BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(),
+                true))), StandardOpenOption.TRUNCATE_EXISTING);
+
         logger.info("--> verify that repo is assumed in old metadata format");
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, repositoryData, null)))), is(true));
+            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
+            is(true));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
@@ -276,6 +297,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
             ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
             is(false));
+        final RepositoryData finalRepositoryData = getRepositoryData(repository);
+        for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
+            assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
+        }
     }
 
     private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {

@@ -69,6 +69,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -1548,7 +1549,9 @@ public final class InternalTestCluster extends TestCluster {
             } catch (InterruptedException e) {
                 throw new AssertionError("interrupted while starting nodes", e);
             } catch (ExecutionException e) {
-                throw new RuntimeException("failed to start nodes", e);
+                RuntimeException re = FutureUtils.rethrowExecutionException(e);
+                re.addSuppressed(new RuntimeException("failed to start nodes"));
+                throw re;
             }
             nodeAndClients.forEach(this::publishNode);
 

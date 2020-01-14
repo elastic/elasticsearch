@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage.CoordinatorSummaryStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -63,22 +66,31 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) throws Exception {
-        client.execute(
-            EnrichStatsAction.INSTANCE,
-            new EnrichStatsAction.Request(),
-            ActionListener.wrap(
-                statsResponse -> listener.onResponse(
-                    new XPackUsageFeatureResponse(
-                        new EnrichFeatureSetUsage(
-                            licenseState.isEnrichAllowed(),
-                            enabled,
-                            statsResponse.getExecutionStats(),
-                            CoordinatorSummaryStats.aggregate(statsResponse.getCoordinatorStats())
-                        )
+        if (enabled) {
+            try (ThreadContext.StoredContext ignored = client.threadPool().getThreadContext().stashWithOrigin(ENRICH_ORIGIN)) {
+                EnrichStatsAction.Request statsRequest = new EnrichStatsAction.Request();
+                statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+                client.execute(
+                    EnrichStatsAction.INSTANCE,
+                    statsRequest,
+                    ActionListener.wrap(
+                        statsResponse -> listener.onResponse(
+                            new XPackUsageFeatureResponse(
+                                new EnrichFeatureSetUsage(
+                                    licenseState.isEnrichAllowed(),
+                                    enabled,
+                                    statsResponse.getExecutionStats(),
+                                    CoordinatorSummaryStats.aggregate(statsResponse.getCoordinatorStats())
+                                )
+                            )
+                        ),
+                        listener::onFailure
                     )
-                ),
-                listener::onFailure
-            )
-        );
+                );
+            }
+        } else {
+            EnrichFeatureSetUsage usage = new EnrichFeatureSetUsage(licenseState.isWatcherAllowed(), false);
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
+        }
     }
 }

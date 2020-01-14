@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -1270,7 +1271,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             @Override
                             public void onResponse(Collection<Void> voids) {
                                 logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",
-                                    snapshotIdsWithoutVersion);
+                                    AllocationService.firstListElementsToCommaDelimitedString(
+                                        snapshotIdsWithoutVersion, SnapshotId::toString, logger.isDebugEnabled()));
                             }
 
                             @Override

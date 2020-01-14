@@ -292,7 +292,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
             class ExceptionFactory extends AbstractTokenFilterFactory {
 
-                public ExceptionFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                ExceptionFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
                     super(indexSettings, name, settings);
                 }
 

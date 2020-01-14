@@ -109,7 +109,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 Time-related settings have the following relationships:
 
-* When `query_delay` is present, queries run at `query_delay` after the end of 
+* When `query_delay` is present, queries run at `query_delay` after the end of 
   each `frequency`.
   
 * When `frequency` is shorter than `bucket_span` of the associated job, interim 

@@ -337,18 +337,6 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                 .validate();
         });
         assertThat(ex.getMessage(), equalTo(msg));
-        ex = expectThrows(ElasticsearchException.class, () -> {
-            Tree.builder()
-                .setRoot(TreeNode.builder(0)
-                    .setLeftChild(1)
-                    .setSplitFeature(1)
-                    .setThreshold(randomDouble()))
-                .setFeatureNames(featureNames)
-                .setTargetType(TargetType.CLASSIFICATION)
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo(msg));
     }
 
     public void testOperationsEstimations() {

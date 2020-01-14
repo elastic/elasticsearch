@@ -192,29 +192,10 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setTrainedModels(Arrays.asList(
                     Tree.builder()
                         .setNodes(TreeNode.builder(0)
-                                .setLeftChild(1)
-                                .setSplitFeature(1)
-                                .setThreshold(randomDouble()))
+                                .setLeafValue(randomDouble()))
                         .setFeatureNames(featureNames)
                         .build()))
                 .setClassificationLabels(Arrays.asList("label1", "label2"))
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo(msg));
-        ex = expectThrows(ElasticsearchException.class, () -> {
-            Ensemble.builder()
-                .setFeatureNames(featureNames)
-                .setTrainedModels(Arrays.asList(
-                    Tree.builder()
-                        .setNodes(TreeNode.builder(0)
-                            .setLeftChild(1)
-                            .setSplitFeature(1)
-                            .setThreshold(randomDouble()))
-                        .setFeatureNames(featureNames)
-                        .build()))
-                .setTargetType(TargetType.CLASSIFICATION)
-                .setOutputAggregator(new WeightedMode())
                 .build()
                 .validate();
         });

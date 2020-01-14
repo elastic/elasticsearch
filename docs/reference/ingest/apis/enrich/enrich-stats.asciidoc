@@ -118,6 +118,17 @@ The API returns the following response:
             }
         }
     ],
+    "execution_stats": {
+        "total_executions": 20,
+        "total_execution_time": 24985,
+        "min_execution_time": 818,
+        "max_execution_time": 1528,
+        "total_repeat_executions": 12,
+        "total_time_between_executions": 43316440,
+        "avg_time_between_executions": 3609703,
+        "min_time_between_executions": 3548167,
+        "max_time_between_executions": 3756918
+    },
     "coordinator_stats": [
         {
             "node_id": "1sFM8cmSROZYhPxVsiWew",
@@ -130,6 +141,15 @@ The API returns the following response:
 }
 ----
 // TESTRESPONSE[s/"executing_policies": \[[^\]]*\]/"executing_policies": $body.$_path/]
-// TESTRESPONSE[s/"node_id": "1sFM8cmSROZYhPxVsiWew"/"node_id" : $body.coordinator_stats.0.node_id/]
-// TESTRESPONSE[s/"remote_requests_total": 0/"remote_requests_total" : $body.coordinator_stats.0.remote_requests_total/]
-// TESTRESPONSE[s/"executed_searches_total": 0/"executed_searches_total" : $body.coordinator_stats.0.executed_searches_total/]
+// TESTRESPONSE[s/"total_executions": 20/"total_executions": $body.execution_stats.total_executions/]
+// TESTRESPONSE[s/"total_execution_time": 24985/"total_execution_time": $body.execution_stats.total_execution_time/]
+// TESTRESPONSE[s/"min_execution_time": 818/"min_execution_time": $body.execution_stats.min_execution_time/]
+// TESTRESPONSE[s/"max_execution_time": 1528/"max_execution_time": $body.execution_stats.max_execution_time/]
+// TESTRESPONSE[s/"total_repeat_executions": 12/"total_repeat_executions": $body.execution_stats.total_repeat_executions/]
+// TESTRESPONSE[s/"total_time_between_executions": 43316440/"total_time_between_executions": $body.execution_stats.total_time_between_executions/]
+// TESTRESPONSE[s/"avg_time_between_executions": 3609703/"avg_time_between_executions": $body.execution_stats.avg_time_between_executions/]
+// TESTRESPONSE[s/"min_time_between_executions": 3548167/"min_time_between_executions": $body.execution_stats.min_time_between_executions/]
+// TESTRESPONSE[s/"max_time_between_executions": 3756918/"max_time_between_executions": $body.execution_stats.max_time_between_executions/]
+// TESTRESPONSE[s/"node_id": "1sFM8cmSROZYhPxVsiWew"/"node_id": $body.coordinator_stats.0.node_id/]
+// TESTRESPONSE[s/"remote_requests_total": 0/"remote_requests_total": $body.coordinator_stats.0.remote_requests_total/]
+// TESTRESPONSE[s/"executed_searches_total": 0/"executed_searches_total": $body.coordinator_stats.0.executed_searches_total/]

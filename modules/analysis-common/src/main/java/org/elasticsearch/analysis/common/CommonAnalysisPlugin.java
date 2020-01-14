@@ -558,7 +558,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 throw new IllegalArgumentException("The [edgeNGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead.");
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("nGram_tokenizer_deprecation",
+                deprecationLogger.deprecatedAndMaybeLog("edgeNGram_tokenizer_deprecation",
                         "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
                                 + "Please change the tokenizer name to [edge_ngram] instead.");
             }

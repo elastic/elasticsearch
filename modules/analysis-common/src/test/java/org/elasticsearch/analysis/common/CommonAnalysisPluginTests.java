@@ -19,15 +19,18 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class CommonAnalysisPluginTests extends ESTestCase {
 
@@ -141,7 +144,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT), true));
         expectThrows(IllegalArgumentException.class, () -> doTestCustomTokenizerDeprecation("edgeNGram", "edge_ngram",
                 VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT), true));
-
     }
 
     public void doTestPrebuiltTokenizerDeprecation(String deprecatedName, String replacement, Version version, boolean expectWarning)
@@ -173,12 +175,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
         .build();
 
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            Map<String, TokenizerFactory> tokenizers = createTestAnalysis(
-                    IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin).tokenizer;
-            TokenizerFactory tokenizerFactory = tokenizers.get(deprecatedName);
+            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
 
-            Tokenizer tokenizer = tokenizerFactory.create();
-            assertNotNull(tokenizer);
             if (expectWarning) {
                 assertWarnings("The [" + deprecatedName + "] tokenizer name is deprecated and will be removed in a future version. "
                         + "Please change the tokenizer name to [" + replacement + "] instead.");

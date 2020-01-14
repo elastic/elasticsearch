@@ -174,7 +174,6 @@ public abstract class AggregatorBase extends Aggregator {
      * of children aggregators are instantiated for the next segment.
      */
     protected void preGetSubLeafCollectors() throws IOException {
-        // clear accounted bytes from segment's long[]
     }
 
     /**
@@ -260,7 +259,6 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementation to be called back when the collection phase ends.
      */
     protected void doPostCollection() throws IOException {
-        // final clear of long[] from the geogrid's leaf collectorjjkk
     }
 
     protected final InternalAggregations buildEmptySubAggregations() {

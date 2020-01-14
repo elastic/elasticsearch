@@ -61,7 +61,8 @@ class RemoteClusterResolver extends RemoteClusterAware {
     }
 
     ResolvedIndices resolve(String... indices) {
-        Map<String, List<String>> resolvedClusterIndices = groupClusterIndices(clusters, indices);
+        // 7.x workaround, see gh#40419
+        Map<String, List<String>> resolvedClusterIndices = groupClusterIndices(clusters, indices, i -> false);
         List<String> localIndices = resolvedClusterIndices.getOrDefault(LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList());
         resolvedClusterIndices.remove(LOCAL_CLUSTER_GROUP_KEY);
         return new ResolvedIndices(resolvedClusterIndices, localIndices);

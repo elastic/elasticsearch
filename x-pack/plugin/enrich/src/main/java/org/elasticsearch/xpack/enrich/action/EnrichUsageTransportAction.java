@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionListener;
@@ -27,31 +32,52 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
     private final Client client;
 
     @Inject
-    public EnrichUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      Client client, Settings settings, XPackLicenseState licenseState) {
-        super(XPackUsageFeatureAction.ENRICH.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public EnrichUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
+        super(
+            XPackUsageFeatureAction.ENRICH.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.enabled = XPackSettings.ENRICH_ENABLED_SETTING.get(settings);
         this.licenseState = licenseState;
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) throws Exception {
-        client.execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request(), ActionListener.wrap(statsResponse ->
-            listener.onResponse(
-                new XPackUsageFeatureResponse(
-                    new EnrichFeatureSetUsage(
-                        licenseState.isEnrichAllowed(),
-                        enabled,
-                        statsResponse.getExecutionStats(),
-                        statsResponse.getCoordinatorStats()
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) throws Exception {
+        client.execute(
+            EnrichStatsAction.INSTANCE,
+            new EnrichStatsAction.Request(),
+            ActionListener.wrap(
+                statsResponse -> listener.onResponse(
+                    new XPackUsageFeatureResponse(
+                        new EnrichFeatureSetUsage(
+                            licenseState.isEnrichAllowed(),
+                            enabled,
+                            statsResponse.getExecutionStats(),
+                            statsResponse.getCoordinatorStats()
+                        )
                     )
-                )
-            ),
-            listener::onFailure
-        ));
+                ),
+                listener::onFailure
+            )
+        );
     }
 }

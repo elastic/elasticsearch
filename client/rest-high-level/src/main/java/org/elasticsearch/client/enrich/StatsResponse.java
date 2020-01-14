@@ -29,17 +29,19 @@ import java.util.Objects;
 public final class StatsResponse {
 
     private static ParseField EXECUTING_POLICIES_FIELD = new ParseField("executing_policies");
+    private static ParseField EXECUTION_STATS_FIELD = new ParseField("execution_stats");
     private static ParseField COORDINATOR_STATS_FIELD = new ParseField("coordinator_stats");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<StatsResponse, Void> PARSER = new ConstructingObjectParser<>(
         "stats_response",
         true,
-        args -> new StatsResponse((List<ExecutingPolicy>) args[0], (List<CoordinatorStats>) args[1])
+        args -> new StatsResponse((List<ExecutingPolicy>) args[0], (ExecutionStats) args[1], (List<CoordinatorStats>) args[2])
     );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ExecutingPolicy.PARSER::apply, EXECUTING_POLICIES_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), ExecutionStats.PARSER::apply, EXECUTION_STATS_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), CoordinatorStats.PARSER::apply, COORDINATOR_STATS_FIELD);
     }
 
@@ -48,15 +50,21 @@ public final class StatsResponse {
     }
 
     private final List<ExecutingPolicy> executingPolicies;
+    private final ExecutionStats executionStats;
     private final List<CoordinatorStats> coordinatorStats;
 
-    public StatsResponse(List<ExecutingPolicy> executingPolicies, List<CoordinatorStats> coordinatorStats) {
+    public StatsResponse(List<ExecutingPolicy> executingPolicies, ExecutionStats executionStats, List<CoordinatorStats> coordinatorStats) {
         this.executingPolicies = executingPolicies;
+        this.executionStats = executionStats;
         this.coordinatorStats = coordinatorStats;
     }
 
     public List<ExecutingPolicy> getExecutingPolicies() {
         return executingPolicies;
+    }
+
+    public ExecutionStats getExecutionStats() {
+        return executionStats;
     }
 
     public List<CoordinatorStats> getCoordinatorStats() {
@@ -138,6 +146,120 @@ public final class StatsResponse {
         @Override
         public int hashCode() {
             return Objects.hash(nodeId, queueSize, remoteRequestsCurrent, remoteRequestsTotal, executedSearchesTotal);
+        }
+    }
+
+    public static class ExecutionStats {
+
+        static ParseField TOTAL_EXECUTIONS_FIELD = new ParseField("total_executions");
+        static ParseField TOTAL_EXECUTION_TIME_FIELD = new ParseField("total_execution_time");
+        static ParseField MIN_EXECUTION_TIME_FIELD = new ParseField("min_execution_time");
+        static ParseField MAX_EXECUTION_TIME_FIELD = new ParseField("max_execution_time");
+        static ParseField TOTAL_REPEAT_EXECUTIONS_FIELD = new ParseField("total_repeat_executions");
+        static ParseField TOTAL_TIME_BETWEEN_EXECUTIONS_FIELD = new ParseField("total_time_between_executions");
+        static ParseField AVG_TIME_BETWEEN_EXECUTIONS_FIELD = new ParseField("avg_time_between_executions");
+        static ParseField MIN_TIME_BETWEEN_EXECUTIONS_FIELD = new ParseField("min_time_between_executions");
+        static ParseField MAX_TIME_BETWEEN_EXECUTIONS_FIELD = new ParseField("max_time_between_executions");
+
+        private static final ConstructingObjectParser<ExecutionStats, Void> PARSER = new ConstructingObjectParser<>(
+            "execution_stats_item",
+            true,
+            args -> new ExecutionStats((long) args[0], (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5],
+                (long) args[6], (long) args[7], (long) args[8])
+        );
+
+        static {
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_EXECUTIONS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_EXECUTION_TIME_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), MIN_EXECUTION_TIME_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_EXECUTION_TIME_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_REPEAT_EXECUTIONS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_TIME_BETWEEN_EXECUTIONS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), AVG_TIME_BETWEEN_EXECUTIONS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), MIN_TIME_BETWEEN_EXECUTIONS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_TIME_BETWEEN_EXECUTIONS_FIELD);
+        }
+
+        private final Long totalExecutionCount;
+        private final Long totalExecutionTime;
+        private final Long minExecutionTime;
+        private final Long maxExecutionTime;
+        private final Long totalRepeatExecutionCount;
+        private final Long totalTimeBetweenExecutions;
+        private final Long avgTimeBetweenExecutions;
+        private final Long minTimeBetweenExecutions;
+        private final Long maxTimeBetweenExecutions;
+
+        public ExecutionStats(Long totalExecutionCount, Long totalExecutionTime, Long minExecutionTime, Long maxExecutionTime,
+                              Long totalRepeatExecutionCount, Long totalTimeBetweenExecutions, Long avgTimeBetweenExecutions,
+                              Long minTimeBetweenExecutions, Long maxTimeBetweenExecutions) {
+            this.totalExecutionCount = totalExecutionCount;
+            this.totalExecutionTime = totalExecutionTime;
+            this.minExecutionTime = minExecutionTime;
+            this.maxExecutionTime = maxExecutionTime;
+            this.totalRepeatExecutionCount = totalRepeatExecutionCount;
+            this.totalTimeBetweenExecutions = totalTimeBetweenExecutions;
+            this.avgTimeBetweenExecutions = avgTimeBetweenExecutions;
+            this.minTimeBetweenExecutions = minTimeBetweenExecutions;
+            this.maxTimeBetweenExecutions = maxTimeBetweenExecutions;
+        }
+
+        public Long getTotalExecutionCount() {
+            return totalExecutionCount;
+        }
+
+        public Long getTotalExecutionTime() {
+            return totalExecutionTime;
+        }
+
+        public Long getMinExecutionTime() {
+            return minExecutionTime;
+        }
+
+        public Long getMaxExecutionTime() {
+            return maxExecutionTime;
+        }
+
+        public Long getTotalRepeatExecutionCount() {
+            return totalRepeatExecutionCount;
+        }
+
+        public Long getTotalTimeBetweenExecutions() {
+            return totalTimeBetweenExecutions;
+        }
+
+        public Long getAvgTimeBetweenExecutions() {
+            return avgTimeBetweenExecutions;
+        }
+
+        public Long getMinTimeBetweenExecutions() {
+            return minTimeBetweenExecutions;
+        }
+
+        public Long getMaxTimeBetweenExecutions() {
+            return maxTimeBetweenExecutions;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ExecutionStats that = (ExecutionStats) o;
+            return totalExecutionCount.equals(that.totalExecutionCount) &&
+                totalExecutionTime.equals(that.totalExecutionTime) &&
+                minExecutionTime.equals(that.minExecutionTime) &&
+                maxExecutionTime.equals(that.maxExecutionTime) &&
+                totalRepeatExecutionCount.equals(that.totalRepeatExecutionCount) &&
+                totalTimeBetweenExecutions.equals(that.totalTimeBetweenExecutions) &&
+                avgTimeBetweenExecutions.equals(that.avgTimeBetweenExecutions) &&
+                minTimeBetweenExecutions.equals(that.minTimeBetweenExecutions) &&
+                maxTimeBetweenExecutions.equals(that.maxTimeBetweenExecutions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(totalExecutionCount, totalExecutionTime, minExecutionTime, maxExecutionTime, totalRepeatExecutionCount,
+                totalTimeBetweenExecutions, avgTimeBetweenExecutions, minTimeBetweenExecutions, maxTimeBetweenExecutions);
         }
     }
 

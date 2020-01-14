@@ -43,6 +43,18 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
             TaskInfo taskInfo = randomTaskInfo();
             executingPolicies.add(new EnrichStatsAction.Response.ExecutingPolicy(randomAlphaOfLength(4), taskInfo));
         }
+        long totalExecutionCount = randomIntBetween(1, 1000);
+        long totalExecutionTime = randomLongBetween(totalExecutionCount, Long.MAX_VALUE);
+        long minExecutionTime = randomIntBetween(1, 1000000);
+        long maxExecutionTime = randomLongBetween(minExecutionTime, Long.MAX_VALUE);
+        long totalRepeatExecutionCount = randomLongBetween(1, totalExecutionCount);
+        long totalTimeBetweenExecutions = randomLongBetween(1, Long.MAX_VALUE);
+        long avgTimeBetweenExecutions = totalTimeBetweenExecutions / totalRepeatExecutionCount;
+        long minTimeBetweenExecutions = randomIntBetween(1, 1000000);
+        long maxTimeBetweenExecutions = randomLongBetween(minTimeBetweenExecutions, Long.MAX_VALUE);
+        EnrichStatsAction.Response.ExecutionStats executionStats = new EnrichStatsAction.Response.ExecutionStats(totalExecutionCount,
+            totalExecutionTime, minExecutionTime, maxExecutionTime, totalRepeatExecutionCount, totalTimeBetweenExecutions,
+            avgTimeBetweenExecutions, minTimeBetweenExecutions, maxTimeBetweenExecutions);
         int numCoordinatingStats = randomIntBetween(0, 16);
         List<EnrichStatsAction.Response.CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatingStats);
         for (int i = 0; i < numCoordinatingStats; i++) {
@@ -51,7 +63,7 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
                 randomNonNegativeLong());
             coordinatorStats.add(stats);
         }
-        return new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
+        return new EnrichStatsAction.Response(executingPolicies, executionStats, coordinatorStats);
     }
 
     @Override
@@ -67,6 +79,21 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
             EnrichStatsAction.Response.ExecutingPolicy expected = serverTestInstance.getExecutingPolicies().get(i);
             assertThat(actual.getName(), equalTo(expected.getName()));
             assertThat(actual.getTaskInfo(), equalTo(actual.getTaskInfo()));
+        }
+
+        assertNotNull(clientInstance.getExecutionStats());
+        {
+            StatsResponse.ExecutionStats actual = clientInstance.getExecutionStats();
+            EnrichStatsAction.Response.ExecutionStats expected = serverTestInstance.getExecutionStats();
+            assertThat(actual.getTotalExecutionCount(), equalTo(expected.getTotalExecutionCount()));
+            assertThat(actual.getTotalExecutionTime(), equalTo(expected.getTotalExecutionTime()));
+            assertThat(actual.getMinExecutionTime(), equalTo(expected.getMinExecutionTime()));
+            assertThat(actual.getMaxExecutionTime(), equalTo(expected.getMaxExecutionTime()));
+            assertThat(actual.getTotalRepeatExecutionCount(), equalTo(expected.getTotalRepeatExecutionCount()));
+            assertThat(actual.getTotalTimeBetweenExecutions(), equalTo(expected.getTotalTimeBetweenExecutions()));
+            assertThat(actual.getAvgTimeBetweenExecutions(), equalTo(expected.getAvgTimeBetweenExecutions()));
+            assertThat(actual.getMinTimeBetweenExecutions(), equalTo(expected.getMinTimeBetweenExecutions()));
+            assertThat(actual.getMaxTimeBetweenExecutions(), equalTo(expected.getMaxTimeBetweenExecutions()));
         }
 
         assertThat(clientInstance.getCoordinatorStats().size(), equalTo(serverTestInstance.getCoordinatorStats().size()));

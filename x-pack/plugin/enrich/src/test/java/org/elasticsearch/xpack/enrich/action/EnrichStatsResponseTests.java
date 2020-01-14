@@ -77,8 +77,17 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             maxTimeBetweenExecutions = 0L;
         }
 
-        return new ExecutionStats(totalExecutionCount, totalExecutionTime, minExecutionTime, maxExecutionTime, totalRepeatExecutionCount,
-            totalTimeBetweenExecutions, avgTimeBetweenExecutions, minTimeBetweenExecutions, maxTimeBetweenExecutions);
+        return new ExecutionStats(
+            totalExecutionCount,
+            totalExecutionTime,
+            minExecutionTime,
+            maxExecutionTime,
+            totalRepeatExecutionCount,
+            totalTimeBetweenExecutions,
+            avgTimeBetweenExecutions,
+            minTimeBetweenExecutions,
+            maxTimeBetweenExecutions
+        );
     }
 
     public static List<CoordinatorStats> randomCoordinatorStats() {

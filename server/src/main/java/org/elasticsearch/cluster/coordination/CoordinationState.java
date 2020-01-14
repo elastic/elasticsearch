@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -444,15 +446,14 @@ public class CoordinationState {
         assert publishVotes.isEmpty() || electionWon();
     }
 
-    public void close() {
+    public void close() throws IOException {
         persistedState.close();
     }
 
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
-     *
      */
-    public interface PersistedState {
+    public interface PersistedState extends Closeable {
 
         /**
          * Returns the current term
@@ -511,7 +512,8 @@ public class CoordinationState {
             }
         }
 
-        default void close() {}
+        default void close() throws IOException {
+        }
     }
 
     /**

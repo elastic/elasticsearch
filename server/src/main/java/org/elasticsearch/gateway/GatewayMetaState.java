@@ -317,50 +317,47 @@ public class GatewayMetaState implements Closeable {
         private void scheduleUpdate() {
             assert Thread.holdsLock(mutex);
             assert threadPoolExecutor.getQueue().isEmpty() : "threadPoolExecutor queue not empty";
-            try {
-                threadPoolExecutor.execute(new AbstractRunnable() {
+            threadPoolExecutor.execute(new AbstractRunnable() {
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("Exception occurred when storing new meta data", e);
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        final Long term;
-                        final ClusterState clusterState;
-                        synchronized (mutex) {
-                            if (newCurrentTermQueued) {
-                                term = getCurrentTerm();
-                                logger.trace("resetting newCurrentTermQueued");
-                                newCurrentTermQueued = false;
-                            } else {
-                                term = null;
-                            }
-                            if (newStateQueued) {
-                                clusterState = getLastAcceptedState();
-                                logger.trace("resetting newStateQueued");
-                                newStateQueued = false;
-                            } else {
-                                clusterState = null;
-                            }
-                        }
-                        // write current term before last accepted state so that it is never below term in last accepted state
-                        if (term != null) {
-                            persistedState.setCurrentTerm(term);
-                        }
-                        if (clusterState != null) {
-                            persistedState.setLastAcceptedState(resetVotingConfiguration(clusterState));
-                        }
-                    }
-                });
-            } catch (EsRejectedExecutionException e) {
-                // ignore cases where we are shutting down..., there is really nothing interesting to be done here...
-                if (threadPoolExecutor.isShutdown() == false) {
-                    assert false : "only expect rejections when shutting down";
-                    throw e;
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Exception occurred when storing new meta data", e);
                 }
-            }
+
+                @Override
+                public void onRejection(Exception e) {
+                    assert threadPoolExecutor.isShutdown() : "only expect rejections when shutting down";
+                }
+
+                @Override
+                protected void doRun() {
+                    final Long term;
+                    final ClusterState clusterState;
+                    synchronized (mutex) {
+                        if (newCurrentTermQueued) {
+                            term = getCurrentTerm();
+                            logger.trace("resetting newCurrentTermQueued");
+                            newCurrentTermQueued = false;
+                        } else {
+                            term = null;
+                        }
+                        if (newStateQueued) {
+                            clusterState = getLastAcceptedState();
+                            logger.trace("resetting newStateQueued");
+                            newStateQueued = false;
+                        } else {
+                            clusterState = null;
+                        }
+                    }
+                    // write current term before last accepted state so that it is never below term in last accepted state
+                    if (term != null) {
+                        persistedState.setCurrentTerm(term);
+                    }
+                    if (clusterState != null) {
+                        persistedState.setLastAcceptedState(resetVotingConfiguration(clusterState));
+                    }
+                }
+            });
         }
 
         static final CoordinationMetaData.VotingConfiguration staleStateConfiguration =

@@ -177,7 +177,7 @@ image::security/images/assign-role.jpg["Assigning a role to a user in Kibana"]
 
 This user now has administrative access to all features in {kib}.
 For more information about granting access to Kibana see
-{kibana-ref}/xpack-security-authorization.html[Kibana Authorization].
+{kibana-ref}/xpack-security-authorization.html[Kibana authorization].
 
 If you completed all of the steps in 
 {stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}], you should 

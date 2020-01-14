@@ -51,7 +51,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-config]
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span]
 +
 --
-To learn more about the relationship of time related settings, see 
+To learn more about the relationship between time related settings, see 
 <<ml-put-datafeed-time-related-settings>>.
 --
 

@@ -227,6 +227,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
         for (final String pluginId : pluginIds) {
+            terminal.println("-> Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
                     handleInstallXPack(buildFlavor());
@@ -253,7 +254,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                         success = true;
                     } catch (final IOException exceptionWhileRemovingFiles) {
                         final Exception exception = new Exception(
-                            "failed rolling back installation of [" + deleteOnFailureEntry.getKey() +"]",
+                            "failed rolling back installation of [" + deleteOnFailureEntry.getKey() + "]",
                             exceptionWhileRemovingFiles);
                         installProblem.addSuppressed(exception);
                         terminal.println("-> Failed rolling back " + deleteOnFailureEntry.getKey());

@@ -649,7 +649,7 @@ public class MetaDataCreateIndexService {
                 "]: cannot be greater than number of shard copies [" +
                 (tmpImd.getNumberOfReplicas() + 1) + "]");
         }
-        return indicesService.createIndex(tmpImd, Collections.emptyList());
+        return indicesService.createIndex(tmpImd, Collections.emptyList(), false);
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {

@@ -32,16 +32,8 @@ dependencies {
   compile("com.fasterxml.jackson.core:jackson-databind:${versions.jacksondatabind}")
   compile('com.maxmind.db:maxmind-db:1.2.2')
 
-  testCompile 'org.elasticsearch:geolite2-databases:20191119'
+  compile('org.elasticsearch:geolite2-databases:20191119')
 }
-
-task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
-  from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases') }) }
-  into "${project.buildDir}/ingest-geoip"
-  include "*.mmdb"
-}
-
-project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
 
 bundlePlugin {
   from("${project.buildDir}/ingest-geoip") {

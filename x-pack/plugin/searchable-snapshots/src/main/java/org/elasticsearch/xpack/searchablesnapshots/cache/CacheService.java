@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -18,25 +19,20 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.RefCounted;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
@@ -54,22 +50,19 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private static final int CACHE_FILE_RANGE_SIZE = 1 << 15;
 
-    private static final StandardOpenOption[] CACHE_FILE_OPEN_OPTIONS = new StandardOpenOption[]{
-        StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.SPARSE
-    };
+    private static final Set<StandardOpenOption> CACHE_FILE_OPEN_OPTIONS =
+        Set.of(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE/*, StandardOpenOption.SPARSE*/);
 
     private static final Logger logger = LogManager.getLogger(CacheService.class);
 
-    private final Cache<String, CacheEntry> cache;
-    private final ThreadPool threadPool;
+    private final Cache<String, CacheFile> cache;
 
-    public CacheService(final Settings settings, final ThreadPool threadPool) {
-        this.cache = CacheBuilder.<String, CacheEntry>builder()
+    public CacheService(final Settings settings) {
+        this.cache = CacheBuilder.<String, CacheFile>builder()
             .setMaximumWeight(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes())
-            .weigher((key, entry) -> entry.estimateWeight())
+            .weigher((key, entry) -> entry.getLength())
             .removalListener(notification -> markAsEvicted(notification.getValue()))
             .build();
-        this.threadPool = threadPool;
     }
 
     @Override
@@ -87,13 +80,13 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Creates a new {@link CacheEntry} instance in cache which points to a specific sparse file on disk located within the cache directory.
+     * Creates a new {@link CacheFile} instance in cache which points to a specific sparse file on disk located within the cache directory.
      *
      * @param file   the Lucene cached file
      * @param length the length of the Lucene file to cache
-     * @return a new {@link CacheEntry}
+     * @return a new {@link CacheFile}
      */
-    private CacheEntry getOrAddToCache(final Path file, final long length, final CheckedSupplier<IndexInput, IOException> source) {
+    private CacheFile getOrAddToCache(final Path file, final long length) {
         assert Files.notExists(file) : "Lucene cached file exists " + file;
         try {
             return cache.computeIfAbsent(toCacheKey(file), key -> {
@@ -103,22 +96,8 @@ public class CacheService extends AbstractLifecycleComponent {
                 final Path path = file.getParent().resolve(uuid);
                 assert Files.notExists(path) : "cache file already exists " + path;
 
-                boolean success = false;
-                try {
-                    logger.trace(() -> new ParameterizedMessage("creating new cache file for [{}] at [{}]", file.getFileName(), path));
-                    final FileChannel channel = FileChannel.open(path, CACHE_FILE_OPEN_OPTIONS);
-
-                    final CacheEntry cacheEntry = new CacheEntry(path, length, source, channel, CACHE_FILE_RANGE_SIZE);
-                    success = true;
-                    return cacheEntry;
-                } catch (IOException e) {
-                    logger.error(() -> new ParameterizedMessage("failed to create cache file [{}]", path), e);
-                    throw e;
-                } finally {
-                    if (success == false) {
-                        IOUtils.deleteFilesIgnoringExceptions(path);
-                    }
-                }
+                final String fileName = file.getFileName().toString();
+                return new CacheFile(fileName, length, path, CACHE_FILE_OPEN_OPTIONS, CACHE_FILE_RANGE_SIZE);
             });
         } catch (ExecutionException e) {
             throw ExceptionsHelper.convertToElastic(e);
@@ -133,57 +112,74 @@ public class CacheService extends AbstractLifecycleComponent {
      * <p>
      * When no entry exists in cache, the service creates a new entry for the file. Because cached files are created as sparse files on
      * disk, each cache entry needs to track the ranges of bytes that have already been cached and the ranges of bytes that will need to be
-     * retrieved from a source. This is tracked in {@link CacheEntry} by {@link SparseFileTracker} which requires to know the length of the
+     * retrieved from a source. This is tracked in {@link CacheFile} by {@link SparseFileTracker} which requires to know the length of the
      * file to cache to correctly track ranges.
      * <p>
-     * When an entry already exists in cache, the service uses the {@link SparseFileTracker} of the {@link CacheEntry} to know if it can
+     * When an entry already exists in cache, the service uses the {@link SparseFileTracker} of the {@link CacheFile} to know if it can
      * serve the read operations using one or more ranges of bytes already cached on local disk or if it needs to retrieve the bytes from
      * the source (supplied as a {@link IndexInput}) first, then writes the bytes locally before returning them as the result of the read
      * operation.
      *
-     * @param filePath   the {@link Path} of the cached file
-     * @param fileLength the length of the cached file (required to compute ranges of bytes)
-     * @param fileSource supplies the {@link IndexInput} to read the bytes from in case they are not already in cache
-     * @param position   the position in the cached file where to start reading bytes from
-     * @param b          the array to read bytes into
-     * @param off        the offset in the array to start storing bytes
-     * @param len        the number of bytes to read
-     *
+     * @param filePath       the {@link Path} of the cached file
+     * @param fileLength     the length of the cached file (required to compute ranges of bytes)
+     * @param cacheReference the last reference to a cache entry
+     * @param cacheSource    supplies the {@link IndexInput} to read the bytes from in case they are not already in cache
+     * @param position       the position in the cached file where to start reading bytes from
+     * @param b              the array to read bytes into
+     * @param offset         the offset in the array to start storing bytes
+     * @param length         the number of bytes to read
+     * @return a {@link Releasable} that must be released by the caller to indicate that it's done with the current cache file.
      * @throws IOException if something went wrong
      */
-    public void readFromCache(final Path filePath, final long fileLength, final CheckedSupplier<IndexInput, IOException> fileSource,
-                              final long position, final byte[] b, int off, int len) throws IOException {
+    public Releasable readFromCache(final Path filePath, final long fileLength,
+                                    final Releasable cacheReference, final CheckedSupplier<IndexInput, IOException> cacheSource,
+                                    final long position, final byte[] b, final int offset, final int length) throws IOException {
         long pos = position;
+        int off = offset;
+        int len = length;
+
+        Releasable previousCacheFile = cacheReference;
         while (len > 0) {
             final Lifecycle.State state = lifecycleState();
             if (state != Lifecycle.State.STARTED) {
                 throw new IOException("Failed to read data from cache: cache service is [" + state + "]");
             }
-            final CacheEntry cacheEntry = getOrAddToCache(filePath, fileLength, fileSource);
-            if (cacheEntry.tryIncRef() == false) {
-                continue;
+
+            int read;
+
+            final CacheFile cacheFile = getOrAddToCache(filePath, fileLength);
+            if (cacheFile.tryIncRef()) {
+                read = fetchRange(cacheFile, cacheSource, pos, b, off, len);
+                if (previousCacheFile != null) {
+                    Releasables.close(previousCacheFile);
+                }
+                previousCacheFile = Releasables.releaseOnce(cacheFile::decRef);
+
+            } else {
+                // the cache entry provided by the cache is already evicted:
+                // fill the buffer by reading the source directly
+                final ByteBuffer dest = ByteBuffer.wrap(b, off, len);
+                read = copySourceTo(cacheSource, pos, pos + len, (src, p) -> {
+                    assert dest.remaining() >= src.remaining();
+                    dest.put(src);
+                });
             }
-            try {
-                final int read = cacheEntry.fetchRange(pos, b, off, len);
-                logger.trace(() -> new ParameterizedMessage("read {} bytes of file [name:{}, length:{}] at position [{}] from cache",
-                    read, filePath.getFileName(), fileLength, position));
-                pos += read;
-                off += read;
-                len -= read;
-            } finally {
-                cacheEntry.decRef();
-            }
+
+            pos += read;
+            off += read;
+            len -= read;
         }
         assert len == 0 : "partial read operation [" + len + "]";
+        return previousCacheFile;
     }
 
     /**
-     * Mark the given {@link CacheEntry} as evicted: no new read or write operation can be executed on the file on disk, which will be
+     * Mark the given {@link CacheFile} as evicted: no new read or write operation can be executed on the file on disk, which will be
      * deleted from disk once all on-going reads are processed.
      */
-    private void markAsEvicted(final CacheEntry cacheEntry) {
-        logger.trace(() -> new ParameterizedMessage("marking cache entry [{}] as evicted", cacheEntry));
-        cacheEntry.markAsEvicted();
+    private void markAsEvicted(final CacheFile cacheFile) {
+        logger.trace(() -> new ParameterizedMessage("marking cache entry [{}] as evicted", cacheFile));
+        cacheFile.markAsEvicted();
     }
 
     /**
@@ -210,194 +206,102 @@ public class CacheService extends AbstractLifecycleComponent {
         return cacheFile.toAbsolutePath().toString();
     }
 
-    private class CacheEntry implements RefCounted {
+    /**
+     * Fetch the range corresponding to the position from the cache.
+     *
+     * @param position the position to start reading bytes from.
+     * @param buffer   the array to read bytes into
+     * @param offset   the offset in the array to start storing bytes
+     * @param length   the number of bytes to read
+     * @return the number of bytes read
+     *
+     * @throws IOException if something went wrong
+     */
+    private int fetchRange(final CacheFile cacheFile, final CheckedSupplier<IndexInput, IOException> fileSource,
+                           final long position, final byte[] buffer, final int offset, final int length) throws IOException {
+        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        assert cacheFile.refCount() > 0;
 
-        private final CheckedSupplier<IndexInput, IOException> source;
-        private final SparseFileTracker tracker;
-        private final FileChannel channel;
-        private final int sizeOfRange;
-        private final Path path;
+        final Tuple<Long, Long> range = cacheFile.computeRange(position);
+        assert range.v2() - range.v1() <= CACHE_FILE_RANGE_SIZE;
 
-        private final AbstractRefCounted refCounter;
-        private volatile boolean evicted;
-
-        CacheEntry(Path path, long length, CheckedSupplier<IndexInput, IOException> source, FileChannel channel, int sizeOfRange) {
-            this.tracker = new SparseFileTracker(path.toString(), length);
-            this.source = Objects.requireNonNull(source);
-            this.channel = Objects.requireNonNull(channel);
-            this.path = Objects.requireNonNull(path);
-            this.sizeOfRange = sizeOfRange;
-            this.refCounter = new AbstractRefCounted(path.toString()) {
-                @Override
-                protected void closeInternal() {
-                    assert refCount() == 0;
-                    IOUtils.closeWhileHandlingException(CacheEntry.this.channel);
-                    assert evicted;
-                    if (evicted) {
-                        logger.trace(() -> new ParameterizedMessage("deleting cache file [{}]", path));
-                        IOUtils.deleteFilesIgnoringExceptions(path);
-                    }
-                }
-            };
-            this.evicted = false;
-        }
-
-        private long estimateWeight() {
-            return tracker.getLength();
-        }
-
-        private synchronized void markAsEvicted() {
-            if (evicted == false) {
-                evicted = true;
-                decRef();
-            }
-        }
-
-        @Override
-        public synchronized boolean tryIncRef() {
-            if (evicted) {
-                return false;
-            }
-            return refCounter.tryIncRef();
-        }
-
-        @Override
-        public synchronized void incRef() {
-            if (tryIncRef() == false) {
-                throw new IllegalStateException("Failed to increment reference counter, cache entry is already evicted");
-            }
-        }
-
-        @Override
-        public synchronized void decRef() {
-            refCounter.decRef();
-        }
-
-        /**
-         * Computes the start and the end of a range to which the given {@code position} belongs.
-         *
-         * @param position the reading position
-         * @return the start and end range positions to fetch
-         */
-        private Tuple<Long, Long> computeRange(final long position) {
-            final long start = (position / sizeOfRange) * sizeOfRange;
-            return Tuple.tuple(start, Math.min(start + sizeOfRange, tracker.getLength()));
-        }
-
-        /**
-         * Fetch the range corresponding to the position from the cache.
-         *
-         * @param position the position to start reading bytes from.
-         * @param buffer   the array to read bytes into
-         * @param offset   the offset in the array to start storing bytes
-         * @param length   the number of bytes to read
-         * @return the number of bytes read
-         *
-         * @throws IOException if something went wrong
-         */
-        private int fetchRange(final long position, final byte[] buffer, final int offset, final int length) throws IOException {
-            final CompletableFuture<Integer> future = new CompletableFuture<>();
-            assert refCounter.refCount() > 0;
-
-            final Tuple<Long, Long> range = computeRange(position);
-            assert range.v2() - range.v1() <= sizeOfRange;
-
-            logger.trace(() -> new ParameterizedMessage("fetching range [{}-{}] of [{}]", range.v1(), range.v2(), path.getFileName()));
-
-            // wait for the range to be available and read it from disk
-            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(range.v1(), range.v2(), new ActionListener<>() {
-                @Override
-                public void onResponse(Void ignored) {
-                    try {
-                        final ByteBuffer dst = ByteBuffer.wrap(buffer);
-                        dst.position(offset);
-                        dst.limit(Math.toIntExact(offset + Math.min(length, range.v2() - position)));
-                        final int read = Channels.readFromFileChannel(channel, position, dst);
-                        logger.trace(() -> new ParameterizedMessage("read [{}] bytes from [{}]", read, path.getFileName()));
-                        future.complete(read);
-                    } catch (IOException e) {
-                        future.completeExceptionally(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+        final ActionListener<Void> listener = ActionListener.wrap(aVoid -> {
+                final ByteBuffer dst = ByteBuffer.wrap(buffer, offset, Math.toIntExact(Math.min(length, range.v2() - position)));
+                future.complete(cacheFile.readFrom(dst, position));
+            },
+            e -> {
+                try {
+                    // something went wrong when processing the range, try to serve the read operation directly from source
+                    final ByteBuffer dst = ByteBuffer.wrap(buffer, offset, Math.toIntExact(Math.min(length, range.v2() - position)));
+                    future.complete(
+                        copySourceTo(fileSource, position, position + dst.remaining(), (src, pos) -> {
+                            assert dst.remaining() >= src.remaining();
+                            dst.put(src);
+                        }));
+                } catch (IOException ex) {
                     logger.error(() ->
-                        new ParameterizedMessage("failed to fetch range [{}-{}] of [{}]", range.v1(), range.v2(), path.getFileName()), e);
-                    future.completeExceptionally(e);
+                        new ParameterizedMessage("failed to fetch range [{}-{}] of [{}]", range.v1(), range.v2(), cacheFile.getName()), e);
+                    future.completeExceptionally(ex);
+
                 }
             });
 
-            if (gaps.isEmpty() == false) {
-                fetchMissingRanges(gaps);
-            }
+        logger.trace(() -> new ParameterizedMessage("fetching range [{}-{}] of [{}]", range.v1(), range.v2(), cacheFile.getName()));
 
-            try {
-                return future.get();
-            } catch (InterruptedException| ExecutionException e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
-                throw new IOException("Failed to fetch range [{}-{}] of [{}]: " + toString(), e);
-            }
-        }
-
-        /**
-         * Fetches all missing ranges
-         *
-         * @param gaps the missing ranges to fetch
-         */
-        private void fetchMissingRanges(final List<SparseFileTracker.Gap> gaps) {
+        final List<SparseFileTracker.Gap> gaps = cacheFile.waitForRange(range.v1(), range.v2(), listener);
+        if (gaps.isEmpty() == false) {
             assert gaps.isEmpty() || gaps.size() == 1;
             for (SparseFileTracker.Gap gap : gaps) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        gap.onFailure(e);
-                    }
-
-                    @Override
-                    protected void doRun() throws Exception {
-                        fetchAndWriteRange(gap.start, gap.end);
-                        gap.onResponse(null);
-                    }
-                });
-            }
-        }
-
-        /**
-         * Fetches a missing range from the cache entry's source and writes it into the sparse cached file.
-         * <p>
-         * Even though {@link SparseFileTracker} prevents the same range to be concurrently fetched and written to disk, this method
-         * is synchronized for extra safety.
-         *
-         * @param start the range start to fetch
-         * @param end   the range end to fetch
-         * @throws IOException if something went wrong
-         */
-        private synchronized void fetchAndWriteRange(final long start, final long end) throws IOException {
-            logger.trace(() -> new ParameterizedMessage("fetching missing range [{}-{}] from source [{}]", start, end, source));
-
-            final int copyBufferSize = 8192;
-            byte[] copyBuffer = new byte[copyBufferSize];
-
-            try (IndexInput input = source.get()) {
-                if (start > 0) {
-                    input.seek(start);
-                }
-                long remaining = end - start;
-                long pos = start;
-                while (remaining > 0) {
-                    int len = (remaining < copyBufferSize) ? (int) remaining : copyBufferSize;
-                    logger.trace(() -> new ParameterizedMessage("reading {} bytes from [{}]", len, input));
-                    input.readBytes(copyBuffer, 0, len);
-
-                    logger.trace(() -> new ParameterizedMessage("writing {} bytes range [{}-{}] to [{}]", len, start, end, path));
-                    Channels.writeToChannel(copyBuffer, 0, len, channel.position(pos));
-                    remaining -= len;
-                    pos += len;
+                try {
+                    copySourceTo(fileSource, gap.start, gap.end, cacheFile::writeTo);
+                    gap.onResponse(null);
+                } catch (IOException e) {
+                    gap.onFailure(e);
                 }
             }
         }
+
+        try {
+            return future.get();
+        } catch (InterruptedException| ExecutionException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IOException("Failed to fetch range [{}-{}] of [{}]: " + toString(), e);
+        }
+    }
+
+    /**
+     * Reads the cache entry's source from the {@code start} position til the {@code end} position using an internal copy buffer and
+     * passes it to the {@code copy} consumer every time the copy buffer is filled.
+     *
+     * @param start the position to start reading the source from
+     * @param end   the position to stop reading the source from
+     * @param copy  a consumer to consumer the bytes read
+     * @return the total bytes read
+     * @throws IOException if something went wrong
+     */
+    private int copySourceTo(final CheckedSupplier<IndexInput, IOException> source,
+                             long start, long end, CheckedBiConsumer<ByteBuffer, Long, IOException> copy) throws IOException {
+        final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(8192L, end - start))];
+
+        int bytesCopied = 0;
+        try (IndexInput input = source.get()) {
+            if (start > 0) {
+                input.seek(start);
+            }
+            long remaining = end - start;
+            long pos = start;
+            while (remaining > 0) {
+                final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
+                input.readBytes(copyBuffer, 0, len);
+
+                copy.accept(ByteBuffer.wrap(copyBuffer).position(0).limit(len), pos);
+                bytesCopied += len;
+                remaining -= len;
+                pos += len;
+            }
+        }
+        return bytesCopied;
     }
 }

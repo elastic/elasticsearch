@@ -44,7 +44,7 @@ public class CronEvalCliTests extends PackagingTestCase {
     }
 
     public void test30Run() throws Exception {
-        Shell.Result result = installation.executables().cronevalTool.run("\"0 0 20 ? * MON-THU\" -c 2");
+        Shell.Result result = installation.executables().cronevalTool.run("'0 0 20 ? * MON-THU' -c 2");
         assertThat(result.stdout, containsString("Valid!"));
     }
 }

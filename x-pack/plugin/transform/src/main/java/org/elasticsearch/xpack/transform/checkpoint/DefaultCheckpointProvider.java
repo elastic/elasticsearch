@@ -97,7 +97,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
             ActionListener<Map<String, long[]>> groupedListener = listener;
 
-            if (resolvedIndexes.size() > 1) {
+            if (resolvedIndexes.numClusters() > 1) {
                 ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
                     listener.onResponse(
                         indexCheckpoints.stream()
@@ -106,7 +106,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     );
                 }, listener::onFailure);
 
-                groupedListener = new GroupedActionListener<>(mergeMapsListener, resolvedIndexes.size());
+                groupedListener = new GroupedActionListener<>(mergeMapsListener, resolvedIndexes.numClusters());
             }
 
             if (resolvedIndexes.getLocalIndices().isEmpty() == false) {
@@ -114,7 +114,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     client,
                     transformConfig.getHeaders(),
                     resolvedIndexes.getLocalIndices().toArray(new String[0]),
-                    "",
+                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                     groupedListener
                 );
             }

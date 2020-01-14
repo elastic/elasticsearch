@@ -40,7 +40,7 @@ class RemoteClusterResolver extends RemoteClusterAware {
             return localIndices;
         }
 
-        public int size() {
+        public int numClusters() {
             return remoteIndicesPerClusterAlias.size() + (localIndices.isEmpty() ? 0 : 1);
         }
     }

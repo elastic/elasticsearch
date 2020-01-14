@@ -20,6 +20,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -33,6 +34,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Encrypts and decrypts data using a password.
+ * Encryption generates the AES secret key from the password and a randomly generated salt (using the PBKDF2 algo).
+ * This key is then used to encrypt the data (AES/GCM/NoPadding). The encryption IV is generated randomly.
+ * The key is cached internally and used for at most {@link #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} encryption invocations.
+ * When this limit is exceeded, a new key is generated, by generating a new random salt. The encryption key is never
+ * stored on disk. The salt, however, which was used in generating the encryption key, is prepended to the ciphertext.
+ * Decryption extracts the salt prepended to the ciphertext, computes the key (using the secret password) and uses
+ * the key to decrypt the ciphertext (which also contains the IV). Decryption also does not store the generated key
+ * on disk, but caches it in memory because generating the key from the password is computationally expensive on purpose.
+ */
 public final class PasswordBasedEncryptor {
 
     // the count of keys stored so as to avoid re-computation
@@ -60,12 +72,14 @@ public final class PasswordBasedEncryptor {
     // to less than 2^32 (so we use 2^31 to err on the safe side)
     private static final long ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY = 1L<<31;
 
-    // the password which is used to generate all the encryption keys (the keys are different because they each
+    // the password which is used to generate all the encryption and decryption keys (the keys are different because they each
     // are generated using a different salt, which is generated randomly)
     private final char[] password;
     // this is used to generate the IVs for each encryption instance as well as the salt for every key generation
     private final SecureRandom secureRandom;
+    // this is used to store the secret keys given the salt that was used in generating it
     private final Cache<String, Tuple<byte[], SecretKey>> keyBySaltCache;
+    // the salt of the secret key which is used for encryption
     private final AtomicReference<LimitedSupplier<String>> currentEncryptionKeySalt;
 
     public PasswordBasedEncryptor(char[] password, SecureRandom secureRandom) {
@@ -74,10 +88,11 @@ public final class PasswordBasedEncryptor {
         this.keyBySaltCache = CacheBuilder.<String, Tuple<byte[], SecretKey>>builder()
                 .setMaximumWeight(ENCRYPTION_KEY_CACHE_SIZE)
                 .build();
+        // set the random salt which is used to generate the encryption key
         byte[] randomEncryptionKeySaltBytes = new byte[SALT_LENGTH_IN_BYTES];
         secureRandom.nextBytes(randomEncryptionKeySaltBytes);
         this.currentEncryptionKeySalt = new AtomicReference<>(new LimitedSupplier<>(
-                Base64.getEncoder().encodeToString(randomEncryptionKeySaltBytes),
+                new String(Base64.getEncoder().encode(randomEncryptionKeySaltBytes), StandardCharsets.UTF_8),
                 ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY));
     }
 
@@ -112,7 +127,7 @@ public final class PasswordBasedEncryptor {
         // extract the salt prepended to the ciphertext
         byte[] salt = Arrays.copyOf(encryptedData, SALT_LENGTH_IN_BYTES);
         // get the key associated with the salt
-        SecretKey decryptionKey = getKeyFromSalt(Base64.getEncoder().encodeToString(salt)).v2();
+        SecretKey decryptionKey = getKeyFromSalt(new String(Base64.getEncoder().encode(salt), StandardCharsets.UTF_8)).v2();
         // construct and initialize the decryption cipher
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(TAG_LENGTH_IN_BYTES * Byte.SIZE, encryptedData, SALT_LENGTH_IN_BYTES,
                 IV_LENGTH_IN_BYTES);
@@ -132,6 +147,9 @@ public final class PasswordBasedEncryptor {
         return secret;
     }
 
+    /**
+     * Return a secret key given the salt; computes the key if the key for the salt argument is not already cached.
+     */
     private Tuple<byte[], SecretKey> getKeyFromSalt(String salt) throws ExecutionException {
         return this.keyBySaltCache.computeIfAbsent(salt, (ignore) -> {
             byte[] saltBytes = Base64.getDecoder().decode(salt);
@@ -140,33 +158,49 @@ public final class PasswordBasedEncryptor {
         });
     }
 
-    private void resetCurrentEncryptionKeySalt() {
+    /**
+     * Replaces the currently exhausted salt supplier with a new one. The new salt is generated randomly.
+     */
+    private void resetCurrentEncryptionKeySalt(LimitedSupplier<String> currentExhaustedSupplier) {
+        // generate a new random salt
         byte[] randomEncryptionKeySaltBytes = new byte[SALT_LENGTH_IN_BYTES];
         secureRandom.nextBytes(randomEncryptionKeySaltBytes);
-        this.currentEncryptionKeySalt.set(new LimitedSupplier<>(
-                Base64.getEncoder().encodeToString(randomEncryptionKeySaltBytes),
-                ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY));
+        LimitedSupplier<String> newSaltSupplier = new LimitedSupplier<>(
+                new String(Base64.getEncoder().encode(randomEncryptionKeySaltBytes), StandardCharsets.UTF_8),
+                ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY);
+        // replace the old salt supplier with the new one
+        this.currentEncryptionKeySalt.compareAndExchange(currentExhaustedSupplier, newSaltSupplier);
     }
 
     private Tuple<byte[], SecretKey> useEncryptionKey() throws ExecutionException {
-        Optional<String> encryptionKeySalt = this.currentEncryptionKeySalt.get().get();
+        // get the salt of the encryption key
+        LimitedSupplier<String> currentEncryptionKeySaltSupplier = currentEncryptionKeySalt.get();
+        Optional<String> encryptionKeySalt = currentEncryptionKeySaltSupplier.get();
         if (encryptionKeySalt.isPresent()) {
+            // the salt has NOT been used more than {@code #ENCRYPT_INVOKE_LIMIT_USING_SAME_KEY} times
             return getKeyFromSalt(encryptionKeySalt.get());
         }
-        // change the salt and generate a new encryption key
-        resetCurrentEncryptionKeySalt();
-        // try again
+        // change the salt used to generate a new encryption key
+        resetCurrentEncryptionKeySalt(currentEncryptionKeySaltSupplier);
+        // try to use the new supplier again
         return useEncryptionKey();
     }
 
+    /**
+     * A supplier accepting a limited number of retrieve (get) invocations. After the limit has been exceeded
+     * the supplier returns {@code Optional#empty()}.
+     */
     static class LimitedSupplier<T> implements Supplier<Optional<T>> {
-
+        // the current {@code #get()) invocation count
         private final AtomicLong count;
-
+        // the constant value to return when the invocation count has not been exceeded
         private final Optional<T> value;
-
         private final long limit;
+
         LimitedSupplier(T value, long limit) {
+            if (limit <= 0) {
+                throw new IllegalArgumentException("limit argument must be strictly positive");
+            }
             this.count = new AtomicLong(0L);
             this.value = Optional.of(Objects.requireNonNull(value));
             this.limit = limit;
@@ -174,7 +208,8 @@ public final class PasswordBasedEncryptor {
 
         @Override
         public Optional<T> get() {
-            if (count.get() <= limit && count.incrementAndGet() <= limit) {
+            long invocationCount = count.getAndUpdate(prev -> prev < limit ? prev + 1 : limit);
+            if (invocationCount < limit) {
                 return value;
             }
             return Optional.empty();

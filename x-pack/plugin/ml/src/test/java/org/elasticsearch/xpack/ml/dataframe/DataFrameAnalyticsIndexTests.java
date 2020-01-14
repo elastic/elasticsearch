@@ -73,7 +73,11 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
     private static final String ANALYTICS_ID = "some-analytics-id";
     private static final String[] SOURCE_INDEX = new String[] {"source-index"};
     private static final String DEST_INDEX = "dest-index";
-    private static final String DEPENDENT_VARIABLE = "dep_var";
+    private static final String NUMERICAL_FIELD = "numerical-field";
+    private static final String OUTER_FIELD = "outer-field";
+    private static final String INNER_FIELD = "inner-field";
+    private static final String ALIAS_TO_NUMERICAL_FIELD = "alias-to-numerical-field";
+    private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
     private static final int CURRENT_TIME_MILLIS = 123456789;
     private static final String CREATED_BY = "data-frame-analytics";
 
@@ -118,19 +122,24 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(getSettingsResponse))
             .when(client).execute(eq(GetSettingsAction.INSTANCE), getSettingsRequestCaptor.capture(), any());
 
-        Map<String, Object> index1Properties = new HashMap<>();
-        index1Properties.put("field_1", "field_1_mappings");
-        index1Properties.put("field_2", "field_2_mappings");
-        index1Properties.put(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer"));
-        Map<String, Object> index1Mappings = Collections.singletonMap("properties", index1Properties);
-        MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", index1Mappings);
-
-        Map<String, Object> index2Properties = new HashMap<>();
-        index2Properties.put("field_1", "field_1_mappings");
-        index2Properties.put("field_2", "field_2_mappings");
-        index2Properties.put(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer"));
-        Map<String, Object> index2Mappings = Collections.singletonMap("properties", index2Properties);
-        MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
+        Map<String, Object> indexProperties = new HashMap<>();
+        indexProperties.put("field_1", "field_1_mappings");
+        indexProperties.put("field_2", "field_2_mappings");
+        indexProperties.put(NUMERICAL_FIELD, Collections.singletonMap("type", "integer"));
+        indexProperties.put(
+            OUTER_FIELD,
+            Collections.singletonMap("properties", Collections.singletonMap(INNER_FIELD, Collections.singletonMap("type", "integer"))));
+        Map<String, Object> aliasToNumericalFieldProperties = new HashMap<>();
+        aliasToNumericalFieldProperties.put("type", "alias");
+        aliasToNumericalFieldProperties.put("path", NUMERICAL_FIELD);
+        indexProperties.put(ALIAS_TO_NUMERICAL_FIELD, aliasToNumericalFieldProperties);
+        Map<String, Object> aliasToNestedFieldProperties = new HashMap<>();
+        aliasToNestedFieldProperties.put("type", "alias");
+        aliasToNestedFieldProperties.put("path", "outer-field.inner-field");
+        indexProperties.put(ALIAS_TO_NESTED_FIELD, aliasToNestedFieldProperties);
+        Map<String, Object> indexMappings = Collections.singletonMap("properties", indexProperties);
+        MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", indexMappings);
+        MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", indexMappings);
 
         ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
         index1MappingsMap.put("_doc", index1MappingMetaData);
@@ -152,7 +161,9 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
             config,
             ActionListener.wrap(
                 response -> {},
-                e -> fail(e.getMessage())));
+                e -> fail(e.getMessage())
+            )
+        );
 
         GetSettingsRequest capturedGetSettingsRequest = getSettingsRequestCaptor.getValue();
         assertThat(capturedGetSettingsRequest.indices(), equalTo(SOURCE_INDEX));
@@ -175,6 +186,10 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
             assertThat(extractValue("_doc.properties.ml__id_copy.type", map), equalTo("keyword"));
             assertThat(extractValue("_doc.properties.field_1", map), equalTo("field_1_mappings"));
             assertThat(extractValue("_doc.properties.field_2", map), equalTo("field_2_mappings"));
+            assertThat(extractValue("_doc.properties.numerical-field.type", map), equalTo("integer"));
+            assertThat(extractValue("_doc.properties.outer-field.properties.inner-field.type", map), equalTo("integer"));
+            assertThat(extractValue("_doc.properties.alias-to-numerical-field.type", map), equalTo("alias"));
+            assertThat(extractValue("_doc.properties.alias-to-nested-field.type", map), equalTo("alias"));
             assertThat(extractValue("_doc._meta.analytics", map), equalTo(ANALYTICS_ID));
             assertThat(extractValue("_doc._meta.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));
             assertThat(extractValue("_doc._meta.created_by", map), equalTo(CREATED_BY));
@@ -187,13 +202,31 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
     }
 
     public void testCreateDestinationIndex_Regression() throws IOException {
-        Map<String, Object> map = testCreateDestinationIndex(new Regression(DEPENDENT_VARIABLE));
-        assertThat(extractValue("_doc.properties.ml.dep_var_prediction.type", map), equalTo("integer"));
+        Map<String, Object> map = testCreateDestinationIndex(new Regression(NUMERICAL_FIELD));
+        assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification() throws IOException {
-        Map<String, Object> map = testCreateDestinationIndex(new Classification(DEPENDENT_VARIABLE));
-        assertThat(extractValue("_doc.properties.ml.dep_var_prediction.type", map), equalTo("integer"));
+        Map<String, Object> map = testCreateDestinationIndex(new Classification(NUMERICAL_FIELD));
+        assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+    }
+
+    public void testCreateDestinationIndex_Classification_DependentVariableIsNested() throws IOException {
+        Map<String, Object> map = testCreateDestinationIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
+        assertThat(extractValue("_doc.properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+    }
+
+    public void testCreateDestinationIndex_Classification_DependentVariableIsAlias() throws IOException {
+        Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
+        assertThat(extractValue("_doc.properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+    }
+
+    public void testCreateDestinationIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
+        Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NESTED_FIELD));
+        assertThat(extractValue("_doc.properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
         assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
     }
 
@@ -226,15 +259,30 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         );
     }
 
-    private Map<String, Object> testUpdateMappingsToDestIndex(DataFrameAnalysis analysis,
-                                                              Map<String, Object> properties) throws IOException {
+    private Map<String, Object> testUpdateMappingsToDestIndex(DataFrameAnalysis analysis) throws IOException {
         DataFrameAnalyticsConfig config = createConfig(analysis);
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put(NUMERICAL_FIELD, Collections.singletonMap("type", "integer"));
+        properties.put(
+            OUTER_FIELD,
+            Collections.singletonMap("properties", Collections.singletonMap(INNER_FIELD, Collections.singletonMap("type", "integer"))));
+        Map<String, Object> aliasToNumericalFieldProperties = new HashMap<>();
+        aliasToNumericalFieldProperties.put("type", "alias");
+        aliasToNumericalFieldProperties.put("path", NUMERICAL_FIELD);
+        properties.put(ALIAS_TO_NUMERICAL_FIELD, aliasToNumericalFieldProperties);
+        Map<String, Object> aliasToNestedFieldProperties = new HashMap<>();
+        aliasToNestedFieldProperties.put("type", "alias");
+        aliasToNestedFieldProperties.put("path", "outer-field.inner-field");
+        properties.put(ALIAS_TO_NESTED_FIELD, aliasToNestedFieldProperties);
 
         MappingMetaData indexMappingMetaData = new MappingMetaData("_doc", Collections.singletonMap("properties", properties));
         ImmutableOpenMap.Builder<String, MappingMetaData> indexMappingsMap = ImmutableOpenMap.builder();
         indexMappingsMap.put("_doc", indexMappingMetaData);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("", new MappingMetaData("_doc", Map.of("properties", properties)));
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(
                 new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
@@ -268,25 +316,35 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
     }
 
     public void testUpdateMappingsToDestIndex_OutlierDetection() throws IOException {
-        testUpdateMappingsToDestIndex(
-            new OutlierDetection.Builder().build(),
-            Collections.singletonMap(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer")));
+        testUpdateMappingsToDestIndex(new OutlierDetection.Builder().build());
     }
 
     public void testUpdateMappingsToDestIndex_Regression() throws IOException {
-        Map<String, Object> map =
-            testUpdateMappingsToDestIndex(
-                new Regression(DEPENDENT_VARIABLE),
-                Collections.singletonMap(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer")));
-        assertThat(extractValue("properties.ml.dep_var_prediction.type", map), equalTo("integer"));
+        Map<String, Object> map = testUpdateMappingsToDestIndex(new Regression(NUMERICAL_FIELD));
+        assertThat(extractValue("properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification() throws IOException {
-        Map<String, Object> map =
-            testUpdateMappingsToDestIndex(
-                new Classification(DEPENDENT_VARIABLE),
-                Collections.singletonMap(DEPENDENT_VARIABLE, Collections.singletonMap("type", "integer")));
-        assertThat(extractValue("properties.ml.dep_var_prediction.type", map), equalTo("integer"));
+        Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(NUMERICAL_FIELD));
+        assertThat(extractValue("properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+    }
+
+    public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsNested() throws IOException {
+        Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
+        assertThat(extractValue("properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+    }
+
+    public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAlias() throws IOException {
+        Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
+        assertThat(extractValue("properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+    }
+
+    public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
+        Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NESTED_FIELD));
+        assertThat(extractValue("properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
         assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
     }
 

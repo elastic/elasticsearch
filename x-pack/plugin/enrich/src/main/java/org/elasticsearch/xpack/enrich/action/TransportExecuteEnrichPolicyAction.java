@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+import org.elasticsearch.xpack.enrich.EnrichPolicyExecutionStatsTracker;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
@@ -43,7 +44,8 @@ public class TransportExecuteEnrichPolicyAction extends
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        EnrichPolicyLocks enrichPolicyLocks
+        EnrichPolicyLocks enrichPolicyLocks,
+        EnrichPolicyExecutionStatsTracker executionStatsTracker
     ) {
         super(
             ExecuteEnrichPolicyAction.NAME,
@@ -60,8 +62,9 @@ public class TransportExecuteEnrichPolicyAction extends
             client,
             transportService.getTaskManager(),
             threadPool,
-            new IndexNameExpressionResolver(),
+            indexNameExpressionResolver,
             enrichPolicyLocks,
+            executionStatsTracker,
             System::currentTimeMillis
         );
     }

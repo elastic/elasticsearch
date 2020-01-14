@@ -39,6 +39,7 @@ public class EnrichPolicyExecutor {
     private final LongSupplier nowSupplier;
     private final int fetchSize;
     private final EnrichPolicyLocks policyLocks;
+    private final EnrichPolicyExecutionStatsTracker statsTracker;
     private final int maximumConcurrentPolicyExecutions;
     private final int maxForceMergeAttempts;
     private final Semaphore policyExecutionPermits;
@@ -51,6 +52,7 @@ public class EnrichPolicyExecutor {
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         EnrichPolicyLocks policyLocks,
+        EnrichPolicyExecutionStatsTracker statsTracker,
         LongSupplier nowSupplier
     ) {
         this.clusterService = clusterService;
@@ -60,6 +62,7 @@ public class EnrichPolicyExecutor {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
         this.policyLocks = policyLocks;
+        this.statsTracker = statsTracker;
         this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
         this.maximumConcurrentPolicyExecutions = EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.get(settings);
         this.maxForceMergeAttempts = EnrichPlugin.ENRICH_MAX_FORCE_MERGE_ATTEMPTS.get(settings);
@@ -93,17 +96,20 @@ public class EnrichPolicyExecutor {
     private class PolicyCompletionListener implements ActionListener<ExecuteEnrichPolicyStatus> {
         private final String policyName;
         private final ExecuteEnrichPolicyTask task;
+        private final long startTime;
         private final BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse;
         private final BiConsumer<Task, Exception> onFailure;
 
         PolicyCompletionListener(
             String policyName,
             ExecuteEnrichPolicyTask task,
+            Long startTime,
             BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse,
             BiConsumer<Task, Exception> onFailure
         ) {
             this.policyName = policyName;
             this.task = task;
+            this.startTime = startTime;
             this.onResponse = onResponse;
             this.onFailure = onFailure;
         }
@@ -111,12 +117,20 @@ public class EnrichPolicyExecutor {
         @Override
         public void onResponse(ExecuteEnrichPolicyStatus status) {
             assert ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE.equals(status.getPhase()) : "incomplete task returned";
+            captureStatistics();
             releasePolicy(policyName);
             try {
                 taskManager.unregister(task);
             } finally {
                 onResponse.accept(task, status);
             }
+        }
+
+        private void captureStatistics() {
+            // We work in epoch based time deltas instead of the relative time measurements because we are keeping the last execution
+            // timestamp around for each policy to measure average time between policy executions.
+            long endTime = threadPool.absoluteTimeInMillis();
+            statsTracker.captureCompletedExecution(policyName, startTime, endTime);
         }
 
         @Override
@@ -207,6 +221,10 @@ public class EnrichPolicyExecutor {
         BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse,
         BiConsumer<Task, Exception> onFailure
     ) {
+        String policyName = request.getName();
+        // We work in epoch based time deltas instead of the relative time measurements because we are keeping the last execution
+        // timestamp around for each policy to measure average time between policy executions.
+        long start = threadPool.absoluteTimeInMillis();
         Task asyncTask = taskManager.register("enrich", TASK_ACTION, new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {
@@ -225,14 +243,14 @@ public class EnrichPolicyExecutor {
 
             @Override
             public String getDescription() {
-                return request.getName();
+                return policyName;
             }
         });
         ExecuteEnrichPolicyTask task = (ExecuteEnrichPolicyTask) asyncTask;
         try {
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
-            PolicyCompletionListener completionListener = new PolicyCompletionListener(request.getName(), task, onResponse, onFailure);
-            Runnable runnable = createPolicyRunner(request.getName(), policy, task, completionListener);
+            PolicyCompletionListener completionListener = new PolicyCompletionListener(policyName, task, start, onResponse, onFailure);
+            Runnable runnable = createPolicyRunner(policyName, policy, task, completionListener);
             threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
             return asyncTask;
         } catch (Exception e) {

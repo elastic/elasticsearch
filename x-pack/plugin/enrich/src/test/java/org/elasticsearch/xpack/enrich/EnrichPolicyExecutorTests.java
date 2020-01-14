@@ -105,6 +105,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                 threadPool,
                 indexNameExpressionResolver,
                 new EnrichPolicyLocks(),
+                new EnrichPolicyExecutionStatsTracker(),
                 nowSupplier
             );
         }

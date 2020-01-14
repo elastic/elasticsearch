@@ -63,6 +63,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final String NUMERICAL_FIELD = "numerical-field";
     private static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
     private static final String KEYWORD_FIELD = "keyword-field";
+    private static final String NESTED_FIELD = "outer-field.inner-field";
+    private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
+    private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
     private static final List<Boolean> BOOLEAN_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(false, true));
     private static final List<Double> NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(1.0, 2.0));
     private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(10, 20));
@@ -301,7 +304,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(predictedClassField, "keyword");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
-
     }
 
     public void testDependentVariableCardinalityTooHighError() throws Exception {
@@ -341,6 +343,63 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         waitUntilAnalyticsIsStopped(jobId);
 
         assertProgress(jobId, 100, 100, 100, 100);
+    }
+
+    public void testDependentVariableIsNested() throws Exception {
+        initialize("dependent_variable_is_nested");
+        String predictedClassField = NESTED_FIELD + "_prediction";
+        indexData(sourceIndex, 100, 0, NESTED_FIELD);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD));
+        registerAnalytics(config);
+        putAnalytics(config);
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        assertProgress(jobId, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertEvaluation(NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
+    }
+
+    public void testDependentVariableIsAliasToKeyword() throws Exception {
+        initialize("dependent_variable_is_alias");
+        String predictedClassField = ALIAS_TO_KEYWORD_FIELD + "_prediction";
+        indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(ALIAS_TO_KEYWORD_FIELD));
+        registerAnalytics(config);
+        putAnalytics(config);
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        assertProgress(jobId, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertEvaluation(ALIAS_TO_KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
+    }
+
+    public void testDependentVariableIsAliasToNested() throws Exception {
+        initialize("dependent_variable_is_alias_to_nested");
+        String predictedClassField = ALIAS_TO_NESTED_FIELD + "_prediction";
+        indexData(sourceIndex, 100, 0, NESTED_FIELD);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(ALIAS_TO_NESTED_FIELD));
+        registerAnalytics(config);
+        putAnalytics(config);
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        assertProgress(jobId, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertEvaluation(ALIAS_TO_NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
@@ -434,7 +493,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 BOOLEAN_FIELD, "type=boolean",
                 NUMERICAL_FIELD, "type=double",
                 DISCRETE_NUMERICAL_FIELD, "type=integer",
-                KEYWORD_FIELD, "type=keyword")
+                KEYWORD_FIELD, "type=keyword",
+                NESTED_FIELD, "type=keyword",
+                ALIAS_TO_KEYWORD_FIELD, "type=alias,path=" + KEYWORD_FIELD,
+                ALIAS_TO_NESTED_FIELD, "type=alias,path=" + NESTED_FIELD)
             .get();
     }
 
@@ -446,7 +508,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                 NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
                 DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
-                KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()));
+                KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
+                NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
             bulkRequestBuilder.add(indexRequest);
         }
@@ -464,6 +527,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
             if (KEYWORD_FIELD.equals(dependentVariable) == false) {
                 source.addAll(List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+            }
+            if (NESTED_FIELD.equals(dependentVariable) == false) {
+                source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
             bulkRequestBuilder.add(indexRequest);
@@ -487,10 +553,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     /**
-     * Wrapper around extractValue with implicit casting to the appropriate type.
+     * Wrapper around extractValue that:
+     * - allows dots (".") in the path elements provided as arguments
+     * - supports implicit casting to the appropriate type
      */
     private static <T> T getFieldValue(Map<String, Object> doc, String... path) {
-        return (T)extractValue(doc, path);
+        return (T)extractValue(String.join(".", path), doc);
     }
 
     private static <T> void assertTopClasses(Map<String, Object> resultsObject,
@@ -582,8 +650,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 .mappings()
                 .get(destIndex)
                 .sourceAsMap();
-        assertThat(getFieldValue(mappings, "properties", "ml", "properties", predictedClassField, "type"), equalTo(expectedType));
         assertThat(
+            mappings.toString(),
+            getFieldValue(
+                mappings,
+                "properties", "ml", "properties", String.join(".properties.", predictedClassField.split("\\.")), "type"),
+            equalTo(expectedType));
+        assertThat(
+            mappings.toString(),
             getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
             equalTo(expectedType));
     }

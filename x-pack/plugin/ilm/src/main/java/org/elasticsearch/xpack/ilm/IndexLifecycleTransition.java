@@ -251,8 +251,8 @@ public final class IndexLifecycleTransition {
     /**
      * Given a cluster state and lifecycle state, return a new state using the new lifecycle state for the given index.
      */
-    private static ClusterState.Builder newClusterStateWithLifecycleState(Index index, ClusterState clusterState,
-                                                                          LifecycleExecutionState lifecycleState) {
+    public static ClusterState.Builder newClusterStateWithLifecycleState(Index index, ClusterState clusterState,
+                                                                         LifecycleExecutionState lifecycleState) {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData())
             .put(IndexMetaData.builder(clusterState.getMetaData().index(index))

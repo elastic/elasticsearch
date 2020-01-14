@@ -40,19 +40,24 @@ public final class EBoolean extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        if (input.read == false) {
             throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
         }
 
-        actual = boolean.class;
+        output.actual = boolean.class;
+
+        return output;
     }
 
     @Override
     ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
-        constantNode.setExpressionType(actual);
+        constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
         return constantNode;

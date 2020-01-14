@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -133,6 +135,35 @@ public class GeoBoundingBoxTests extends ESTestCase {
         }
     }
 
+    public void testPointInBounds() {
+        for (int iter = 0; iter < 1000; iter++) {
+            GeoBoundingBox geoBoundingBox = randomBBox();
+            GeoBoundingBox bbox = new GeoBoundingBox(
+                new GeoPoint(quantizeLat(geoBoundingBox.top()), quantizeLon(geoBoundingBox.left())),
+                    new GeoPoint(quantizeLat(geoBoundingBox.bottom()), quantizeLon(geoBoundingBox.right())));
+            if (bbox.left() > bbox.right()) {
+                double lonWithin = randomBoolean() ?
+                    randomDoubleBetween(bbox.left(), 180.0, true)
+                    : randomDoubleBetween(-180.0, bbox.right(), true);
+                double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
+                double lonOutside = randomDoubleBetween(bbox.left(), bbox.right(), true);
+                double latOutside = randomBoolean() ? randomDoubleBetween(Math.max(bbox.top(), bbox.bottom()), 90, false)
+                    : randomDoubleBetween(-90, Math.min(bbox.bottom(), bbox.top()), false);
+
+                assertTrue(bbox.pointInBounds(lonWithin, latWithin));
+                    assertFalse(bbox.pointInBounds(lonOutside, latOutside));
+            } else {
+                double lonWithin = randomDoubleBetween(bbox.left(), bbox.right(), true);
+                double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
+                double lonOutside = GeoUtils.normalizeLon(randomDoubleBetween(bbox.right(), 180, false));
+                double latOutside = GeoUtils.normalizeLat(randomDoubleBetween(bbox.top(), 90, false));
+
+                assertTrue(bbox.pointInBounds(lonWithin, latWithin));
+                assertFalse(bbox.pointInBounds(lonOutside, latOutside));
+            }
+        }
+    }
+
     private void assertBBox(GeoBoundingBox expected, XContentBuilder builder) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             parser.nextToken();
@@ -140,10 +171,17 @@ public class GeoBoundingBoxTests extends ESTestCase {
         }
     }
 
-    private GeoBoundingBox randomBBox() {
-        double topLat = GeometryTestUtils.randomLat();
-        double bottomLat = randomDoubleBetween(GeoUtils.MIN_LAT, topLat, true);
-        return new GeoBoundingBox(new GeoPoint(topLat, GeometryTestUtils.randomLon()),
-            new GeoPoint(bottomLat, GeometryTestUtils.randomLon()));
+    public static GeoBoundingBox randomBBox() {
+        Rectangle rectangle = GeometryTestUtils.randomRectangle();
+        return new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
+    }
+
+    private static double quantizeLat(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+    }
+
+    private static double quantizeLon(double lon) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
     }
 }

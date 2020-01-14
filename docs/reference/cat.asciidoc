@@ -102,19 +102,30 @@ order is important, you can change it.
 
 Say you want to find the largest index in your cluster (storage used
 by all the shards, not number of documents).  The `/_cat/indices` API
-is ideal.  We only need to tweak two things.  First, we want to turn
-off human mode.  We'll use a byte-level resolution.  Then we'll pipe
-our output into `sort` using the appropriate column, which in this
-case is the eighth one.
+is ideal.  You only need to add three things to the API request:
 
-[source,sh]
+. The `bytes` query string parameter with a value of `b` to get byte-level resolution.
+. The `s` (sort) parameter with a value of `store.size:desc` to sort the output
+by shard storage in descending order.
+. The `v` (verbose) parameter to include column headings in the response.
+
+[source,console]
 --------------------------------------------------
-% curl '192.168.56.10:9200/_cat/indices?bytes=b' | sort -rnk8
-green wiki2 3 0 10000   0 105274918 105274918
-green wiki1 3 0 10000 413 103776272 103776272
-green foo   1 0   227   0   2065131   2065131
+GET /_cat/indices?bytes=b&s=store.size:desc&v
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[setup:huge_twitter]
+// TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
+
+The API returns the following response:
+
+[source,txt]
+--------------------------------------------------
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0      72171         72171
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0        230          230
+--------------------------------------------------
+// TESTRESPONSE[s/72171|230/\\d+/]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]
 
 If you want to change the <<time-units,time units>>, use `time` parameter.
 

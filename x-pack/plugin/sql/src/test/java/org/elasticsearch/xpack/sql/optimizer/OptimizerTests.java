@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.conditional.Case;
@@ -1548,6 +1549,251 @@ public class OptimizerTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(FALSE, rule.rule(exp));
+    }
+
+    // a != 3 AND a = 3 -> FALSE
+    public void testPropagateEquals_VarNeq3AndVarEq3() {
+        FieldAttribute fa = getFieldAttribute();
+        NotEquals neq = new NotEquals(EMPTY, fa, THREE);
+        Equals eq = new Equals(EMPTY, fa, THREE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, neq, eq));
+        assertEquals(FALSE, rule.rule(exp));
+    }
+
+    // a != 4 AND a = 3 -> a = 3
+    public void testPropagateEquals_VarNeq4AndVarEq3() {
+        FieldAttribute fa = getFieldAttribute();
+        NotEquals neq = new NotEquals(EMPTY, fa, FOUR);
+        Equals eq = new Equals(EMPTY, fa, THREE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, neq, eq));
+        assertEquals(Equals.class, exp.getClass());
+        assertEquals(eq, rule.rule(exp));
+    }
+
+    // a = 2 AND a < 2 -> FALSE
+    public void testPropagateEquals_VarEq2AndVarLt2() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        LessThan lt = new LessThan(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq, lt));
+        assertEquals(FALSE, exp);
+    }
+
+    // a = 2 AND a <= 2 -> a = 2
+    public void testPropagateEquals_VarEq2AndVarLte2() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        LessThanOrEqual lt = new LessThanOrEqual(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq, lt));
+        assertEquals(eq, exp);
+    }
+
+    // a = 2 AND a <= 1 -> FALSE
+    public void testPropagateEquals_VarEq2AndVarLte1() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        LessThanOrEqual lt = new LessThanOrEqual(EMPTY, fa, ONE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq, lt));
+        assertEquals(FALSE, exp);
+    }
+
+    // a = 2 AND a > 2 -> FALSE
+    public void testPropagateEquals_VarEq2AndVarGt2() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq, gt));
+        assertEquals(FALSE, exp);
+    }
+
+    // a = 2 AND a >= 2 -> a = 2
+    public void testPropagateEquals_VarEq2AndVarGte2() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq, gte));
+        assertEquals(eq, exp);
+    }
+
+    // a = 2 AND a > 3 -> FALSE
+    public void testPropagateEquals_VarEq2AndVarLt3() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, THREE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq, gt));
+        assertEquals(FALSE, exp);
+    }
+
+    // a = 2 AND a < 3 AND a > 1 AND a != 4 -> a = 2
+    public void testPropagateEquals_VarEq2AndVarLt3AndVarGt1AndVarNeq4() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        LessThan lt = new LessThan(EMPTY, fa, THREE);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, ONE);
+        NotEquals neq = new NotEquals(EMPTY, fa, FOUR);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression and = Predicates.combineAnd(Arrays.asList(eq, lt, gt, neq));
+        Expression exp = rule.rule(and);
+        assertEquals(eq, exp);
+    }
+
+    // a = 2 AND 1 < a < 3 AND a > 0 AND a != 4 -> a = 2
+    public void testPropagateEquals_VarEq2AndVarRangeGt1Lt3AndVarGt0AndVarNeq4() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, ONE, false, THREE, false);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, L(0));
+        NotEquals neq = new NotEquals(EMPTY, fa, FOUR);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression and = Predicates.combineAnd(Arrays.asList(eq, range, gt, neq));
+        Expression exp = rule.rule(and);
+        assertEquals(eq, exp);
+    }
+
+    // a = 2 OR a > 1 -> a > 1
+    public void testPropagateEquals_VarEq2OrVarGt1() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, ONE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, gt));
+        assertEquals(gt, exp);
+    }
+
+    // a = 2 OR a > 2 -> a >= 2
+    public void testPropagateEquals_VarEq2OrVarGte2() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, gt));
+        assertEquals(GreaterThanOrEqual.class, exp.getClass());
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) exp;
+        assertEquals(TWO, gte.right());
+    }
+
+    // a = 2 OR a < 3 -> a < 3
+    public void testPropagateEquals_VarEq2OrVarLt3() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        LessThan lt = new LessThan(EMPTY, fa, THREE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, lt));
+        assertEquals(lt, exp);
+    }
+
+    // a = 3 OR a < 3 -> a <= 3
+    public void testPropagateEquals_VarEq3OrVarLt3() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, THREE);
+        LessThan lt = new LessThan(EMPTY, fa, THREE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, lt));
+        assertEquals(LessThanOrEqual.class, exp.getClass());
+        LessThanOrEqual lte = (LessThanOrEqual) exp;
+        assertEquals(THREE, lte.right());
+    }
+
+    // a = 2 OR 1 < a < 3 -> 1 < a < 3
+    public void testPropagateEquals_VarEq2OrVarRangeGt1Lt3() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, ONE, false, THREE, false);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, range));
+        assertEquals(range, exp);
+    }
+
+    // a = 2 OR 2 < a < 3 -> 2 <= a < 3
+    public void testPropagateEquals_VarEq2OrVarRangeGt2Lt3() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, TWO, false, THREE, false);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, range));
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(TWO, r.lower());
+        assertTrue(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a = 3 OR 2 < a < 3 -> 2 < a <= 3
+    public void testPropagateEquals_VarEq3OrVarRangeGt2Lt3() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, THREE);
+        Range range = new Range(EMPTY, fa, TWO, false, THREE, false);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, range));
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(TWO, r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(THREE, r.upper());
+        assertTrue(r.includeUpper());
+    }
+
+    // a = 2 OR a != 2 -> TRUE
+    public void testPropagateEquals_VarEq2OrVarNeq2() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, neq));
+        assertEquals(TRUE, exp);
+    }
+
+    // a = 2 OR a != 5 -> a != 5
+    public void testPropagateEquals_VarEq2OrVarNeq5() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        NotEquals neq = new NotEquals(EMPTY, fa, FIVE);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new Or(EMPTY, eq, neq));
+        assertEquals(NotEquals.class, exp.getClass());
+        NotEquals ne = (NotEquals) exp;
+        assertEquals(ne.right(), FIVE);
+    }
+
+    // a = 2 OR 3 < a < 4 OR a > 2 OR a!= 2 -> TRUE
+    public void testPropagateEquals_VarEq2OrVarRangeGt3Lt4OrVarGt2OrVarNe2() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq = new Equals(EMPTY, fa, TWO);
+        Range range = new Range(EMPTY, fa, THREE, false, FOUR, false);
+        GreaterThan gt = new GreaterThan(EMPTY, fa, TWO);
+        NotEquals neq = new NotEquals(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(Predicates.combineOr(Arrays.asList(eq, range, neq, gt)));
+        assertEquals(TRUE, exp);
     }
 
     public void testTranslateMinToFirst() {

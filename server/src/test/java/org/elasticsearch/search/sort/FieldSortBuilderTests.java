@@ -316,7 +316,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             parser.nextToken();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
-            assertEquals("[1:18] [field_sort] unknown field [reverse], parser not found", e.getMessage());
+            assertEquals("[1:18] [field_sort] unknown field [reverse]", e.getMessage());
         }
     }
 

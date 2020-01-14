@@ -430,12 +430,17 @@ public class Node implements Closeable {
                             .flatMap(m -> m.entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            final List<SystemIndexDescriptor> systemIndexDescriptors = pluginsService.filterPlugins(SystemIndexPlugin.class)
+            final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
+                .filterPlugins(SystemIndexPlugin.class)
                 .stream()
-                .flatMap(plugin -> plugin.getSystemIndexDescriptors().stream())
-                .collect(Collectors.toList());
-            SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptors);
+                .collect(Collectors.toUnmodifiableMap(
+                    plugin -> plugin.getClass().getSimpleName(),
+                    plugin -> plugin.getSystemIndexDescriptors()));
+            SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptorMap);
 
+            final List<SystemIndexDescriptor> systemIndexDescriptors = systemIndexDescriptorMap.values().stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
 
             final IndicesService indicesService =
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),

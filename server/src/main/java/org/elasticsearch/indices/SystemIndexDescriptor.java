@@ -20,10 +20,12 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -88,24 +90,35 @@ public class SystemIndexDescriptor {
     }
 
     /**
-     * Given a list of {@link SystemIndexDescriptor}s, makes a best-effort check to see if the index patterns of the listed
+     * Given a collection of {@link SystemIndexDescriptor}s, makes a best-effort check to see if the index patterns of the listed
      * descriptors overlap. Currently, checks to see if any index patterns overlap. If any do, throws an exception.
-     * @param descriptors The list of descriptors to check for overlapping patterns.
+     *
+     * @param sourceToDescriptors A map of source (plugin) names to the SystemIndexDescriptors they provide.
      * @throws IllegalStateException Thrown if any of the index patterns detectably overlaps with another.
      */
-    public static void checkForOverlappingPatterns(Collection<SystemIndexDescriptor> descriptors) {
-        descriptors.stream()
-            .forEach(descriptorToCheck -> {
-                List<SystemIndexDescriptor> descriptorsMatchingThisPattern = descriptors.stream()
-                    .filter(d -> descriptorToCheck != d) // Exclude the pattern currently being checked
-                    .filter(d -> descriptorToCheck.matchesIndexPattern(d.getIndexPattern()))
-                    .collect(Collectors.toList());
-                if (descriptorsMatchingThisPattern.isEmpty() == false) {
-                    String errorMessage = "a system index descriptor [" + descriptorToCheck +
-                        "] overlaps with other system index descriptors: " + descriptorsMatchingThisPattern;
-                    throw new IllegalStateException(errorMessage);
-                }
-            });
+    public static void checkForOverlappingPatterns(Map<String, Collection<SystemIndexDescriptor>> sourceToDescriptors) {
+        List<Tuple<String, SystemIndexDescriptor>> descriptors = sourceToDescriptors.entrySet().stream()
+            .flatMap(entry -> entry.getValue().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
+            .collect(Collectors.toList());
+
+        descriptors.forEach(descriptorToCheck -> {
+            List<Tuple<String, SystemIndexDescriptor>> descriptorsMatchingThisPattern = descriptors.stream()
+                .filter(d -> descriptorToCheck.v2() != d.v2()) // Exclude the pattern currently being checked
+                .filter(d -> descriptorToCheck.v2().matchesIndexPattern(d.v2().getIndexPattern()))
+                .collect(Collectors.toList());
+            if (descriptorsMatchingThisPattern.isEmpty() == false) {
+                StringBuilder errorMessage = new StringBuilder();
+                errorMessage.append("a system index descriptor [")
+                    .append(descriptorToCheck.v2())
+                    .append("] from plugin [")
+                    .append(descriptorToCheck.v1())
+                    .append("] overlaps with other system index descriptors: [")
+                    .append(descriptorsMatchingThisPattern.stream()
+                        .map(descriptor -> descriptor.v2() + " from plugin [" + descriptor.v1() + "]")
+                        .collect(Collectors.joining(", ")));
+                throw new IllegalStateException(errorMessage.toString());
+            }
+        });
     }
 
     // TODO: Index settings and mapping

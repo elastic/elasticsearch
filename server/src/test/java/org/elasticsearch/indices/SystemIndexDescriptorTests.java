@@ -22,8 +22,9 @@ package org.elasticsearch.indices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.containsString;
@@ -76,16 +77,20 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc", "test");
         SystemIndexDescriptor overlapping3 = new SystemIndexDescriptor(".aaabb*cccddd*", "test");
 
-        List<SystemIndexDescriptor> descriptors = Arrays.asList(broadPattern, notOverlapping, overlapping1, overlapping2, overlapping3);
-        Collections.shuffle(descriptors, random);
+        String broadPatternSource = randomAlphaOfLength(5);
+        String otherSource = randomAlphaOfLength(6);
+        Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
+        descriptors.put(broadPatternSource, Arrays.asList(broadPattern));
+        descriptors.put(otherSource, Arrays.asList(notOverlapping, overlapping1, overlapping2, overlapping3));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndexDescriptor.checkForOverlappingPatterns(descriptors));
         assertThat(exception.getMessage(), containsString("a system index descriptor [" + broadPattern +
-            "] overlaps with other system index descriptors:"));
-        assertThat(exception.getMessage(), containsString(overlapping1.toString()));
-        assertThat(exception.getMessage(), containsString(overlapping2.toString()));
-        assertThat(exception.getMessage(), containsString(overlapping3.toString()));
+            "] from plugin [" + broadPatternSource + "] overlaps with other system index descriptors:"));
+        String fromPluginString = " from plugin [" + otherSource + "]";
+        assertThat(exception.getMessage(), containsString(overlapping1.toString() + fromPluginString));
+        assertThat(exception.getMessage(), containsString(overlapping2.toString() + fromPluginString));
+        assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
     }
 
@@ -98,8 +103,11 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".a*c", "test");
         SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".ab*", "test");
 
-        List<SystemIndexDescriptor> descriptors = Arrays.asList(pattern1, pattern2);
-        Collections.shuffle(descriptors, random);
+        String source1 = randomAlphaOfLength(5);
+        String source2 = randomAlphaOfLength(6);
+        Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
+        descriptors.put(source1, Arrays.asList(pattern1));
+        descriptors.put(source2, Arrays.asList(pattern2));
 
         SystemIndexDescriptor.checkForOverlappingPatterns(descriptors);
     }

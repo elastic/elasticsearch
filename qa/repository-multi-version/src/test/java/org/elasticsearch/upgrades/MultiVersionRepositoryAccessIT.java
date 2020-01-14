@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -50,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -146,10 +143,10 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     break;
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
                 for (TestStep value : TestStep.values()) {
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + value, shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + value, shards);
                 }
             }
         } finally {
@@ -185,10 +182,10 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     "snapshot-" + TestStep.STEP1_OLD_CLUSTER, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
             }
         }
     }
@@ -208,15 +205,15 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 assertSnapshotStatusSuccessful(client, repoName,
                     snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
                 if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
                 } else {
                     deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
                     createSnapshot(client, repoName, "snapshot-1");
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-1", shards);
                     deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
                     createSnapshot(client, repoName, "snapshot-2");
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards);
                 }
             } else {
                 if (minimumNodeVersion().before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
@@ -230,8 +227,8 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 } else {
                     assertThat(listSnapshots(repoName), hasSize(2));
                     if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
-                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards);
-                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
+                        ensureSnapshotRestoreWorks(repoName, "snapshot-1", shards);
+                        ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards);
                     }
                 }
             }
@@ -269,14 +266,20 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
-    private static void ensureSnapshotRestoreWorks(RestHighLevelClient client, String repoName, String name,
-                                                   int shards) throws IOException {
+    @SuppressWarnings("unchecked")
+    private void ensureSnapshotRestoreWorks(String repoName, String name, int shards) throws IOException {
         wipeAllIndices();
-        final RestoreInfo restoreInfo =
-            client.snapshot().restore(new RestoreSnapshotRequest().repository(repoName).snapshot(name).waitForCompletion(true),
-                RequestOptions.DEFAULT).getRestoreInfo();
-        assertThat(restoreInfo.failedShards(), is(0));
-        assertThat(restoreInfo.successfulShards(), equalTo(shards));
+        try (InputStream entity = client().performRequest(
+            new Request("POST", "/_snapshot/" + repoName + "/" + name + "/_restore?wait_for_completion=true")).getEntity().getContent();
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+            xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
+            final Map<String, Object> raw = parser.map();
+            logger.error(raw);
+            final Map<String, Object> snapshot = (Map<String, Object>) raw.get("snapshot");
+            final Map<String, Object> shardStats = (Map<String, Object>) snapshot.get("shards");
+            assertThat(shardStats.get("successful"), is(shards));
+            assertThat(shardStats.get("failed"), is(0));
+        }
     }
 
     private static void createRepository(RestHighLevelClient client, String repoName, boolean readOnly) throws IOException {

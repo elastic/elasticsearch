@@ -219,7 +219,7 @@ public interface GeoGridTiler {
                             values.resizeCell(valuesIndex + 1);
                             values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                         } else {
-                            values.resizeCell(valuesIndex + (int) Math.pow(4, targetPrecision - zTile) + 1);
+                            values.resizeCell(valuesIndex +  1 << ( 2 * (targetPrecision - zTile)) + 1);
                             valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex, targetPrecision);
                         }
                     } else if (GeoRelation.QUERY_CROSSES == relation) {

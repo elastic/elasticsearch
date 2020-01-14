@@ -4,7 +4,7 @@
       version: " - 7.99.99"
       reason: Implemented in 8.0
   - do:
-      catch: /\[1:2\] \[UpdateRequest\] unknown field \[dac\] did you mean \[doc\]\?/
+      catch: /\[UpdateRequest\] unknown field \[dac\] did you mean \[doc\]\?/
       update:
           index: test
           id:    1

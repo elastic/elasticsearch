@@ -19,11 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -42,6 +45,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSyncedFlushAction extends BaseRestHandler {
 
+    private static final Logger logger = LogManager.getLogger(RestSyncedFlushAction.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+
     public RestSyncedFlushAction(RestController controller) {
         controller.registerHandler(POST, "/_flush/synced", this);
         controller.registerHandler(POST, "/{index}/_flush/synced", this);
@@ -57,7 +63,9 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synced_flush",
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
+        final FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         return channel -> client.admin().indices().flush(flushRequest, new SimulateSyncedFlushResponseListener(channel));
     }
@@ -86,8 +94,6 @@ public class RestSyncedFlushAction extends BaseRestHandler {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("_shards");
-            builder.field("warning", "Synced flush was removed and a normal flush was performed instead. "
-                + "This transition will be removed a future Elasticsearch version.");
             builder.field("total", flushResponse.getTotalShards());
             builder.field("successful", flushResponse.getSuccessfulShards());
             builder.field("failed", flushResponse.getFailedShards());

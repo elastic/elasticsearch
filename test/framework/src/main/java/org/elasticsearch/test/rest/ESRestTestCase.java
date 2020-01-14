@@ -1212,4 +1212,24 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertNotNull(minVersion);
         return minVersion;
     }
+
+    protected static Response performSyncedFlush(String indexName) throws IOException {
+        final String deprecationMessage = "Synced flush is deprecated and will be removed in 8.0. " +
+            "Use flush at _/flush or /{index}/_flush instead.";
+        final String transitionMessage = "Synced flush was removed and a normal flush was performed instead. " +
+            "This transition will be removed in a future version.";
+        final Request request = new Request("POST", indexName + "/_flush/synced");
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
+            final Builder options = RequestOptions.DEFAULT.toBuilder();
+            options.setWarningsHandler(warnings -> warnings.equals(transitionMessage) == false);
+            request.setOptions(options);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            final Builder options = RequestOptions.DEFAULT.toBuilder();
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false
+                && warnings.contains(deprecationMessage) == false
+                && warnings.contains(transitionMessage));
+            request.setOptions(options);
+        }
+        return client().performRequest(request);
+    }
 }

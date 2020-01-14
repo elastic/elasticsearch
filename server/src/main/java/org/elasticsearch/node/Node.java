@@ -23,9 +23,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -89,10 +91,12 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
@@ -405,6 +409,8 @@ public class Node implements Closeable {
                 ClusterModule.getNamedXWriteables().stream())
                 .flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
+            final PersistedClusterStateService lucenePersistedStateFactory
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry, bigArrays);
 
             // collect engine factory providers from server and from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
@@ -542,6 +548,7 @@ public class Node implements Closeable {
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
+                    b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(AliasValidator.class).toInstance(aliasValidator);
                     b.bind(MetaDataCreateIndexService.class).toInstance(metaDataCreateIndexService);
@@ -688,7 +695,20 @@ public class Node implements Closeable {
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
         gatewayMetaState.start(settings(), transportService, clusterService, injector.getInstance(MetaStateService.class),
-            injector.getInstance(MetaDataIndexUpgradeService.class), injector.getInstance(MetaDataUpgrader.class));
+            injector.getInstance(MetaDataIndexUpgradeService.class), injector.getInstance(MetaDataUpgrader.class),
+            injector.getInstance(PersistedClusterStateService.class));
+        if (Assertions.ENABLED) {
+            try {
+                assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
+                final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                    nodeEnvironment.nodeDataPaths());
+                assert nodeMetaData != null;
+                assert nodeMetaData.nodeVersion().equals(Version.CURRENT);
+                assert nodeMetaData.nodeId().equals(localNodeFactory.getNode().getId());
+            } catch (IOException e) {
+                assert false : e;
+            }
+        }
         // we load the global state here (the persistent part of the cluster state stored on disk) to
         // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
         final MetaData onDiskMetadata = gatewayMetaState.getPersistedState().getLastAcceptedState().metaData();
@@ -860,8 +880,11 @@ public class Node implements Closeable {
         // Don't call shutdownNow here, it might break ongoing operations on Lucene indices.
         // See https://issues.apache.org/jira/browse/LUCENE-7248. We call shutdownNow in
         // awaitClose if the node doesn't finish closing within the specified time.
-        toClose.add(() -> stopWatch.stop().start("node_environment"));
 
+        toClose.add(() -> stopWatch.stop().start("gateway_meta_state"));
+        toClose.add(injector.getInstance(GatewayMetaState.class));
+
+        toClose.add(() -> stopWatch.stop().start("node_environment"));
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
 

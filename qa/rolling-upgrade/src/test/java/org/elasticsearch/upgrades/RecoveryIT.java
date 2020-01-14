@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -554,6 +555,40 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(routingTable, nullValue());
             assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
         }
+    }
+
+    private void syncedFlush(String index) throws Exception {
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                Response resp = performSyncedFlush(index);
+                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                assertThat(result.get("failed"), equalTo(0));
+            } catch (ResponseException ex) {
+                throw new AssertionError(ex); // cause assert busy to retry
+            }
+        });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(index);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
     }
 
     /** Ensure that we can always execute update requests regardless of the version of cluster */

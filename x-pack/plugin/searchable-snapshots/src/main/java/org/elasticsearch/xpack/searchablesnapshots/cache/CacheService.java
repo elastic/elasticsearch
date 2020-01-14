@@ -67,7 +67,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        // TODO clean up (or rebuild) cache from disk as a node crash may leave cached files
+        // NORELEASE TODO clean up (or rebuild) cache from disk as a node crash may leave cached files
     }
 
     @Override

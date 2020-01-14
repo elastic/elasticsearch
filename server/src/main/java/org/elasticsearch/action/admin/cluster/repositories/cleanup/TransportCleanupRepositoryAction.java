@@ -175,7 +175,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-        repository.getRepositoryData(repositoryDataListener);
+        try {
+            repository.getRepositoryData(repositoryDataListener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         repositoryDataListener.whenComplete(repositoryData -> {
             final long repositoryStateId = repositoryData.getGenId();
             logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);

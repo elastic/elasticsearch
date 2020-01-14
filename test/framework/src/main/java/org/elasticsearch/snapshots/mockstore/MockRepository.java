@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
@@ -56,6 +58,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -115,6 +118,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blocked = false;
 
+    private AtomicBoolean throwOnGetRepositoryData = new AtomicBoolean(false);
+
     public MockRepository(RepositoryMetaData metadata, Environment environment,
                           NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
         super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService);
@@ -129,6 +134,19 @@ public class MockRepository extends FsRepository {
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
         env = environment;
         logger.info("starting mock repository with random prefix {}", randomPrefix);
+    }
+
+    @Override
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        if (throwOnGetRepositoryData.get()) {
+            throw new ElasticsearchException("Expected test exception");
+        } else {
+            super.getRepositoryData(listener);
+        }
+    }
+
+    public void setThrowOnGetRepositoryData(boolean throwOnGet) {
+        this.throwOnGetRepositoryData.set(throwOnGet);
     }
 
     @Override

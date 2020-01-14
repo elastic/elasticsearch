@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,11 +37,14 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -105,7 +111,55 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
-            .addSnapshots(snapshot).get().getSnapshots(repoName));
+                .addSnapshots(snapshot).get().getSnapshots(repoName));
+    }
+
+    public void testRetrievingRepositoryDataThrows() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository.");
+        String randomNodeName = randomFrom(internalCluster().getNodeNames());
+        Client client = client(randomNodeName);
+
+        Path repo = randomRepoPath();
+        final String repoName = "test-mock-repo";
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
+        assertAcked(client.admin().cluster().preparePutRepository(repoName)
+                .setType("mock").setSettings(Settings.builder()
+                        .put("location", repo)
+                        .put("compress", false)
+                        .put(BlobStoreRepository.ALLOW_CONCURRENT_MODIFICATION.getKey(), true)
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        ((MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+                .repository(repoName)).setThrowOnGetRepositoryData(true);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
+            client.admin().cluster().prepareCreateSnapshot(repoName, "test-snap").setWaitForCompletion(true).get();
+        });
+        assertThat(e.getMessage(), Matchers.is("Expected test exception"));
+
+        GetSnapshotsResponse snapshotsResponse = client.admin().cluster().prepareGetSnapshots(repoName).get();
+        assertThat(snapshotsResponse.getSuccessfulResponses().size(), Matchers.is(0));
+        assertThat(snapshotsResponse.getFailedResponses().size(), Matchers.is(1));
+        assertThat(snapshotsResponse.getFailedResponses().get(repoName).getMessage(),
+                Matchers.is("Expected test exception"));
+
+        e = expectThrows(ElasticsearchException.class, () -> {
+            client.admin().cluster().prepareDeleteSnapshot(repoName, "test-snap").get();
+        });
+        assertThat(e.getMessage(), Matchers.is("Expected test exception"));
+
+        e = expectThrows(ElasticsearchException.class, () -> {
+            client.admin().cluster().prepareRestoreSnapshot(repoName, "test-snap").get();
+        });
+        assertThat(e.getMessage(), Matchers.is("Expected test exception"));
+
+        e = expectThrows(ElasticsearchException.class, () -> {
+            client.admin().cluster().prepareCleanupRepository(repoName).get();
+        });
+        assertThat(e.getMessage(), Matchers.is("Expected test exception"));
+
+        ((MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+                .repository(repoName)).setThrowOnGetRepositoryData(true);
     }
 
     public void testConcurrentlyChangeRepositoryContentsInBwCMode() throws Exception {

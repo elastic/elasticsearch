@@ -269,7 +269,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         validate(repositoryName, snapshotName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-        repositoriesService.repository(repositoryName).getRepositoryData(repositoryDataListener);
+        getRepositoryData(repositoryName, repositoryDataListener);
         repositoryDataListener.whenComplete(repositoryData -> {
             final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(repositoryName, repositoryData, null);
             clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
@@ -1199,8 +1199,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void deleteSnapshot(final String repositoryName, final String snapshotName, final ActionListener<Void> listener,
                                final boolean immediatePriority) {
         // First, look for the snapshot in the repository
-        final Repository repository = repositoriesService.repository(repositoryName);
-        repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+        getRepositoryData(repositoryName, ActionListener.wrap(repositoryData -> {
             Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
                 .stream()
                 .filter(s -> s.getName().equals(snapshotName))

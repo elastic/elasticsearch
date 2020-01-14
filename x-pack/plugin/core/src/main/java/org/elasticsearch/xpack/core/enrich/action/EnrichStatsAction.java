@@ -231,8 +231,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
 
             public ExecutionStats(StreamInput in) throws IOException {
-                this(in.readVLong(), in.readVLong(), in.readZLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(),
-                    in.readZLong(), in.readVLong());
+                this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(),
+                    in.readVLong(), in.readVLong());
             }
 
             public long getTotalExecutionCount() {
@@ -275,12 +275,12 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeVLong(totalExecutionCount);
                 out.writeVLong(totalExecutionTime);
-                out.writeZLong(minExecutionTime);
+                out.writeVLong(minExecutionTime);
                 out.writeVLong(maxExecutionTime);
                 out.writeVLong(totalRepeatExecutionCount);
                 out.writeVLong(totalTimeBetweenExecutions);
                 out.writeVLong(avgTimeBetweenExecutions);
-                out.writeZLong(minTimeBetweenExecutions);
+                out.writeVLong(minTimeBetweenExecutions);
                 out.writeVLong(maxTimeBetweenExecutions);
             }
 

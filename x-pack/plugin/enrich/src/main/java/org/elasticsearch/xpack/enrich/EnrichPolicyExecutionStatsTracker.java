@@ -50,11 +50,11 @@ public class EnrichPolicyExecutionStatsTracker {
         // Snap min times to -1 if they do not have values set.
         long minExecTime = minExecutionTime.get();
         if (Long.MAX_VALUE == minExecTime) {
-            minExecTime = -1L;
+            minExecTime = 0L;
         }
         long minTimeBetweenExecs = minTimeBetweenExecutions.get();
         if (Long.MAX_VALUE == minTimeBetweenExecs) {
-            minTimeBetweenExecs = -1L;
+            minTimeBetweenExecs = 0L;
         }
         // Calculate average safely
         long totalRepeatExecutions = totalRepeatExecutionCount.get();

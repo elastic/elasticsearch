@@ -18,12 +18,12 @@ public class EnrichPolicyExecutionStatsTrackerTests extends ESTestCase {
         assertNotNull(stats);
         assertEquals(0L, stats.getTotalExecutionCount());
         assertEquals(0L, stats.getTotalExecutionTime());
-        assertEquals(-1L, stats.getMinExecutionTime());
+        assertEquals(0L, stats.getMinExecutionTime());
         assertEquals(0L, stats.getMaxExecutionTime());
         assertEquals(0L, stats.getTotalRepeatExecutionCount());
         assertEquals(0L, stats.getTotalTimeBetweenExecutions());
         assertEquals(0L, stats.getAvgTimeBetweenExecutions());
-        assertEquals(-1L, stats.getMinTimeBetweenExecutions());
+        assertEquals(0L, stats.getMinTimeBetweenExecutions());
         assertEquals(0L, stats.getMaxTimeBetweenExecutions());
     }
 
@@ -39,7 +39,7 @@ public class EnrichPolicyExecutionStatsTrackerTests extends ESTestCase {
         assertEquals(0L, stats.getTotalRepeatExecutionCount());
         assertEquals(0L, stats.getTotalTimeBetweenExecutions());
         assertEquals(0L, stats.getAvgTimeBetweenExecutions());
-        assertEquals(-1L, stats.getMinTimeBetweenExecutions());
+        assertEquals(0L, stats.getMinTimeBetweenExecutions());
         assertEquals(0L, stats.getMaxTimeBetweenExecutions());
     }
 
@@ -56,7 +56,7 @@ public class EnrichPolicyExecutionStatsTrackerTests extends ESTestCase {
         assertEquals(0L, stats.getTotalRepeatExecutionCount());
         assertEquals(0L, stats.getTotalTimeBetweenExecutions());
         assertEquals(0L, stats.getAvgTimeBetweenExecutions());
-        assertEquals(-1L, stats.getMinTimeBetweenExecutions());
+        assertEquals(0L, stats.getMinTimeBetweenExecutions());
         assertEquals(0L, stats.getMaxTimeBetweenExecutions());
     }
 

@@ -56,7 +56,7 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             // no executions at all
             totalExecutionCount = 0L;
             totalExecutionTime = 0L;
-            minExecutionTime = -1L;
+            minExecutionTime = 0L;
             maxExecutionTime = 0L;
         }
 
@@ -73,7 +73,7 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             totalRepeatExecutionCount = 0L;
             totalTimeBetweenExecutions = 0L;
             avgTimeBetweenExecutions = 0L;
-            minTimeBetweenExecutions = -1;
+            minTimeBetweenExecutions = 0L;
             maxTimeBetweenExecutions = 0L;
         }
 

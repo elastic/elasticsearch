@@ -15,12 +15,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -28,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -47,6 +51,15 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(SearchableSnapshots.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        if (randomBoolean()) {
+            builder.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),new ByteSizeValue(randomIntBetween(1, 4), ByteSizeUnit.MB));
+        }
+        return builder.build();
     }
 
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
@@ -72,7 +85,7 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         indexRandom(true, false, indexRequestBuilders);
         refresh(indexName);
         assertThat(client().admin().indices().prepareForceMerge(indexName)
-            .setOnlyExpungeDeletes(true).setFlush(true) .get().getFailedShards(), equalTo(0));
+            .setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(), equalTo(0));
 
         final TotalHits originalAllHits = internalCluster().client().prepareSearch(indexName)
             .setTrackTotalHits(true).get().getHits().getTotalHits();
@@ -136,17 +149,30 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
     }
 
-    private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) {
+    private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
+        final Thread[] threads = new Thread[between(1, 5)];
+        final AtomicArray<TotalHits> allHits = new AtomicArray<>(threads.length);
+        final AtomicArray<TotalHits> barHits = new AtomicArray<>(threads.length);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < threads.length; i++) {
+            int t = i;
+            threads[i] = new Thread(() -> {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                allHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true)
+                    .get().getHits().getTotalHits());
+                barHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true)
+                    .setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits());
+            });
+            threads[i].start();
+        }
+
         ensureGreen(indexName);
-
-        final TotalHits newAllHits = client().prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits();
-        final TotalHits newBarHits = client().prepareSearch(indexName).setTrackTotalHits(true)
-            .setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits();
-
-        logger.info("--> [{}] in total, of which [{}] match the query", newAllHits, newBarHits);
-
-        assertThat(newAllHits, equalTo(originalAllHits));
-        assertThat(newBarHits, equalTo(originalBarHits));
+        latch.countDown();
 
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
@@ -155,6 +181,17 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
                 assertThat(recoveryState.getIndex().recoveredFileCount(),
                     lessThanOrEqualTo(1)); // we make a new commit so we write a new `segments_n` file
             }
+        }
+
+        for (int i = 0; i < threads.length; i++) {
+            threads[i].join();
+
+            final TotalHits allTotalHits = allHits.get(i);
+            final TotalHits barTotalHits = barHits.get(i);
+
+            logger.info("--> thread #{} has [{}] hits in total, of which [{}] match the query", i, allTotalHits, barTotalHits);
+            assertThat(allTotalHits, equalTo(originalAllHits));
+            assertThat(barTotalHits, equalTo(originalBarHits));
         }
     }
 }

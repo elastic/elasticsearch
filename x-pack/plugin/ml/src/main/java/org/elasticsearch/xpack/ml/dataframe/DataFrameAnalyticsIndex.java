@@ -169,11 +169,14 @@ public final class DataFrameAnalyticsIndex {
             Object sourceFieldMapping = extractMapping(sourceFieldPath, mappingsProperties);
             if (sourceFieldMapping instanceof Map) {
                 Map<String, Object> sourceFieldMappingAsMap = (Map) sourceFieldMapping;
+                // If the source field is an alias, fetch the concrete field that the alias points to.
                 if (FieldAliasMapper.CONTENT_TYPE.equals(sourceFieldMappingAsMap.get("type"))) {
                     String path = (String) sourceFieldMappingAsMap.get(FieldAliasMapper.Names.PATH);
                     sourceFieldMapping = extractMapping(path, mappingsProperties);
                 }
             }
+            // We may have updated the value of {@code sourceFieldMapping} in the "if" block above.
+            // Hence, we need to check the "instanceof" condition again.
             if (sourceFieldMapping instanceof Map) {
                 properties.put(destFieldPath, sourceFieldMapping);
             }

@@ -291,9 +291,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      *
      * @return The CoreValuesSourceType we expect this script to yield.
      */
-    protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
-    }
+    protected abstract ValuesSourceType defaultValueSourceType();
 
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,

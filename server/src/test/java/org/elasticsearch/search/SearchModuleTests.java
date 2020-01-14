@@ -46,9 +46,11 @@ import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregat
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
@@ -362,6 +364,11 @@ public class SearchModuleTests extends ESTestCase {
         protected TestAggregationBuilder(TestAggregationBuilder clone,
                                          Builder factoriesBuilder, Map<String, Object> metaData) {
             super(clone, factoriesBuilder, metaData);
+        }
+
+        @Override
+        protected ValuesSourceType defaultValueSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override

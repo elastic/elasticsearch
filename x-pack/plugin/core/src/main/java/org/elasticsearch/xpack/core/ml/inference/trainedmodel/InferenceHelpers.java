@@ -32,10 +32,10 @@ public final class InferenceHelpers {
         if (classificationLabels != null && probabilities.size() != classificationLabels.size()) {
             throw ExceptionsHelper
                 .serverError(
-                    "model returned classification probabilities of size [{}] which is not equal to classification labels size {}",
+                    "model returned classification probabilities of size [{}] which is not equal to classification labels size [{}]",
                     null,
                     probabilities.size(),
-                    classificationLabels);
+                    classificationLabels.size());
         }
 
         List<Double> scores = classificationWeights == null ?

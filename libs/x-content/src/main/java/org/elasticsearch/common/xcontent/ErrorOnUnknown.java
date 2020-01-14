@@ -28,7 +28,7 @@ import java.util.ServiceLoader;
  */
 public interface ErrorOnUnknown {
     /**
-     * The implementation of this interface that was loaded form SPI.
+     * The implementation of this interface that was loaded from SPI.
      */
     ErrorOnUnknown IMPLEMENTATION = findImplementation();
 

@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.google.common.collect.Ordering;
+// Pending fix
+//import com.google.common.collect.Ordering;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;

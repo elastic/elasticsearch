@@ -265,7 +265,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
         MockTerminal terminal = unsafeBootstrap(environmentMaster1);
-        MetaData metaData = ElasticsearchNodeCommand.createPersistedClusterStateService(nodeEnvironment.nodeDataPaths())
+        MetaData metaData = ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, nodeEnvironment.nodeDataPaths())
             .loadBestOnDiskState().metaData;
         assertThat(terminal.getOutput(), containsString(
             String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,

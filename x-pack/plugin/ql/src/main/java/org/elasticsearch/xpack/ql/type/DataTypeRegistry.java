@@ -1,0 +1,37 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.ql.type;
+
+import java.util.Collection;
+
+/**
+ * Central class for {@link DataType} creation and conversion.
+ */
+public interface DataTypeRegistry {
+
+    //
+    // Discovery
+    //
+    Collection<DataType> dataTypes();
+
+    DataType fromJava(Object value);
+
+    boolean isUnsupported(DataType type);
+
+    //
+    // Conversion methods
+    //
+    boolean canConvert(DataType from, DataType to);
+
+    Object convert(Object value, DataType type);
+
+    default boolean areCompatible(DataType left, DataType right) {
+        return commonType(left, right) != null;
+    }
+
+    DataType commonType(DataType left, DataType right);
+}

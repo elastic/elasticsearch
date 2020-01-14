@@ -12,22 +12,35 @@ import org.elasticsearch.xpack.ql.expression.literal.Interval;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.xpack.ql.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataType.BYTE;
-import static org.elasticsearch.xpack.ql.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataType.INTERVAL_YEAR_TO_MONTH;
-import static org.elasticsearch.xpack.ql.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataType.LONG;
-import static org.elasticsearch.xpack.ql.type.DataType.NULL;
-import static org.elasticsearch.xpack.ql.type.DataType.SHORT;
-import static org.elasticsearch.xpack.ql.type.DataType.TIME;
-import static org.elasticsearch.xpack.ql.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.type.DataType.fromTypeName;
-
 public final class DataTypes {
+
+    public static final DataType NULL = new DataType("null", 0, false, false, false);
+
+    public static final DataType UNSUPPORTED = new DataType(null, 0, false, false, false);
+
+    public static final DataType BOOLEAN = new DataType("boolean", 1, false, false, false);
+
+    public static final DataType BYTE = new DataType("byte", Byte.BYTES, true, false, true);
+    public static final DataType SHORT = new DataType("short", Short.BYTES, true, false, true);
+    public static final DataType INTEGER = new DataType("integer", Integer.BYTES, true, false, true);
+    public static final DataType LONG = new DataType("long", Long.BYTES, true, false, true);
+
+    public static final DataType DOUBLE = new DataType("double", Double.BYTES, false, true, true);
+    public static final DataType FLOAT = new DataType("float", Float.BYTES, false, true, true);
+    public static final DataType HALF_FLOAT = new DataType("half_float", Float.BYTES, false, true, true);
+    public static final DataType SCALED_FLOAT = new DataType("scaled_float", Long.BYTES, false, true, true);
+
+    public static final DataType KEYWORD = new DataType("keyword", Short.MAX_VALUE, true, false, true);
+    public static final DataType TEXT = new DataType("text", Integer.MAX_VALUE, true, false, true);
+
+    public static final DataType DATETIME = new DataType("date", Long.BYTES, false, false, true);
+    public static final DataType IP = new DataType("ip", 39, false, false, true);
+
+    public static final DataType BINARY = new DataType("binary", Integer.MAX_VALUE, false, false, true);
+
+    public static final DataType OBJECT = new DataType("object", 0, false, false, true);
+    public static final DataType NESTED = new DataType("nested", 0, false, false, true);
+
 
     private DataTypes() {}
 

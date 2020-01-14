@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectTestCase;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;

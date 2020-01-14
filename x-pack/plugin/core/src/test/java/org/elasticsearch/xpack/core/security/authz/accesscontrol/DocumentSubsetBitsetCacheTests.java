@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -21,6 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -32,6 +36,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MockLogAppender;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -166,6 +171,93 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             assertThat(cache.entryCount(), equalTo(0));
             assertThat(cache.ramBytesUsed(), equalTo(0L));
         });
+    }
+
+    public void testLogWarningIfBitSetExceedsCacheSize() throws Exception {
+        // This value is based on the internal implementation details of lucene's FixedBitSet
+        // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
+        final long expectedBytesPerBitSet = 56;
+
+        // Enough to hold less than 1 bit-sets in the cache
+        final long maxCacheBytes = expectedBytesPerBitSet - expectedBytesPerBitSet/3;
+        final Settings settings = Settings.builder()
+            .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
+            .build();
+        final DocumentSubsetBitsetCache cache = newCache(settings);
+        assertThat(cache.entryCount(), equalTo(0));
+        assertThat(cache.ramBytesUsed(), equalTo(0L));
+
+        final Logger cacheLogger = LogManager.getLogger(cache.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(cacheLogger, mockAppender);
+            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "[bitset too big]",
+                cache.getClass().getName(),
+                Level.WARN,
+                "built a DLS BitSet that uses [" + expectedBytesPerBitSet + "] bytes; the DLS BitSet cache has a maximum size of [" +
+                    maxCacheBytes + "] bytes; this object cannot be cached and will need to be rebuilt for each use;" +
+                    " consider increasing the value of [xpack.security.dls.bitset.cache.size]"
+            ));
+
+            runTestOnIndex((shardContext, leafContext) -> {
+                final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-1", "value-1");
+                final Query query = queryBuilder.toQuery(shardContext);
+                final BitSet bitSet = cache.getBitSet(query, leafContext);
+                assertThat(bitSet, notNullValue());
+                assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
+            });
+
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(cacheLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    public void testLogMessageIfCacheFull() throws Exception {
+        // This value is based on the internal implementation details of lucene's FixedBitSet
+        // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
+        final long expectedBytesPerBitSet = 56;
+
+        // Enough to hold slightly more than 1 bit-sets in the cache
+        final long maxCacheBytes = expectedBytesPerBitSet + expectedBytesPerBitSet/3;
+        final Settings settings = Settings.builder()
+            .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
+            .build();
+        final DocumentSubsetBitsetCache cache = newCache(settings);
+        assertThat(cache.entryCount(), equalTo(0));
+        assertThat(cache.ramBytesUsed(), equalTo(0L));
+
+        final Logger cacheLogger = LogManager.getLogger(cache.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(cacheLogger, mockAppender);
+            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "[cache full]",
+                cache.getClass().getName(),
+                Level.INFO,
+                "the Document Level Security BitSet cache is full which may impact performance;" +
+                    " consider increasing the value of [xpack.security.dls.bitset.cache.size]"
+            ));
+
+            runTestOnIndex((shardContext, leafContext) -> {
+                for (int i = 1; i <= 3; i++) {
+                    final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + i, "value-" + i);
+                    final Query query = queryBuilder.toQuery(shardContext);
+                    final BitSet bitSet = cache.getBitSet(query, leafContext);
+                    assertThat(bitSet, notNullValue());
+                    assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
+                }
+            });
+
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(cacheLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     public void testCacheRespectsAccessTimeExpiry() throws Exception {

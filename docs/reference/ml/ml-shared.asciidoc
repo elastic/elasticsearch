@@ -605,8 +605,7 @@ tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real
 time. The default value is either the bucket span for short bucket spans, or,
 for longer bucket spans, a sensible fraction of the bucket span. For example:
-`150s`. When `query_delay` is present, queries run at `query_delay` after the 
-end of each `frequency`.
+`150s`.
 end::frequency[]
 
 tag::from[]

@@ -101,18 +101,14 @@ public class MultiBucketConsumerService {
             this.limit = limit;
         }
 
-        public void checkNewCountWithLimit(int newCount) {
-            if (newCount > limit) {
-                throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
-                    + "] but was [" + newCount + "]. This limit can be set by changing the [" +
-                    MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
-            }
-        }
-
         @Override
         public void accept(int value) {
             count += value;
-            checkNewCountWithLimit(count);
+            if (count > limit) {
+                throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
+                    + "] but was [" + count + "]. This limit can be set by changing the [" +
+                    MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
+            }
         }
 
         public void reset() {

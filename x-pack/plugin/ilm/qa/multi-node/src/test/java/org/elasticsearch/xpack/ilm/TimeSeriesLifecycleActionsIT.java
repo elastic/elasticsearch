@@ -40,12 +40,12 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
-import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -324,50 +324,62 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy("delete", new WaitForSnapshotAction("slm"));
+        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
         updatePolicy(index, policy);
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
         assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo("wait-for-snapshot")));
 
-        createSnapshotRepo();
-        createSlmPolicy();
+        String repo = createSnapshotRepo();
+        createSlmPolicy(smlPolicy, repo);
 
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
 
-        Request request = new Request("PUT", "/_slm/policy/slm/_execute");
+        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")));
-    }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
+
+        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
+        assertOK(client().performRequest(request));
+
+        request = new Request("DELETE", "/_snapshot/" + repo);
+        assertOK(client().performRequest(request));
+    }
+    
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy("delete", new WaitForSnapshotAction("slm"));
+        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
 
-        createSnapshotRepo();
-        createSlmPolicy();
+        String repo = createSnapshotRepo();
+        createSlmPolicy(smlPolicy, repo);
 
-        Request request = new Request("PUT", "/_slm/policy/slm/_execute");
+        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
         updatePolicy(index, policy);
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
         assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
 
-        request = new Request("PUT", "/_slm/policy/slm/_execute");
+        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        request = new Request("PUT", "/_slm/policy/slm/_execute");
+        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
+
+        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
+        assertOK(client().performRequest(request));
+
+        request = new Request("DELETE", "/_snapshot/" + repo);
+        assertOK(client().performRequest(request));
     }
 
     public void testDelete() throws Exception {
@@ -1628,24 +1640,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return (String) snapResponse.get("state");
     }
 
-    private void createSlmPolicy() throws IOException {
+    private void createSlmPolicy(String smlPolicy, String repo) throws IOException {
         Request request;
-        request = new Request("PUT", "/_slm/policy/slm");
+        request = new Request("PUT", "/_slm/policy/" + smlPolicy);
         request.setJsonEntity(Strings
             .toString(JsonXContent.contentBuilder()
                 .startObject()
                 .field("schedule", "59 59 23 31 12 ? 2099")
-                .field("repository", "repo")
+                .field("repository", repo)
                 .field("name", "snap" + randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT))
                 .startObject("config")
+                    .field("include_global_state", false)
                 .endObject()
                 .endObject()));
 
         assertOK(client().performRequest(request));
     }
 
-    private void createSnapshotRepo() throws IOException {
-        Request request = new Request("PUT", "/_snapshot/repo");
+    private String createSnapshotRepo() throws IOException {
+        String repo = randomAlphaOfLengthBetween(4, 10);
+        Request request = new Request("PUT", "/_snapshot/" + repo);
         request.setJsonEntity(Strings
             .toString(JsonXContent.contentBuilder()
                 .startObject()
@@ -1657,5 +1671,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));
+        return repo;
     }
 }

@@ -44,7 +44,6 @@ import org.hamcrest.Matchers;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -111,7 +110,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
-                .addSnapshots(snapshot).get().getSnapshots(repoName));
+            .addSnapshots(snapshot).get().getSnapshots(repoName));
     }
 
     public void testRetrievingRepositoryDataThrows() throws Exception {
@@ -159,7 +158,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(e.getMessage(), Matchers.is("Expected test exception"));
 
         ((MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
-                .repository(repoName)).setThrowOnGetRepositoryData(true);
+                .repository(repoName)).setThrowOnGetRepositoryData(false);
     }
 
     public void testConcurrentlyChangeRepositoryContentsInBwCMode() throws Exception {

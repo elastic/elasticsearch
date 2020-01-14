@@ -126,7 +126,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 .build();
     }
 
-    public void testRandom() throws Exception {
+    public void testRandom() {
         int j = 0;
         Map<String, Object> doc = new HashMap<>();
         String[] fieldMappers = new String[(allowedFields.size() + disAllowedFields.size()) * 2];
@@ -141,7 +141,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             doc.put(field, "value");
         }
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setMapping((Object[])fieldMappers)
+                        .setMapping(fieldMappers)
         );
         client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 

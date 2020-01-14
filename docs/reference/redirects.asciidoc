@@ -300,6 +300,21 @@ See <<ml-get-bucket>>,
 [[ml-results-overall-buckets]]
 <<ml-get-overall-buckets>>.
 
+[role="exclude",id="modules-snapshots"]
+=== Snapshot module
+
+See <<snapshot-restore>>.
+
+[role="exclude",id="restore-snapshot"]
+=== Restore snapshot
+
+See <<snapshots-restore-snapshot>>.
+
+[role="exclude",id="snapshots-repositories"]
+=== Snapshot repositories
+
+See <<snapshots-register-repository>>.
+
 [role="exclude",id="ml-dfa-analysis-objects"]
 === Analysis configuration objects
 

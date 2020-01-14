@@ -135,7 +135,7 @@ public class CreateIndexRequestBuilder
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public CreateIndexRequestBuilder setMapping(Object... source) {
+    public CreateIndexRequestBuilder setMapping(String... source) {
         request.simpleMapping(source);
         return this;
     }

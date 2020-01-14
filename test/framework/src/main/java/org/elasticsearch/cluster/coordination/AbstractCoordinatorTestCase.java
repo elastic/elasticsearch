@@ -745,7 +745,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
                         if (updatedMetaData != oldState.getLastAcceptedState().metaData() || updatedTerm != oldState.getCurrentTerm()) {
                             try (PersistedClusterStateService.Writer writer =
-                                     new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE)
+                                     new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                                         deterministicTaskQueue::getCurrentTimeMillis)
                                          .createWriter()) {
                                 writer.writeFullStateAndCommit(updatedTerm,
                                     ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build());

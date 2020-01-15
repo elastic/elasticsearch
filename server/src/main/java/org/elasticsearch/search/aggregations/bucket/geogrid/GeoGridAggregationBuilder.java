@@ -98,7 +98,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             geoBoundingBox = new GeoBoundingBox(in);
         }
     }
@@ -108,7 +108,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             geoBoundingBox.writeTo(out);
         }
     }

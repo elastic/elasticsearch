@@ -130,19 +130,19 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return BinaryOptionalMathOperation.TRUNCATE.apply(v, s);
     }
 
-    public static Double abs(Number value) {
+    public static Number abs(Number value) {
         return MathOperation.ABS.apply(value);
     }
 
-    public static Double acos(Number value) {
+    public static Number acos(Number value) {
         return MathOperation.ACOS.apply(value);
     }
 
-    public static Double asin(Number value) {
+    public static Number asin(Number value) {
         return MathOperation.ASIN.apply(value);
     }
 
-    public static Double atan(Number value) {
+    public static Number atan(Number value) {
         return MathOperation.ATAN.apply(value);
     }
 
@@ -150,55 +150,55 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return BinaryMathOperation.ATAN2.apply(left, right);
     }
 
-    public static Double cbrt(Number value) {
+    public static Number cbrt(Number value) {
         return MathOperation.CBRT.apply(value);
     }
 
-    public static Double ceil(Number value) {
+    public static Number ceil(Number value) {
         return MathOperation.CEIL.apply(value);
     }
 
-    public static Double cos(Number value) {
+    public static Number cos(Number value) {
         return MathOperation.COS.apply(value);
     }
 
-    public static Double cosh(Number value) {
+    public static Number cosh(Number value) {
         return MathOperation.COSH.apply(value);
     }
 
-    public static Double cot(Number value) {
+    public static Number cot(Number value) {
         return MathOperation.COT.apply(value);
     }
 
-    public static Double degrees(Number value) {
+    public static Number degrees(Number value) {
         return MathOperation.DEGREES.apply(value);
     }
 
-    public static Double e(Number value) {
+    public static Number e(Number value) {
         return MathOperation.E.apply(value);
     }
 
-    public static Double exp(Number value) {
+    public static Number exp(Number value) {
         return MathOperation.EXP.apply(value);
     }
 
-    public static Double expm1(Number value) {
+    public static Number expm1(Number value) {
         return MathOperation.EXPM1.apply(value);
     }
 
-    public static Double floor(Number value) {
+    public static Number floor(Number value) {
         return MathOperation.FLOOR.apply(value);
     }
 
-    public static Double log(Number value) {
+    public static Number log(Number value) {
         return MathOperation.LOG.apply(value);
     }
 
-    public static Double log10(Number value) {
+    public static Number log10(Number value) {
         return MathOperation.LOG10.apply(value);
     }
 
-    public static Double pi(Number value) {
+    public static Number pi(Number value) {
         return MathOperation.PI.apply(value);
     }
 
@@ -206,31 +206,31 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return BinaryMathOperation.POWER.apply(left, right);
     }
 
-    public static Double radians(Number value) {
+    public static Number radians(Number value) {
         return MathOperation.RADIANS.apply(value);
     }
 
-    public static Double random(Number value) {
+    public static Number random(Number value) {
         return MathOperation.RANDOM.apply(value);
     }
 
-    public static Double sign(Number value) {
+    public static Number sign(Number value) {
         return MathOperation.SIGN.apply(value);
     }
 
-    public static Double sin(Number value) {
+    public static Number sin(Number value) {
         return MathOperation.SIN.apply(value);
     }
 
-    public static Double sinh(Number value) {
+    public static Number sinh(Number value) {
         return MathOperation.SINH.apply(value);
     }
 
-    public static Double sqrt(Number value) {
+    public static Number sqrt(Number value) {
         return MathOperation.SQRT.apply(value);
     }
 
-    public static Double tan(Number value) {
+    public static Number tan(Number value) {
         return MathOperation.TAN.apply(value);
     }
 

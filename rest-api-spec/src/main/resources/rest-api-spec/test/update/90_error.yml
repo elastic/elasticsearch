@@ -1,8 +1,8 @@
 ---
 'Misspelled fields get "did you mean"':
   - skip:
-      version: " - 7.99.99"
-      reason: Implemented in 8.0
+      version: " - 7.5.99"
+      reason: Implemented in 7.6
   - do:
       catch: /\[UpdateRequest\] unknown field \[dac\] did you mean \[doc\]\?/
       update:

@@ -59,10 +59,10 @@ public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregation
     }
 
     public void testSerializationPreBounds() throws Exception {
-        Version noBoundsSupportVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_0);
         GeoTileGridAggregationBuilder builder = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_8_0_0);
+            output.setVersion(Version.V_7_6_0);
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
                 new NamedWriteableRegistry(Collections.emptyList()))) {

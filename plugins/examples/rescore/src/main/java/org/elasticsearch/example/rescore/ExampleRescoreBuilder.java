@@ -64,7 +64,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         this.factorField = factorField;
     }
 
-    ExampleRescoreBuilder(StreamInput in) throws IOException {
+    public ExampleRescoreBuilder(StreamInput in) throws IOException {
         super(in);
         factor = in.readFloat();
         factorField = in.readOptionalString();

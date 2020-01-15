@@ -30,19 +30,26 @@ import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -60,6 +67,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -80,7 +88,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private Environment environment;
     private ShardPath shardPath;
     private IndexMetaData indexMetaData;
+    private ClusterState clusterState;
     private IndexShard indexShard;
+    private Path[] dataPaths;
     private Path translogPath;
     private Path indexPath;
 
@@ -89,7 +99,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     @Before
     public void setup() throws IOException {
-        shardId = new ShardId("index0", "_na_", 0);
+        shardId = new ShardId("index0", UUIDs.randomBase64UUID(), 0);
         final String nodeId = randomAlphaOfLength(10);
         routing = TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE);
@@ -103,11 +113,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         // create same directory structure as prod does
         Files.createDirectories(dataDir);
+        dataPaths = new Path[] {dataDir};
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
@@ -134,6 +146,17 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .putRolloverInfo(new RolloverInfo("test", Collections.singletonList(rolloverCondition), randomNonNegativeLong()))
             .putMapping("{ \"properties\": {} }");
         indexMetaData = metaData.build();
+
+        clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().put(indexMetaData, false).build()).build();
+
+        try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
+            final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(dataPaths, nodeId,
+                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
+                writer.writeFullStateAndCommit(1L, clusterState);
+            }
+        }
 
         indexShard = newStartedShard(p -> newShard(routing, shardPath, indexMetaData, null, null,
             new InternalEngineFactory(), () -> { }, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER), true);
@@ -355,7 +378,6 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // index a single doc to have files on a disk
         indexDoc(indexShard, "_doc", "0", "{}");
         flushShard(indexShard, true);
-        writeIndexState();
 
         // close shard
         closeShards(indexShard);
@@ -367,11 +389,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options = parser.parse("--index", shardId.getIndex().getName(),
             "--shard-id", Integer.toString(shardId.id()));
 
-        command.findAndProcessShardPath(options, environment,
+        command.findAndProcessShardPath(options, environment, dataPaths, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
 
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-        command.findAndProcessShardPath(options2, environment,
+        command.findAndProcessShardPath(options2, environment, dataPaths, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
     }
 
@@ -509,17 +531,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         logger.info("--> indexed {} docs, {} to keep", numDocs, numDocsToKeep);
 
-        writeIndexState();
         return numDocsToKeep;
-    }
-
-    private void writeIndexState() throws IOException {
-        // create _state of IndexMetaData
-        try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
-            final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
-            IndexMetaData.FORMAT.writeAndCleanup(indexMetaData, paths);
-            logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));
-        }
     }
 
 }

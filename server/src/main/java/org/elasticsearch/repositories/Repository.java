@@ -234,4 +234,10 @@ public interface Repository extends LifecycleComponent {
      * @param state new cluster state
      */
     void updateState(ClusterState state);
+
+    /**
+     * Hook invoked on the master node before it delegates data nodes to start snapshotting shards via {@link #snapshotShard}.
+     */
+    default void beforeSnapshotShards() {
+    }
 }

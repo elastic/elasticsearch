@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -29,11 +30,15 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
@@ -126,6 +131,12 @@ class S3Repository extends BlobStoreRepository {
 
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
+    static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
+        "cooldown_period",
+        new TimeValue(3, TimeUnit.MINUTES),
+        new TimeValue(0, TimeUnit.MILLISECONDS),
+        Setting.Property.Dynamic);
+
     /**
      * Specifies the path within bucket to repository data. Defaults to root directory.
      */
@@ -144,6 +155,10 @@ class S3Repository extends BlobStoreRepository {
     private final String storageClass;
 
     private final String cannedACL;
+
+    private final long coolDown;
+
+    private final AtomicLong lastWriteIndexN = new AtomicLong(-1L);
 
     /**
      * Constructs an s3 backed repository
@@ -176,6 +191,8 @@ class S3Repository extends BlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
+        coolDown = COOLDOWN_PERIOD.get(metadata.settings()).millis();
+
         logger.debug(
                 "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
                 bucket,
@@ -184,6 +201,12 @@ class S3Repository extends BlobStoreRepository {
                 bufferSize,
                 cannedACL,
                 storageClass);
+    }
+
+    @Override
+    protected void writeIndexGen(RepositoryData repositoryData, long expectedGen, boolean writeShardGens, ActionListener<Void> listener) {
+        lastWriteIndexN.set(threadPool.relativeTimeInMillis());
+        super.writeIndexGen(repositoryData, expectedGen, writeShardGens, listener);
     }
 
     private static BlobPath buildBasePath(RepositoryMetaData metadata) {

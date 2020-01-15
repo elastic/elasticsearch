@@ -274,7 +274,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             XContentParser parser = JsonXContent.jsonXContent.createParser(
             xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
             final Map<String, Object> raw = parser.map();
-            logger.error(raw);
             final Map<String, Object> snapshot = (Map<String, Object>) raw.get("snapshot");
             final Map<String, Object> shardStats = (Map<String, Object>) snapshot.get("shards");
             assertThat(shardStats.get("successful"), is(shards));

@@ -333,7 +333,8 @@ public class HttpExporterTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
 
         // use basic auth
-        if (randomBoolean()) {
+        final boolean useBasicAuth = randomBoolean();
+        if (useBasicAuth) {
             builder.put("xpack.monitoring.exporters._http.auth.username", "_user")
                    .put("xpack.monitoring.exporters._http.auth.password", "_pass");
         }
@@ -348,8 +349,10 @@ public class HttpExporterTests extends ESTestCase {
 
         // doesn't explode
         HttpExporter.createRestClient(config, sslService, listener).close();
-        assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        if (useBasicAuth) {
+            assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version.");
+        }
     }
 
     public void testCreateSnifferDisabledByDefault() {

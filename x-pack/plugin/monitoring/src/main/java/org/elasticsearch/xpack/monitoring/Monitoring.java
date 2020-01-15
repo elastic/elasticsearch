@@ -185,7 +185,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public void reload(Settings settings) throws Exception {
         final List<String> changedExporters = HttpExporter.loadSettings(settings);
         for (String changedExporter : changedExporters) {
-            final Settings settingsForChangedExporter = settings.getByPrefix("xpack.monitoring.exporters." + changedExporter);
+            final Settings settingsForChangedExporter = settings.filter(x -> x.startsWith("xpack.monitoring.exporters." + changedExporter));
             exporters.setExportersSetting(settingsForChangedExporter);
         }
     }

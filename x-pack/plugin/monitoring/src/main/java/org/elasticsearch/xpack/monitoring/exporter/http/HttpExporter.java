@@ -719,7 +719,7 @@ public class HttpExporter extends Exporter {
                 existingPassword = SECURE_AUTH_PASSWORDS.get(namespace);
                 SECURE_AUTH_PASSWORDS.put(namespace, password);
             }
-            if (existingPassword.equals(password) == false) {
+            if (password.equals(existingPassword) == false) {
                 changedExporters.add(namespace);
             }
         }

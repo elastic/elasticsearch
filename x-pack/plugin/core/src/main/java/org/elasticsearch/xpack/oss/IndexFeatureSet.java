@@ -7,16 +7,12 @@
 package org.elasticsearch.xpack.oss;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -31,8 +27,7 @@ public class IndexFeatureSet implements XPackFeatureSet {
     private final ClusterService clusterService;
 
     @Inject
-    public IndexFeatureSet(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public IndexFeatureSet(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 

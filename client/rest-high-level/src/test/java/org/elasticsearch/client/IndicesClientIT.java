@@ -97,6 +97,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -768,7 +769,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndex(index, settings);
             SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
             SyncedFlushResponse flushResponse =
-                    execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync);
+                    execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync,
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE));
             assertThat(flushResponse.totalShards(), equalTo(1));
             assertThat(flushResponse.successfulShards(), equalTo(1));
             assertThat(flushResponse.failedShards(), equalTo(0));
@@ -783,7 +785,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     execute(
                         syncedFlushRequest,
                         highLevelClient().indices()::flushSynced,
-                        highLevelClient().indices()::flushSyncedAsync
+                        highLevelClient().indices()::flushSyncedAsync,
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
                     )
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());

@@ -38,7 +38,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,7 +52,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,11 +62,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -244,46 +239,6 @@ public final class BlobStoreTestUtil {
         }
         maxShardCountsSeen.forEach(((indexId, count) -> assertThat("Found unreferenced shard paths for index [" + indexId + "]",
             count, lessThanOrEqualTo(maxShardCountsExpected.get(indexId)))));
-    }
-
-    public static long createDanglingIndex(BlobStoreRepository repository, String name, Set<String> files)
-            throws InterruptedException, ExecutionException {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final AtomicLong totalSize = new AtomicLong();
-        repository.threadPool().generic().execute(ActionRunnable.run(future, () -> {
-            final BlobStore blobStore = repository.blobStore();
-            BlobContainer container =
-                blobStore.blobContainer(repository.basePath().add("indices").add(name));
-            for (String file : files) {
-                int size = randomIntBetween(0, 10);
-                totalSize.addAndGet(size);
-                container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
-            }
-        }));
-        future.get();
-        return totalSize.get();
-    }
-
-    public static void assertCorruptionVisible(BlobStoreRepository repository, Map<String, Set<String>> indexToFiles) {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
-            final BlobStore blobStore = repository.blobStore();
-            for (String index : indexToFiles.keySet()) {
-                if (blobStore.blobContainer(repository.basePath().add("indices"))
-                    .children().containsKey(index) == false) {
-                    return false;
-                }
-                for (String file : indexToFiles.get(index)) {
-                    try (InputStream ignored =
-                             blobStore.blobContainer(repository.basePath().add("indices").add(index)).readBlob(file)) {
-                    } catch (NoSuchFileException e) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }));
-        assertTrue(future.actionGet());
     }
 
     public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs) {

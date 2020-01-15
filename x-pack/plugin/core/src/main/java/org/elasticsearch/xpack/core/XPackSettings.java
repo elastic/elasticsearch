@@ -140,6 +140,9 @@ public class XPackSettings {
     /** Setting for enabling or disabling vectors. Defaults to true. */
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
 
+    public static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS_SETTING = Setting.boolSetting(
+        "xpack.security.ssl.diagnose.trust", true, Setting.Property.NodeScope);
+
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
 
     static {

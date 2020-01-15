@@ -49,6 +49,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -302,7 +303,6 @@ public final class NodeEnvironment  implements Closeable {
             this.locks = nodeLock.locks;
             this.nodePaths = nodeLock.nodePaths;
             this.nodeLockId = nodeLock.nodeId;
-            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
@@ -326,6 +326,7 @@ public final class NodeEnvironment  implements Closeable {
                 ensureNoShardData(nodePaths);
             }
 
+            this.nodeMetaData = loadNodeMetaData(settings, logger, nodePaths);
             success = true;
         } finally {
             if (success == false) {
@@ -400,36 +401,36 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
-     * and persisted into the nodePaths
      */
-    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
-                                                         NodePath... nodePaths) throws IOException {
+    private static NodeMetaData loadNodeMetaData(Settings settings, Logger logger,
+                                                 NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
-
-        final Set<String> nodeIds = new HashSet<>();
-        for (final Path path : paths) {
-            final NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
-            if (metaData != null) {
-                nodeIds.add(metaData.nodeId());
+        NodeMetaData metaData = PersistedClusterStateService.nodeMetaData(paths);
+        if (metaData == null) {
+            // load legacy metadata
+            final Set<String> nodeIds = new HashSet<>();
+            for (final Path path : paths) {
+                final NodeMetaData oldStyleMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+                if (oldStyleMetaData != null) {
+                    nodeIds.add(oldStyleMetaData.nodeId());
+                }
+            }
+            if (nodeIds.size() > 1) {
+                throw new IllegalStateException(
+                    "data paths " + Arrays.toString(paths) + " belong to multiple nodes with IDs " + nodeIds);
+            }
+            // load legacy metadata
+            final NodeMetaData legacyMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
+            if (legacyMetaData == null) {
+                assert nodeIds.isEmpty() : nodeIds;
+                metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
+            } else {
+                assert nodeIds.equals(Collections.singleton(legacyMetaData.nodeId())) : nodeIds + " doesn't match " + legacyMetaData;
+                metaData = legacyMetaData;
             }
         }
-        if (nodeIds.size() > 1) {
-            throw new IllegalStateException(
-                "data paths " + Arrays.toString(paths) + " belong to multiple nodes with IDs " + nodeIds);
-        }
-
-        NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
-        if (metaData == null) {
-            assert nodeIds.isEmpty() : nodeIds;
-            metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
-        } else {
-            assert nodeIds.equals(Collections.singleton(metaData.nodeId())) : nodeIds + " doesn't match " + metaData;
-            metaData = metaData.upgradeToCurrentVersion();
-        }
-
-        // we write again to make sure all paths have the latest state file
+        metaData = metaData.upgradeToCurrentVersion();
         assert metaData.nodeVersion().equals(Version.CURRENT) : metaData.nodeVersion() + " != " + Version.CURRENT;
-        NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);
 
         return metaData;
     }

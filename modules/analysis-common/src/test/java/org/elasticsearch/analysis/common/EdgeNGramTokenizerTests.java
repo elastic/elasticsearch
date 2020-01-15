@@ -86,9 +86,11 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             }
         }
 
-        // Check deprecated name as well
+        // Check deprecated name as well, needs version before 8.0 because throws IAE after that
         {
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(Version.CURRENT, "edgeNGram")) {
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(
+                    VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.CURRENT),
+                    "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});

@@ -254,7 +254,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("[3:17] [query] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[3:17] [query] unknown field [bad_fieldname]", e.getMessage());
         }
 
         rescoreElement = "{\n" +

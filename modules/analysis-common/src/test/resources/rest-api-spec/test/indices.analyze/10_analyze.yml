@@ -22,6 +22,8 @@
         features: "warnings"
 
     - do:
+        warnings:
+          - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
         indices.create:
           index: test_deprecated_htmlstrip
           body:
@@ -37,22 +39,6 @@
                 name:
                   type: text
                   analyzer: my_htmlStripWithCharfilter
-
-    - do:
-        warnings:
-          - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
-        index:
-          index:   test_deprecated_htmlstrip
-          id:      1
-          body:    { "name": "foo bar" }
-
-    - do:
-        warnings:
-          - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
-        index:
-          index:   test_deprecated_htmlstrip
-          id:      2
-          body:    { "name": "foo baz" }
 
     - do:
         warnings:

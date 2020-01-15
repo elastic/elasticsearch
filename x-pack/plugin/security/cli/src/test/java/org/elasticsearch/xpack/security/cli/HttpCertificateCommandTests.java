@@ -530,13 +530,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testTextFileSubstitutions() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/50964", Constants.WINDOWS);
         CheckedBiFunction<String, Map<String, String>, String, Exception> copy = (source, subs) -> {
             try (InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
                  StringWriter out = new StringWriter();
                  PrintWriter writer = new PrintWriter(out)) {
                 HttpCertificateCommand.copyWithSubstitutions(in, writer, subs);
-                return out.toString();
+                return out.toString().replace("\r\n", "\n");
             }
         };
         assertThat(copy.apply("abc\n", Map.of()), is("abc\n"));

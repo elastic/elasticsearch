@@ -98,10 +98,13 @@ class AsyncSearchId {
      */
     static AsyncSearchId decode(String id) {
         final AsyncSearchId searchId;
-        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap( Base64.getUrlDecoder().decode(id)))) {
+        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getUrlDecoder().decode(id)))) {
             searchId = new AsyncSearchId(in.readString(), in.readString(), new TaskId(in.readString()));
+            if (in.available() > 0) {
+                throw new IllegalArgumentException("invalid id:[" + id + "]");
+            }
         } catch (IOException e) {
-            throw new IllegalArgumentException("invalid id: " + id);
+            throw new IllegalArgumentException("invalid id:[" + id + "]");
         }
         validateAsyncSearchId(searchId);
         return searchId;
@@ -109,8 +112,7 @@ class AsyncSearchId {
 
     static void validateAsyncSearchId(AsyncSearchId searchId) {
         if (searchId.getIndexName().startsWith(ASYNC_SEARCH_INDEX_PREFIX) == false) {
-            throw new IllegalArgumentException("invalid id [" + searchId.getEncoded() + "] that references the wrong index ["
-                + searchId.getIndexName() + "]");
+            throw new IllegalArgumentException("invalid id:[" + searchId.getEncoded() + "]");
         }
     }
 }

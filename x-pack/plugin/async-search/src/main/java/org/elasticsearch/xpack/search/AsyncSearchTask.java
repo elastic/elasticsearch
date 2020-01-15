@@ -15,12 +15,13 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.PartialSearchResponse;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -36,6 +37,31 @@ class AsyncSearchTask extends SearchTask {
 
     private final Map<String, String> originHeaders;
 
+    // a latch that notifies when the first response is available
+    private final CountDownLatch initLatch = new CountDownLatch(1);
+    // a latch that notifies the completion (or failure) of the request
+    private final CountDownLatch completionLatch = new CountDownLatch(1);
+
+    // the current response, updated last in mutually exclusive methods below (onListShards, onReduce,
+    // onPartialReduce, onResponse and onFailure)
+    private volatile AsyncSearchResponse response;
+
+    // set once in onListShards (when the search starts)
+    private volatile int totalShards = -1;
+    private final AtomicInteger version = new AtomicInteger(0);
+    private final AtomicInteger shardFailures = new AtomicInteger(0);
+
+    /**
+     * Creates an instance of {@link AsyncSearchTask}.
+     *
+     * @param id The id of the task.
+     * @param type The type of the task.
+     * @param action The action name.
+     * @param originHeaders All the request context headers.
+     * @param taskHeaders The filtered request headers for the task.
+     * @param searchId The {@link AsyncSearchId} of the task.
+     * @param reduceContextSupplier A supplier to create final reduce contexts.
+     */
     AsyncSearchTask(long id,
                     String type,
                     String action,
@@ -51,10 +77,16 @@ class AsyncSearchTask extends SearchTask {
         setProgressListener(progressListener);
     }
 
+    /**
+     * Returns all of the request contexts headers
+     */
     Map<String, String> getOriginHeaders() {
         return originHeaders;
     }
 
+    /**
+     * Returns the {@link AsyncSearchId} of the task
+     */
     AsyncSearchId getSearchId() {
         return searchId;
     }
@@ -65,35 +97,57 @@ class AsyncSearchTask extends SearchTask {
     }
 
     /**
-     * Perform the final reduce on the current {@link AsyncSearchResponse} if <code>doFinalReduce</code>
-     * is set to true and return the result.
-     * Note that this function returns <code>null</code> until {@link Listener#onListShards}
-     * or {@link Listener#onFailure} is called on the search task.
+     * Waits up to the provided <code>waitForCompletionMillis</code> for the task completion and then returns a not-modified
+     * response if the provided version is less than or equals to the current version, and the full response otherwise.
+     *
+     * Consumers should fork in a different thread to avoid blocking a network thread.
      */
-    AsyncSearchResponse getAsyncResponse(boolean doFinalReduce) {
-        AsyncSearchResponse response = progressListener.response != null ? progressListener.response.get(doFinalReduce) : null;
-        if (response != null) {
-            response.addTaskInfo(taskInfo(searchId.getTaskId().getNodeId(), false));
+    AsyncSearchResponse getAsyncResponse(long waitForCompletionMillis, int minimumVersion) throws InterruptedException {
+        if (waitForCompletionMillis > 0) {
+            completionLatch.await(waitForCompletionMillis, TimeUnit.MILLISECONDS);
         }
-        return response;
+        initLatch.await();
+        assert response != null;
+
+        AsyncSearchResponse resp = response;
+        // return a not-modified response
+        AsyncSearchResponse newResp = createFinalResponse(resp);
+            //resp.getVersion() > minimumVersion ? createFinalResponse(resp) :
+            // new AsyncSearchResponse(resp.getId(), resp.getVersion(), resp.isRunning());
+        // not-modified response
+        newResp.setTaskInfo(taskInfo(searchId.getTaskId().getNodeId(), false));
+        return createFinalResponse(resp);
+    }
+
+    private AsyncSearchResponse createFinalResponse(AsyncSearchResponse resp) {
+        PartialSearchResponse partialResp = resp.getPartialResponse();
+        if (partialResp != null) {
+            InternalAggregations newAggs = resp.getPartialResponse().getAggregations();
+            if (partialResp.isFinalReduce() == false && newAggs != null) {
+                newAggs = InternalAggregations.topLevelReduce(Collections.singletonList(newAggs), reduceContextSupplier.get());
+            }
+            partialResp = new PartialSearchResponse(partialResp.getTotalShards(), partialResp.getSuccessfulShards(),
+                shardFailures.get(), // update shard failures
+                partialResp.getTotalHits(),
+                newAggs, true // update aggs
+            );
+        }
+        AsyncSearchResponse newResp = new AsyncSearchResponse(resp.getId(),
+            partialResp, // update partial response,
+            resp.getSearchResponse(), resp.getFailure(), resp.getVersion(), resp.isRunning());
+        return newResp;
     }
 
     private class Listener extends SearchProgressActionListener {
-        private int totalShards = -1;
-        private AtomicInteger version = new AtomicInteger(0);
-        private AtomicInteger shardFailures = new AtomicInteger(0);
-
-        private int lastSuccess = 0;
-        private int lastFailures = 0;
-
-        private volatile Response response;
-
         @Override
         public void onListShards(List<SearchShard> shards, boolean fetchPhase) {
-            this.totalShards = shards.size();
-            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
-                new PartialSearchResponse(totalShards), version.incrementAndGet(), true);
-            response = new Response(newResp, false);
+            try {
+                totalShards = shards.size();
+                response = new AsyncSearchResponse(searchId.getEncoded(),
+                    new PartialSearchResponse(totalShards), version.incrementAndGet(), true);
+            } finally {
+                initLatch.countDown();
+            }
         }
 
         @Override
@@ -103,74 +157,43 @@ class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-            lastSuccess = shards.size();
-            lastFailures = shardFailures.get();
-            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
-                new PartialSearchResponse(totalShards, lastSuccess, lastFailures, totalHits, aggs),
+            response = new AsyncSearchResponse(searchId.getEncoded(),
+                new PartialSearchResponse(totalShards, shards.size(), shardFailures.get(), totalHits, aggs, false),
                 version.incrementAndGet(),
                 true
             );
-            response = new Response(newResp, aggs != null);
         }
 
         @Override
         public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs) {
-            int failures = shardFailures.get();
-            int ver = (lastSuccess == shards.size() && lastFailures == failures) ? version.get() : version.incrementAndGet();
-            final AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
-                new PartialSearchResponse(totalShards, shards.size(), failures, totalHits, aggs),
-                ver,
+            response = new AsyncSearchResponse(searchId.getEncoded(),
+                new PartialSearchResponse(totalShards, shards.size(), shardFailures.get(), totalHits, aggs, true),
+                version.incrementAndGet(),
                 true
             );
-            response = new Response(newResp, false);
         }
 
         @Override
         public void onResponse(SearchResponse searchResponse) {
-            AsyncSearchResponse newResp = new AsyncSearchResponse(searchId.getEncoded(),
-                searchResponse, version.incrementAndGet(), false);
-            response = new Response(newResp, false);
+            try {
+                response = new AsyncSearchResponse(searchId.getEncoded(),
+                    searchResponse, version.incrementAndGet(), false);
+            } finally {
+                completionLatch.countDown();
+            }
         }
 
         @Override
         public void onFailure(Exception exc) {
-            AsyncSearchResponse previous = response != null ? response.get(true) : null;
-            response = new Response(new AsyncSearchResponse(searchId.getEncoded(),
-                previous != null ? newPartialResponse(previous, shardFailures.get()) : null,
-                exc != null ? ElasticsearchException.guessRootCauses(exc)[0] : null, version.incrementAndGet(), false), false);
-        }
-
-        private PartialSearchResponse newPartialResponse(AsyncSearchResponse response, int numFailures) {
-            PartialSearchResponse old = response.getPartialResponse();
-            return response.hasPartialResponse() ? new PartialSearchResponse(totalShards, old.getSuccessfulShards(), numFailures,
-                old.getTotalHits(), old.getAggregations()) : null;
-        }
-    }
-
-    private class Response {
-        AsyncSearchResponse internal;
-        boolean needFinalReduce;
-
-        Response(AsyncSearchResponse response, boolean needFinalReduce) {
-            this.internal = response;
-            this.needFinalReduce = needFinalReduce;
-        }
-
-        /**
-         * Ensure that we're performing the final reduce only when users explicitly requested
-         * a response through a {@link GetAsyncSearchAction.Request}.
-         */
-        public synchronized AsyncSearchResponse get(boolean doFinalReduce) {
-            if (doFinalReduce && needFinalReduce) {
-                InternalAggregations reducedAggs = internal.getPartialResponse().getAggregations();
-                reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(reducedAggs), reduceContextSupplier.get());
-                PartialSearchResponse old = internal.getPartialResponse();
-                PartialSearchResponse clone = new PartialSearchResponse(old.getTotalShards(), old.getSuccessfulShards(),
-                    old.getShardFailures(), old.getTotalHits(), reducedAggs);
-                needFinalReduce = false;
-                return internal = new AsyncSearchResponse(internal.getId(), clone, internal.getFailure(), internal.getVersion(), true);
-            } else {
-                return internal;
+            try {
+                response = new AsyncSearchResponse(searchId.getEncoded(), response != null ? response.getPartialResponse() : null,
+                    exc != null ? ElasticsearchException.guessRootCauses(exc)[0] : null, version.incrementAndGet(), false);
+            } finally {
+                if (initLatch.getCount() == 1) {
+                    // the failure happened before the initialization of the query phase
+                    initLatch.countDown();
+                }
+                completionLatch.countDown();
             }
         }
     }

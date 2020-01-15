@@ -27,7 +27,7 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
                                             NamedWriteableRegistry registry,
                                             Client client) {
         super(DeleteAsyncSearchAction.NAME, transportService, actionFilters, DeleteAsyncSearchAction.Request::new);
-        this.store = new AsyncSearchStoreService(taskManager, threadPool, client, registry);
+        this.store = new AsyncSearchStoreService(taskManager, threadPool.getThreadContext(), client, registry);
     }
 
     @Override

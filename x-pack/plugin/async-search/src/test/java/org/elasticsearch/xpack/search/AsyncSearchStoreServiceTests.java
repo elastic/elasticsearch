@@ -71,7 +71,7 @@ public class AsyncSearchStoreServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         TaskManager taskManager = mock(TaskManager.class);
-        store = new AsyncSearchStoreService(taskManager, threadPool, client, namedWriteableRegistry);
+        store = new AsyncSearchStoreService(taskManager, threadPool.getThreadContext(), client, namedWriteableRegistry);
     }
 
     @After

@@ -60,12 +60,12 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         this.runningTimeMillis = clone.runningTimeMillis;
     }
 
-    private AsyncSearchResponse(String id,
-                                PartialSearchResponse partialResponse,
-                                SearchResponse response,
-                                ElasticsearchException failure,
-                                int version,
-                                boolean isRunning) {
+    public AsyncSearchResponse(String id,
+                               PartialSearchResponse partialResponse,
+                               SearchResponse response,
+                               ElasticsearchException failure,
+                               int version,
+                               boolean isRunning) {
         assert id != null || isRunning == false;
         this.id = id;
         this.version = version;
@@ -98,7 +98,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         out.writeLong(runningTimeMillis);
     }
 
-    public void addTaskInfo(TaskInfo taskInfo) {
+    public void setTaskInfo(TaskInfo taskInfo) {
         this.startDateMillis = taskInfo.getStartTime();
         this.runningTimeMillis = TimeUnit.NANOSECONDS.toMillis(taskInfo.getRunningTimeNanos());
     }

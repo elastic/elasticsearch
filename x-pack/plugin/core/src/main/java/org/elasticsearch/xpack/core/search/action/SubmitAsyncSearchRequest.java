@@ -33,14 +33,14 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     private final SearchRequest request;
 
     /**
-     * Create a new request
+     * Creates a new request
      */
     public SubmitAsyncSearchRequest(String... indices) {
         this(new SearchSourceBuilder(), indices);
     }
 
     /**
-     * Create a new request
+     * Creates a new request
      */
     public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
         this.request = new SearchRequest(indices, source);
@@ -68,14 +68,14 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     }
 
     /**
-     * Set the minimum time that the request should wait before returning a partial result.
+     * Sets the minimum time that the request should wait before returning a partial result.
      */
     public void setWaitForCompletion(TimeValue waitForCompletion) {
         this.waitForCompletion = waitForCompletion;
     }
 
     /**
-     * Return the minimum time that the request should wait before returning a partial result.
+     * Returns the minimum time that the request should wait before returning a partial result.
      */
     public TimeValue getWaitForCompletion() {
         return waitForCompletion;

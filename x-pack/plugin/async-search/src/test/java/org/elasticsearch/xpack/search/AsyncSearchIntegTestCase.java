@@ -194,7 +194,6 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     return response;
                 }
                 AtomicReference<AsyncSearchResponse> atomic = new AtomicReference<>();
-                AtomicReference<Exception> exc = new AtomicReference<>();
                 int step = shardIndex == 0 ? progressStep+1 : progressStep-1;
                 int index = 0;
                 while (index < step && shardIndex < shardLatchArray.length) {

@@ -14,10 +14,15 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.joda.time.Partial;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * A search response that contains partial results.
@@ -28,19 +33,21 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
     private final int shardFailures;
 
     private final TotalHits totalHits;
-    private InternalAggregations aggregations;
+    private final InternalAggregations aggregations;
+    private final boolean isFinalReduce;
 
     public PartialSearchResponse(int totalShards) {
-        this(totalShards, 0, 0, null, null);
+        this(totalShards, 0, 0, null, null, false);
     }
 
     public PartialSearchResponse(int totalShards, int successfulShards, int shardFailures,
-                                 TotalHits totalHits, InternalAggregations aggregations) {
+                                 TotalHits totalHits, InternalAggregations aggregations, boolean isFinalReduce) {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.shardFailures = shardFailures;
         this.totalHits = totalHits;
         this.aggregations = aggregations;
+        this.isFinalReduce = isFinalReduce;
     }
 
     public PartialSearchResponse(StreamInput in) throws IOException {
@@ -49,6 +56,7 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
         this.shardFailures = in.readVInt();
         this.totalHits = in.readBoolean() ? Lucene.readTotalHits(in) : null;
         this.aggregations = in.readOptionalWriteable(InternalAggregations::new);
+        this.isFinalReduce = in.readBoolean();
     }
 
     @Override
@@ -61,6 +69,7 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
             Lucene.writeTotalHits(out, totalHits);
         }
         out.writeOptionalWriteable(aggregations);
+        out.writeBoolean(isFinalReduce);
     }
 
     @Override
@@ -119,6 +128,10 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
         return aggregations;
     }
 
+    public boolean isFinalReduce() {
+        return isFinalReduce;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -128,11 +141,12 @@ public class PartialSearchResponse implements ToXContentFragment, Writeable {
             successfulShards == that.successfulShards &&
             shardFailures == that.shardFailures &&
             Objects.equals(totalHits, that.totalHits) &&
-            Objects.equals(aggregations, that.aggregations);
+            Objects.equals(aggregations, that.aggregations) &&
+            isFinalReduce == that.isFinalReduce;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalShards, successfulShards, shardFailures, totalHits, aggregations);
+        return Objects.hash(totalShards, successfulShards, shardFailures, totalHits, aggregations, isFinalReduce);
     }
 }

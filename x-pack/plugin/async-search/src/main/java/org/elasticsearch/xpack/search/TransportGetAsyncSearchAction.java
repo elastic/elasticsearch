@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -23,10 +22,11 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
+    private final Executor generic;
     private final TransportService transportService;
     private final AsyncSearchStoreService store;
 
@@ -40,8 +40,8 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncSearchAction.Request::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.threadPool = threadPool;
-        this.store = new AsyncSearchStoreService(taskManager, threadPool, client, registry);
+        this.generic = threadPool.generic();
+        this.store = new AsyncSearchStoreService(taskManager, threadPool.getThreadContext(), client, registry);
     }
 
     @Override
@@ -69,7 +69,17 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                                            ActionListener<AsyncSearchResponse> listener) throws IOException {
         final AsyncSearchTask task = store.getTask(searchId);
         if (task != null) {
-            waitForCompletion(request, task, threadPool.relativeTimeInMillis(), listener);
+            // don't block on a network thread
+            generic.execute(() -> {
+                final AsyncSearchResponse response;
+                try {
+                    response = task.getAsyncResponse(request.getWaitForCompletion().millis(), request.getLastVersion());
+                } catch (Exception exc) {
+                    listener.onFailure(exc);
+                    return;
+                }
+                listener.onResponse(response);
+            });
         } else {
             // Task isn't running
             getSearchResponseFromIndex(request, searchId, listener);
@@ -94,33 +104,5 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                     listener.onFailure(e);
                 }
             });
-    }
-
-    void waitForCompletion(GetAsyncSearchAction.Request request, AsyncSearchTask task,
-                           long startMs, ActionListener<AsyncSearchResponse> listener) {
-        final AsyncSearchResponse response = task.getAsyncResponse(false);
-        if (response == null) {
-            // the search task is not fully initialized
-            Runnable runnable = threadPool.preserveContext(() -> waitForCompletion(request, task, startMs, listener));
-            threadPool.schedule(runnable, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
-        } else {
-            try {
-                if (response.isRunning() == false) {
-                    listener.onResponse(task.getAsyncResponse(true));
-                } else if (request.getWaitForCompletion().getMillis() < (threadPool.relativeTimeInMillis() - startMs)) {
-                    if (response.getVersion() <= request.getLastVersion()) {
-                        // return a not-modified response
-                        listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(), true));
-                    } else {
-                        listener.onResponse(task.getAsyncResponse(true));
-                    }
-                } else {
-                    Runnable runnable = threadPool.preserveContext(() -> waitForCompletion(request, task, startMs, listener));
-                    threadPool.schedule(runnable, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
-                }
-            } catch (Exception exc) {
-                listener.onFailure(exc);
-            }
-        }
     }
 }

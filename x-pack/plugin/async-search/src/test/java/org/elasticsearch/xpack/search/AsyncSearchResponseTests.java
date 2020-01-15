@@ -135,7 +135,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             TotalHits totalHits = new TotalHits(randomLongBetween(0, Long.MAX_VALUE), randomFrom(TotalHits.Relation.values()));
             InternalMax max = new InternalMax("max", 0f, DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
             InternalAggregations aggs = new InternalAggregations(Collections.singletonList(max));
-            return new PartialSearchResponse(totalShards, successfulShards, failedShards, totalHits, aggs);
+            return new PartialSearchResponse(totalShards, successfulShards, failedShards, totalHits, aggs, randomBoolean());
         }
     }
 

@@ -31,11 +31,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
@@ -62,13 +62,13 @@ class AsyncSearchStoreService {
     static final String HEADERS_FIELD = "headers";
 
     private final TaskManager taskManager;
-    private final ThreadPool threadPool;
+    private final ThreadContext threadContext;
     private final Client client;
     private final NamedWriteableRegistry registry;
 
-    AsyncSearchStoreService(TaskManager taskManager, ThreadPool threadPool, Client client, NamedWriteableRegistry registry) {
+    AsyncSearchStoreService(TaskManager taskManager, ThreadContext threadContext, Client client, NamedWriteableRegistry registry) {
         this.taskManager = taskManager;
-        this.threadPool = threadPool;
+        this.threadContext = threadContext;
         this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.registry = registry;
     }
@@ -114,7 +114,7 @@ class AsyncSearchStoreService {
             // alias does not exist but initial index does, something is broken
             andThen.onFailure(new IllegalStateException("async-search index [" + initialIndexName +
                 "] already exists but does not have alias [" + ASYNC_SEARCH_ALIAS + "]"));
-        } else if (current.isAlias() && current instanceof AliasOrIndex.Alias) {
+        } else if (current.isAlias()) {
             AliasOrIndex.Alias alias = (AliasOrIndex.Alias) current;
             if (alias.getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good
@@ -175,7 +175,7 @@ class AsyncSearchStoreService {
         }
 
         // Check authentication for the user
-        final Authentication auth = Authentication.getAuthentication(threadPool.getThreadContext());
+        final Authentication auth = Authentication.getAuthentication(threadContext);
         if (ensureAuthenticatedUserIsSame(searchTask.getOriginHeaders(), auth) == false) {
             throw new ResourceNotFoundException(searchId.getEncoded() + " not found");
         }

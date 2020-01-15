@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -81,6 +82,18 @@ public class IndicesOptions implements ToXContentFragment {
             }
 
             return states;
+        }
+
+        public static XContentBuilder toXContent(EnumSet<WildcardStates> states, XContentBuilder builder) throws IOException {
+            if (states.isEmpty()) {
+                builder.field("expand_wildcards", "none");
+            } else if (states.containsAll(EnumSet.allOf(WildcardStates.class))) {
+                builder.field("expand_wildcards", "all");
+            } else {
+                builder.field("expand_wildcards",
+                    states.stream().map(state -> state.toString().toLowerCase(Locale.ROOT)).collect(Collectors.joining(",")));
+            }
+            return builder;
         }
     }
 
@@ -195,11 +208,17 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
-     *
      * @return whether indices that are marked as throttled should be ignored
      */
     public boolean ignoreThrottled() {
         return options.contains(Option.IGNORE_THROTTLED);
+    }
+
+    /**
+     * @return a copy of the {@link WildcardStates} that these indices options will expand to
+     */
+    public EnumSet<WildcardStates> getExpandWildcards() {
+        return EnumSet.copyOf(expandWildcards);
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {

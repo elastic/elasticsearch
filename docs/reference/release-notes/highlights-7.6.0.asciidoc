@@ -1,0 +1,32 @@
+[[release-highlights-7.6.0]]
+== 7.6.0 release highlights
+++++
+<titleabbrev>7.6.0</titleabbrev>
+++++
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+[float]
+==== Histogram field type
+
+A new {ref}/histogram.html[histogram field type] has been added.  The new `histogram` field accepts
+pre-aggregated histograms which can later be used directly in the
+{ref}/search-aggregations-metrics-percentile-aggregation.html[percentiles] and
+{ref}/search-aggregations-metrics-percentile-rank-aggregation.html[percentile_ranks] aggregations.
+This allows users to pre-aggregate histogram data locally to the client and only send the final
+datastructure, saving storage and network transfer, but still retaining the ability to
+aggregate it like any other data.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Optimize sorting on long field types
+
+Sorting on a `long` field now internally rewrites into a Lucene `DistanceFeatureQuery`.
+This allows skipping non-competitive hits which leads to increased query performance.
+In benchmarks this has sped up sorts on `long` fields by 10x.
+
+// end::notable-highlights[]

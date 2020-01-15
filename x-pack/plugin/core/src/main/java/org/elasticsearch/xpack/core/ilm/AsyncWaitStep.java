@@ -43,7 +43,7 @@ public abstract class AsyncWaitStep extends Step {
 
     public interface Listener {
 
-        void onResponse(boolean conditionMet, ToXContentObject infomationContext);
+        void onResponse(boolean conditionMet, ToXContentObject informationContext);
 
         void onFailure(Exception e);
     }

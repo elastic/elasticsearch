@@ -36,6 +36,11 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
         return new GeoTileGridAggregationBuilder(name);
     }
 
+    @Override
+    protected GeoGridTiler geoGridTiler() {
+        return GeoGridTiler.GeoTileGridTiler.INSTANCE;
+    }
+
     public void testPrecision() {
         final GeoGridAggregationBuilder builder = createBuilder("_name");
 

@@ -31,7 +31,9 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.geo.CentroidCalculator;
+import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeoTestUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +41,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -48,7 +51,6 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -63,6 +65,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
@@ -82,6 +86,11 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
      * Create a new named {@link GeoGridAggregationBuilder}-derived builder
      */
     protected abstract GeoGridAggregationBuilder createBuilder(String name);
+
+    /**
+     *  return which geogrid tiler is used
+     */
+    protected abstract GeoGridTiler geoGridTiler();
 
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), iw -> {
@@ -207,7 +216,8 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     }
 
     public void testGeoShapeTrippedCircuitBreaker() throws IOException {
-        int precision = randomIntBetween(1, 10);
+        GeoGridTiler tiler = geoGridTiler();
+        int precision = randomIntBetween(1, 9); // does not go until MAX_ZOOM for performance reasons
 
         @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometryGen = ESTestCase.randomFrom(
             GeometryTestUtils::randomLine,
@@ -216,13 +226,17 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             GeometryTestUtils::randomMultiLine,
             GeometryTestUtils::randomMultiPoint
         );
-
         Geometry geometry = new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometryGen.apply(false));
+
+        // get expected number of tiles to find
+        CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, tiler,
+            new NoopCircuitBreaker("test"));
+        int numTiles = geoGridTiler().setValues(values, new MultiGeoValues.GeoShapeValue(triangleTreeReader(geometry,
+            GeoShapeCoordinateEncoder.INSTANCE)), precision);
 
         CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        // TODO: randomize
-        BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, 5200, 1.0);
+        BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, numTiles * Long.BYTES - 1, 1.0);
         circuitBreakerService.registerBreaker(settings);
 
         expectThrows(CircuitBreakingException.class, () -> testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, iw -> {
@@ -251,8 +265,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         fieldType.setName(FIELD_NAME);
 
         try {
-            Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, circuitBreakerService, fieldType);
+            GeoGridAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, circuitBreakerService, fieldType);
             aggregator.preCollection();
+            aggregator.preGetSubLeafCollectors();
             indexSearcher.search(query, aggregator);
             aggregator.postCollection();
             verify.accept((InternalGeoGrid<T>) aggregator.buildAggregation(0L));

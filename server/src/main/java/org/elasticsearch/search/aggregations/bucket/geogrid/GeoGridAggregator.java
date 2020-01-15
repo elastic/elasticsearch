@@ -66,7 +66,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     }
 
     @Override
-    public void preGetSubLeafCollectors() {
+    protected void preGetSubLeafCollectors() {
         if (values != null) {
             addRequestCircuitBreakerBytes(-values.getValuesBytes());
         }

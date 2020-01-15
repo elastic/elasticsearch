@@ -37,4 +37,9 @@ public class GeoHashGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     protected GeoGridAggregationBuilder createBuilder(String name) {
         return new GeoHashGridAggregationBuilder(name);
     }
+
+    @Override
+    protected GeoGridTiler geoGridTiler() {
+        return GeoGridTiler.GeoHashGridTiler.INSTANCE;
+    }
 }

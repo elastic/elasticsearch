@@ -4,6 +4,10 @@
 <titleabbrev>Synced flush</titleabbrev>
 ++++
 
+deprecated::[7.6, synced-flush is deprecated and will be removed in 8.0.
+Use <<indices-flush,flush>> instead. A <<indices-flush,flush>> has the
+same effect as a synced flush on Elasticsearch 7.6 or later]
+
 Performs a synced flush on one or more indices.
 
 [source,console]

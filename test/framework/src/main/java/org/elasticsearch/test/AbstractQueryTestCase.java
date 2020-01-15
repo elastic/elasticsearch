@@ -189,7 +189,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 if (expectedException == false) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
-                assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
+                assertThat(e.getMessage(), containsString("unknown field [newField]"));
             }
         }
     }

@@ -79,6 +79,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
             throw new AssertionError(e);
         }
         start(settings, transportService, clusterService, metaStateService,
-            null, null, new PersistedClusterStateService(nodeEnvironment, xContentRegistry, BigArrays.NON_RECYCLING_INSTANCE));
+            null, null, new PersistedClusterStateService(nodeEnvironment, xContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L));
     }
 }

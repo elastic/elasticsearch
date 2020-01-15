@@ -14,7 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -55,10 +55,10 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
      */
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
-    private final Client client;
+    private final OriginSettingClient client;
     private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(Client client, ThreadPool threadPool) {
+    public ExpiredModelSnapshotsRemover(OriginSettingClient client, ThreadPool threadPool) {
         super(client);
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);

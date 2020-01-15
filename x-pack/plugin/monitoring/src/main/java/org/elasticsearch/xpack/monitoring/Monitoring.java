@@ -81,6 +81,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     protected final Settings settings;
     private final boolean enabled;
 
+    private Exporters exporters;
+
     public Monitoring(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
@@ -111,8 +113,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
         exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
-        final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(),
-            threadPool.getThreadContext());
+        exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
@@ -182,6 +183,10 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public void reload(Settings settings) throws Exception {
-        HttpExporter.loadSettings(settings);
+        final List<String> changedExporters = HttpExporter.loadSettings(settings);
+        for (String changedExporter : changedExporters) {
+            final Settings settingsForChangedExporter = settings.getByPrefix("xpack.monitoring.exporters." + changedExporter);
+            exporters.setExportersSetting(settingsForChangedExporter);
+        }
     }
 }

@@ -298,7 +298,8 @@ public class HttpExporter extends Exporter {
         Setting.affixKeySetting(
             "xpack.monitoring.exporters.",
             "secure_auth_password",
-            key -> SecureSetting.secureString(key, null));
+            key -> SecureSetting.secureString(key, null),
+            TYPE_DEPENDENCY);
     /**
      * The SSL settings.
      *
@@ -702,12 +703,27 @@ public class HttpExporter extends Exporter {
         builder.setRequestConfigCallback(new TimeoutRequestConfigCallback(connectTimeout, socketTimeout));
     }
 
-    public static void loadSettings(Settings settings) {
+
+    /**
+     * Caches secure settings for use when dynamically configuring HTTP exporters
+     * @param settings settings used for configuring HTTP exporter
+     * @return names of HTTP exporters whose secure settings changed, if any
+     */
+    public static List<String> loadSettings(Settings settings) {
+        final List<String> changedExporters = new ArrayList<>();
         for (final String namespace : SECURE_AUTH_PASSWORD_SETTING.getNamespaces(settings)) {
             final Setting<?> s = SECURE_AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace);
             final String password = s.get(settings).toString();
-            SECURE_AUTH_PASSWORDS.put(namespace, password);
+            String existingPassword;
+            synchronized (SECURE_AUTH_PASSWORDS) {
+                existingPassword = SECURE_AUTH_PASSWORDS.get(namespace);
+                SECURE_AUTH_PASSWORDS.put(namespace, password);
+            }
+            if (existingPassword.equals(password) == false) {
+                changedExporters.add(namespace);
+            }
         }
+        return changedExporters;
     }
 
     /**
@@ -722,9 +738,12 @@ public class HttpExporter extends Exporter {
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
-        final String password = SECURE_AUTH_PASSWORDS.containsKey(config.name())
-            ? SECURE_AUTH_PASSWORDS.get(config.name())
-            : AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        String password;
+        synchronized (SECURE_AUTH_PASSWORDS) {
+            password = SECURE_AUTH_PASSWORDS.containsKey(config.name())
+                ? SECURE_AUTH_PASSWORDS.get(config.name())
+                : AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        }
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
@@ -889,10 +908,19 @@ public class HttpExporter extends Exporter {
         }
     }
 
-    public static List<Setting.AffixSetting<?>> getSettings() {
+    public static List<Setting.AffixSetting<?>> getDynamicSettings() {
         return Arrays.asList(HOST_SETTING, TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, AUTH_PASSWORD_SETTING, AUTH_USERNAME_SETTING,
                 BULK_TIMEOUT_SETTING, CONNECTION_READ_TIMEOUT_SETTING, CONNECTION_TIMEOUT_SETTING, PIPELINE_CHECK_TIMEOUT_SETTING,
-                PROXY_BASE_PATH_SETTING, SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING,
-                SECURE_AUTH_PASSWORD_SETTING);
+                PROXY_BASE_PATH_SETTING, SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING);
+    }
+
+    public static List<Setting.AffixSetting<?>> getSecureSettings() {
+        return List.of(SECURE_AUTH_PASSWORD_SETTING);
+    }
+
+    public static List<Setting.AffixSetting<?>> getSettings() {
+        List<Setting.AffixSetting<?>> allSettings = new ArrayList<>(getDynamicSettings());
+        allSettings.addAll(getSecureSettings());
+        return allSettings;
     }
 }

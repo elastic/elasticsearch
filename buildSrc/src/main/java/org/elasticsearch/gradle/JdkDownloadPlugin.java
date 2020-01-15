@@ -215,8 +215,9 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     String[] pathSegments = details.getRelativePath().getSegments();
                     int index = 0;
                     for (; index < pathSegments.length; index++) {
-                        if (pathSegments[index].matches("jdk-.*"))
+                        if (pathSegments[index].matches("jdk-.*")) {
                             break;
+                        }
                     }
                     assert index + 1 <= pathSegments.length;
                     String[] newPathSegments = Arrays.copyOfRange(pathSegments, index + 1, pathSegments.length);
@@ -261,8 +262,9 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     final Path entryName = Paths.get(name);
                     int index = 0;
                     for (; index < entryName.getNameCount(); index++) {
-                        if (entryName.getName(index).toString().matches("jdk-.*"))
+                        if (entryName.getName(index).toString().matches("jdk-.*")) {
                             break;
+                        }
                     }
                     if (index + 1 >= entryName.getNameCount()) {
                         // this happens on the top-level directories in the archive, which we are removing

@@ -600,7 +600,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false
             && Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false) {
             throw new TestClustersException(
-                "Can't run bin script: `" + tool + "` does not exist. " + "Is this the distribution you expect it to be ?"
+                "Can't run bin script: `" + tool + "` does not exist. Is this the distribution you expect it to be ?"
             );
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
@@ -1184,10 +1184,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
-        if (o == null || getClass() != o.getClass())
+        }
+        if (o == null || getClass() != o.getClass()) {
             return false;
+        }
         ElasticsearchNode that = (ElasticsearchNode) o;
         return Objects.equals(name, that.name) && Objects.equals(path, that.path);
     }

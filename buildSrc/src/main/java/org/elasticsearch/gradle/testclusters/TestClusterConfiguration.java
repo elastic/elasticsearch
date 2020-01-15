@@ -136,14 +136,13 @@ public interface TestClusterConfiguration {
                 }
             }
             if (conditionMet == false) {
-                String message = "`"
-                    + context
-                    + "` failed to wait for "
-                    + description
-                    + " after "
-                    + nodeUpTimeout
-                    + " "
-                    + nodeUpTimeoutUnit;
+                String message = String.format(
+                    "`%s` failed to wait for %s after %d %s",
+                    context,
+                    description,
+                    nodeUpTimeout,
+                    nodeUpTimeoutUnit
+                );
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {

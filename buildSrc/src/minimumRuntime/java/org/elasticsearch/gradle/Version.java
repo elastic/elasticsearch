@@ -108,10 +108,12 @@ public final class Version implements Comparable<Version> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
-        if (o == null || getClass() != o.getClass())
+        }
+        if (o == null || getClass() != o.getClass()) {
             return false;
+        }
         Version version = (Version) o;
         return major == version.major && minor == version.minor && revision == version.revision;
     }

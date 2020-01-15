@@ -104,15 +104,14 @@ public class VagrantBasePlugin implements Plugin<Project> {
                 if (found > minVersion[i]) {
                     break; // most significant version is good
                 } else if (found < minVersion[i]) {
-                    throw new IllegalStateException(
-                        "Unsupported version of "
-                            + tool
-                            + ". Found ["
-                            + version
-                            + "], expected ["
-                            + Stream.of(minVersion).map(String::valueOf).collect(Collectors.joining("."))
-                            + "+"
+                    String exceptionMessage = String.format(
+                        "Unsupported version of %s. Found [%s], expected [%s+",
+                        tool,
+                        version,
+                        Stream.of(minVersion).map(String::valueOf).collect(Collectors.joining("."))
                     );
+
+                    throw new IllegalStateException(exceptionMessage);
                 } // else equal, so check next element
             }
         }

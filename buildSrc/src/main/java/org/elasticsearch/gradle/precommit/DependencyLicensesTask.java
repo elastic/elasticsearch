@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -270,19 +271,18 @@ public class DependencyLicensesTask extends DefaultTask {
         String sha = getSha1(jar);
 
         if (expectedSha.equals(sha) == false) {
-            throw new GradleException(
-                "SHA has changed! Expected "
-                    + expectedSha
-                    + " for "
-                    + jarName
-                    + " but got "
-                    + sha
-                    + ". "
+            final String exceptionMessage = String.format(
+                Locale.ROOT,
+                "SHA has changed! Expected %s for %s but got %s."
                     + "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream."
-                    + "\nEither wipe your cache, fix the upstream artifact, or delete "
-                    + shaFile
-                    + " and run updateShas"
+                    + "\nEither wipe your cache, fix the upstream artifact, or delete %s and run updateShas",
+                expectedSha,
+                jarName,
+                sha,
+                shaFile
             );
+
+            throw new GradleException(exceptionMessage);
         }
         shaFiles.remove(shaFile);
     }

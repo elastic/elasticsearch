@@ -317,15 +317,15 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private static String configName(String prefix, ElasticsearchDistribution distribution) {
-        return prefix
-            + "_"
-            + distribution.getVersion()
-            + "_"
-            + distribution.getType()
-            + "_"
-            + (distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_")
-            + distribution.getFlavor()
-            + (distribution.getBundledJdk() ? "" : "_nojdk");
+        return String.format(
+            "%s_%s_%s_%s%s%s",
+            prefix,
+            distribution.getVersion(),
+            distribution.getType(),
+            distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_",
+            distribution.getFlavor(),
+            distribution.getBundledJdk() ? "" : "_nojdk"
+        );
     }
 
     private static String capitalize(String s) {

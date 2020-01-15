@@ -193,10 +193,12 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (o == null || getClass() != o.getClass())
+            }
+            if (o == null || getClass() != o.getClass()) {
                 return false;
+            }
             Descriptor that = (Descriptor) o;
             return Objects.equals(name, that.name) && Objects.equals(className, that.className) && Objects.equals(parent, that.parent);
         }

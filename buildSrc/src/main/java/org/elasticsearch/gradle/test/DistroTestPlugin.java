@@ -19,7 +19,24 @@
 
 package org.elasticsearch.gradle.test;
 
-import org.elasticsearch.gradle.BuildPlugin;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
@@ -52,24 +69,6 @@ import org.gradle.api.tasks.TaskInputs;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
-import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
-
 public class DistroTestPlugin implements Plugin<Project> {
     private static final Logger logger = Logging.getLogger(DistroTestPlugin.class);
 
@@ -91,7 +90,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         final boolean runDockerTests = shouldRunDockerTests(project);
 
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
-        project.getPluginManager().apply(BuildPlugin.class);
+        project.getPluginManager().apply("elasticsearch.build");
 
         // TODO: it would be useful to also have the SYSTEM_JAVA_HOME setup in the root project, so that running from GCP only needs
         // a java for gradle to run, and the tests are self sufficient and consistent with the java they use
@@ -253,7 +252,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             inputs.property("version", VersionProperties.getElasticsearch());
             t.doLast(action -> {
                 try {
-                    Files.writeString(distributionsPath.resolve("version"), VersionProperties.getElasticsearch());
+                    Files.write(distributionsPath.resolve("version"), VersionProperties.getElasticsearch().getBytes());
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -284,13 +283,13 @@ public class DistroTestPlugin implements Plugin<Project> {
             // inputs.property("bwc_versions", bwcVersions);
             t.doLast(action -> {
                 try {
-                    Files.writeString(upgradePath.resolve("version"), VersionProperties.getElasticsearch());
-                    Files.writeString(upgradePath.resolve("upgrade_from_version"), upgradeFromVersion);
+                    Files.write(upgradePath.resolve("version"), VersionProperties.getElasticsearch().getBytes());
+                    Files.write(upgradePath.resolve("upgrade_from_version"), upgradeFromVersion.getBytes());
                     Path upgradeMarkerPath = upgradePath.resolve("upgrade_is_oss");
                     project.delete(upgradeMarkerPath);
                     // this is always true, but bats tests rely on it. It is just temporary until bats is removed.
                     if (upgradeVersion.onOrAfter("6.3.0")) {
-                        Files.writeString(upgradeMarkerPath, "");
+                        Files.write(upgradeMarkerPath, new byte[0]);
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -484,7 +483,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static List<String> getLinuxExclusionList(Project project) {
         final String exclusionsFilename = "dockerOnLinuxExclusions";
-        final Path exclusionsPath = project.getRootDir().toPath().resolve(Path.of(".ci", exclusionsFilename));
+        final Path exclusionsPath = project.getRootDir().toPath().resolve(".ci").resolve(exclusionsFilename);
 
         try {
             return Files.readAllLines(exclusionsPath)
@@ -504,7 +503,6 @@ public class DistroTestPlugin implements Plugin<Project> {
      * method determines whether the Docker tests should be run on the host
      * OS. Essentially, unless an OS and version is specifically excluded, we expect
      * to be able to run Docker and test the Docker images.
-     * @param project
      */
     private static boolean shouldRunDockerTests(Project project) {
         switch (OS.current()) {

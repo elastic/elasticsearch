@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.AliasOrIndex.Alias;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
+
+import java.util.List;
 
 /**
  * After we performed the index rollover we wait for the the configured number of shards for the rolled over index (ie. newly created
@@ -41,28 +42,27 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         }
 
         AliasOrIndex aliasOrIndex = clusterState.metaData().getAliasAndIndexLookup().get(rolloverAlias);
-        assert aliasOrIndex.isAlias() : "the " + rolloverAlias + " alias must be an alias but it is an index";
+        assert aliasOrIndex.isAlias() : rolloverAlias + " must be an alias but it is an index";
 
-        String rolledIndexName = null;
-        for (IndexMetaData indexMeta : aliasOrIndex.getIndices()) {
-            ImmutableOpenMap<String, AliasMetaData> aliases = indexMeta.getAliases();
-            if (aliases != null) {
-                AliasMetaData aliasMetaData = aliases.get(rolloverAlias);
-                if (aliasMetaData != null && aliasMetaData.writeIndex() != null && aliasMetaData.writeIndex()) {
-                    rolledIndexName = indexMeta.getIndex().getName();
-                    break;
-                }
-            }
+        Alias alias = (Alias) aliasOrIndex;
+        IndexMetaData aliasWriteIndex = alias.getWriteIndex();
+        String rolledIndexName;
+        String waitForActiveShardsSettingValue;
+        if (aliasWriteIndex != null) {
+            rolledIndexName = aliasWriteIndex.getIndex().getName();
+            waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
+        } else {
+            // if the rollover was not performed on a write index alias, the alias will be moved to the new index and it will be the only
+            // index this alias points to
+            List<IndexMetaData> indices = alias.getIndices();
+            assert indices.size() == 1 : "when performing rollover on alias with is_write_index = false the alias must point to only " +
+                "one index";
+            IndexMetaData indexMetaData = indices.get(0);
+            rolledIndexName = indexMetaData.getIndex().getName();
+            waitForActiveShardsSettingValue = indexMetaData.getSettings().get("index.write.wait_for_active_shards");
         }
-        assert rolledIndexName != null : "the " + rolloverAlias + " alias must be a write alias on one index";
 
-        int waitForActiveShardsCount = originalIndexMeta.getSettings().getAsInt("index.write.wait_for_active_shards", -2);
-        ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
-        if (waitForActiveShardsCount == -1) {
-            activeShardCount = ActiveShardCount.ALL;
-        } else if (waitForActiveShardsCount >= 0) {
-            activeShardCount = ActiveShardCount.from(waitForActiveShardsCount);
-        }
+        ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
         return new Result(activeShardCount.enoughShardsActive(clusterState, rolledIndexName), null);
     }
 }

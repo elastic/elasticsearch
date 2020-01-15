@@ -88,9 +88,13 @@ public class Shell {
         Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
         Platforms.onWindows(() -> run(
             "$account = New-Object System.Security.Principal.NTAccount '" + System.getenv("username")  + "'; " +
-                "$tempConf = Get-ChildItem '" + path + "' -Recurse; " +
-                "$tempConf += Get-Item '" + path + "'; " +
-                "$tempConf | ForEach-Object { " +
+                "$pathInfo = Get-Item '" + path + "'; " +
+                "$toChown = @(); " +
+                "if ($pathInfo.PSIsContainer) { " +
+                "  $toChown += Get-ChildItem '" + path + "' -Recurse; " +
+                "}" +
+                "$toChown += $pathInfo; " +
+                "$toChown | ForEach-Object { " +
                 "$acl = Get-Acl $_.FullName; " +
                 "$acl.SetOwner($account); " +
                 "Set-Acl $_.FullName $acl " +

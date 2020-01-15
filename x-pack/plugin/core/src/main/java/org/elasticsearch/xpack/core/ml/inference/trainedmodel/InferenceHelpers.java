@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -20,17 +21,13 @@ public final class InferenceHelpers {
 
     private InferenceHelpers() { }
 
-    public static List<ClassificationInferenceResults.TopClassEntry> topClasses(List<Double> probabilities,
-                                                                                List<String> classificationLabels,
-                                                                                int numToInclude) {
-        if (numToInclude == 0) {
-            return Collections.emptyList();
-        }
-        int[] sortedIndices = IntStream.range(0, probabilities.size())
-            .boxed()
-            .sorted(Comparator.comparing(probabilities::get).reversed())
-            .mapToInt(i -> i)
-            .toArray();
+    /**
+     * @return Tuple of the highest scored index and the top classes
+     */
+    public static Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses(List<Double> probabilities,
+                                                                                                List<String> classificationLabels,
+                                                                                                @Nullable double[] classificationWeights,
+                                                                                                int numToInclude) {
 
         if (classificationLabels != null && probabilities.size() != classificationLabels.size()) {
             throw ExceptionsHelper
@@ -38,7 +35,24 @@ public final class InferenceHelpers {
                     "model returned classification probabilities of size [{}] which is not equal to classification labels size [{}]",
                     null,
                     probabilities.size(),
-                    classificationLabels);
+                    classificationLabels.size());
+        }
+
+        List<Double> scores = classificationWeights == null ?
+            probabilities :
+            IntStream.range(0, probabilities.size())
+                .mapToDouble(i -> probabilities.get(i) * classificationWeights[i])
+                .boxed()
+                .collect(Collectors.toList());
+
+        int[] sortedIndices = IntStream.range(0, probabilities.size())
+            .boxed()
+            .sorted(Comparator.comparing(scores::get).reversed())
+            .mapToInt(i -> i)
+            .toArray();
+
+        if (numToInclude == 0) {
+            return Tuple.tuple(sortedIndices[0], Collections.emptyList());
         }
 
         List<String> labels = classificationLabels == null ?
@@ -50,26 +64,24 @@ public final class InferenceHelpers {
         List<ClassificationInferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
-            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(labels.get(idx), probabilities.get(idx)));
+            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(labels.get(idx), probabilities.get(idx), scores.get(idx)));
         }
 
-        return topClassEntries;
+        return Tuple.tuple(sortedIndices[0], topClassEntries);
     }
 
-    public static String classificationLabel(double inferenceValue, @Nullable List<String> classificationLabels) {
-        assert inferenceValue == Math.rint(inferenceValue);
+    public static String classificationLabel(Integer inferenceValue, @Nullable List<String> classificationLabels) {
         if (classificationLabels == null) {
             return String.valueOf(inferenceValue);
         }
-        int label = Double.valueOf(inferenceValue).intValue();
-        if (label < 0 || label >= classificationLabels.size()) {
+        if (inferenceValue < 0 || inferenceValue >= classificationLabels.size()) {
             throw ExceptionsHelper.serverError(
                 "model returned classification value of [{}] which is not a valid index in classification labels [{}]",
                 null,
-                label,
+                inferenceValue,
                 classificationLabels);
         }
-        return classificationLabels.get(label);
+        return classificationLabels.get(inferenceValue);
     }
 
     public static Double toDouble(Object value) {

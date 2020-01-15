@@ -58,6 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -211,30 +212,22 @@ public class MetaDataIndexTemplateService {
      *
      */
     public static List<IndexTemplateMetaData> findTemplates(MetaData metaData, String indexName, @Nullable Boolean isHidden) {
+        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
         final List<IndexTemplateMetaData> matchedTemplates = new ArrayList<>();
         for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
             final IndexTemplateMetaData template = cursor.value;
             if (isHidden == null || isHidden == Boolean.FALSE) {
-                final boolean matched = template.patterns().stream()
-                    .anyMatch(pattern -> Regex.simpleMatch(pattern, indexName));
+                final boolean matched = template.patterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
                     matchedTemplates.add(template);
                 }
             } else {
                 assert isHidden == Boolean.TRUE;
-
-                boolean skip = false;
-                boolean matched = false;
-                for (String pattern : template.patterns()) {
-                    if (Regex.isMatchAllPattern(pattern)) {
-                        skip = true;
-                        break;
+                final boolean isNotMatchAllTemplate = template.patterns().stream().noneMatch(Regex::isMatchAllPattern);
+                if (isNotMatchAllTemplate) {
+                    if (template.patterns().stream().anyMatch(patternMatchPredicate)) {
+                        matchedTemplates.add(template);
                     }
-                    matched = matched || Regex.simpleMatch(pattern, indexName);
-                }
-
-                if (skip == false && matched) {
-                    matchedTemplates.add(template);
                 }
             }
         }

@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.s3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -33,12 +34,19 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 /**
@@ -131,6 +139,13 @@ class S3Repository extends BlobStoreRepository {
 
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
+    /**
+     * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
+     * backwards compatible snapshot format from before
+     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
+     * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
+     * doing repository operations in rapid succession.
+     */
     static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
         "cooldown_period",
         new TimeValue(3, TimeUnit.MINUTES),
@@ -156,9 +171,11 @@ class S3Repository extends BlobStoreRepository {
 
     private final String cannedACL;
 
-    private final long coolDown;
-
-    private final AtomicLong lastWriteIndexN = new AtomicLong(-1L);
+    /**
+     * Time period to delay repository operations by after finalizing or deleting a snapshot.
+     * See {@link #COOLDOWN_PERIOD} for details.
+     */
+    private final TimeValue coolDown;
 
     /**
      * Constructs an s3 backed repository
@@ -191,7 +208,7 @@ class S3Repository extends BlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
-        coolDown = COOLDOWN_PERIOD.get(metadata.settings()).millis();
+        coolDown = COOLDOWN_PERIOD.get(metadata.settings());
 
         logger.debug(
                 "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
@@ -203,10 +220,56 @@ class S3Repository extends BlobStoreRepository {
                 storageClass);
     }
 
+    /**
+     * Holds a reference to delayed repository operation {@link Scheduler.Cancellable} so it can be cancelled should the repository be
+     * closed concurrently.
+     */
+    private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
+
     @Override
-    protected void writeIndexGen(RepositoryData repositoryData, long expectedGen, boolean writeShardGens, ActionListener<Void> listener) {
-        lastWriteIndexN.set(threadPool.relativeTimeInMillis());
-        super.writeIndexGen(repositoryData, expectedGen, writeShardGens, listener);
+    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
+                                 List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
+                                 MetaData clusterMetaData, Map<String, Object> userMetadata, boolean writeShardGens,
+                                 ActionListener<SnapshotInfo> listener) {
+        if (writeShardGens == false) {
+            listener = delayedListener(listener);
+        }
+        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+            includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
+    }
+
+    @Override
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
+        if (writeShardGens == false) {
+            listener = delayedListener(listener);
+        }
+        super.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
+    }
+
+    /**
+     * Wraps given listener such that it is executed with a delay of {@link #coolDown} on the snapshot thread-pool after being invoked.
+     * See {@link #COOLDOWN_PERIOD} for details.
+     */
+    private <T> ActionListener<T> delayedListener(ActionListener<T> listener) {
+        final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
+            final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+            assert cancellable != null;
+        });
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
+                    threadPool.schedule(() -> wrappedListener.onResponse(response), coolDown, ThreadPool.Names.SNAPSHOT));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
+                    threadPool.schedule(() -> wrappedListener.onFailure(e), coolDown, ThreadPool.Names.SNAPSHOT));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
+        };
     }
 
     private static BlobPath buildBasePath(RepositoryMetaData metadata) {
@@ -232,5 +295,15 @@ class S3Repository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    protected void doClose() {
+        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+        if (cancellable != null) {
+            logger.warn("Repository closed during cooldown period");
+            cancellable.cancel();
+        }
+        super.doClose();
     }
 }

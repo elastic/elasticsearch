@@ -32,8 +32,7 @@ import java.io.IOException;
 
 public class InboundDecoder implements Releasable {
 
-    static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {
-    });
+    static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
 
     private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
@@ -75,7 +74,7 @@ public class InboundDecoder implements Releasable {
                     if (isDone()) {
                         finishMessage(channel);
                     }
-                    return bytesConsumed;
+                    return headerBytesToRead;
                 }
             }
         } else {

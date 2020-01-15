@@ -129,7 +129,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
-        Header requestHeader = new Header(fullRequestBytes.length(), requestId, TransportStatus.setRequest((byte) 0), version);
+        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, requestContent, false);
         handler.inboundMessage(channel, requestMessage);
 
@@ -149,7 +149,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
-        Header responseHeader = new Header(fullRequestBytes.length(), requestId, responseStatus, version);
+        Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, version);
         AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, responseContent, false);
         handler.inboundMessage(channel, responseMessage);
 

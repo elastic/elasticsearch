@@ -195,6 +195,26 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding_chg.round(time("2014-11-02T06:01:01", chg)), isDate(time("2014-11-02T06:00:00", chg), chg));
     }
 
+    public void testOffsetRounding() {
+        long twoHours = TimeUnit.HOURS.toMillis(2);
+        long oneDay = TimeUnit.DAYS.toMillis(1);
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(twoHours).build();
+        assertThat(rounding.round(0), equalTo(-oneDay + twoHours));
+        assertThat(rounding.round(twoHours), equalTo(twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-oneDay + twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
+
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(-twoHours).build();
+        assertThat(rounding.round(0), equalTo(-twoHours));
+        assertThat(rounding.round(oneDay - twoHours), equalTo(oneDay - twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(oneDay - twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
+    }
+
     /**
      * Randomized test on TimeUnitRounding. Test uses random
      * {@link DateTimeUnit} and {@link ZoneId} and often (50% of the time)

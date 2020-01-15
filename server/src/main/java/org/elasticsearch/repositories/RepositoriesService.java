@@ -150,7 +150,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                         for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
                             if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
-                                if (newRepositoryMetaData.equals(repositoryMetaData)) {
+                                if (newRepositoryMetaData.equalsIgnoreGenerations(repositoryMetaData)) {
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
                                 }
@@ -292,7 +292,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             RepositoriesMetaData newMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
 
             // Check if repositories got changed
-            if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equals(newMetaData))) {
+            if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equalsIgnoreGenerations(newMetaData))) {
+                for (Repository repo : repositories.values()) {
+                    repo.updateState(state);
+                }
                 return;
             }
 

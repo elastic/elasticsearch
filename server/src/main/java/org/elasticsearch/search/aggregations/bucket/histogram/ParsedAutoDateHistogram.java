@@ -52,7 +52,7 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         return buckets;
     }
 
-    private static ObjectParser<ParsedAutoDateHistogram, Void> PARSER =
+    private static final ObjectParser<ParsedAutoDateHistogram, Void> PARSER =
             new ObjectParser<>(ParsedAutoDateHistogram.class.getSimpleName(), true, ParsedAutoDateHistogram::new);
     static {
         declareMultiBucketAggregationFields(PARSER,

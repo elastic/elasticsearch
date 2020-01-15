@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -42,6 +43,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -78,6 +80,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -268,6 +271,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repositoriesService.repository(repositoryName).getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repositoryData -> {
+            final boolean hasOldFormatSnapshots = hasOldVersionSnapshots(repositoryName, repositoryData, null);
             clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
                 private SnapshotsInProgress.Entry newSnapshot = null;
@@ -301,7 +305,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             repositoryData.getGenId(),
                             null,
                             request.userMetadata(),
-                            clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION));
+                            hasOldFormatSnapshots == false &&
+                                clusterService.state().nodes().getMinNodeVersion().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION));
                         initializingSnapshots.add(newSnapshot.snapshot());
                         snapshots = new SnapshotsInProgress(newSnapshot);
                     } else {
@@ -347,6 +352,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }, listener::onFailure);
+    }
+
+    public boolean hasOldVersionSnapshots(String repositoryName, RepositoryData repositoryData, @Nullable SnapshotId excluded) {
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        final boolean hasOldFormatSnapshots;
+        if (snapshotIds.isEmpty()) {
+            hasOldFormatSnapshots = false;
+        } else {
+            if (repositoryData.shardGenerations().totalShards() > 0) {
+                hasOldFormatSnapshots = false;
+            } else {
+                try {
+                    final Repository repository = repositoriesService.repository(repositoryName);
+                    hasOldFormatSnapshots = snapshotIds.stream().filter(snapshotId -> snapshotId.equals(excluded) == false).anyMatch(
+                        snapshotId -> {
+                            final Version known = repositoryData.getVersion(snapshotId);
+                            return (known == null ? repository.getSnapshotInfo(snapshotId).version() : known)
+                                .before(SHARD_GEN_IN_REPO_DATA_VERSION);
+                        });
+                } catch (SnapshotMissingException e) {
+                    logger.warn("Failed to load snapshot metadata, assuming repository is in old format", e);
+                    return true;
+                }
+            }
+        }
+        assert hasOldFormatSnapshots == false || repositoryData.shardGenerations().totalShards() == 0 :
+            "Found non-empty shard generations [" + repositoryData.shardGenerations() + "] but repository contained old version snapshots";
+        return hasOldFormatSnapshots;
     }
 
     /**
@@ -566,16 +599,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private void cleanupAfterError(Exception exception) {
             threadPool.generic().execute(() -> {
                 if (snapshotCreated) {
+                    final MetaData metaData = clusterService.state().metaData();
                     repositoriesService.repository(snapshot.snapshot().getRepository())
                         .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                            buildGenerations(snapshot),
+                            buildGenerations(snapshot, metaData),
                             snapshot.startTime(),
                             ExceptionsHelper.stackTrace(exception),
                             0,
                             Collections.emptyList(),
                             snapshot.repositoryStateId(),
                             snapshot.includeGlobalState(),
-                            metaDataForSnapshot(snapshot, clusterService.state().metaData()),
+                            metaDataForSnapshot(snapshot, metaData),
                             snapshot.userMetadata(),
                             snapshot.useShardGenerations(),
                             ActionListener.runAfter(ActionListener.wrap(ignored -> {
@@ -591,11 +625,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot) {
+    private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, MetaData metaData) {
         ShardGenerations.Builder builder = ShardGenerations.builder();
         final Map<String, IndexId> indexLookup = new HashMap<>();
         snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
-        snapshot.shards().forEach(c -> builder.put(indexLookup.get(c.key.getIndexName()), c.key.id(), c.value.generation()));
+        snapshot.shards().forEach(c -> {
+            if (metaData.index(c.key.getIndex()) == null) {
+                assert snapshot.partial() :
+                    "Index [" + c.key.getIndex() + "] was deleted during a snapshot but snapshot was not partial.";
+                return;
+            }
+            final IndexId indexId = indexLookup.get(c.key.getIndexName());
+            if (indexId != null) {
+                builder.put(indexId, c.key.id(), c.value.generation());
+            }
+        });
         return builder.build();
     }
 
@@ -1030,12 +1074,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                     }
                 }
+                final ShardGenerations shardGenerations = buildGenerations(entry, metaData);
                 repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
-                    buildGenerations(entry),
+                    shardGenerations,
                     entry.startTime(),
                     failure,
-                    entry.shards().size(),
+                    entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                     unmodifiableList(shardFailures),
                     entry.repositoryStateId(),
                     entry.includeGlobalState(),
@@ -1051,8 +1096,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(final Exception e) {
                 Snapshot snapshot = entry.snapshot();
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
-                removeSnapshotFromClusterState(snapshot, null, e);
+                if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+                    // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
+                    // will try ending this snapshot again
+                    logger.debug(() -> new ParameterizedMessage(
+                        "[{}] failed to update cluster state during snapshot finalization", snapshot), e);
+                    endingSnapshots.remove(snapshot);
+                } else {
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
+                    removeSnapshotFromClusterState(snapshot, null, e);
+                }
             }
         });
     }
@@ -1380,12 +1433,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                               Version version) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
-            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
+            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshot(snapshot.getSnapshotId(),
+                repositoryStateId,
+                version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION) &&
+                    hasOldVersionSnapshots(snapshot.getRepository(), repositoryData, snapshot.getSnapshotId()) == false,
                 ActionListener.wrap(v -> {
                         logger.info("snapshot [{}] deleted", snapshot);
                         removeSnapshotDeletionFromClusterState(snapshot, null, l);
                     }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
-                ));
+                )), ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)));
         }));
     }
 
@@ -1511,21 +1567,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Set<Index> indices = new HashSet<>();
         for (final SnapshotsInProgress.Entry entry : snapshots.entries()) {
             if (entry.partial() == false) {
-                if (entry.state() == State.INIT) {
-                    for (IndexId index : entry.indices()) {
-                        IndexMetaData indexMetaData = currentState.metaData().index(index.getName());
-                        if (indexMetaData != null && indicesToCheck.contains(indexMetaData.getIndex())) {
-                            indices.add(indexMetaData.getIndex());
-                        }
-                    }
-                } else {
-                    for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
-                        Index index = shard.key.getIndex();
-                        if (indicesToCheck.contains(index)
-                            && shard.value.state().completed() == false
-                            && currentState.getMetaData().index(index) != null) {
-                            indices.add(index);
-                        }
+                for (IndexId index : entry.indices()) {
+                    IndexMetaData indexMetaData = currentState.metaData().index(index.getName());
+                    if (indexMetaData != null && indicesToCheck.contains(indexMetaData.getIndex())) {
+                        indices.add(indexMetaData.getIndex());
                     }
                 }
             }

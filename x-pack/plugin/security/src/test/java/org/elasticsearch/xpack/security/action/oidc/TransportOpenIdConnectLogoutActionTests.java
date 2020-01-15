@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectTestCase;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -182,8 +182,8 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
-        oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(sslSettings, env), mock(UserRoleMapper.class),
-            mock(ResourceWatcherService.class));
+        oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(TestEnvironment.newEnvironment(sslSettings)),
+            mock(UserRoleMapper.class), mock(ResourceWatcherService.class));
         when(realms.realm(realmConfig.name())).thenReturn(oidcRealm);
     }
 

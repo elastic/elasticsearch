@@ -26,7 +26,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -46,10 +45,11 @@ import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -105,7 +105,7 @@ public class Docker {
 
         waitForElasticsearchToStart();
 
-        return Installation.ofContainer(distribution);
+        return Installation.ofContainer(dockerShell, distribution);
     }
 
     /**
@@ -166,7 +166,7 @@ public class Docker {
      * Waits for the Elasticsearch process to start executing in the container.
      * This is called every time a container is started.
      */
-    private static void waitForElasticsearchToStart() {
+    public static void waitForElasticsearchToStart() {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 
@@ -276,7 +276,7 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec " + "--user elasticsearch:root " + "--tty " + containerId + " " + script);
+            return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
         }
     }
 
@@ -438,14 +438,21 @@ public class Docker {
             "elasticsearch",
             "elasticsearch-cli",
             "elasticsearch-env",
-            "elasticsearch-enve",
             "elasticsearch-keystore",
             "elasticsearch-node",
             "elasticsearch-plugin",
             "elasticsearch-shard"
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.textile").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+
+        // These are installed to help users who are working with certificates.
+        Stream.of("zip", "unzip").forEach(cliPackage -> {
+            // We could run `yum list installed $pkg` but that causes yum to call out to the network.
+            // rpm does the job just as well.
+            final Shell.Result result = dockerShell.runIgnoreExitCode("rpm -q " + cliPackage);
+            assertTrue(cliPackage + " ought to be installed. " + result, result.isSuccess());
+        });
     }
 
     private static void verifyDefaultInstallation(Installation es) {
@@ -495,7 +502,7 @@ public class Docker {
         }
     }
 
-    public static JsonNode getJson(String path) throws IOException {
+    public static JsonNode getJson(String path) throws Exception {
         final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/" + path));
 
         ObjectMapper mapper = new ObjectMapper();

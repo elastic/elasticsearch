@@ -120,3 +120,6 @@ The following parameters are accepted by `boolean` fields:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

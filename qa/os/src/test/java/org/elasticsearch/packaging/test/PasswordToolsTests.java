@@ -59,10 +59,11 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
-            Shell.Result result = installation.executables().elasticsearchSetupPasswords.run(sh, "auto --batch", null);
+            Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
-                String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue());
+                String response = ServerUtils.makeRequest(
+                    Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
                 assertThat(response, containsString("You Know, for Search"));
             }
         });
@@ -106,12 +107,12 @@ public class PasswordToolsTests extends PackagingTestCase {
             });
         }
 
-        installation.executables().elasticsearchKeystore.run(sh, "add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
+        installation.executables().keystoreTool.run("add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
 
         assertWhileRunning(() -> {
             String response = ServerUtils.makeRequest(
                 Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
-                "elastic", BOOTSTRAP_PASSWORD);
+                "elastic", BOOTSTRAP_PASSWORD, null);
             assertThat(response, containsString("\"status\":\"green\""));
         });
     }
@@ -119,11 +120,12 @@ public class PasswordToolsTests extends PackagingTestCase {
     public void test40GeneratePasswordsBootstrapAlreadySet() throws Exception {
         assertWhileRunning(() -> {
 
-            Shell.Result result = installation.executables().elasticsearchSetupPasswords.run(sh, "auto --batch", null);
+            Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
-                String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue());
+                String response = ServerUtils.makeRequest(
+                    Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
                 assertThat(response, containsString("You Know, for Search"));
             }
         });

@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleNa
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;

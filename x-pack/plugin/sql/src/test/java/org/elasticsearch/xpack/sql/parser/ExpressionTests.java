@@ -6,22 +6,22 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.literal.Interval;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.Case;
+import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfConditional;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.literal.Interval;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.Duration;
 import java.time.Period;
@@ -493,8 +493,8 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(3, c.conditions().size());
         IfConditional ifc = c.conditions().get(0);
         assertEquals("WHEN a = 1 THEN 'one'", ifc.sourceText());
-        assertThat(ifc.condition().toString(), startsWith("Equals[?a,1]#"));
-        assertEquals("'one'=one", ifc.result().toString());
+        assertThat(ifc.condition().toString(), startsWith("a = 1"));
+        assertEquals("one", ifc.result().toString());
         assertEquals(Literal.NULL, c.elseResult());
 
         expr = parser.createExpression(
@@ -508,7 +508,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(2, c.conditions().size());
         ifc = c.conditions().get(0);
         assertEquals("WHEN a = 1 THEN 'one'", ifc.sourceText());
-        assertEquals("'many'=many", c.elseResult().toString());
+        assertEquals("many", c.elseResult().toString());
     }
 
     public void testCaseWithOperand() {
@@ -523,8 +523,8 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(3, c.conditions().size());
         IfConditional ifc = c.conditions().get(0);
         assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
-        assertThat(ifc.condition().toString(), startsWith("Equals[?a,1]#"));
-        assertEquals("'one'=one", ifc.result().toString());
+        assertThat(ifc.condition().toString(), startsWith("WHEN 1 THEN 'one'"));
+        assertEquals("one", ifc.result().toString());
         assertEquals(Literal.NULL, c.elseResult());
 
         expr = parser.createExpression(
@@ -537,6 +537,6 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(2, c.conditions().size());
         ifc = c.conditions().get(0);
         assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
-        assertEquals("'many'=many", c.elseResult().toString());
+        assertEquals("many", c.elseResult().toString());
     }
 }

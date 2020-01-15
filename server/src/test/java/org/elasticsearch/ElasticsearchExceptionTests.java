@@ -164,6 +164,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         {
+            final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(
+                new RemoteTransportException("abc", new IllegalArgumentException("foobar")));
+            assertEquals(foobars.length, 1);
+            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertEquals("foobar", foobars[0].getMessage());
+            assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
+            assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
+        }
+
+        {
             XContentParseException inner = new XContentParseException(null, "inner");
             XContentParseException outer = new XContentParseException(null, "outer", inner);
             final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);
@@ -795,9 +805,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
 
                 expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
-                // strangely, the wrapped exception appears as the root cause...
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=broadcast_shard_operation_failed_exception, " +
-                        "reason=F]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 expected.addSuppressed(suppressed);
                 break;
 

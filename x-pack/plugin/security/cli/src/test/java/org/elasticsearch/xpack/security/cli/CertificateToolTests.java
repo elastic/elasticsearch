@@ -380,7 +380,9 @@ public class CertificateToolTests extends ESTestCase {
             assertTrue(Files.exists(cert));
             Path keyFile = zipRoot.resolve(filename + "/" + filename + ".key");
             assertTrue(Files.exists(keyFile));
-            assertTrue(Files.readString(keyFile).contains("DEK-Info: AES-128-CBC"));
+            if (keyPassword != null) {
+                assertTrue(Files.readString(keyFile).contains("DEK-Info: AES-128-CBC"));
+            }
             final Path p12 = zipRoot.resolve(filename + "/" + filename + ".p12");
             try (InputStream input = Files.newInputStream(cert)) {
                 X509Certificate certificate = readX509Certificate(input);

@@ -355,7 +355,9 @@ public class CertificateToolTests extends ESTestCase {
                         final PEMDecryptorProvider pemDecryptorProvider = Mockito.mock(PEMDecryptorProvider.class);
                         try {
                             ((PEMEncryptedKeyPair) parsed).decryptKeyPair(pemDecryptorProvider);
-                        } catch (Exception e) {}
+                        } catch (Exception e) {
+                            // Catch error thrown by the empty mock, we are only interested in the argument passed in
+                        }
                         finally {
                             Mockito.verify(pemDecryptorProvider).get("AES-128-CBC");
                         }

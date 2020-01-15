@@ -17,10 +17,21 @@ import java.util.Set;
 
 public class IndexUsageTransportActionTests extends ESTestCase {
 
+    private static void collectTypes(Map<String, ?> mapping, Set<String> types) {
+        IndexUsageTransportAction.visitMapping(mapping,
+                m -> {
+                    if (m.containsKey("type")) {
+                        types.add(m.get("type").toString());
+                    } else {
+                        types.add("object");
+                    }
+                });
+    }
+
     public void testCountTopLevelFields() {
         Map<String, Object> mapping = new HashMap<>();
         Set<String> fields = new HashSet<>();
-        IndexUsageTransportAction.populateFieldTypesFromObject(mapping, fields);
+        collectTypes(mapping, fields);
         assertEquals(Collections.emptySet(), fields);
 
         Map<String, Object> properties = new HashMap<>();
@@ -29,19 +40,19 @@ public class IndexUsageTransportActionTests extends ESTestCase {
         Map<String, Object> keywordField = new HashMap<>();
         keywordField.put("type", "keyword");
         properties.put("foo", keywordField);
-        IndexUsageTransportAction.populateFieldTypesFromObject(mapping, fields);
+        collectTypes(mapping, fields);
         assertEquals(Collections.singleton("keyword"), fields);
 
         Map<String, Object> IndexField = new HashMap<>();
         IndexField.put("type", "integer");
         properties.put("bar", IndexField);
         fields = new HashSet<>();
-        IndexUsageTransportAction.populateFieldTypesFromObject(mapping, fields);
+        collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "integer")), fields);
 
         properties.put("baz", IndexField);
         fields = new HashSet<>();
-        IndexUsageTransportAction.populateFieldTypesFromObject(mapping, fields);
+        collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "integer")), fields);
     }
 
@@ -63,7 +74,7 @@ public class IndexUsageTransportActionTests extends ESTestCase {
         mapping.put("properties", properties);
 
         Set<String> usedFields = new HashSet<>();
-        IndexUsageTransportAction.populateFieldTypesFromObject(mapping, usedFields);
+        collectTypes(mapping, usedFields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "text")), usedFields);
     }
 
@@ -83,12 +94,12 @@ public class IndexUsageTransportActionTests extends ESTestCase {
         properties.put("obj", objectMapping);
         mapping.put("properties", properties);
         Set<String> fields = new HashSet<>();
-        IndexUsageTransportAction.populateFieldTypesFromObject(mapping, fields);
+        collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "object")), fields);
 
         properties.put("bar", keywordField);
         fields = new HashSet<>();
-        IndexUsageTransportAction.populateFieldTypesFromObject(mapping, fields);
+        collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "object")), fields);
     }
 

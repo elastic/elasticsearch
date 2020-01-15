@@ -50,47 +50,117 @@ public class IndexFeatureSetUsageTests extends AbstractWireSerializingTestCase<I
             tokenFilters.add("english");
         }
 
-        return new IndexFeatureSetUsage(fields, charFilters, tokenizers, tokenFilters, analyzers);
+        Set<String> builtInCharFilters = new HashSet<>();
+        if (randomBoolean()) {
+            builtInCharFilters.add("html_strip");
+        }
+
+        Set<String> builtInTokenizers = new HashSet<>();
+        if (randomBoolean()) {
+            builtInTokenizers.add("keyword");
+        }
+
+        Set<String> builtInTokenFilters = new HashSet<>();
+        if (randomBoolean()) {
+            builtInTokenFilters.add("trim");
+        }
+
+        Set<String> builtInAnalyzers = new HashSet<>();
+        if (randomBoolean()) {
+            builtInAnalyzers.add("french");
+        }
+
+        return new IndexFeatureSetUsage(fields,
+                charFilters, tokenizers, tokenFilters, analyzers,
+                builtInCharFilters, builtInTokenizers, builtInTokenFilters, builtInAnalyzers);
     }
 
     @Override
     protected IndexFeatureSetUsage mutateInstance(IndexFeatureSetUsage instance) throws IOException {
-        switch (randomInt(4)) {
+        switch (randomInt(8)) {
         case 0:
             Set<String> fields = new HashSet<>(instance.getUsedFieldTypes());
             if (fields.add("keyword") == false) {
                 fields.remove("keyword");
             }
             return new IndexFeatureSetUsage(fields, instance.getUsedCharFilterTypes(), instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes());
+                    instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes(), instance.getUsedBuiltInCharFilters(),
+                    instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers());
         case 1:
             Set<String> charFilters = new HashSet<>(instance.getUsedCharFilterTypes());
             if (charFilters.add("pattern_replace") == false) {
                 charFilters.remove("pattern_replace");
             }
             return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), charFilters, instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes());
+                    instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes(), instance.getUsedBuiltInCharFilters(),
+                    instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers());
         case 2:
             Set<String> tokenizers = new HashSet<>(instance.getUsedTokenizerTypes());
             if (tokenizers.add("whitespace") == false) {
                 tokenizers.remove("whitespace");
             }
             return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(), tokenizers,
-                    instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes());
+                    instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes(), instance.getUsedBuiltInCharFilters(),
+                    instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers());
         case 3:
             Set<String> tokenFilters = new HashSet<>(instance.getUsedTokenFilterTypes());
             if (tokenFilters.add("stop") == false) {
                 tokenFilters.remove("stop");
             }
-            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(), instance.getUsedTokenizerTypes(),
-                    tokenFilters, instance.getUsedAnalyzerTypes());
+            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(),
+                    tokenFilters, instance.getUsedAnalyzerTypes(), instance.getUsedBuiltInCharFilters(),
+                    instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers());
         case 4:
             Set<String> analyzers = new HashSet<>(instance.getUsedAnalyzerTypes());
             if (analyzers.add("english") == false) {
                 analyzers.remove("english");
             }
-            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(), instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(), analyzers);
+            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(), instance.getUsedTokenFilterTypes(), analyzers,
+                    instance.getUsedBuiltInCharFilters(), instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers());
+        case 5:
+            Set<String> builtInCharFilters = new HashSet<>();
+            if (builtInCharFilters.add("html_strip") == false) {
+                builtInCharFilters.remove("html_strip");
+            }
+            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(),
+                    instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes(), builtInCharFilters,
+                    instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers());
+        case 6:
+            Set<String> builtInTokenizers = new HashSet<>();
+            if (builtInTokenizers.add("keyword") == false) {
+                builtInTokenizers.remove("keyword");
+            }
+            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(), instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes(),
+                    instance.getUsedBuiltInCharFilters(), builtInTokenizers, instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers());
+        case 7:
+            Set<String> builtInTokenFilters = new HashSet<>();
+            if (builtInTokenFilters.add("trim") == false) {
+                builtInTokenFilters.remove("trim");
+            }
+            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(), instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes(),
+                    instance.getUsedBuiltInCharFilters(), instance.getUsedBuiltInTokenizers(), builtInTokenFilters,
+                    instance.getUsedBuiltInAnalyzers());
+        case 8:
+            Set<String> builtInAnalyzers = new HashSet<>();
+            if (builtInAnalyzers.add("french") == false) {
+                builtInAnalyzers.remove("french");
+            }
+            return new IndexFeatureSetUsage(instance.getUsedFieldTypes(), instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(), instance.getUsedTokenFilterTypes(), instance.getUsedAnalyzerTypes(),
+                    instance.getUsedBuiltInCharFilters(), instance.getUsedBuiltInTokenizers(), instance.getUsedBuiltInTokenFilters(),
+                    builtInAnalyzers);
         default:
             throw new AssertionError();
         }

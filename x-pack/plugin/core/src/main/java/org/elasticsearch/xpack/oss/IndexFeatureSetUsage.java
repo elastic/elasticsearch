@@ -24,16 +24,24 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
         return Collections.unmodifiableSet(new TreeSet<>(set));
     }
 
-    private final Set<String> usedFieldTypes, usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers;
+    private final Set<String> usedFieldTypes;
+    private final Set<String> usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers;
+    private final Set<String> usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers;
 
-    public IndexFeatureSetUsage(Set<String> usedFieldTypes, Set<String> usedCharFilters, Set<String> usedTokenizers,
-            Set<String> usedTokenFilters, Set<String> usedAnalyzers) {
+    public IndexFeatureSetUsage(Set<String> usedFieldTypes,
+            Set<String> usedCharFilters, Set<String> usedTokenizers, Set<String> usedTokenFilters, Set<String> usedAnalyzers,
+            Set<String> usedBuiltInCharFilters, Set<String> usedBuiltInTokenizers, Set<String> usedBuiltInTokenFilters,
+            Set<String> usedBuiltInAnalyzers) {
         super(XPackField.INDEX, true, true);
         this.usedFieldTypes = sort(usedFieldTypes);
         this.usedCharFilters = sort(usedCharFilters);
         this.usedTokenizers = sort(usedTokenizers);
         this.usedTokenFilters = sort(usedTokenFilters);
         this.usedAnalyzers = sort(usedAnalyzers);
+        this.usedBuiltInCharFilters = sort(usedBuiltInCharFilters);
+        this.usedBuiltInTokenizers = sort(usedBuiltInTokenizers);
+        this.usedBuiltInTokenFilters = sort(usedBuiltInTokenFilters);
+        this.usedBuiltInAnalyzers = sort(usedBuiltInAnalyzers);
     }
 
     public IndexFeatureSetUsage(StreamInput input) throws IOException {
@@ -43,6 +51,10 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
         usedTokenizers = input.readSet(StreamInput::readString);
         usedTokenFilters = input.readSet(StreamInput::readString);
         usedAnalyzers = input.readSet(StreamInput::readString);
+        usedBuiltInCharFilters = input.readSet(StreamInput::readString);
+        usedBuiltInTokenizers = input.readSet(StreamInput::readString);
+        usedBuiltInTokenFilters = input.readSet(StreamInput::readString);
+        usedBuiltInAnalyzers = input.readSet(StreamInput::readString);
     }
 
     @Override
@@ -53,6 +65,10 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeCollection(usedTokenizers, StreamOutput::writeString);
         out.writeCollection(usedTokenFilters, StreamOutput::writeString);
         out.writeCollection(usedAnalyzers, StreamOutput::writeString);
+        out.writeCollection(usedBuiltInCharFilters, StreamOutput::writeString);
+        out.writeCollection(usedBuiltInTokenizers, StreamOutput::writeString);
+        out.writeCollection(usedBuiltInTokenFilters, StreamOutput::writeString);
+        out.writeCollection(usedBuiltInAnalyzers, StreamOutput::writeString);
     }
 
     /**
@@ -90,6 +106,34 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
         return usedAnalyzers;
     }
 
+    /**
+     * Return the set of used built-in char filters in the cluster.
+     */
+    public Set<String> getUsedBuiltInCharFilters() {
+        return usedCharFilters;
+    }
+
+    /**
+     * Return the set of used built-in tokenizers in the cluster.
+     */
+    public Set<String> getUsedBuiltInTokenizers() {
+        return usedTokenizers;
+    }
+
+    /**
+     * Return the set of used built-in token filters in the cluster.
+     */
+    public Set<String> getUsedBuiltInTokenFilters() {
+        return usedTokenFilters;
+    }
+
+    /**
+     * Return the set of used built-in analyzers in the cluster.
+     */
+    public Set<String> getUsedBuiltInAnalyzers() {
+        return usedAnalyzers;
+    }
+
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
@@ -100,6 +144,11 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("tokenizer_types", usedTokenizers);
             builder.field("filter_types", usedTokenFilters);
             builder.field("analyzer_types", usedAnalyzers);
+
+            builder.field("built_in_char_filters", usedBuiltInCharFilters);
+            builder.field("built_in_tokenizers", usedBuiltInTokenizers);
+            builder.field("built_in_filters", usedBuiltInTokenFilters);
+            builder.field("built_in_analyzers", usedBuiltInAnalyzers);
         }
         builder.endObject();
 
@@ -120,12 +169,17 @@ public class IndexFeatureSetUsage extends XPackFeatureSet.Usage {
                 Objects.equals(usedCharFilters, that.usedCharFilters) &&
                 Objects.equals(usedTokenizers, that.usedTokenizers) &&
                 Objects.equals(usedTokenFilters, that.usedTokenFilters) &&
-                Objects.equals(usedAnalyzers, that.usedAnalyzers);
+                Objects.equals(usedAnalyzers, that.usedAnalyzers) &&
+                Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters) &&
+                Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers) &&
+                Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters) &&
+                Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(available, enabled, usedFieldTypes, usedCharFilters, usedTokenizers, usedTokenFilters,
-                usedAnalyzers);
+                usedAnalyzers, usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters,
+                usedBuiltInAnalyzers);
     }
 }

@@ -232,19 +232,17 @@
                 en:
                   type: standard
                   stopwords: "_english_"
-
-  - do:
-      indices.create:
-        index: test-index2
-        body:
+                cust:
+                  char_filter: [ "html_strip" ]
+                  tokenizer: "keyword"
+                  filter: [ "trim" ]
           mappings:
             properties:
-              foo:
-                type: keyword
-              bar:
-                properties:
-                  quux:
-                    type: integer
+              message:
+                type: "text"
+                analyzer: french
+                search_analyzer: spanish
+                search_quote_analyzer: german
 
   - do:
       xpack.usage: {}
@@ -252,4 +250,8 @@
   - match: { index.analysis.char_filter_types: [ "mapping" ] }
   - match: { index.analysis.tokenizer_types: [ "pattern" ] }
   - match: { index.analysis.filter_types: [ "stop" ] }
-  - match: { index.analysis.analyzer_types: [ "standard" ] }
+  - match: { index.analysis.analyzer_types: [ "custom", "standard" ] }
+  - match: { index.analysis.built_in_char_filters: [ "html_strip" ] }
+  - match: { index.analysis.built_in_tokenizers: [ "keyword" ] }
+  - match: { index.analysis.built_in_filters: [ "trim" ] }
+  - match: { index.analysis.built_in_analyzers: [ "french", "german", "spanish" ] }

@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class IndexUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -46,33 +47,65 @@ public class IndexUsageTransportAction extends XPackUsageFeatureTransportAction 
         final Set<String> usedTokenizers = new HashSet<>();
         final Set<String> usedTokenFilters = new HashSet<>();
         final Set<String> usedAnalyzers = new HashSet<>();
+        final Set<String> usedBuiltInCharFilters = new HashSet<>();
+        final Set<String> usedBuiltInTokenizers = new HashSet<>();
+        final Set<String> usedBuiltInTokenFilters = new HashSet<>();
+        final Set<String> usedBuiltInAnalyzers = new HashSet<>();
 
         for (IndexMetaData indexMetaData : state.metaData()) {
             MappingMetaData mappingMetaData = indexMetaData.mapping();
             if (mappingMetaData != null) {
-                populateFieldTypesFromObject(mappingMetaData.sourceAsMap(), usedFieldTypes);
+                visitMapping(mappingMetaData.getSourceAsMap(), fieldMapping -> {
+                    Object type = fieldMapping.get("type");
+                    if (type != null) {
+                        usedFieldTypes.add(type.toString());
+                    } else if (fieldMapping.containsKey("properties")) {
+                        usedFieldTypes.add("object");
+                    }
+
+                    for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
+                        Object analyzer = fieldMapping.get(key);
+                        if (analyzer != null) {
+                            usedBuiltInAnalyzers.add(analyzer.toString());
+                        }
+                    }
+                });
             }
 
             Settings indexSettings = indexMetaData.getSettings();
 
+            Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
+            usedBuiltInAnalyzers.removeAll(analyzerSettings.keySet());
+            for (Settings analyzerSetting : analyzerSettings.values()) {
+                usedAnalyzers.add(analyzerSetting.get("type", "custom"));
+                usedBuiltInCharFilters.addAll(analyzerSetting.getAsList("char_filter"));
+                String tokenizer = analyzerSetting.get("tokenizer");
+                if (tokenizer != null) {
+                    usedBuiltInTokenizers.add(tokenizer);
+                }
+                usedBuiltInTokenFilters.addAll(analyzerSetting.getAsList("filter"));
+            }
+
             Map<String, Settings> charFilterSettings = indexSettings.getGroups("index.analysis.char_filter");
+            usedBuiltInCharFilters.removeAll(charFilterSettings.keySet());
             aggregateAnalysisTypes(charFilterSettings.values(), usedCharFilters);
 
             Map<String, Settings> tokenizerSettings = indexSettings.getGroups("index.analysis.tokenizer");
+            usedBuiltInTokenizers.removeAll(tokenizerSettings.keySet());
             aggregateAnalysisTypes(tokenizerSettings.values(), usedTokenizers);
 
             Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
+            usedBuiltInTokenFilters.removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilters);
-
-            Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
-            aggregateAnalysisTypes(analyzerSettings.values(), usedAnalyzers);
         }
 
         listener.onResponse(new XPackUsageFeatureResponse(
-                new IndexFeatureSetUsage(usedFieldTypes, usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers)));
+                new IndexFeatureSetUsage(usedFieldTypes,
+                        usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers,
+                        usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers)));
     }
 
-    static void populateFieldTypesFromObject(Map<String, ?> mapping, Set<String> fieldTypes) {
+    static void visitMapping(Map<String, ?> mapping, Consumer<Map<String, ?>> fieldMappingConsumer) {
         Object properties = mapping.get("properties");
         if (properties != null && properties instanceof Map) {
             @SuppressWarnings("unchecked")
@@ -82,8 +115,8 @@ public class IndexUsageTransportAction extends XPackUsageFeatureTransportAction 
 
                     @SuppressWarnings("unchecked")
                     Map<String, ?> fieldMapping = (Map<String, ?>) v;
-                    populateFieldTypesFromField(fieldMapping, fieldTypes);
-                    populateFieldTypesFromObject(fieldMapping, fieldTypes);
+                    fieldMappingConsumer.accept(fieldMapping);
+                    visitMapping(fieldMapping, fieldMappingConsumer);
 
                     // Multi fields
                     Object fieldsO = fieldMapping.get("fields");
@@ -92,22 +125,14 @@ public class IndexUsageTransportAction extends XPackUsageFeatureTransportAction 
                         Map<String, ?> fields = (Map<String, ?>) fieldsO;
                         for (Object v2 : fields.values()) {
                             if (v2 instanceof Map) {
+                                @SuppressWarnings("unchecked")
                                 Map<String, ?> fieldMapping2 = (Map<String, ?>) v2;
-                                populateFieldTypesFromField(fieldMapping2, fieldTypes);
+                                fieldMappingConsumer.accept(fieldMapping2);
                             }
                         }
                     }
                 }
             }
-        }
-    }
-
-    private static void populateFieldTypesFromField(Map<String, ?> mapping, Set<String> fieldTypes) {
-        Object fieldType = mapping.get("type");
-        if (fieldType != null) {
-            fieldTypes.add(fieldType.toString());
-        } else if (mapping.containsKey("properties")) {
-            fieldTypes.add("object");
         }
     }
 

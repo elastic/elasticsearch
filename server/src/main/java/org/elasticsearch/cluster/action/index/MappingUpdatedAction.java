@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -109,7 +110,17 @@ public class MappingUpdatedAction {
     protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
         client.preparePutMapping().setConcreteIndex(index).setSource(mappingUpdate.toString(), XContentType.JSON)
             .setMasterNodeTimeout(dynamicMappingUpdateTimeout).setTimeout(TimeValue.ZERO)
-            .execute(ActionListener.map(listener, resp -> null));
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     static class AdjustableSemaphore extends Semaphore {
@@ -117,13 +128,11 @@ public class MappingUpdatedAction {
         private final Object maxPermitsMutex = new Object();
         private int maxPermits;
 
-        // sets the number of initial maximum permits
         AdjustableSemaphore(int maxPermits, boolean fair) {
             super(maxPermits, fair);
             this.maxPermits = maxPermits;
         }
 
-        // adjust the number of maximum permits
         void setMaxPermits(int permits) {
             synchronized (maxPermitsMutex) {
                 final int diff = Math.subtractExact(permits, maxPermits);

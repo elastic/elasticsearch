@@ -62,6 +62,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -326,8 +327,19 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> create index on node: {}", nodeA);
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT)
-            .getShards()[0].getStats().getStore().size();
+        createIndex(INDEX_NAME, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms").build());
+
+        int numDocs = randomIntBetween(10, 200);
+        final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex(INDEX_NAME).
+                setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+        }
+        indexRandom(randomBoolean(), docs);
 
         logger.info("--> start node B");
         // force a shard recovery from nodeA to nodeB
@@ -343,7 +355,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> start node C");
         final String nodeC = internalCluster().startNode();
 
-        // TODO: Sync retention leases
+        ReplicaShardAllocatorIT.ensureActivePeerRecoveryRetentionLeasesAdvanced(INDEX_NAME);
 
         // hold peer recovery on phase 2 after nodeB down
         CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);

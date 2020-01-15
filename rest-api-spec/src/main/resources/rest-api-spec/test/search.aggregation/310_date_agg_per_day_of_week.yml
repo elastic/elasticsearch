@@ -1,8 +1,9 @@
 
 setup:
   - skip:
-      version: " - 7.5.99" #todo this test failing on jdk8. has to be removed from 7.x
-      reason:  "Start of the week Monday was backported to 7.5"
+      version: " - 7.5.99"
+      reason:  "Start of the week Monday was backported to 7.6"
+      features: "spi_on_classpath_jdk9"
 
 
   - do:

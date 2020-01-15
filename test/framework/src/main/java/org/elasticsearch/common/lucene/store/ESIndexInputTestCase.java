@@ -109,65 +109,68 @@ public class ESIndexInputTestCase extends ESTestCase {
                     break;
                 case 5:
                     // Read clone or slice concurrently
-                    final CountDownLatch countDownLatch = new CountDownLatch(2);
-                    final PlainActionFuture<byte[]> clonedBytesFuture = new PlainActionFuture<>();
-                    final AtomicInteger cloneReadStart = new AtomicInteger();
-                    final AtomicInteger cloneReadEnd = new AtomicInteger();
-                    final int end = randomIntBetween(readPos + 1, length);
-                    executor.execute(new AbstractRunnable() {
-                        @Override
-                        public void onFailure(Exception e) {
-                            throw new AssertionError(e);
-                        }
+                    final int cloneCount = between(1, 3);
+                    final CountDownLatch countDownLatch = new CountDownLatch(1 + cloneCount);
 
-                        @Override
-                        protected void doRun() throws Exception {
-                            final IndexInput clone;
-                            cloneReadStart.set(between(0, length));
-                            cloneReadEnd.set(between(cloneReadStart.get(), length));
-                            if (randomBoolean()) {
-                                clone = indexInput.clone();
-                            } else {
-                                final int sliceEnd = between(cloneReadEnd.get(), length);
-                                clone = indexInput.slice("concurrent slice (0, " + sliceEnd + ") of " + indexInput, 0L, sliceEnd);
-                            }
-                            countDownLatch.countDown();
-                            countDownLatch.await();
-                            clone.seek(cloneReadStart.get());
-                            ActionListener.completeWith(clonedBytesFuture, () -> randomReadAndSlice(clone, cloneReadEnd.get()));
-                            if (randomBoolean()) {
-                                clone.close();
-                            }
-                        }
+                    final PlainActionFuture<byte[]> mainThreadResultFuture = new PlainActionFuture<>();
+                    final int mainThreadReadStart = readPos;
+                    final int mainThreadReadEnd = randomIntBetween(readPos + 1, length);
 
-                        @Override
-                        public void onRejection(Exception e) {
-                            // all threads are busy, and queueing can lead this test to deadlock, so we need take no action
-                            countDownLatch.countDown();
-                            clonedBytesFuture.onResponse(new byte[0]); // cloneReadStart == cloneReadEnd so no bytes are expected
-                        }
-                    });
+                    for (int i = 0; i < cloneCount; i++) {
+                        executor.execute(new AbstractRunnable() {
+                            @Override
+                            public void onFailure(Exception e) {
+                                throw new AssertionError(e);
+                            }
+
+                            @Override
+                            protected void doRun() throws Exception {
+                                final IndexInput clone;
+                                final int readStart = between(0, length);
+                                final int readEnd = between(readStart, length);
+                                if (randomBoolean()) {
+                                    clone = indexInput.clone();
+                                } else {
+                                    final int sliceEnd = between(readEnd, length);
+                                    clone = indexInput.slice("concurrent slice (0, " + sliceEnd + ") of " + indexInput, 0L, sliceEnd);
+                                }
+                                countDownLatch.countDown();
+                                countDownLatch.await();
+                                clone.seek(readStart);
+                                final byte[] cloneResult = randomReadAndSlice(clone, readEnd);
+                                if (randomBoolean()) {
+                                    clone.close();
+                                }
+
+                                // the read from the clone should agree with the read from the main input on their overlap
+                                final int maxStart = Math.max(mainThreadReadStart, readStart);
+                                final int minEnd = Math.min(mainThreadReadEnd, readEnd);
+                                if (maxStart < minEnd) {
+                                    final byte[] mainThreadResult = mainThreadResultFuture.actionGet();
+                                    final int overlapLen = minEnd - maxStart;
+                                    final byte[] fromMainThread = new byte[overlapLen];
+                                    final byte[] fromClone = new byte[overlapLen];
+                                    System.arraycopy(mainThreadResult, maxStart, fromMainThread, 0, overlapLen);
+                                    System.arraycopy(cloneResult, maxStart, fromClone, 0, overlapLen);
+                                    assertArrayEquals(fromMainThread, fromClone);
+                                }
+                            }
+
+                            @Override
+                            public void onRejection(Exception e) {
+                                // all threads are busy, and queueing can lead this test to deadlock, so we need take no action
+                                countDownLatch.countDown();
+                            }
+                        });
+                    }
+
                     try {
                         countDownLatch.countDown();
                         countDownLatch.await();
-                        temp = randomReadAndSlice(indexInput, end);
-                        assertEquals(end, indexInput.getFilePointer());
-
-                        // the read from the clone should agree with the read from the main input on their overlap
-                        final int maxStart = Math.max(readPos, cloneReadStart.get());
-                        final int minEnd = Math.min(end, cloneReadEnd.get());
-                        if (maxStart < minEnd) {
-                            final int overlapLen = minEnd - maxStart;
-                            final byte[] fromOriginal = new byte[overlapLen];
-                            final byte[] fromClone = new byte[overlapLen];
-                            System.arraycopy(temp, maxStart, fromOriginal, 0, overlapLen);
-                            System.arraycopy(clonedBytesFuture.get(), maxStart, fromClone, 0, overlapLen);
-                            assertArrayEquals(fromOriginal, fromClone);
-                        }
-
-                        System.arraycopy(temp, readPos, output, readPos, end - readPos);
-                        readPos = end;
-                    } catch (Exception e) {
+                        ActionListener.completeWith(mainThreadResultFuture, () -> randomReadAndSlice(indexInput, mainThreadReadEnd));
+                        System.arraycopy(mainThreadResultFuture.actionGet(), readPos, output, readPos, mainThreadReadEnd - readPos);
+                        readPos = mainThreadReadEnd;
+                    } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     }
                     break;

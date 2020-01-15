@@ -35,6 +35,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
+    public static final DataTypeRegistry INSTANCE = new DefaultDataTypeRegistry();
+
     private static final Collection<DataType> TYPES = Arrays.asList(
             UNSUPPORTED,
             NULL,
@@ -103,22 +105,27 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
     }
 
     @Override
+    public DataType fromEs(String typeName) {
+        return null;
+    }
+
+    @Override
     public boolean isUnsupported(DataType type) {
-        return false;
+        return type == UNSUPPORTED;
     }
 
     @Override
     public boolean canConvert(DataType from, DataType to) {
-        return false;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public Object convert(Object value, DataType type) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public DataType commonType(DataType left, DataType right) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 }

@@ -16,7 +16,7 @@ public class UnsupportedEsField extends EsField {
     private String originalType;
 
     public UnsupportedEsField(String name, String originalType) {
-        super(name, DataType.UNSUPPORTED, Collections.emptyMap(), false);
+        super(name, DataTypes.UNSUPPORTED, Collections.emptyMap(), false);
         this.originalType = originalType;
     }
 

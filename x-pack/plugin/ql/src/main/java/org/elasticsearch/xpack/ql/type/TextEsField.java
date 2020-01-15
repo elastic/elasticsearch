@@ -11,6 +11,9 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+
 /**
  * SQL-related information about an index field with text type
  */
@@ -21,7 +24,7 @@ public class TextEsField extends EsField {
     }
     
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
-        super(name, DataType.TEXT, properties, hasDocValues, isAlias);
+        super(name, TEXT, properties, hasDocValues, isAlias);
     }
 
     @Override
@@ -41,7 +44,7 @@ public class TextEsField extends EsField {
     private Tuple<EsField, String> findExact() {
         EsField field = null;
         for (EsField property : getProperties().values()) {
-            if (property.getDataType() == DataType.KEYWORD && property.getExactInfo().hasExact()) {
+            if (property.getDataType() == KEYWORD && property.getExactInfo().hasExact()) {
                 if (field != null) {
                     return new Tuple<>(null, "Multiple exact keyword candidates available for [" + getName() +
                         "]; specify which one to use");

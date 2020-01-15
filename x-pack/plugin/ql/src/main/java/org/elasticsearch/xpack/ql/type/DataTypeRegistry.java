@@ -18,6 +18,8 @@ public interface DataTypeRegistry {
     //
     Collection<DataType> dataTypes();
 
+    DataType fromEs(String typeName);
+
     DataType fromJava(Object value);
 
     boolean isUnsupported(DataType type);

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.expression.literal.Interval;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;
@@ -120,9 +121,9 @@ public class SqlDataTypes {
 
     static {
         // first add ES types
-        for (DataType type : DataType.values()) {
-            if (type.isPrimitive()) {
-                SQL_TO_ES.put(type.name(), type);
+        for (DataType type : DefaultDataTypeRegistry.INSTANCE.dataTypes()) {
+            if (type != OBJECT && type != NESTED && type != UNSUPPORTED) {
+                SQL_TO_ES.put(type.typeName().toUpperCase(Locale.ROOT), type);
             }
         }
 
@@ -133,9 +134,9 @@ public class SqlDataTypes {
         }
 
         // special ones
-        SQL_TO_ES.put("BOOL", DataType.BOOLEAN);
-        SQL_TO_ES.put("INT", DataType.INTEGER);
-        SQL_TO_ES.put("STRING", DataType.KEYWORD);
+        SQL_TO_ES.put("BOOL", BOOLEAN);
+        SQL_TO_ES.put("INT", INTEGER);
+        SQL_TO_ES.put("STRING", KEYWORD);
     }
     private SqlDataTypes() {}
 
@@ -287,6 +288,13 @@ public class SqlDataTypes {
         return null;
     }
 
+    /**
+     * Returns the precision of the field
+     * <p>
+     * Precision is the specified column size. For numeric data, this is the maximum precision. For character
+     * data, this is the length in characters. For datetime datatypes, this is the length in characters of the
+     * String representation (assuming the maximum allowed defaultPrecision of the fractional seconds component).
+     */
     public static int defaultPrecision(DataType dataType) {
         if (dataType == UNSUPPORTED) {
             return 0;

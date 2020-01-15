@@ -34,6 +34,11 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public ClusterState performAction(Index index, ClusterState currentState) {
         IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
 

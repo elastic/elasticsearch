@@ -283,13 +283,8 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThrows(client().prepareDelete("test", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
         assertThrows(client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
-
-        // This is intricate - the object was deleted but a delete transaction was with the right version. We add another one
-        // and thus the transaction is increased.
-        deleteResponse = client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1).get();
-        assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
-        assertThat(deleteResponse.getSeqNo(), equalTo(3L));
-        assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+        // the doc is deleted. Even when we hit the deleted seqNo, a conditional delete should fail.
+        assertThrows(client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1), VersionConflictEngineException.class);
     }
 
     public void testSimpleVersioningWithFlush() throws Exception {

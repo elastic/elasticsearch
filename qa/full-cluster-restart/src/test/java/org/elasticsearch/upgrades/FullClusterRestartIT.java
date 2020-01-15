@@ -684,7 +684,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
                 // We added this synced flush so we can exercise different paths of recovery code.
                 try {
-                    client().performRequest(new Request("POST", index + "/_flush/synced"));
+                    performSyncedFlush(index);
                 } catch (ResponseException ignored) {
                     // synced flush is optional here
                 }
@@ -1278,7 +1278,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 }
             }
             flush(index, true);
-            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, false);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
             // less than 10% of the committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
             int uncommittedDocs = randomIntBetween(0, (int) (committedDocs * 0.1));
             for (int i = 0; i < uncommittedDocs; i++) {
@@ -1288,7 +1288,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
-            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, true);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
     }
 
@@ -1313,7 +1313,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             flush(index, true);
             assertEmptyTranslog(index);
-            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index, true);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
     }
 }

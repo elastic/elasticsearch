@@ -122,9 +122,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
 
+                AtomicBoolean useAddress1 = new AtomicBoolean(true);
+
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections, address1.toString(), alternatingResolver(address1, address2), false)) {
+                         numOfConnections, address1.toString(), alternatingResolver(address1, address2, useAddress1), null)) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
 
@@ -139,6 +141,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertEquals(0, initialConnectionsToTransport2);
                     assertEquals(numOfConnections, connectionManager.size());
                     assertTrue(strategy.assertNoRunningConnections());
+                    useAddress1.set(false);
 
                     transport1.close();
 
@@ -199,10 +202,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
 
-                Supplier<TransportAddress> resolver = alternatingResolver(address1, address2);
+                AtomicBoolean useAddress1 = new AtomicBoolean(true);
+
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections, address1.toString(), resolver, false)) {
+                         numOfConnections, address1.toString(), alternatingResolver(address1, address2, useAddress1), null)) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
 
@@ -212,6 +216,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    useAddress1.set(false);
 
                     transport1.close();
 
@@ -250,7 +255,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections, address.toString(), addressSupplier, false)) {
+                         numOfConnections, address.toString(), addressSupplier, null)) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
@@ -352,13 +357,13 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                String serverName = "localhost:" + address1.getPort();
+                String address = "localhost:" + address1.getPort();
 
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections, serverName, true)) {
+                         numOfConnections, address, "localhost")) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -375,16 +380,12 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    private Supplier<TransportAddress> alternatingResolver(TransportAddress address1, TransportAddress address2) {
-        // On the first connection round, the connections will be routed to transport1. On the second
-        //connection round, the connections will be routed to transport2
-        AtomicBoolean transportSwitch = new AtomicBoolean(true);
+    private Supplier<TransportAddress> alternatingResolver(TransportAddress address1, TransportAddress address2,
+                                                           AtomicBoolean useAddress1) {
         return () -> {
-            if (transportSwitch.get()) {
-                transportSwitch.set(false);
+            if (useAddress1.get()) {
                 return address1;
             } else {
-                transportSwitch.set(true);
                 return address2;
             }
         };

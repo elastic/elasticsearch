@@ -42,6 +42,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701")
     public void testCanRecoverFromStoreWithoutPeerRecoveryRetentionLease() throws Exception {
         /*
          * In a full cluster restart from a version without peer-recovery retention leases, the leases on disk will not include a lease for

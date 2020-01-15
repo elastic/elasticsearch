@@ -9,15 +9,19 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,26 +38,14 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
 
     @Before
     public void createBothModels() throws Exception {
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setId("test_classification")
-            .setSource(CLASSIFICATION_CONFIG, XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get().status(), equalTo(RestStatus.CREATED));
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setId(TrainedModelDefinitionDoc.docId("test_classification", 0))
-            .setSource(buildClassificationModelDoc(), XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get().status(), equalTo(RestStatus.CREATED));
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setId("test_regression")
-            .setSource(REGRESSION_CONFIG, XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get().status(), equalTo(RestStatus.CREATED));
-        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setId(TrainedModelDefinitionDoc.docId("test_regression", 0))
-            .setSource(buildRegressionModelDoc(), XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get().status(), equalTo(RestStatus.CREATED));
+        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(buildClassificationModel())).actionGet();
+        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(buildRegressionModel())).actionGet();
+    }
+
+    @After
+    public void deleteBothModels() {
+        client().execute(DeleteTrainedModelAction.INSTANCE, new DeleteTrainedModelAction.Request("test_classification")).actionGet();
+        client().execute(DeleteTrainedModelAction.INSTANCE, new DeleteTrainedModelAction.Request("test_regression")).actionGet();
     }
 
     public void testPipelineCreationAndDeletion() throws Exception {
@@ -232,6 +224,32 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             containsString("Could not find trained model [test_classification_missing]"));
     }
 
+    public void testSimulateLangIdent() {
+        String source = "{\n" +
+            "  \"pipeline\": {\n" +
+            "    \"processors\": [\n" +
+            "      {\n" +
+            "        \"inference\": {\n" +
+            "          \"inference_config\": {\"classification\":{}},\n" +
+            "          \"model_id\": \"lang_ident_model_1\",\n" +
+            "          \"field_mappings\": {}\n" +
+            "        }\n" +
+            "      }\n" +
+            "    ]\n" +
+            "  },\n" +
+            "  \"docs\": [\n" +
+            "    {\"_source\": {\n" +
+            "      \"text\": \"this is some plain text.\"\n" +
+            "    }}]\n" +
+            "}";
+
+        SimulatePipelineResponse response = client().admin().cluster()
+            .prepareSimulatePipeline(new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON).get();
+        SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)response.getResults().get(0);
+        assertThat(baseResult.getIngestDocument().getFieldValue("ml.inference.predicted_value", String.class), equalTo("en"));
+    }
+
     private Map<String, Object> generateSourceDoc() {
         return new HashMap<>(){{
             put("col1", randomFrom("female", "male"));
@@ -365,6 +383,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for regression\",\n" +
         "  \"version\": \"8.0.0\",\n" +
+        "  \"definition\": " + REGRESSION_DEFINITION + ","+
         "  \"license_level\": \"platinum\",\n" +
         "  \"created_by\": \"ml_test\",\n" +
         "  \"estimated_heap_memory_usage_bytes\": 0," +
@@ -451,7 +470,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
-        "                \"leaf_value\": 2\n" +
+        "                \"leaf_value\": 0\n" +
         "              }\n" +
         "            ],\n" +
         "            \"target_type\": \"regression\"\n" +
@@ -481,7 +500,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
-        "                \"leaf_value\": 2\n" +
+        "                \"leaf_value\": 0\n" +
         "              }\n" +
         "            ],\n" +
         "            \"target_type\": \"regression\"\n" +
@@ -492,28 +511,27 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "  }\n" +
         "}";
 
-    private static String buildClassificationModelDoc() throws IOException {
-        String compressed =
-            InferenceToXContentCompressor.deflate(new BytesArray(CLASSIFICATION_DEFINITION.getBytes(StandardCharsets.UTF_8)));
-        return modelDocString(compressed, "test_classification");
+    private TrainedModelConfig buildClassificationModel() throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry(),
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            new BytesArray(CLASSIFICATION_CONFIG),
+            XContentType.JSON)) {
+            return TrainedModelConfig.LENIENT_PARSER.apply(parser, null).build();
+        }
     }
 
-    private static String buildRegressionModelDoc() throws IOException {
-        String compressed = InferenceToXContentCompressor.deflate(new BytesArray(REGRESSION_DEFINITION.getBytes(StandardCharsets.UTF_8)));
-        return modelDocString(compressed, "test_regression");
+    private TrainedModelConfig buildRegressionModel() throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry(),
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            new BytesArray(REGRESSION_CONFIG),
+            XContentType.JSON)) {
+            return TrainedModelConfig.LENIENT_PARSER.apply(parser, null).build();
+        }
     }
 
-    private static String modelDocString(String compressedDefinition, String modelId) {
-        return "" +
-            "{" +
-            "\"model_id\": \"" + modelId + "\",\n" +
-            "\"doc_num\": 0,\n" +
-            "\"doc_type\": \"trained_model_definition_doc\",\n" +
-            "  \"compression_version\": " + 1 + ",\n" +
-            "  \"total_definition_length\": " + compressedDefinition.length() + ",\n" +
-            "  \"definition_length\": " + compressedDefinition.length() + ",\n" +
-            "\"definition\": \"" + compressedDefinition + "\"\n" +
-            "}";
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
     private static final String CLASSIFICATION_CONFIG = "" +
@@ -521,9 +539,10 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "  \"model_id\": \"test_classification\",\n" +
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for classification\",\n" +
+        "  \"definition\": " + CLASSIFICATION_DEFINITION + ","+
         "  \"version\": \"8.0.0\",\n" +
         "  \"license_level\": \"platinum\",\n" +
-        "  \"created_by\": \"benwtrent\",\n" +
+        "  \"created_by\": \"es_test\",\n" +
         "  \"estimated_heap_memory_usage_bytes\": 0," +
         "  \"estimated_operations\": 0," +
         "  \"created_time\": 0\n" +

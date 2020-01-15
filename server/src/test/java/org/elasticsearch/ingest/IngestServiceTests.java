@@ -60,6 +60,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CustomTypeSafeMatcher;
+import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
@@ -111,10 +112,18 @@ public class IngestServiceTests extends ESTestCase {
         }
     };
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void setup(){
+        threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(threadPool.generic()).thenReturn(executorService);
+        when(threadPool.executor(anyString())).thenReturn(executorService);
+    }
     public void testIngestPlugin() {
-        ThreadPool tp = mock(ThreadPool.class);
         Client client = mock(Client.class);
-        IngestService ingestService = new IngestService(mock(ClusterService.class), tp, null, null,
+        IngestService ingestService = new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(DUMMY_PLUGIN), client);
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -122,19 +131,15 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testIngestPluginDuplicate() {
-        ThreadPool tp = mock(ThreadPool.class);
         Client client = mock(Client.class);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new IngestService(mock(ClusterService.class), tp, null, null,
+            new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN), client));
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
 
     public void testExecuteIndexPipelineDoesNotExist() {
-        ThreadPool threadPool = mock(ThreadPool.class);
         Client client = mock(Client.class);
-        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.executor(anyString())).thenReturn(executorService);
         IngestService ingestService = new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(DUMMY_PLUGIN), client);
         final IndexRequest indexRequest =
@@ -1188,10 +1193,9 @@ public class IngestServiceTests extends ESTestCase {
         };
 
         // Create ingest service:
-        ThreadPool tp = mock(ThreadPool.class);
         Client client = mock(Client.class);
         IngestService ingestService =
-            new IngestService(mock(ClusterService.class), tp, null, null, null, List.of(testPlugin), client);
+            new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(testPlugin), client);
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
         // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
@@ -1259,9 +1263,11 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-        ThreadPool threadPool = mock(ThreadPool.class);
+
         Client client = mock(Client.class);
-        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(new IngestPlugin() {

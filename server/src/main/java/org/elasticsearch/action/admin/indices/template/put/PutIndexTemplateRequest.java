@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -295,8 +296,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public PutIndexTemplateRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+    public PutIndexTemplateRequest mapping(String... source) {
+        mapping(MapperService.SINGLE_MAPPING_NAME, PutMappingRequest.simpleMapping(source));
         return this;
     }
 
@@ -323,14 +324,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("template")) {
-                // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
-                if(entry.getValue() instanceof String) {
-                    deprecationLogger.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
-                    patterns(Collections.singletonList((String) entry.getValue()));
-                }
-            } else if (name.equals("index_patterns")) {
-                if(entry.getValue() instanceof String) {
+            if (name.equals("index_patterns")) {
+                if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());

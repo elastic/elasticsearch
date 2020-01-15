@@ -1,19 +1,11 @@
 ---
 "Test url escaping with url mustache function":
   - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
       index:
         index:   <date-index-{now/d}>
         id:      1
         refresh: true
         body:    { foo: bar }
-
-  - do: {watcher.stats:{}}
-  - match: { "stats.0.watcher_state": "started" }
-  - match: { "stats.0.watch_count": 0 }
 
   # extract http host and port from master node
   - do:

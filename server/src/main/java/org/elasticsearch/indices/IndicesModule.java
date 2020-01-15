@@ -104,7 +104,7 @@ public class IndicesModule extends AbstractModule {
         return namedWritables;
     }
 
-    public List<NamedXContentRegistry.Entry> getNamedXContents() {
+    public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         return Arrays.asList(
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxAgeCondition.NAME), (p, c) ->
                 MaxAgeCondition.fromXContent(p)),

@@ -79,7 +79,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.gateway.IncrementalClusterStateWriter;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -109,9 +109,9 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
-import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -213,6 +213,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
             IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
             IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
+            IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
             MetaData.SETTING_READ_ONLY_SETTING,
             MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
@@ -251,7 +252,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_TIME_SETTING,
-            IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD,
+            PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
             NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
             NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
             NetworkModule.HTTP_TYPE_SETTING,
@@ -322,10 +323,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
             ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.INCLUDE_SERVER_NAME,
+            ProxyConnectionStrategy.SERVER_NAME,
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS,
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
+            ProxyConnectionStrategy.SERVER_NAME,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,

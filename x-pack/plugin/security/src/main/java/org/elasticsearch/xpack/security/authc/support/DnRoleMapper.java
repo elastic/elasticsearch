@@ -35,7 +35,9 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;

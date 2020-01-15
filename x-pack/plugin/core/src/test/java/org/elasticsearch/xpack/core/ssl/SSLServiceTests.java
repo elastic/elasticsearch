@@ -822,6 +822,27 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
     }
 
+    public void testDontWrapTrustManagerByDefaultWhenInFips(){
+        final Settings.Builder builder = Settings.builder();
+        builder.put("xpack.security.fips_mode.enabled", true);
+        final SSLService sslService = new SSLService(builder.build(), env);
+        final X509ExtendedTrustManager baseTrustManager = TrustAllConfig.INSTANCE.createTrustManager(env);
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
+    }
+
+    public void testWrapTrustManagerWhenInFipsAndExplicitlyConfigured(){
+        final Settings.Builder builder = Settings.builder();
+        builder.put("xpack.security.fips_mode.enabled", true);
+        builder.put("xpack.security.ssl.diagnose.trust", true);
+        final SSLService sslService = new SSLService(builder.build(), env);
+        final X509ExtendedTrustManager baseTrustManager = TrustAllConfig.INSTANCE.createTrustManager(env);
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final X509ExtendedTrustManager wrappedTrustManager = sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration);
+        assertThat(wrappedTrustManager, instanceOf(DiagnosticTrustManager.class));
+        assertThat(sslService.wrapWithDiagnostics(wrappedTrustManager, sslConfiguration), sameInstance(wrappedTrustManager));
+    }
+
     class AssertionCallback implements FutureCallback<HttpResponse> {
 
         @Override

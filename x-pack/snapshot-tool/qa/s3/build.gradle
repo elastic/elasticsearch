@@ -4,7 +4,6 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   compile project(":plugins:repository-s3")
@@ -49,6 +48,7 @@ task thirdPartyTest(type: Test) {
 }
 
 if (useS3Fixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
   testingConventions.enabled = false;
   testFixtures.useFixture(':test:fixtures:minio-fixture', "minio-fixture-for-snapshot-tool")
 

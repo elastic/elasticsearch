@@ -20,7 +20,7 @@ teardown:
   - do:
       license.get: {}
 
-  ## a license object has 11 attributes
+  ## the rest API defaults to a v4 license output with 11 attributes
   - length: { license: 11 }
 
   ## bwc for licenses format

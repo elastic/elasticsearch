@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.cli;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import joptsimple.OptionSet;
-import org.apache.lucene.util.Constants;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;

@@ -74,14 +74,13 @@ public class In extends ScalarFunction {
     @Override
     public boolean foldable() {
         return Expressions.foldable(children()) ||
-            (Expressions.foldable(list) && list().stream().allMatch(e -> e.dataType() == DataType.NULL));
+                (Expressions.foldable(list) && list().stream().allMatch(Expressions::isNull));
     }
 
     @Override
     public Boolean fold() {
         // Optimization for early return and Query folding to LocalExec
-        if (value.dataType() == DataType.NULL ||
-            list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
+        if (Expressions.isNull(value) || list.size() == 1 && Expressions.isNull(list.get(0))) {
             return null;
         }
         return InProcessor.apply(value.fold(), Foldables.valuesOf(list, value.dataType()));
